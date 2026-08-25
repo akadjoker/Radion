@@ -46,6 +46,8 @@ diff -rq vendor/zen/src     <zenpy>/libzen/src   # expect only builtin_numpy.cpp
   for Windows and POSIX platforms.
 - `builtin_os.cpp` — directory operations use C++17 `std::filesystem`, so the
   registered `os` module builds on Windows as well as Linux.
-- `builtin_net.cpp` and `builtin_http.cpp` — define the Winsock equivalent of
-  `ssize_t` when building on Windows.
+- `builtin_net.cpp` and `builtin_http.cpp` — use `int` for socket send/receive
+  result values, avoiding the platform-specific `ssize_t` typedef.
+- `invoke_string.inl` — uses libzen's portable `find_sep` helper instead of
+  the GNU-only `memmem`, matching the Kinetix2D copy.
 - `CMakeLists.txt` — uses MSVC's `/O2` instead of GCC/Clang's `-O3`.
