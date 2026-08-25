@@ -36,5 +36,9 @@ set_target_properties(zen_static PROPERTIES
     OUTPUT_NAME zen
     POSITION_INDEPENDENT_CODE ON
 )
-target_compile_options(zen_static PRIVATE $<$<CONFIG:Release>:-O3>)
+if(MSVC)
+    target_compile_options(zen_static PRIVATE $<$<CONFIG:Release>:/O2>)
+else()
+    target_compile_options(zen_static PRIVATE $<$<CONFIG:Release>:-O3>)
+endif()
 target_compile_definitions(zen_static PRIVATE $<$<CONFIG:Release>:NDEBUG>)

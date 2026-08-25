@@ -10,9 +10,8 @@
 #include "module.h"
 #include "vm.h"
 #include "memory.h"
-#include <ctime>
+#include "platform_time.h"
 #include <cmath>
-#include <unistd.h>
 
 namespace zen
 {
@@ -20,9 +19,7 @@ namespace zen
     static int nat_time_time(VM *vm, Value *args, int nargs)
     {
         (void)vm; (void)nargs;
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        args[0] = val_float((double)ts.tv_sec + (double)ts.tv_nsec * 1e-9);
+        args[0] = val_float(platform_wall_seconds());
         return 1;
     }
 
@@ -30,9 +27,7 @@ namespace zen
     static int nat_time_monotonic(VM *vm, Value *args, int nargs)
     {
         (void)vm; (void)nargs;
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        args[0] = val_float((double)ts.tv_sec + (double)ts.tv_nsec * 1e-9);
+        args[0] = val_float(platform_monotonic_seconds());
         return 1;
     }
 
@@ -47,13 +42,7 @@ namespace zen
     {
         (void)vm; (void)nargs;
         double secs = to_number(args[0]);
-        if (secs > 0.0)
-        {
-            struct timespec ts;
-            ts.tv_sec  = (time_t)secs;
-            ts.tv_nsec = (long)((secs - (double)ts.tv_sec) * 1e9);
-            nanosleep(&ts, nullptr);
-        }
+        platform_sleep_seconds(secs);
         return 0;
     }
 

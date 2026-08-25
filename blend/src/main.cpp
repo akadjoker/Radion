@@ -2,6 +2,7 @@
 
 #include "BlenderApplication.h"
 #include "BlenderTheme.h"
+#include "AssetPaths.h"
 #include "Engine.h"
 #include "EngineSettings.h"
 #include "FileSystem.h"
@@ -33,7 +34,7 @@ int main(int, char**)
 
     // Add search paths for assets (shaders, textures, models)
     FileSystem& files = FileSystem::getSingleton();
-    const std::string assetDirectory = RADION_ASSET_DIR;
+    const std::string assetDirectory = resolveAssetDirectory(RADION_ASSET_DIR);
     files.addSearchPath(assetDirectory);
     files.addSearchPath(assetDirectory + "/shaders");
     files.addSearchPath(assetDirectory + "/textures");

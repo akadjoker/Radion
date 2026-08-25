@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include "AssetPaths.h"
 #include "FileSystem.h"
 #include "Input.h"
 #include "Log.h"
@@ -165,7 +166,7 @@ int main(int argc, char** argv)
     // Engine's own sample assets keep built-in materials/shaders available;
     // project paths then take part in normal asset lookup just like they do
     // in the editor before it opens the active scene.
-    const std::filesystem::path builtInAssets = RADION_ASSET_DIR;
+    const std::filesystem::path builtInAssets = resolveAssetDirectory(RADION_ASSET_DIR);
     addSearchPathIfPresent(files, builtInAssets);
     addSearchPathIfPresent(files, builtInAssets / "shaders");
     addSearchPathIfPresent(files, builtInAssets / "textures");

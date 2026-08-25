@@ -2,6 +2,7 @@
 
 #include "EditorApplication.h"
 #include "EditorTheme.h"
+#include "AssetPaths.h"
 #include "Engine.h"
 #include "EngineSettings.h"
 #include "FileSystem.h"
@@ -36,7 +37,7 @@ int main(int, char**)
     // Same multi-folder search every demo registers - shaders/particle
     // system/lens flare all fail to load without it.
     FileSystem& files = FileSystem::getSingleton();
-    const std::string assetDirectory = RADION_ASSET_DIR;
+    const std::string assetDirectory = resolveAssetDirectory(RADION_ASSET_DIR);
     files.addSearchPath(assetDirectory);
     files.addSearchPath(assetDirectory + "/shaders");
     files.addSearchPath(assetDirectory + "/textures");

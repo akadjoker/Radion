@@ -33,6 +33,7 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 typedef int socklen_t;
+typedef int ssize_t;
 #define MSG_NOSIGNAL 0
 #define close closesocket
 static bool wsa_init_done = false;

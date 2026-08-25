@@ -17,6 +17,7 @@
 #include "module.h"
 #include "vm.h"
 #include "memory.h"
+#include "platform_time.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -1061,9 +1062,7 @@ namespace zen
     static int nat_clock(VM *vm, Value *args, int nargs)
     {
         (void)vm; (void)nargs;
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        args[0] = val_float((double)ts.tv_sec + (double)ts.tv_nsec * 1e-9);
+        args[0] = val_float(platform_monotonic_seconds());
         return 1;
     }
  

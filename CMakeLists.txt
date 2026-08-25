@@ -111,3 +111,26 @@ if(RADION_BUILD_BLENDER)
 endif()
 
 add_subdirectory(tools/lightmapbake)
+
+# A release is a self-contained application tree: the tools and editors in
+# bin/, plus the assets they browse and use as fallback content.  Keep this at
+# the top level so optional applications simply drop out with their build
+# options instead of making installation configuration-specific.
+include(GNUInstallDirs)
+
+set(RADION_INSTALL_TARGETS radion_pack radion_lightmapbake)
+if(RADION_BUILD_EDITOR)
+    list(APPEND RADION_INSTALL_TARGETS radion_editor)
+endif()
+if(RADION_BUILD_RUNNER)
+    list(APPEND RADION_INSTALL_TARGETS radion_runner)
+endif()
+if(RADION_BUILD_BLENDER)
+    list(APPEND RADION_INSTALL_TARGETS radion_blender)
+endif()
+
+install(TARGETS ${RADION_INSTALL_TARGETS}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(DIRECTORY assets DESTINATION .)
+install(FILES README.md DESTINATION .)

@@ -20,9 +20,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <sys/stat.h>
+#include <filesystem>
+
+#if defined(_WIN32)
+#include <direct.h>
+#else
 #include <unistd.h>
-#include <dirent.h>
+#endif
 
 namespace zen
 {
@@ -31,7 +35,11 @@ namespace zen
     {
         (void)nargs;
         char buf[4096];
+#if defined(_WIN32)
+        if (!_getcwd(buf, sizeof(buf)))
+#else
         if (!getcwd(buf, sizeof(buf)))
+#endif
         {
             vm->runtime_error("os.getcwd: failed");
             return -1;
@@ -48,7 +56,11 @@ namespace zen
             vm->runtime_error("os.chdir: expected string path");
             return -1;
         }
+#if defined(_WIN32)
+        if (_chdir(safe_string_chars(args[0])) != 0)
+#else
         if (chdir(safe_string_chars(args[0])) != 0)
+#endif
         {
             vm->runtime_error("os.chdir: cannot change to '%s'", safe_string_chars(args[0]));
             return -1;
@@ -64,24 +76,23 @@ namespace zen
             vm->runtime_error("os.listdir: expected string path");
             return -1;
         }
-        const char *path = as_cstring(args[0]);
-        DIR *d = opendir(path);
-        if (!d)
-        {
-            vm->runtime_error("os.listdir: cannot open '%s'", path);
-            return -1;
-        }
         GC *gc = &vm->get_gc();
         ObjArray *arr = new_array(gc);
-        struct dirent *ent;
-        while ((ent = readdir(d)) != nullptr)
+        std::error_code error;
+        const std::filesystem::path path(as_cstring(args[0]));
+        const std::filesystem::directory_iterator end;
+        for (std::filesystem::directory_iterator it(path, error); !error && it != end;
+             it.increment(error))
         {
-            if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-                continue;
-            ObjString *s = vm->make_string(ent->d_name);
+            const std::string name = it->path().filename().string();
+            ObjString *s = vm->make_string(name.c_str(), static_cast<int>(name.size()));
             array_push(gc, arr, val_obj((Obj *)s));
         }
-        closedir(d);
+        if (error)
+        {
+            vm->runtime_error("os.listdir: cannot open '%s'", as_cstring(args[0]));
+            return -1;
+        }
         args[0] = val_obj((Obj *)arr);
         return 1;
     }
@@ -94,7 +105,8 @@ namespace zen
             vm->runtime_error("os.mkdir: expected string path");
             return -1;
         }
-        if (mkdir(safe_string_chars(args[0]), 0755) != 0)
+        std::error_code error;
+        if (!std::filesystem::create_directory(safe_string_chars(args[0]), error))
         {
             vm->runtime_error("os.mkdir: cannot create '%s'", safe_string_chars(args[0]));
             return -1;
@@ -173,8 +185,8 @@ namespace zen
             vm->runtime_error("os.isdir: expected string path");
             return -1;
         }
-        struct stat st;
-        bool result = (stat(as_cstring(args[0]), &st) == 0 && S_ISDIR(st.st_mode));
+        std::error_code error;
+        bool result = std::filesystem::is_directory(as_cstring(args[0]), error);
         args[0] = val_bool(result);
         return 1;
     }
@@ -187,8 +199,8 @@ namespace zen
             vm->runtime_error("os.isfile: expected string path");
             return -1;
         }
-        struct stat st;
-        bool result = (stat(as_cstring(args[0]), &st) == 0 && S_ISREG(st.st_mode));
+        std::error_code error;
+        bool result = std::filesystem::is_regular_file(as_cstring(args[0]), error);
         args[0] = val_bool(result);
         return 1;
     }

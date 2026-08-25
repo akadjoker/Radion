@@ -14,7 +14,8 @@ which would pull in the three modules left out below).
 | License | zlib, see `LICENSE` |
 
 `include/` is byte for byte identical to upstream. `src/` is identical except
-for one file that is deliberately absent:
+for one file that is deliberately absent and the small portability patch noted
+below:
 
 - `builtin_numpy.cpp`
 
@@ -40,4 +41,11 @@ diff -rq vendor/zen/src     <zenpy>/libzen/src   # expect only builtin_numpy.cpp
 
 ## Changes carried here
 
-None. The copy is upstream as of the commit above.
+- `src/platform_time.h`, plus its use from `builtin_time.cpp` and
+  `builtin_base.cpp` — portable wall-clock, monotonic-clock and sleep helpers
+  for Windows and POSIX platforms.
+- `builtin_os.cpp` — directory operations use C++17 `std::filesystem`, so the
+  registered `os` module builds on Windows as well as Linux.
+- `builtin_net.cpp` and `builtin_http.cpp` — define the Winsock equivalent of
+  `ssize_t` when building on Windows.
+- `CMakeLists.txt` — uses MSVC's `/O2` instead of GCC/Clang's `-O3`.

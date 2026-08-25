@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing vX.Y.Z tag to build and publish. Leave empty for a normal CI build."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-24.04
+          - name: windows-x64
+            os: windows-2022
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.sha }}
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libgl1-mesa-dev
+
+      - name: Restore vcpkg and install dependencies
+        if: runner.os == 'Windows'
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: vcpkg.json
+          runVcpkgInstall: true
+
+      - name: Configure Linux
+        if: runner.os == 'Linux'
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure Windows
+        if: runner.os == 'Windows'
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DX_VCPKG_APPLOCAL_DEPS_SERIALIZED=ON
+          -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Install release tree
+        run: cmake --install build --config Release --prefix "stage/Radion-${{ matrix.name }}"
+
+      - name: Copy Windows runtime DLLs
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path build/vcpkg_installed -Filter *.dll -Recurse |
+            Copy-Item -Destination "stage/Radion-${{ matrix.name }}/bin"
+
+      - name: Create Linux archive
+        if: runner.os == 'Linux'
+        run: |
+          cd stage
+          zip -r "../Radion-${{ matrix.name }}.zip" "Radion-${{ matrix.name }}"
+
+      - name: Create Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "stage/Radion-${{ matrix.name }}" -DestinationPath "Radion-${{ matrix.name }}.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Radion-${{ matrix.name }}
+          path: Radion-${{ matrix.name }}.zip
+          if-no-files-found: error
+
+  release:
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Download release archives
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          pattern: Radion-*
+          merge-multiple: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: Radion ${{ inputs.release_tag || github.ref_name }}
+          generate_release_notes: true
+          files: release/*.zip

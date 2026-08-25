@@ -1,6 +1,7 @@
 #include "PCH.h"
 
 #include "AssetManager.h"
+#include "AssetPaths.h"
 #include "Engine.h"
 #include "FileSystem.h"
 #include "LightmapBakePass.h"
@@ -109,8 +110,9 @@ int main(int argc, char** argv)
     Log::setMode(LogMode::Verbose);
 
     FileSystem& files = FileSystem::getSingleton();
-    files.addSearchPath(RADION_ASSET_DIR);
-    files.addSearchPath(RADION_ASSET_DIR "/shaders");
+    const std::string assetDirectory = resolveAssetDirectory(RADION_ASSET_DIR);
+    files.addSearchPath(assetDirectory);
+    files.addSearchPath(assetDirectory + "/shaders");
 
     // Shaders always come from the engine's own assets; the mesh being
     // baked (and whatever it needs, e.g. Bistro's textures) usually lives
@@ -143,7 +145,7 @@ int main(int argc, char** argv)
     const std::string meshFile = root.value("mesh", "");
     const std::string output = root.value("output", "lightmap");
     const std::string outputDir =
-        root.value("outputDir", std::string(RADION_ASSET_DIR) + "/lightmaps");
+        root.value("outputDir", assetDirectory + "/lightmaps");
     {
         std::error_code error;
         std::filesystem::create_directories(outputDir, error);

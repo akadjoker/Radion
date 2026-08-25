@@ -1,5 +1,9 @@
 # Radion
 
+[![CI](https://github.com/akadjoker/Radion/actions/workflows/release.yml/badge.svg)](https://github.com/akadjoker/Radion/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/akadjoker/Radion?display_name=tag&sort=semver)](https://github.com/akadjoker/Radion/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A desktop-first 3D game engine written in C++17, built around OpenGL 4.5 core.
 
 Radion is a from-scratch engine with a component-based scene graph, a forward
@@ -168,3 +172,7 @@ The engine does not bend to any particular demo — demos adjust their settings.
 The demo `main` only orchestrates; rendering logic belongs in the engine. Debug
 panels are complete: every parameter gets a slider with a tooltip, toggles to
 isolate techniques, and render-target previews.
+
+## License
+
+Radion is licensed under the [MIT License](LICENSE).
