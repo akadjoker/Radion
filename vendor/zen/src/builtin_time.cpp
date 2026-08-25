@@ -42,7 +42,10 @@ namespace zen
     {
         (void)vm; (void)nargs;
         double secs = to_number(args[0]);
-        platform_sleep_seconds(secs);
+        if (secs > 0.0)
+        {
+            platform_sleep_seconds(secs);
+        }
         return 0;
     }
 
