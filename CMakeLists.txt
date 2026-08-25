@@ -84,6 +84,7 @@ add_subdirectory(runtime/render)
 add_subdirectory(runtime/physics)
 add_subdirectory(runtime/geometry)
 add_subdirectory(runtime/ai)
+add_subdirectory(runtime/voxel)
 
 # Vendored Zen scripting language (core VM + simple builtin modules only),
 # and the Radion-side bindings on top of it - before runtime/scene, which
