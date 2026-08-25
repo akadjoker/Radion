@@ -49,9 +49,9 @@ struct MorphTarget {
 
 // No update da animação (TimelinePanel.cpp):
 void applyAnimationFrame(MeshData& mesh, const AnimationFrame& frame) {
-    // Interpolar entre keyframes via ImAnim
+    // Interpolar entre keyframes da timeline
     for (u32 v = 0; v < mesh.positions.size(); ++v) {
-        glm::vec3 deformPos = iam_instance.get_float(...);  // animada
+        glm::vec3 deformPos = sampleKeyframe(...);          // animada
         mesh.positions[v] += deformPos;                     // aplicar offset
     }
     
