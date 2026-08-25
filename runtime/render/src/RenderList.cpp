@@ -233,6 +233,8 @@ void RenderList::sort()
     for (usize i = 0; i < CategoryCount; ++i)
     {
         std::vector<RenderPacket>& packets = mPackets[i];
+        if (packets.size() < 2)
+            continue;
 
         if (static_cast<RenderCategory>(i) == RenderCategory::Transparent)
         {

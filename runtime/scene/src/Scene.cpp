@@ -346,7 +346,7 @@ bool Scene::add(GameObject* object, GameObject* parent)
 bool Scene::remove(GameObject* object)
 {
     if (!object || object == &mRoot || !object->parent() || queued(mPendingRemove, object) ||
-        queued(mPendingDestroy, object))
+        object->mPendingDestroyQueued)
         return false;
     mPendingRemove.push_back(object);
     return true;
@@ -354,11 +354,12 @@ bool Scene::remove(GameObject* object)
 
 bool Scene::destroy(GameObject* object)
 {
-    if (!object || object == &mRoot || queued(mPendingDestroy, object))
+    if (!object || object == &mRoot || object->mPendingDestroyQueued)
         return false;
     if (!object->parent() &&
         std::find(mDetached.begin(), mDetached.end(), object) == mDetached.end())
         return false;
+    object->mPendingDestroyQueued = true;
     mPendingDestroy.push_back(object);
     return true;
 }
@@ -368,7 +369,7 @@ bool Scene::reparent(GameObject* object, GameObject* parent)
     GameObject* destination = parent ? parent : &mRoot;
     if (!object || object == &mRoot || destination == object || object->mScene != this ||
         destination->mScene != this || !object->parent() || object->isAncestorOf(destination) ||
-        queued(mPendingRemove, object) || queued(mPendingDestroy, object))
+        queued(mPendingRemove, object) || object->mPendingDestroyQueued)
         return false;
 
     if (object->parent() == destination)
@@ -498,8 +499,11 @@ void Scene::update(f32 deltaTime)
 
     for (GameObject* object : mObjects)
         if (object->disposed() && (!object->parent() || !object->parent()->disposed()) &&
-            !queued(mPendingDestroy, object))
+            !object->mPendingDestroyQueued)
+        {
+            object->mPendingDestroyQueued = true;
             mPendingDestroy.push_back(object);
+        }
 
     ParticleEffectPool::getSingleton().reclaim();
 
