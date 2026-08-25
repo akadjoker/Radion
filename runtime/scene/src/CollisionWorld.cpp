@@ -430,31 +430,31 @@ void CollisionWorld::step()
         return;
 
     const std::vector<Collider*>& colliders = mScene->colliders();
-    std::vector<AABB> bounds(colliders.size());
-    for (usize i = 0; i < colliders.size(); ++i)
+    mStepColliders.clear();
+    mStepBounds.clear();
+    mStepColliders.reserve(colliders.size());
+    mStepBounds.reserve(colliders.size());
+    for (Collider* collider : colliders)
     {
-        colliders[i]->clearContacts();
-        bounds[i] = colliders[i]->worldBounds();
+        collider->clearContacts();
+        GameObject* owner = collider->owner();
+        if (!collider->active() || !owner || !owner->isActiveInHierarchy() || owner->disposed())
+            continue;
+        mStepColliders.push_back(collider);
+        mStepBounds.push_back(collider->worldBounds());
     }
 
-    for (usize i = 0; i < colliders.size(); ++i)
+    for (usize i = 0; i < mStepColliders.size(); ++i)
     {
-        Collider* colliderA = colliders[i];
-        GameObject* ownerA = colliderA->owner();
-        if (!colliderA->active() || !ownerA || !ownerA->isActiveInHierarchy() || ownerA->disposed())
-            continue;
+        Collider* colliderA = mStepColliders[i];
 
-        for (usize j = i + 1; j < colliders.size(); ++j)
+        for (usize j = i + 1; j < mStepColliders.size(); ++j)
         {
-            Collider* colliderB = colliders[j];
-            GameObject* ownerB = colliderB->owner();
-            if (!colliderB->active() || !ownerB || !ownerB->isActiveInHierarchy() ||
-                ownerB->disposed())
-                continue;
+            Collider* colliderB = mStepColliders[j];
 
             if (findPair(colliderA->type(), colliderB->type()) < 0)
                 continue;
-            if (!bounds[i].intersects(bounds[j]))
+            if (!mStepBounds[i].intersects(mStepBounds[j]))
                 continue;
 
             collidePair(*colliderA, *colliderB);
