@@ -251,6 +251,19 @@ static int sceneCreate(zen::VM* vm, zen::Value* args, int nargs)
 
 static void sceneScriptBindingsInit(zen::VM* vm)
 {
+    // Match the script-side shape used by Kinetix2D without importing its
+    // 2D API: Radion scripts derive from ScriptComponent and receive their
+    // 3D GameObject through self.node.  Component is intentionally only the
+    // common script handle base for now; concrete Radion component handles
+    // will derive from it as they are exposed to the VM.
+    auto component = vm->def_class("Component");
+    component.constructable(false).persistent(false).end();
+
+    auto scriptComponent = vm->def_class("ScriptComponent");
+    scriptComponent.parent("Component");
+    scriptComponent.field("node");
+    scriptComponent.constructable(false).persistent(false).end();
+
     vm->def_class("Vec3")
         .field("x")
         .field("y")

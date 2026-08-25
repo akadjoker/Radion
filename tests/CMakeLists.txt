@@ -219,6 +219,9 @@ target_precompile_headers(radion_zen_behaviour_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
 )
 target_link_libraries(radion_zen_behaviour_tests PRIVATE radion_scene)
+target_compile_definitions(radion_zen_behaviour_tests PRIVATE
+    RADION_TEST_ASSET_DIR="${PROJECT_SOURCE_DIR}/assets"
+)
 add_test(NAME zen_behaviour COMMAND radion_zen_behaviour_tests)
 set_tests_properties(zen_behaviour PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 

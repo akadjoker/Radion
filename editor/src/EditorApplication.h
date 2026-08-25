@@ -23,6 +23,7 @@ class Engine;
 class Scene;
 class EditorPanel;
 class GameObject;
+class ScriptEditorPanel;
 
 class EditorApplication
 {
@@ -203,6 +204,7 @@ public:
     }
 
     void markDirty();
+    void openScriptEditor(const std::string& path);
     const glm::vec3& cursor3D() const
     {
         return mCursor3D;
@@ -434,7 +436,9 @@ private:
     std::vector<SceneDiagnostic> mLastDiagnostics;
     s32 mSelectedWaypoint = -1;
     std::vector<EditorPanel*> mPanels; // owned
+    ScriptEditorPanel* mScriptEditor = nullptr;
     bool mDockLayoutBuilt = false;
+    bool mFocusScriptEditorPending = false;
     // One-shot: forces the Scene tab active on launch even when imgui.ini
     // already has a saved layout with Game selected (a persisted "Selected"
     // tab id in [Docking][Data] wins over DockBuilderDockWindow()'s call

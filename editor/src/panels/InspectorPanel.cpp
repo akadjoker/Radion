@@ -3686,7 +3686,25 @@ void InspectorPanel::drawZenBehaviourComponent(GameObject& object, ZenBehaviour&
     ImGui::InputText("Script", mZenScriptPathBuffer, sizeof(mZenScriptPathBuffer));
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Path to a .py script, relative to the working directory or absolute. "
-                         "Load compiles it and binds this object as \"self\".");
+                         "Load compiles it and exposes this object as self.node.");
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kAssetFileDragPayload))
+        {
+            const std::string path(static_cast<const char*>(payload->Data), payload->DataSize);
+            if (lowerExtension(path) == "py")
+            {
+                std::snprintf(mZenScriptPathBuffer, sizeof(mZenScriptPathBuffer), "%s", path.c_str());
+                behaviour.loadFile(path);
+                app().markDirty();
+            }
+            else
+            {
+                app().toasts().error("Drop a .py script here");
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
 
     if (ImGui::Button("Browse..."))
     {
@@ -3740,20 +3758,16 @@ void InspectorPanel::drawZenBehaviourComponent(GameObject& object, ZenBehaviour&
         ImGui::TextWrapped("%s", behaviour.lastError().c_str());
         ImGui::PopStyleColor();
     }
-    else if (!behaviour.scriptPath().empty())
-    {
-        ImGui::TextDisabled("Loaded, running on_start()/on_update()/on_destroy() while playing.");
-    }
 
     drawZenBehaviourProperties(behaviour);
 
     ImGui::Unindent(14.0f);
 }
 
-// The values the script declares in its __init__, each one editable per
-// object. An edited value becomes an override stored on this component and
-// written into the script instance over whatever __init__ set; the rest
-// simply show the script's own default.
+// The values the script declares in its class body (or optionally in
+// __init__), each one editable per object. An edited value becomes an
+// override stored on this component and is written into the script instance
+// after its optional constructor; the rest simply show the script default.
 void InspectorPanel::drawZenBehaviourProperties(ZenBehaviour& behaviour)
 {
     const usize count = behaviour.declaredPropertyCount();

@@ -31,6 +31,7 @@
 #include "panels/MeshToolsPanel.h"
 #include "panels/ProfilerPanel.h"
 #include "panels/SettingsPanel.h"
+#include "panels/ScriptEditorPanel.h"
 #include "panels/ViewportPanel.h"
 #include "panels/VolumePanel.h"
 
@@ -313,6 +314,8 @@ void EditorApplication::buildPanels()
     mPanels.push_back(new InspectorPanel(*this));
     mPanels.push_back(new SettingsPanel(*this));
     mPanels.push_back(new AssetsPanel(*this));
+    mScriptEditor = new ScriptEditorPanel(*this);
+    mPanels.push_back(mScriptEditor);
     mPanels.push_back(new MeshToolsPanel(*this));
     mPanels.push_back(new LightmapPanel(*this));
     mPanels.push_back(new VolumePanel(*this));
@@ -336,6 +339,15 @@ void EditorApplication::buildPanels()
             // These tools remain available from Windows, but stay out of the
             // initial layout until explicitly enabled by the user.
             panel->setActive(false);
+    }
+}
+
+void EditorApplication::openScriptEditor(const std::string& path)
+{
+    if (mScriptEditor)
+    {
+        mScriptEditor->openFile(path);
+        mFocusScriptEditorPending = true;
     }
 }
 
@@ -1257,6 +1269,7 @@ void EditorApplication::drawDockspace()
             ImGui::DockBuilderDockWindow(kInspectorWindow, inspector);
             ImGui::DockBuilderDockWindow("Settings", settings);
             ImGui::DockBuilderDockWindow(kAssetsWindow, bottom);
+            ImGui::DockBuilderDockWindow("Script Editor", centerTop);
             ImGui::DockBuilderDockWindow(kConsoleWindow, bottom);
             ImGui::DockBuilderDockWindow(kAnimationWindow, bottom);
             ImGui::DockBuilderDockWindow(kDebugWindow, bottom);
@@ -1752,6 +1765,11 @@ void EditorApplication::runFrame(f32 deltaTime)
             panel->onImGui();
         ImGui::End();
         panel->setActive(open);
+    }
+    if (mFocusScriptEditorPending)
+    {
+        mFocusScriptEditorPending = false;
+        ImGui::SetWindowFocus("Script Editor");
     }
     // Last, so the toasts sit over every panel rather than under one.
     mToasts.draw();
