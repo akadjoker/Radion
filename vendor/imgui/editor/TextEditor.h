@@ -26,7 +26,7 @@ public:
 	};
 	enum class LanguageDefinitionId
 	{
-		None, BuLang
+		None, ZenScript
 	};
 	enum class SetViewAtLineMode
 	{
@@ -330,7 +330,7 @@ private:
 		std::vector<TokenRegexString> mTokenRegexStrings;
 		bool mCaseSensitive = true;
 
-		static const LanguageDefinition& BuLang();
+		static const LanguageDefinition& ZenScript();
 	};
 
 	enum class UndoOperationType { Add, Delete };

@@ -81,6 +81,8 @@ private:
 
     Scene* mScene = nullptr;
     std::vector<Pair> mPairs;
+    std::vector<Collider*> mStepColliders;
+    std::vector<AABB> mStepBounds;
     MoveConfig mMoveConfig;
 };
 

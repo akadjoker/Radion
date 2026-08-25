@@ -157,6 +157,19 @@ private:
     std::string mDeletePath; // relative to whichever root assetRelativePath() matched
     void drawDeletePopup();
 
+    // Creation belongs to the folder under the cursor, not necessarily the
+    // directory currently open in the content view: right-clicking a folder
+    // can create directly inside it without navigating away first.
+    std::filesystem::path mCreateTargetDirectory;
+    char mNewFolderName[128] = "New Folder";
+    char mNewScriptName[128] = "NewScript";
+    bool mOpenCreateFolderPopup = false;
+    bool mOpenCreateScriptPopup = false;
+    void openCreateFolderPopup(const std::filesystem::path& directory);
+    void openCreateScriptPopup(const std::filesystem::path& directory);
+    void drawCreateFolderPopup();
+    void drawCreateScriptPopup();
+
     // Right-click an image asset > Generate Normal Map.../Generate
     // Heightmap... - Pixmap::generate_normal_map()/generate_heightmap()
     // read the clicked file, the dialog only asks where the result goes.

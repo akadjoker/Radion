@@ -3,12 +3,6 @@ project(radion_blender)
 
 add_subdirectory(minirender)
 
-# ImAnim (animation widgets)
-set(IMANIM_SOURCES
-    vendor/ImAnim/im_anim.cpp
-    vendor/ImAnim/im_anim.h
-)
-
 # Source files
 set(BLENDER_SOURCES
     src/main.cpp
@@ -41,9 +35,6 @@ set(BLENDER_SOURCES
     src/panels/MaterialsPanel.cpp
     src/panels/MaterialsPanel.h
 
-    # ImAnim
-    ${IMANIM_SOURCES}
-
     ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets/ImGuiFileDialog.cpp
     ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets/ImGuizmo.cpp
     ${CMAKE_SOURCE_DIR}/vendor/imgui/imgui_stdlib.cpp
@@ -63,7 +54,6 @@ target_compile_definitions(radion_blender PRIVATE
 # Include directories
 target_include_directories(radion_blender PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/vendor/ImAnim
     ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets
 )
 

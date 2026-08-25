@@ -45,9 +45,9 @@ public:
     bool hasError() const;
     const std::string& lastError() const;
 
-    // What the loaded script declares in its __init__, scanned from the
-    // source by ScriptCache and shared by every component running it. Empty
-    // until something loads successfully.
+    // What the loaded script declares in its class body (or optionally in
+    // __init__), collected by ScriptCache and shared by every component
+    // running it. Empty until something loads successfully.
     usize declaredPropertyCount() const;
     const ScriptProperty* declaredPropertyAt(usize index) const;
     const ScriptProperty* declaredProperty(const std::string& name) const;

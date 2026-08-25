@@ -31,6 +31,7 @@
 #include "panels/MeshToolsPanel.h"
 #include "panels/ProfilerPanel.h"
 #include "panels/SettingsPanel.h"
+#include "panels/ScriptEditorPanel.h"
 #include "panels/ViewportPanel.h"
 #include "panels/VolumePanel.h"
 
@@ -40,8 +41,6 @@
 #include <imgui.h>
 #include <imgui_internal.h> // DockBuilder* - building the first-run default layout
 #include <nlohmann/json.hpp>
-#include <chrono>
-#include <thread>
 #include <unordered_map>
 
 #ifndef _WIN32
@@ -315,6 +314,8 @@ void EditorApplication::buildPanels()
     mPanels.push_back(new InspectorPanel(*this));
     mPanels.push_back(new SettingsPanel(*this));
     mPanels.push_back(new AssetsPanel(*this));
+    mScriptEditor = new ScriptEditorPanel(*this);
+    mPanels.push_back(mScriptEditor);
     mPanels.push_back(new MeshToolsPanel(*this));
     mPanels.push_back(new LightmapPanel(*this));
     mPanels.push_back(new VolumePanel(*this));
@@ -341,8 +342,20 @@ void EditorApplication::buildPanels()
     }
 }
 
+void EditorApplication::openScriptEditor(const std::string& path)
+{
+    if (mScriptEditor)
+    {
+        mScriptEditor->openFile(path);
+        mFocusScriptEditorPending = true;
+    }
+}
+
 void EditorApplication::buildDefaultScene()
 {
+    // A fresh scene starts at the world origin, regardless of the cursor
+    // position persisted from the scene that was edited previously.
+    mCursor3D = glm::vec3(0.0f);
 
     GameObject* cameraObject = scene().createGameObject("Camera");
     Camera* camera = cameraObject->addComponent<Camera>();
@@ -1256,6 +1269,7 @@ void EditorApplication::drawDockspace()
             ImGui::DockBuilderDockWindow(kInspectorWindow, inspector);
             ImGui::DockBuilderDockWindow("Settings", settings);
             ImGui::DockBuilderDockWindow(kAssetsWindow, bottom);
+            ImGui::DockBuilderDockWindow("Script Editor", centerTop);
             ImGui::DockBuilderDockWindow(kConsoleWindow, bottom);
             ImGui::DockBuilderDockWindow(kAnimationWindow, bottom);
             ImGui::DockBuilderDockWindow(kDebugWindow, bottom);
@@ -1454,15 +1468,25 @@ void EditorApplication::drawMainMenuBar()
         ImGui::EndMenu();
     }
 
-    const f32 buttonsWidth =
-        ImGui::CalcTextSize(ICON_MDI_PLAY).x + ImGui::CalcTextSize(ICON_MDI_STOP).x +
-        ImGui::GetStyle().ItemSpacing.x * 3.0f + ImGui::GetStyle().FramePadding.x * 4.0f;
+    const f32 buttonsWidth = ImGui::CalcTextSize(ICON_MDI_PLAY).x +
+                             ImGui::CalcTextSize(ICON_MDI_LAUNCH).x +
+                             ImGui::CalcTextSize(ICON_MDI_STOP).x +
+                             ImGui::GetStyle().ItemSpacing.x * 4.0f +
+                             ImGui::GetStyle().FramePadding.x * 6.0f;
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - buttonsWidth) * 0.5f);
     ImGui::BeginDisabled(mPlaying);
     if (ImGui::Button(ICON_MDI_PLAY))
         play();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Play");
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    const bool hasRunTarget = !mProjectManifest.empty() || !mScenePath.empty();
+    ImGui::BeginDisabled(!hasRunTarget || runnerRunning());
+    if (ImGui::Button(ICON_MDI_LAUNCH))
+        launchRunner();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Run in a standalone game window");
     ImGui::EndDisabled();
     ImGui::SameLine();
     ImGui::BeginDisabled(!mPlaying);
@@ -1742,6 +1766,11 @@ void EditorApplication::runFrame(f32 deltaTime)
         ImGui::End();
         panel->setActive(open);
     }
+    if (mFocusScriptEditorPending)
+    {
+        mFocusScriptEditorPending = false;
+        ImGui::SetWindowFocus("Script Editor");
+    }
     // Last, so the toasts sit over every panel rather than under one.
     mToasts.draw();
     SceneRenderSettings renderSettings = sceneRenderSettings();
@@ -1842,7 +1871,6 @@ void EditorApplication::launchRunner()
     }
     mRunnerPid = child;
     Log::info("Editor: runner started on '%s'", target.c_str());
-    mEngine.getWindow().minimize();
 #endif
 }
 
@@ -1867,7 +1895,6 @@ void EditorApplication::updateRunner()
         Log::warning("Editor: runner exited with status %d", WEXITSTATUS(status));
     else
         Log::info("Editor: runner finished");
-    mEngine.getWindow().restore();
 #endif
 }
 
@@ -1889,10 +1916,6 @@ void EditorApplication::run()
             mEngine.render(scene());
         mEngine.flip();
         updateRunner();
-        // While the runner owns the screen, the minimized editor idles at a
-        // crawl instead of racing the game for the GPU.
-        if (runnerRunning() && mEngine.getWindow().isMinimized())
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         // Let the first editor frame reach the window before loading the
         // persisted project/scene. Previously this happened in the
         // constructor, so the user saw a black window until all scene work

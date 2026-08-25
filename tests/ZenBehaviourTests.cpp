@@ -69,6 +69,42 @@ void testScriptRotatesObjectOnPlay()
     CHECK(object->rotation() != startRotation);
 }
 
+// The shipped 3D sample uses the current script contract: it inherits from
+// ScriptComponent, has no __init__, and receives self.node before on_start.
+// Loading the real file guards both the VM-facing base class and the example
+// users copy into their projects.
+void testMoveScriptUsesScriptComponentContract()
+{
+    const std::filesystem::path path =
+        std::filesystem::path(RADION_TEST_ASSET_DIR) / "scripts" / "move.py";
+
+    Scene scene;
+    GameObject* object = scene.createGameObject("MoveRotate");
+    CHECK(object != nullptr);
+    if (!object)
+        return;
+
+    object->setPosition(glm::vec3(4.0f, 2.0f, -1.0f));
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+    CHECK(behaviour != nullptr);
+    if (!behaviour)
+        return;
+
+    CHECK(behaviour->loadFile(path.string()));
+
+    const glm::quat startRotation = object->rotation();
+    scene.setRunningInEditor(false);
+    scene.update(0.5f);
+
+    const glm::vec3 position = object->position();
+    const f32 dx = position.x - 4.0f;
+    const f32 dz = position.z + 1.0f;
+    CHECK(!behaviour->hasError());
+    CHECK(std::abs(position.y - 2.0f) < 0.001f);
+    CHECK(std::abs(dx * dx + dz * dz - 9.0f) < 0.001f);
+    CHECK(object->rotation() != startRotation);
+}
+
 // Same script, but the scene never leaves editor mode: on_update() must
 // never reach the script, so the object never moves.
 void testScriptDoesNotRunInEditorMode()
@@ -859,6 +895,7 @@ void testCallAndGlobalRoundTrip()
 int main()
 {
     testScriptRotatesObjectOnPlay();
+    testMoveScriptUsesScriptComponentContract();
     testScriptDoesNotRunInEditorMode();
     testClassWithOnlyOneHookLoadsFine();
     testScriptWithNoBehaviourClassFailsToLoad();

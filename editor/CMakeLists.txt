@@ -1,4 +1,5 @@
 add_executable(radion_editor
+    ${CMAKE_SOURCE_DIR}/vendor/imgui/editor/TextEditor.cpp
     src/main.cpp
     src/EditorApplication.cpp
     src/EditorSelection.cpp
@@ -15,6 +16,7 @@ add_executable(radion_editor
     src/panels/AnimationPanel.cpp
     src/panels/GamePanel.cpp
     src/panels/AssetsPanel.cpp
+    src/panels/ScriptEditorPanel.cpp
     src/panels/LightmapPanel.cpp
     src/panels/MeshToolsPanel.cpp
     src/panels/VolumePanel.cpp
@@ -31,6 +33,7 @@ target_compile_definitions(radion_editor PRIVATE
 target_include_directories(radion_editor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/vendor/icons
+    ${CMAKE_SOURCE_DIR}/vendor/imgui/editor
     ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets
 )
 

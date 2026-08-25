@@ -8,8 +8,8 @@ which would pull in the three modules left out below).
 | | |
 |---|---|
 | Upstream repo | `https://github.com/akadjoker/zenpy` — directory `libzen/` |
-| Commit | `1ef74fd` (`fix(vm): run() takes its own fiber when nested`), branch `physics-box2d` |
-| Date | 2026-08-24 |
+| Commit | `2a7e9f8` (`feat: add runtime generic call syntax`), branch `main` |
+| Date | 2026-08-25 |
 | Mirror | `https://github.com/akadjoker/zenpy_lib` — same files, standalone repo |
 | License | zlib, see `LICENSE` |
 

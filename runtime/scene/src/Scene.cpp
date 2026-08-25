@@ -346,7 +346,7 @@ bool Scene::add(GameObject* object, GameObject* parent)
 bool Scene::remove(GameObject* object)
 {
     if (!object || object == &mRoot || !object->parent() || queued(mPendingRemove, object) ||
-        queued(mPendingDestroy, object))
+        object->mPendingDestroyQueued)
         return false;
     mPendingRemove.push_back(object);
     return true;
@@ -354,11 +354,12 @@ bool Scene::remove(GameObject* object)
 
 bool Scene::destroy(GameObject* object)
 {
-    if (!object || object == &mRoot || queued(mPendingDestroy, object))
+    if (!object || object == &mRoot || object->mPendingDestroyQueued)
         return false;
     if (!object->parent() &&
         std::find(mDetached.begin(), mDetached.end(), object) == mDetached.end())
         return false;
+    object->mPendingDestroyQueued = true;
     mPendingDestroy.push_back(object);
     return true;
 }
@@ -368,7 +369,7 @@ bool Scene::reparent(GameObject* object, GameObject* parent)
     GameObject* destination = parent ? parent : &mRoot;
     if (!object || object == &mRoot || destination == object || object->mScene != this ||
         destination->mScene != this || !object->parent() || object->isAncestorOf(destination) ||
-        queued(mPendingRemove, object) || queued(mPendingDestroy, object))
+        queued(mPendingRemove, object) || object->mPendingDestroyQueued)
         return false;
 
     if (object->parent() == destination)
@@ -460,46 +461,67 @@ void Scene::update(f32 deltaTime)
     RADION_PROFILE_SCOPE("Scene update");
     mDeltaTime = std::isfinite(deltaTime) && deltaTime >= 0 ? deltaTime : 0;
     flushChanges();
-    for (GameObject* object : mObjects)
     {
-        if (!object->disposed())
+        RADION_PROFILE_SCOPE("Previous transforms");
+        for (GameObject* object : mObjects)
         {
-            object->mPreviousGlobalTransform = object->globalTransform();
-            object->mPreviousGlobalTransformValid = true;
+            if (!object->disposed())
+            {
+                object->mPreviousGlobalTransform = object->globalTransform();
+                object->mPreviousGlobalTransformValid = true;
+            }
         }
     }
     // Capture the count: a component attached from on_start/on_update joins
     // the list immediately, but must not run until the next frame. Removal
     // writes a tombstone, so callbacks can safely remove themselves or one
     // another without invalidating this iteration.
-    const usize updateCount = mUpdateComponents.size();
-    for (usize i = 0; i < updateCount; ++i)
     {
-        Component* component = mUpdateComponents[i];
-        GameObject* object = component ? component->owner() : nullptr;
-        if (object && object->isActiveInHierarchy() && !object->disposed())
-            object->updateComponent(component, mDeltaTime);
+        RADION_PROFILE_SCOPE("Component update");
+        const usize updateCount = mUpdateComponents.size();
+        for (usize i = 0; i < updateCount; ++i)
+        {
+            Component* component = mUpdateComponents[i];
+            GameObject* object = component ? component->owner() : nullptr;
+            if (object && object->isActiveInHierarchy() && !object->disposed())
+                object->updateComponent(component, mDeltaTime);
+        }
     }
-    for (Animator* animator : mAnimators)
-        if (animator->active() && animator->owner()->isActiveInHierarchy())
-            animator->update(mDeltaTime);
-    for (BoneAttachment* attachment : mBoneAttachments)
-        if (attachment->active() && attachment->owner()->isActiveInHierarchy())
-            attachment->update();
-    mCollisionWorld.step();
-    const usize lateUpdateCount = mLateUpdateComponents.size();
-    for (usize i = 0; i < lateUpdateCount; ++i)
     {
-        Component* component = mLateUpdateComponents[i];
-        GameObject* object = component ? component->owner() : nullptr;
-        if (object && object->isActiveInHierarchy() && !object->disposed())
-            object->lateUpdateComponent(component, mDeltaTime);
+        RADION_PROFILE_SCOPE("Animation update");
+        for (Animator* animator : mAnimators)
+            if (animator->active() && animator->owner()->isActiveInHierarchy())
+                animator->update(mDeltaTime);
+        for (BoneAttachment* attachment : mBoneAttachments)
+            if (attachment->active() && attachment->owner()->isActiveInHierarchy())
+                attachment->update();
+    }
+    {
+        RADION_PROFILE_SCOPE("Collision contacts");
+        mCollisionWorld.step();
+    }
+    {
+        RADION_PROFILE_SCOPE("Late component update");
+        const usize lateUpdateCount = mLateUpdateComponents.size();
+        for (usize i = 0; i < lateUpdateCount; ++i)
+        {
+            Component* component = mLateUpdateComponents[i];
+            GameObject* object = component ? component->owner() : nullptr;
+            if (object && object->isActiveInHierarchy() && !object->disposed())
+                object->lateUpdateComponent(component, mDeltaTime);
+        }
     }
 
-    for (GameObject* object : mObjects)
-        if (object->disposed() && (!object->parent() || !object->parent()->disposed()) &&
-            !queued(mPendingDestroy, object))
-            mPendingDestroy.push_back(object);
+    {
+        RADION_PROFILE_SCOPE("Disposed objects");
+        for (GameObject* object : mObjects)
+            if (object->disposed() && (!object->parent() || !object->parent()->disposed()) &&
+                !object->mPendingDestroyQueued)
+            {
+                object->mPendingDestroyQueued = true;
+                mPendingDestroy.push_back(object);
+            }
+    }
 
     ParticleEffectPool::getSingleton().reclaim();
 

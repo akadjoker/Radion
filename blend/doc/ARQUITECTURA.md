@@ -6,7 +6,7 @@
 Radion Blender = Mini-editor de animações + meshes + viewport otimizado
 ├── Frontend (ImGui Panels)
 │   ├── ViewportPanel      → Renderização 3D (1/3/4 vistas)
-│   ├── TimelinePanel      → Keyframes + playback (ImAnim powered)
+│   ├── TimelinePanel      → Keyframes + playback
 │   ├── MeshEditPanel      → Vertex/face tools (extrude, scale, etc)
 │   ├── HierarchyPanel     → Estrutura de meshes/bones
 │   ├── PropertiesPanel    → Materials + export
@@ -47,11 +47,11 @@ Radion Blender = Mini-editor de animações + meshes + viewport otimizado
 2. Select verts no viewport
 3. TimelinePanel ("Insert Keyframe" / tecla "I")
 4. BlenderApplication.insertKeyframe()
-   └─ Registra offset dos verts selecionados em ImAnim clip
+   └─ Regista offsets dos vértices selecionados no clip atual
 5. Mover para frame 24
 6. Deformar verts (extrude, scale, etc)
 7. Insert keyframe novamente
-   └─ ImAnim agora tem 2 keyframes, interpola entre eles
+   └─ O clip passa a ter 2 keyframes, interpolados entre si
 8. TimelinePanel (Play)
    └─ iam_clip_update() → query valores animados cada frame
    └─ applyDeformation() → posições verts interpoladas
@@ -81,7 +81,7 @@ Radion Blender = Mini-editor de animações + meshes + viewport otimizado
 **Responsabilidades:**
 - Gerenciar painéis
 - Manter MeshData em CPU
-- Controlar animação (ImAnim clips + instances)
+- Controlar animação (clips e instâncias)
 - Persistência (undo/redo, settings)
 - Coordenar entre painéis (BlenderSelection, deformation, etc)
 
@@ -122,9 +122,9 @@ bool isVertexSelected(u32 index) const;
 const std::vector<u32>& selectedVertices() const;
 ```
 
-### AnimationSystem (ImAnim Wrapper)
+### AnimationSystem
 
-Abstrai ImAnim por trás de uma API Blender-style:
+Fornece uma API de animação Blender-style:
 
 ```cpp
 struct AnimationClip {
@@ -189,7 +189,6 @@ Shader:
 
 - **PLANO_BLENDER.md** — design inicial, painéis, features, regras
 - **MINI_RENDERER.md** — spec do renderer (PBR, lighting, morph targets, performance)
-- **IMANIM_INTEGRATION.md** — como integrar ImAnim, channel mapping, playback
 - **ANIMATION_SYSTEM.md** — arquitetura da animação (clips, instances, deformation)
 - **ARQUITECTURA.md** — este documento
 
@@ -217,7 +216,6 @@ Shader:
 
 - [ ] TimelinePanel com scrubber
 - [ ] Insert/delete keyframes (I/Delete)
-- [ ] ImAnim integration
 - [ ] Playback suave (interpolação)
 - [ ] Play/pause/loop toggle
 
@@ -242,7 +240,7 @@ Shader:
 
 - **Engine:** Radion (renderização, window, ImGui integration)
 - **UI Framework:** ImGui (docking, panels, widgets)
-- **Animation:** ImAnim (keyframes, tweens, easing)
+- **Animation:** sistema de keyframes próprio
 - **Math:** GLM (vec3, mat4, quat)
 - **Serialization:** nlohmann::json (save/load)
 - **Profiling:** Engine's built-in profiler (frame time, GPU metrics)
@@ -275,7 +273,7 @@ Seguir CLAUDE.md do Radion:
 2. **Conectar ViewportPanel** ao renderer
 3. **Add picking** (raycasting para seleção de verts)
 4. **Implement edit tools** (extrude, scale, rotate)
-5. **Integrate ImAnim** (clips, keyframes, playback)
+5. **Implementar playback de keyframes**
 6. **Timeline UI** (scrubber, keyframe display, insertion)
 7. **Save/load scenes** (persistence)
 8. **Performance tuning** (profiling, optimization)

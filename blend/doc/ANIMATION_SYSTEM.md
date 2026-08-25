@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O sistema de animação permite criar, editar e playback de keyframe animations de meshes. Usa o **ImAnim** para timeline e interpolação, e aplica deformação via morph targets e skinning.
+O sistema de animação permite criar, editar e playback de keyframe animations de meshes. A timeline e interpolação serão implementadas no próprio Blender, aplicando deformação via morph targets e skinning.
 
 ## Componentes
 
@@ -10,7 +10,7 @@ O sistema de animação permite criar, editar e playback de keyframe animations 
 
 ```cpp
 struct AnimationClip {
-    ImGuiID clipId;                      // ID do clip ImAnim
+    ImGuiID clipId;                      // ID do clip
     std::string name;                    // "Walk", "Jump", etc
     float duration = 2.0f;               // segundos
     u32 fps = 24;
@@ -37,7 +37,7 @@ struct Keyframe {
 
 ```cpp
 struct AnimationInstance {
-    ImGuiID instanceId;                  // ID da instância ImAnim
+    ImGuiID instanceId;                  // ID da instância
     AnimationClip* clip;
     float playbackSpeed = 1.0f;
     bool playing = false;
@@ -143,7 +143,7 @@ if (ImGui::Button("Play")) {
 
 ```cpp
 void BlenderApplication::play() {
-    // Compilar clip ImAnim a partir de mCurrentClip
+    // Compilar o clip a partir de mCurrentClip
     iam_clip clip = iam_clip::begin(mCurrentClipId);
 
     for (auto& [channel, keyframes] : mCurrentClip.keyframes) {
@@ -302,7 +302,6 @@ Ver `MINI_RENDERER.md` para detalhes.
 
 - [ ] Clip data structure & BlenderApplication integration
 - [ ] TimelinePanel com inserção keyframes
-- [ ] ImAnim integration (iam_clip, iam_instance)
 - [ ] Playback básico (play/pause/seek)
 - [ ] Display keyframes no timeline
 - [ ] Deformation application (morph offsets)

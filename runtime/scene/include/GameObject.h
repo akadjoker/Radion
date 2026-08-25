@@ -261,6 +261,7 @@ private:
     mutable bool mGlobalDirty = false;
     bool mPreviousGlobalTransformValid = false;
     bool mDynamicBoundsQueued = false;
+    bool mPendingDestroyQueued = false;
 };
 
 } // namespace Radion
