@@ -76,18 +76,6 @@ MeshData& meshFor(VoxelMeshData& result, BlockRenderType type)
     }
 }
 
-// MeshData::colors stores one packed 32-bit value per vertex, red in the low
-// byte - the same layout Batch uses and the one the UByte4N vertex attribute
-// reads back as RGBA.
-u32 packFaceColor(const glm::vec4& color)
-{
-    const u32 r = static_cast<u32>(std::clamp(color.r, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const u32 g = static_cast<u32>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const u32 b = static_cast<u32>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f + 0.5f);
-    const u32 a = static_cast<u32>(std::clamp(color.a, 0.0f, 1.0f) * 255.0f + 0.5f);
-    return r | (g << 8) | (b << 16) | (a << 24);
-}
-
 void appendFace(MeshData& mesh, const VoxelCoord& local, const FaceInfo& face,
                 const BlockFaceMaterial& material, VoxelMesher::Settings settings)
 {
@@ -101,14 +89,12 @@ void appendFace(MeshData& mesh, const VoxelCoord& local, const FaceInfo& face,
     const f32 u1 = u0 + tileWidth;
     const f32 v1 = v0 + tileHeight;
     const glm::vec2 uvs[] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
-    const u32 color = packFaceColor(material.color);
 
     for (u32 i = 0; i < 4; ++i)
     {
         mesh.positions.push_back(origin + face.corners[i]);
         mesh.normals.push_back(face.normal);
         mesh.uvs.push_back(uvs[i]);
-        mesh.colors.push_back(color);
         mesh.bounds.expand(mesh.positions.back());
     }
     mesh.indices.insert(mesh.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});

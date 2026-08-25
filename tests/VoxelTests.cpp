@@ -88,7 +88,6 @@ void testMeshing()
     const VoxelMeshData oneBlock =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
     CHECK(oneBlock.opaque.positions.size() == 24);
-    CHECK(oneBlock.opaque.colors.size() == 24);
     CHECK(oneBlock.opaque.indices.size() == 36);
     CHECK(oneBlock.opaque.triangleCount() == 12);
 
@@ -117,6 +116,37 @@ void testMeshing()
         VoxelMesher::buildChunk(transparentWorld, *transparentWorld.findChunk({0, 0, 0}), registry);
     CHECK(waterMesh.opaque.indices.empty());
     CHECK(waterMesh.transparent.indices.size() == 60);
+}
+
+void testAtlasUvs()
+{
+    BlockRegistry registry;
+    BlockDefinition block;
+    block.name = "tile";
+    for (BlockFaceMaterial& face : block.faces)
+    {
+        face.atlasX = 1;
+        face.atlasY = 1;
+    }
+    const BlockId id = registry.registerBlock(block);
+
+    VoxelWorld world;
+    world.setBlock({0, 0, 0}, id);
+
+    VoxelMesher::Settings settings;
+    settings.atlasColumns = 4;
+    settings.atlasRows = 2;
+
+    const VoxelMeshData mesh =
+        VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry, settings);
+
+    // Tile (1,1) in a 4x2 atlas spans u in [0.25, 0.5] and v in [0.5, 1].
+    CHECK(mesh.opaque.uvs.size() == 24);
+    for (const glm::vec2& uv : mesh.opaque.uvs)
+    {
+        CHECK(uv.x >= 0.25f && uv.x <= 0.5f);
+        CHECK(uv.y >= 0.5f && uv.y <= 1.0f);
+    }
 }
 
 BlockRegistry makeTerrainRegistry()
@@ -185,6 +215,7 @@ int main()
     testWorldCoordinates();
     testChunkAndBoundaries();
     testMeshing();
+    testAtlasUvs();
     testTerrainGeneration();
     return gFailures == 0 ? 0 : 1;
 }
