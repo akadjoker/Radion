@@ -1,0 +1,10 @@
+class RunnerSpin:
+    speed = 32.0
+
+    def __init__(self):
+        # `node` exists before __init__: it is the GameObject this behaviour
+        # belongs to. `owner` remains an equivalent compatibility alias.
+        self.node.yaw(12.0)
+
+    def on_update(self, dt):
+        self.node.yaw(self.speed * dt)

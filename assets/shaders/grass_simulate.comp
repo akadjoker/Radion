@@ -1,0 +1,112 @@
+#version 450 core
+
+ 
+
+layout(local_size_x = 64) in;
+
+struct Clump
+{
+    vec3 position;   float scale;
+    vec3 normal;     float rotation;
+    float rect;      float _p0, _p1, _p2;
+};
+
+// Estado por tufo. A ponta em mundo, agora e no frame anterior -- e' tudo o
+// que o Verlet precisa: a velocidade esta implicita na diferenca.
+struct Sim
+{
+    vec4 currentTail;
+    vec4 prevTail;
+};
+
+layout(std430, binding = 4) readonly buffer ClumpBuffer { Clump clumps[]; };
+layout(std430, binding = 8) buffer SimBuffer            { Sim sims[]; };
+
+#include "grass_uniforms.glsl"
+
+
+// Influenciadores: esferas que empurram a erva para fora. E' a versao
+// simplificada dos ENTITY_TYPE_FORCEFIELD_POINT dele.
+#define MAX_INFLU 8
+
+void main()
+{
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= uint(uClumpCount)) return;
+
+    Clump cl = clumps[id];
+    vec3 up = normalize(cl.normal);
+    vec3 base = cl.position;
+
+    // Comprimento da haste: a ponta anda sempre a esta distancia da base.
+    float comprimento = max(0.001, uAltura * cl.scale);
+    vec3 repouso = base + up * comprimento;
+
+    vec3 atual = sims[id].currentTail.xyz;
+    vec3 ant   = sims[id].prevTail.xyz;
+
+    // Primeiro frame (ou reset): sem isto o estado comeca a zero e todas as
+    // pontas sao atiradas da origem do mundo num arranque violento.
+    if (uReset == 1 || dot(atual, atual) < 1e-12)
+    {
+        atual = repouso;
+        ant = repouso;
+    }
+
+    // ---- Verlet ----
+    // A velocidade nao e' guardada: esta implicita em (atual - anterior).
+    vec3 inercia = (atual - ant) * (1.0 - uDrag);
+
+    // Rigidez: puxa a ponta de volta a' pose de repouso.
+    vec3 forca = (repouso - atual) * uStiffness;
+
+    // Vento. A fase depende da POSICAO, portanto tufos em sitios diferentes
+    // oscilam desfasados e o relvado ondula em vez de abanar em bloco -- e' o
+    // mesmo detalhe do sample_wind dele.
+    vec3 dirVento = normalize(vec3(0.82, 0.0, 0.57));
+    float onda = sin(uTime * 1.6 + base.x * 0.16 + base.z * 0.11)
+               + 0.5 * sin(uTime * 2.7 + base.x * 0.29);
+    forca += dirVento * (onda * uVento);
+
+    vec3 proximo = atual + inercia + uDt * forca;
+
+    // ---- Influenciadores ----
+    // Empurram a ponta para fora do centro, com queda linear ate' ao raio.
+    // Mesma forma do FORCEFIELD_POINT dele.
+    for (int i = 0; i < uInfluCount && i < MAX_INFLU; ++i)
+    {
+        vec3 d = proximo - uInflu[i].xyz;
+        float dist = length(d);
+        float raio = uInflu[i].w;
+        if (dist < raio && dist > 1e-4)
+        {
+            vec3 dir = d / dist;
+            proximo += dir * (uInfluForca[i] * uDt * (1.0 - dist / raio));
+        }
+    }
+
+    // ---- A restricao ----
+    // Depois de tudo, a ponta e' recolocada a' distancia exacta da base. E' a
+    // linha que faz a haste ser rigida por construcao, sem resolver nada
+    // iterativamente. Tem de ser SEMPRE a ultima -- se um influenciador
+    // corresse depois disto, a erva esticava.
+    vec3 paraPonta = proximo - base;
+    float len = length(paraPonta);
+    if (len > 1e-5)
+        proximo = base + paraPonta * (comprimento / len);
+    else
+        proximo = repouso;
+
+    // A erva nao atravessa a superficie onde nasceu.
+    float abaixo = dot(proximo - base, up);
+    if (abaixo < 0.0)
+    {
+        proximo -= up * abaixo;
+        vec3 p2 = proximo - base;
+        float l2 = length(p2);
+        if (l2 > 1e-5) proximo = base + p2 * (comprimento / l2);
+    }
+
+    sims[id].prevTail = vec4(atual, 0.0);
+    sims[id].currentTail = vec4(proximo, 0.0);
+}

@@ -1,0 +1,11 @@
+{
+  "format": "radion-project",
+  "version": 1,
+  "name": "Runner Smoke Test",
+  "assetRoot": "Assets",
+  "scenes": [
+    "Scenes/runner_smoke.scene.json"
+  ],
+  "activeScene": "Scenes/runner_smoke.scene.json",
+  "searchPaths": []
+}

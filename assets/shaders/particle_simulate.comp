@@ -1,0 +1,94 @@
+#version 450 core
+
+// Pass 3 of 4: SIMULATE. Launched with an indirect dispatch.
+//
+// One thread per LIVE particle. Each decides its own fate:
+//
+//   survived -> adds itself to the NEW alive list
+//   died     -> returns its index to the dead list
+//
+// This is where compaction happens without anyone compacting: the NEW list is
+// written from scratch, with only the survivors, so there are never holes to
+// sweep. The cost is one extra list in memory; the alternative was walking and
+// compacting every frame.
+
+layout(local_size_x = 64) in;
+
+// --- particle_common.glsl (pasted; see the note in it) ---
+struct Particle
+{
+    vec3  position;      float mass;
+    vec3  velocity;      float life;
+    vec3  force;         float maxLife;
+    vec2  sizeBeginEnd;  float rotation;   float rotationVelocity;
+    vec4  color;
+    vec4  colorEnd;
+};
+struct Counters
+{
+    uint aliveCount;
+    int  deadCount;
+    uint emitCount;
+    uint aliveCountAfterSim;
+};
+// --- end ---
+
+layout(std430, binding = 0) buffer ParticleBuffer { Particle particles[]; };
+layout(std430, binding = 1) buffer AliveCurrent   { uint aliveCURRENT[]; };
+layout(std430, binding = 2) buffer DeadBuffer     { uint deadList[]; };
+layout(std430, binding = 3) buffer CounterBuffer  { Counters c; };
+layout(std430, binding = 5) buffer AliveNew       { uint aliveNEW[]; };
+
+layout(std140, binding = 0) uniform SimulateBlock
+{
+    vec4 uGravityDt; // xyz = gravity, w = dt
+    vec4 uDrag;      // x = drag
+};
+
+void main()
+{
+    uint i = gl_GlobalInvocationID.x;
+
+    // The indirect dispatch rounds up to a full group of 64: the extra
+    // threads have to bail here, or they would process garbage past the end
+    // of the list.
+    if (i >= c.aliveCount)
+        return;
+
+    uint idx = aliveCURRENT[i];
+    Particle p = particles[idx];
+
+    float dt = uGravityDt.w;
+    p.life -= dt;
+
+    if (p.life > 0.0)
+    {
+        // Semi-implicit (symplectic) Euler: velocity is updated FIRST, then
+        // position with the new velocity. Costs the same as explicit Euler
+        // and gains no energy - with explicit, particles under gravity
+        // accelerate too much and a burst opens wider than it should.
+        vec3 accel = uGravityDt.xyz + p.force / max(0.0001, p.mass);
+        p.velocity += accel * dt;
+
+        // Exponential drag. exp(-k*dt) is stable for any dt; the naive form
+        // (v *= 1 - k*dt) flips the velocity's sign when k*dt > 1, and the
+        // particle starts moving backwards.
+        p.velocity *= exp(-uDrag.x * dt);
+
+        p.position += p.velocity * dt;
+        p.rotation += p.rotationVelocity * dt;
+        p.force = vec3(0.0); // forces are per-frame
+
+        particles[idx] = p;
+
+        uint slot = atomicAdd(c.aliveCountAfterSim, 1u);
+        aliveNEW[slot] = idx;
+    }
+    else
+    {
+        // Returns the slot to the free-slot stack. atomicAdd returns the
+        // previous size, which is exactly the index to write at.
+        int slot = atomicAdd(c.deadCount, 1);
+        deadList[slot] = idx;
+    }
+}

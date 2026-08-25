@@ -1,0 +1,123 @@
+#version 450 core
+
+layout(local_size_x = 64) in;
+
+struct HairRoot
+{
+    vec4 positionLength;
+    vec4 normalWidth;
+    uvec4 joints;
+    vec4 weights;
+    vec4 params;
+};
+struct HairState { vec4 current; vec4 previous; };
+struct HairPose { vec4 positionLength; vec4 normalWidth; vec4 previousPosition; };
+
+layout(std430, binding = 4) readonly buffer RootBuffer { HairRoot roots[]; };
+layout(std430, binding = 7) buffer StateBuffer { HairState states[]; };
+layout(std430, binding = 8) buffer PoseBuffer { HairPose poses[]; };
+layout(std430, binding = 9) readonly buffer PaletteBuffer { mat4 palette[]; };
+layout(std430, binding = 10) readonly buffer PrevPaletteBuffer { mat4 prevPalette[]; };
+
+#include "hair_uniforms.glsl"
+
+mat4 skinMatrix(HairRoot root, bool previous)
+{
+    uint count = uint(previous ? uPrevPaletteCount : uPaletteCount);
+    mat4 result = mat4(0.0);
+    for (int i = 0; i < 4; ++i)
+    {
+        uint joint = min(root.joints[i], max(count, 1u) - 1u);
+        result += (previous ? prevPalette[joint] : palette[joint]) * root.weights[i];
+    }
+    return result;
+}
+
+vec3 closestOnSegment(vec3 a, vec3 b, vec3 p)
+{
+    vec3 ab = b - a;
+    float d = dot(ab, ab);
+    return d > 1e-8 ? a + ab * clamp(dot(p - a, ab) / d, 0.0, 1.0) : a;
+}
+
+vec3 constrain(vec3 base, vec3 point, float lengthValue, vec3 fallback)
+{
+    vec3 delta = point - base;
+    float d = length(delta);
+    return d > 1e-6 ? base + delta * (lengthValue / d) : base + fallback * lengthValue;
+}
+
+void main()
+{
+    uint rootID = gl_GlobalInvocationID.x;
+    if (rootID >= uint(uRootCount)) return;
+
+    HairRoot root = roots[rootID];
+    mat4 skin = skinMatrix(root, false);
+    mat4 previousSkin = skinMatrix(root, true);
+    vec3 rootPosition = (uModel * skin * vec4(root.positionLength.xyz, 1.0)).xyz;
+    vec3 previousRoot = (uPrevModel * previousSkin * vec4(root.positionLength.xyz, 1.0)).xyz;
+    vec3 rootNormal = normalize(mat3(uModel) * mat3(skin) * root.normalWidth.xyz);
+
+    poses[rootID].positionLength = vec4(rootPosition, root.positionLength.w);
+    poses[rootID].normalWidth = vec4(rootNormal, root.normalWidth.w);
+    poses[rootID].previousPosition = vec4(previousRoot, 0.0);
+
+    float segmentLength = max(0.0001, root.positionLength.w / float(uSegmentCount));
+    float dt = clamp(uDt, 0.0, 1.0 / 30.0);
+    vec3 base = rootPosition;
+    vec3 restBase = rootPosition;
+    vec3 axis = rootNormal;
+
+    for (int segment = 0; segment < uSegmentCount; ++segment)
+    {
+        uint stateID = rootID * uint(uSegmentCount) + uint(segment);
+        vec3 rest = restBase + axis * segmentLength;
+        vec3 current = states[stateID].current.xyz;
+        vec3 old = states[stateID].previous.xyz;
+        if (uReset != 0 || dot(current, current) < 1e-12)
+            current = old = rest;
+
+        vec3 inertia = (current - old) * (1.0 - uDrag);
+        vec3 force = (rest - current) * uStiffness;
+        force += vec3(0.0, -uGravity, 0.0);
+        float phase = uTime * 1.7 + rootPosition.x * 0.31 + rootPosition.z * 0.23 +
+                      float(segment) * 0.37 + root.params.y * 6.2831853;
+        force += normalize(vec3(0.82, 0.0, 0.57)) *
+                 (sin(phase) + sin(phase * 1.73) * 0.35) * uWind;
+
+        vec3 next = constrain(base, current + inertia + force * dt, segmentLength, axis);
+        float strandRadius = root.normalWidth.w * 0.75;
+        for (int i = 0; i < uColliderCount && i < 8; ++i)
+        {
+            vec3 centre = uColliders[i].type == 0u
+                ? uColliders[i].a.xyz
+                : closestOnSegment(uColliders[i].a.xyz, uColliders[i].b.xyz, next);
+            float radius = uColliders[i].a.w + strandRadius;
+            vec3 delta = next - centre;
+            float distanceValue = length(delta);
+            if (distanceValue < radius)
+            {
+                vec3 direction = distanceValue > 1e-5 ? delta / distanceValue : axis;
+                next = centre + direction * radius;
+                next = constrain(base, next, segmentLength, axis);
+            }
+        }
+
+        // Only the root segment is forbidden from entering the scalp. The
+        // rest must remain free to fall around the head and shoulders.
+        if (segment == 0)
+        {
+            float below = dot(next - rootPosition, rootNormal);
+            if (below < 0.0)
+                next = constrain(base, next - rootNormal * below, segmentLength, axis);
+        }
+
+        states[stateID].previous = vec4(current, 0.0);
+        states[stateID].current = vec4(next, 0.0);
+        vec3 segmentDirection = normalize(next - base);
+        base = next;
+        restBase = rest;
+        axis = normalize(mix(rootNormal, segmentDirection, 0.25));
+    }
+}

@@ -1,0 +1,30 @@
+#version 450 core
+
+// Adds a source texture onto a destination image, scaled by uStrength. Used
+// twice: spot's own buffer added onto the sun's accumulator at half
+// resolution, and the resolved accumulator added onto the full-resolution
+// HDR scene colour at the end - same shader both times, only the textures and
+// the size differ.
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D uSource;
+layout(rgba16f, binding = 1) uniform image2D uDest;
+
+layout(std140, binding = 0) uniform VolumetricAdd
+{
+    vec4 uDestSizeAndStrength; // x,y size, z strength
+};
+
+void main()
+{
+    ivec2 id = ivec2(gl_GlobalInvocationID.xy);
+    if (id.x >= int(uDestSizeAndStrength.x) || id.y >= int(uDestSizeAndStrength.y))
+        return;
+
+    vec2 uv = (vec2(id) + 0.5) / uDestSizeAndStrength.xy;
+    vec3 add = texture(uSource, uv).rgb * uDestSizeAndStrength.z;
+
+    vec4 dst = imageLoad(uDest, id);
+    imageStore(uDest, id, vec4(dst.rgb + add, dst.a));
+}

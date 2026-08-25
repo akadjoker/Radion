@@ -1,0 +1,175 @@
+#version 450 core
+
+#define TILE_SIZE 32
+#define MAX_ENTIDADES 256
+#define BUCKETS (MAX_ENTIDADES / 32)
+
+layout(local_size_x = TILE_SIZE, local_size_y = TILE_SIZE) in;
+
+struct ShaderEntity
+{
+    vec3 position;  float range;
+    vec3 direction; float coneAngleCos;
+    vec3 color;     float coneAngleScale;
+    uint type; uint flags; int matrixIndex; float shadowFade;
+    vec4 shadowAtlasMulAdd;
+    vec3 rectRight; float rectWidth;
+    vec3 rectUp;    float rectHeight;
+};
+
+layout(std430, binding = 0) readonly buffer EntityBuffer
+{
+    ShaderEntity entities[];
+};
+
+layout(std430, binding = 1) writeonly buffer TileBuffer
+{
+    uint tiles[];
+};
+
+// This engine has no per-location glUniform call, only UBO/SSBO/texture-unit
+// binding, so the reference's loose uniforms (uInvProj, uView, uScreenSize,
+// uTileCount, uEntityCount, uUsar25D) live here instead.
+layout(std140, binding = 0) uniform Culling
+{
+    mat4 uInvProj;
+    mat4 uView;
+    vec4 uScreenSize;    // xy used
+    vec4 uTileCountEtc;  // x,y = tile count, z = entity count, w = 2.5D on
+};
+
+#define uTileCount ivec2(uTileCountEtc.xy)
+#define uEntityCount int(uTileCountEtc.z)
+#define uUsar25D int(uTileCountEtc.w)
+
+layout(binding = 8) uniform sampler2D uDepthTex;
+
+shared uint sMinDepth;
+shared uint sMaxDepth;
+shared uint sDepthMask;
+shared uint sBuckets[BUCKETS];
+shared vec4 sPlanos[4];
+
+vec3 ViewPosFromDepth(vec2 uv, float depth)
+{
+    vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 v = uInvProj * clip;
+    return v.xyz / v.w;
+}
+
+vec4 PlanoDaOrigem(vec3 a, vec3 b)
+{
+    return vec4(normalize(cross(a, b)), 0.0);
+}
+
+uint MascaraDaEsfera(float zPerto, float zRecip, float centroZ, float raio)
+{
+    float fMin = centroZ - raio;
+    float fMax = centroZ + raio;
+    uint ini = uint(clamp(floor((fMin - zPerto) * zRecip), 0.0, 31.0));
+    uint fim = uint(clamp(floor((fMax - zPerto) * zRecip), 0.0, 31.0));
+    uint m = 0xFFFFFFFFu;
+    m >>= (31u - (fim - ini));
+    m <<= ini;
+    return m;
+}
+
+void main()
+{
+    const uint idLocal = gl_LocalInvocationIndex;
+    const ivec2 tile = ivec2(gl_WorkGroupID.xy);
+    const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+
+    if (idLocal == 0u)
+    {
+        sMinDepth = 0xFFFFFFFFu;
+        sMaxDepth = 0u;
+        sDepthMask = 0u;
+    }
+    if (idLocal < uint(BUCKETS)) sBuckets[idLocal] = 0u;
+    barrier();
+
+    float d = 1.0;
+    if (pixel.x < int(uScreenSize.x) && pixel.y < int(uScreenSize.y))
+        d = texelFetch(uDepthTex, pixel, 0).r;
+
+    if (d < 1.0)
+    {
+        uint du = floatBitsToUint(d);
+        atomicMin(sMinDepth, du);
+        atomicMax(sMaxDepth, du);
+    }
+    barrier();
+
+    if (idLocal == 0u)
+    {
+        vec2 uv0 = vec2(tile * TILE_SIZE) / uScreenSize.xy;
+        vec2 uv1 = vec2((tile + ivec2(1)) * TILE_SIZE) / uScreenSize.xy;
+
+        vec3 c00 = ViewPosFromDepth(vec2(uv0.x, uv0.y), 1.0);
+        vec3 c10 = ViewPosFromDepth(vec2(uv1.x, uv0.y), 1.0);
+        vec3 c11 = ViewPosFromDepth(vec2(uv1.x, uv1.y), 1.0);
+        vec3 c01 = ViewPosFromDepth(vec2(uv0.x, uv1.y), 1.0);
+
+        sPlanos[0] = PlanoDaOrigem(c00, c01);
+        sPlanos[1] = PlanoDaOrigem(c11, c10);
+        sPlanos[2] = PlanoDaOrigem(c10, c00);
+        sPlanos[3] = PlanoDaOrigem(c01, c11);
+
+        vec3 dentroSeguro = (c00 + c10 + c01 + c11) * 0.125;
+        for (int p = 0; p < 4; ++p)
+            if (dot(sPlanos[p].xyz, dentroSeguro) > 0.0)
+                sPlanos[p].xyz = -sPlanos[p].xyz;
+    }
+    barrier();
+
+    float zPerto = -ViewPosFromDepth(vec2(0.5), uintBitsToFloat(sMinDepth)).z;
+    float zLonge = -ViewPosFromDepth(vec2(0.5), uintBitsToFloat(sMaxDepth)).z;
+    bool tileVazio = (sMinDepth == 0xFFFFFFFFu);
+
+    float zRecip = 31.0 / max(0.0001, zLonge - zPerto);
+    if (uUsar25D == 1 && !tileVazio && d < 1.0)
+    {
+        vec3 vp = ViewPosFromDepth((vec2(pixel) + 0.5) / uScreenSize.xy, d);
+        uint fatia = uint(clamp(floor((-vp.z - zPerto) * zRecip), 0.0, 31.0));
+        atomicOr(sDepthMask, 1u << fatia);
+    }
+    barrier();
+
+    if (!tileVazio)
+    {
+        for (uint i = idLocal; i < uint(uEntityCount) && i < uint(MAX_ENTIDADES);
+             i += uint(TILE_SIZE * TILE_SIZE))
+        {
+            ShaderEntity e = entities[i];
+            if (e.type == 0u) { atomicOr(sBuckets[i / 32u], 1u << (i % 32u)); continue; }
+
+            vec3 centro = (uView * vec4(e.position, 1.0)).xyz;
+            float raio = e.range;
+
+            bool dentro = true;
+            for (int p = 0; p < 4 && dentro; ++p)
+                if (dot(sPlanos[p].xyz, centro) - raio > 0.0) dentro = false;
+
+            float zLuz = -centro.z;
+            if (dentro && (zLuz + raio < zPerto || zLuz - raio > zLonge))
+                dentro = false;
+
+            if (dentro && uUsar25D == 1)
+            {
+                uint mLuz = MascaraDaEsfera(zPerto, zRecip, zLuz, raio);
+                if ((mLuz & sDepthMask) == 0u) dentro = false;
+            }
+
+            if (dentro)
+                atomicOr(sBuckets[i / 32u], 1u << (i % 32u));
+        }
+    }
+    barrier();
+
+    if (idLocal < uint(BUCKETS))
+    {
+        uint destino = uint(tile.y * uTileCount.x + tile.x) * uint(BUCKETS) + idLocal;
+        tiles[destino] = sBuckets[idLocal];
+    }
+}

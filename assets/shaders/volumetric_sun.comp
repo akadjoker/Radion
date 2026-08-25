@@ -1,0 +1,139 @@
+#version 450 core
+
+#define MAX_CASCADES 4
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D uDepthTex;
+layout(binding = 1) uniform sampler2DShadow uShadowMap;
+layout(rgba16f, binding = 2) uniform image2D uDest;
+
+#define MAX_SHADOW_KERNEL 32
+
+// Must match lit.frag's DirectionalShadow member for member.
+layout(std140, binding = 0) uniform DirectionalShadow
+{
+    mat4 uShadowMatrix[MAX_CASCADES];
+    vec4 uCascadeSplit;
+    vec4 uShadowBias4;
+    vec4 uShadowNormalBias4;
+    vec4 uShadowRangeBegin4;
+    vec4 uShadowUvScale[MAX_CASCADES];
+    vec4 uSunDirectionAndCount;
+    vec4 uShadowSampling;
+    vec4 uShadowSampling2;
+    vec4 uShadowSampling3;
+    vec4 uShadowSoftKernel[MAX_SHADOW_KERNEL];
+    vec4 uShadowPenumbraKernel[MAX_SHADOW_KERNEL];
+};
+
+layout(std140, binding = 1) uniform VolumetricSettings
+{
+    mat4 uInvViewProj;
+    vec4 uCameraPosAndMaxDistance;
+    vec4 uDestSizeAndSamples; // x,y size, z sample count, w scattering (g)
+};
+
+layout(std140, binding = 2) uniform VolumetricSun
+{
+    vec4 uSunColorAndDensity;
+    vec4 uDebugFallback;
+};
+
+#define uCameraPos       uCameraPosAndMaxDistance.xyz
+#define uMaxDistance     uCameraPosAndMaxDistance.w
+#define uDestSize        uDestSizeAndSamples.xy
+#define uSampleCount     int(uDestSizeAndSamples.z)
+#define uScattering      uDestSizeAndSamples.w
+#define uSunColor        uSunColorAndDensity.rgb
+#define uDensity         uSunColorAndDensity.w
+#define uCascadeCount    int(uSunDirectionAndCount.w)
+#define uSunDir          uSunDirectionAndCount.xyz
+
+float HenyeyGreenstein(float cosTheta, float g)
+{
+    float g2 = g * g;
+    float denom = 1.0 + g2 - 2.0 * g * cosTheta;
+    return (1.0 - g2) / (4.0 * 3.14159265 * pow(max(denom, 1e-4), 1.5));
+}
+
+float Dither(vec2 pos)
+{
+    return fract(52.9829189 * fract(dot(pos, vec2(0.06711056, 0.00583715))));
+}
+
+vec3 WorldPosFromDepth(vec2 uv, float depth)
+{
+    vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 world = uInvViewProj * clip;
+    return world.xyz / world.w;
+}
+
+// The shadow matrix already lands in the cascade's atlas rect, sampled as-is
+// like lit.frag's ShadowForSplit; the cascade is chosen by the splits alone.
+float SunShadowAt(vec3 worldPos, float viewDepth, out bool usedFallback)
+{
+    usedFallback = true;
+    if (uCascadeCount <= 0 || viewDepth >= uCascadeSplit[uCascadeCount - 1])
+        return 1.0;
+
+    int idx = 0;
+    for (int i = 0; i < MAX_CASCADES - 1; ++i)
+        if (i < uCascadeCount - 1 && viewDepth >= uCascadeSplit[i])
+            idx = i + 1;
+
+    vec4 lp = uShadowMatrix[idx] * vec4(worldPos, 1.0);
+    vec3 uv = lp.xyz / lp.w;
+    if (uv.z <= 0.0 || uv.z >= 1.0)
+        return 1.0;
+    usedFallback = false;
+    return texture(uShadowMap, uv);
+}
+
+void main()
+{
+    ivec2 id = ivec2(gl_GlobalInvocationID.xy);
+    if (id.x >= int(uDestSize.x) || id.y >= int(uDestSize.y))
+        return;
+
+    vec2 uv = (vec2(id) + 0.5) / uDestSize;
+    float depth = texture(uDepthTex, uv).r;
+
+    vec3 rayEnd = WorldPosFromDepth(uv, min(depth, 0.9999));
+    vec3 toEnd = rayEnd - uCameraPos;
+    float rayLen = length(toEnd);
+    vec3 rayDir = toEnd / max(rayLen, 1e-5);
+
+    rayLen = min(rayLen, uMaxDistance);
+
+    float stepSize = rayLen / float(uSampleCount);
+    float offset = Dither(vec2(id));
+
+    float cosTheta = dot(rayDir, -normalize(uSunDir));
+    float phase = HenyeyGreenstein(cosTheta, uScattering);
+
+    vec3 accum = vec3(0.0);
+    float accumFallback = 0.0;
+    for (int i = 0; i < uSampleCount; ++i)
+    {
+        float t = (float(i) + offset) * stepSize;
+        vec3 P = uCameraPos + rayDir * t;
+
+        bool fallback;
+        float shadow = SunShadowAt(P, t, fallback);
+        accum += shadow * phase;
+        if (fallback) accumFallback += shadow * phase;
+    }
+
+    accum *= uSunColor * uDensity * stepSize;
+
+    if (uDebugFallback.x >= 0.5)
+    {
+        float total = max(1e-6, dot(accum, vec3(1.0)) / 3.0);
+        float fr = clamp(accumFallback / total, 0.0, 1.0);
+        imageStore(uDest, id, vec4(vec3(fr, 1.0 - fr, 0.0) * total * 4.0, 1.0));
+        return;
+    }
+
+    imageStore(uDest, id, vec4(accum, 1.0));
+}

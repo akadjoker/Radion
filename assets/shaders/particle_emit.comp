@@ -1,0 +1,132 @@
+#version 450 core
+
+// Pass 1 of 4: EMIT.
+//
+// One thread per particle requested. Each tries to take a free slot off the
+// top of the dead list; if there is none, it gives up silently (graceful
+// degradation - the particle simply does not spawn, nothing bursts).
+//
+// Runs BEFORE kickoff. Adds to aliveCountAfterSim, which at this point still
+// holds last frame's survivor count, so new particles land right after them
+// in the same list. Kickoff is what then promotes all of it to aliveCount -
+// so a particle spawned this frame is already simulated and drawn in the
+// frame it is born, instead of waiting one.
+
+layout(local_size_x = 64) in;
+
+// --- particle_common.glsl (pasted; see the note in it) ---
+struct Particle
+{
+    vec3  position;      float mass;
+    vec3  velocity;      float life;
+    vec3  force;         float maxLife;
+    vec2  sizeBeginEnd;  float rotation;   float rotationVelocity;
+    vec4  color;
+    vec4  colorEnd;
+};
+struct Counters
+{
+    uint aliveCount;
+    int  deadCount;
+    uint emitCount;
+    uint aliveCountAfterSim;
+};
+// --- end ---
+
+layout(std430, binding = 0) buffer ParticleBuffer { Particle particles[]; };
+layout(std430, binding = 1) buffer AliveCurrent   { uint aliveCURRENT[]; };
+layout(std430, binding = 2) buffer DeadBuffer     { uint deadList[]; };
+layout(std430, binding = 3) buffer CounterBuffer  { Counters c; };
+
+layout(std140, binding = 0) uniform EmitBlock
+{
+    vec4 uPositionSpread;   // xyz = position, w = spread
+    vec4 uDirectionRadius;  // xyz = direction, w = start radius
+    vec4 uSpeedLife;        // x = speedMin, y = speedMax, z = lifeMin, w = lifeMax
+    vec4 uSizeMassRotation; // x = sizeBegin, y = sizeEnd, z = mass, w = rotationVelocity
+    vec4 uColorBegin;
+    vec4 uColorEnd;
+    ivec4 uEmitCountSeed;   // x = count, y = seed
+};
+
+#define uPosition      uPositionSpread.xyz
+#define uSpread        uPositionSpread.w
+#define uDirection     uDirectionRadius.xyz
+#define uStartRadius   uDirectionRadius.w
+#define uEmitCount     uEmitCountSeed.x
+#define uSeed          uEmitCountSeed.y
+
+// PCG hash. Cheap and well distributed in the high bits - the usual
+// sin(dot())-style hash shows visible patterns when thousands of particles
+// spawn at once, and in a burst that reads as streaks.
+uint PCG(inout uint state)
+{
+    state = state * 747796405u + 2891336453u;
+    uint w = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (w >> 22u) ^ w;
+}
+float Rand(inout uint state) { return float(PCG(state)) / 4294967296.0; }
+
+// A random direction inside a cone around 'dir'.
+// spread = PI gives the full sphere, which is what an explosion wants.
+vec3 RandomCone(inout uint state, vec3 dir, float spread)
+{
+    // Area sampling: cosTheta uniform between 1 and cos(spread). Without this
+    // particles pile up on the axis and the explosion gets a jet down the
+    // middle.
+    float cosTheta = mix(1.0, cos(spread), Rand(state));
+    float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+    float phi = Rand(state) * 6.28318530718;
+
+    // Orthonormal basis around dir. The branch avoids the degenerate case of
+    // dir being parallel to the chosen axis.
+    vec3 up = (abs(dir.y) < 0.99) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 t = normalize(cross(up, dir));
+    vec3 b = cross(dir, t);
+
+    return normalize(t * (sinTheta * cos(phi)) + b * (sinTheta * sin(phi)) + dir * cosTheta);
+}
+
+void main()
+{
+    if (gl_GlobalInvocationID.x >= uint(uEmitCount))
+        return;
+
+    uint state = uint(uSeed) + gl_GlobalInvocationID.x * 2654435761u;
+
+    // Take a slot off the top of the free-slot stack. atomicAdd returns the
+    // PREVIOUS value, which is the stack's size before this thread - so the
+    // top index is that value minus one.
+    int prevDead = atomicAdd(c.deadCount, -1);
+    if (prevDead < 1)
+        return; // pool full: this particle does not spawn
+
+    uint idx = deadList[prevDead - 1];
+
+    vec3 dir = normalize(uDirection);
+    vec3 v = RandomCone(state, dir, uSpread);
+    float speed = mix(uSpeedLife.x, uSpeedLife.y, Rand(state));
+
+    // Initial position spread over a spherical shell, so a burst does not
+    // come entirely from the exact same point.
+    vec3 offset = RandomCone(state, dir, 3.14159265) * (uStartRadius * Rand(state));
+
+    Particle p;
+    p.position     = uPosition + offset;
+    p.mass         = uSizeMassRotation.z;
+    p.velocity     = v * speed;
+    p.maxLife      = mix(uSpeedLife.z, uSpeedLife.w, Rand(state));
+    p.life         = p.maxLife;
+    p.force        = vec3(0.0);
+    p.sizeBeginEnd = uSizeMassRotation.xy;
+    p.rotation     = Rand(state) * 6.28318530718;
+    p.rotationVelocity = uSizeMassRotation.w * (Rand(state) * 2.0 - 1.0);
+    p.color        = uColorBegin;
+    p.colorEnd     = uColorEnd;
+
+    particles[idx] = p;
+
+    // Enters the CURRENT list, right after last frame's survivors.
+    uint slot = atomicAdd(c.aliveCountAfterSim, 1u);
+    aliveCURRENT[slot] = idx;
+}

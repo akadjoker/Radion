@@ -1,0 +1,76 @@
+#version 450 core
+
+// Culling dos tufos em compute, com escrita dos argumentos de draw indirecto.
+//
+// Uma thread por tufo pintado. Cada uma decide se o seu tufo e' visivel e, se
+// for, acrescenta-se a uma lista. O contador dessa lista E' o numero de
+// instancias do draw -- escrito pela GPU, lido pela GPU. O CPU emite um
+// glDrawArraysIndirect e nunca sabe quantos tufos ficaram.
+//
+// Mesmo padrao do sistema de particulas e do grass_cull do demo anterior.
+
+layout(local_size_x = 64) in;
+
+struct Clump
+{
+    vec3 position;   float scale;
+    vec3 normal;     float rotation;
+    float rect;      float _p0, _p1, _p2;
+};
+
+layout(std430, binding = 4) readonly buffer ClumpBuffer { Clump clumps[]; };
+
+layout(std430, binding = 5) writeonly buffer VisibleBuffer { uint visiveis[]; };
+
+layout(std430, binding = 6) buffer IndirectBuffer
+{
+    uint vertexCount, instanceCount, firstVertex, baseInstance;
+} indirect;
+
+#include "grass_uniforms.glsl"
+
+// Teste de frustum em CLIP SPACE, e nao com planos extraidos.
+//
+// Porque assim: extrair planos tem quatro convencoes onde errar o sinal (linha
+// vs coluna da matriz, normal para dentro ou para fora, d somado ou subtraido,
+// esfera com -raio ou +raio). Ja' nos perdemos ai uma vez no demo anterior: o
+// teste rejeitava 99.7% dos candidatos e nao era possivel dizer se estava
+// errado ou se a camara e' que via pouca erva.
+//
+// Em clip space nao ha' convencao nenhuma: e' o mesmo teste que o hardware faz
+// para recortar triangulos. Um ponto esta dentro se -w <= x,y,z <= w.
+bool EsferaVisivel(vec3 centro, float raio)
+{
+    vec4 c = uViewProj * vec4(centro, 1.0);
+    if (c.w <= 0.0) return false;                  // atras da camara
+
+    // A margem cresce com w: a mesma esfera ocupa mais do volume de recorte
+    // quando esta perto. Equivale a sobredimensionar o teste, como o Wicked
+    // faz de proposito ("intentionally overestimated, to not disappear as soon
+    // in different views") -- um tufo que desapareca cedo de mais nota-se
+    // muito mais do que um tufo desenhado a mais.
+    float m = c.w + raio;
+    return abs(c.x) <= m && abs(c.y) <= m && c.z >= -m && c.z <= m;
+}
+
+void main()
+{
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= uint(uClumpCount))
+        return;
+
+    Clump cl = clumps[id];
+
+    float dist = distance(cl.position, uCameraPos);
+    if (dist > uDistMax)
+        return;
+
+    // Esfera a envolver o tufo inteiro, centrada a meia altura.
+    float raio = uAltura * cl.scale;
+    if (!EsferaVisivel(cl.position + cl.normal * (raio * 0.5), raio))
+        return;
+
+    uint destino = atomicAdd(indirect.instanceCount, 1u);
+    if (destino < uint(uMaxVisiveis))
+        visiveis[destino] = id;
+}

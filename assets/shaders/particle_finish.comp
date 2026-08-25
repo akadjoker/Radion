@@ -1,0 +1,41 @@
+#version 450 core
+
+// Pass 4 of 4: FINISH. A single thread.
+//
+// Writes the arguments for the indirect draw. This is the piece that closes
+// the GPU-driven drawing loop: the instance count comes from the counter
+// simulation just filled, and the CPU always issues the same draw call
+// without knowing how many particles are there.
+//
+// 4 vertices per particle (triangle strip = one quad), instanced.
+
+layout(local_size_x = 1) in;
+
+// --- particle_common.glsl (pasted; see the note in it) ---
+struct Counters
+{
+    uint aliveCount;
+    int  deadCount;
+    uint emitCount;
+    uint aliveCountAfterSim;
+};
+// --- end ---
+
+layout(std430, binding = 3) buffer CounterBuffer { Counters c; };
+
+layout(std430, binding = 4) buffer IndirectBuffer
+{
+    uint dispatchX, dispatchY, dispatchZ, pad0;
+    uint vertexCount, instanceCount, firstVertex, baseInstance;
+} indirect;
+
+void main()
+{
+    // aliveCountAfterSim, not aliveCount: what matters are the ones that
+    // SURVIVED this simulation, which are the ones in the NEW list - the one
+    // the vertex shader is about to read.
+    indirect.vertexCount   = 4u;
+    indirect.instanceCount = c.aliveCountAfterSim;
+    indirect.firstVertex   = 0u;
+    indirect.baseInstance  = 0u;
+}

@@ -1,0 +1,34 @@
+#version 450 core
+
+layout(local_size_x = 64) in;
+
+struct HairPose { vec4 positionLength; vec4 normalWidth; vec4 previousPosition; };
+layout(std430, binding = 5) writeonly buffer VisibleBuffer { uint visibleRoots[]; };
+layout(std430, binding = 6) buffer IndirectBuffer
+{
+    uint vertexCount, instanceCount, firstVertex, firstInstance;
+} indirect;
+layout(std430, binding = 8) readonly buffer PoseBuffer { HairPose poses[]; };
+
+#include "hair_uniforms.glsl"
+
+bool sphereVisible(vec3 centre, float radius)
+{
+    vec4 c = uViewProj * vec4(centre, 1.0);
+    if (c.w <= 0.0) return false;
+    float margin = c.w + radius;
+    return abs(c.x) <= margin && abs(c.y) <= margin && c.z >= -margin && c.z <= margin;
+}
+
+void main()
+{
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= uint(uRootCount)) return;
+    HairPose pose = poses[id];
+    float lengthValue = pose.positionLength.w;
+    if (distance(pose.positionLength.xyz, uCameraPos) > uDrawDistance) return;
+    vec3 centre = pose.positionLength.xyz + pose.normalWidth.xyz * (lengthValue * 0.35);
+    if (!sphereVisible(centre, lengthValue)) return;
+    uint destination = atomicAdd(indirect.instanceCount, 1u);
+    if (destination < uint(uRootCount)) visibleRoots[destination] = id;
+}

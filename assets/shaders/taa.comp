@@ -1,0 +1,192 @@
+#version 450 core
+
+// HDR temporal resolve. Velocity is previous-NDC minus current-NDC, so its
+// conversion to texture coordinates is a half-scale and it is added to the
+// current UV to find the matching history sample.
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D uCurrent;
+layout(binding = 1) uniform sampler2D uHistory;
+layout(binding = 2) uniform sampler2D uVelocity;
+layout(binding = 3) uniform sampler2D uReactive;
+layout(binding = 4) uniform sampler2D uDepth;
+layout(rgba16f, binding = 0) uniform writeonly image2D uOutput;
+
+layout(std140, binding = 0) uniform TAAParams
+{
+    // xy = output size, z = quiet-pixel feedback, w = moving-pixel feedback.
+    vec4 uSizeAndFeedback;
+    // x = neighbourhood width in standard deviations, y = luma sharpening.
+    vec4 uClipAndSharpen;
+};
+
+// Resolve on range-compressed colour, expand at the end - keeps one very
+// bright sample from dominating the neighbourhood box and flickering.
+float resolveLuma(vec3 rgb)
+{
+    return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+}
+
+vec3 compressRange(vec3 rgb)
+{
+    return rgb / (1.0 + resolveLuma(rgb));
+}
+
+vec3 expandRange(vec3 rgb)
+{
+    return rgb / max(1.0 - resolveLuma(rgb), 1e-4);
+}
+
+vec3 rgbToYCoCg(vec3 rgb)
+{
+    float co = rgb.r - rgb.b;
+    float t = rgb.b + co * 0.5;
+    float cg = rgb.g - t;
+    float y = t + cg * 0.5;
+    return vec3(y, co, cg);
+}
+
+vec3 yCoCgToRgb(vec3 ycocg)
+{
+    float t = ycocg.x - ycocg.z * 0.5;
+    float g = ycocg.z + t;
+    float b = t - ycocg.y * 0.5;
+    return vec3(b + ycocg.y, g, b);
+}
+
+// Catmull-Rom, as nine taps folded into five bilinear fetches. Resampling the
+// history bilinearly instead is what turns a 0.9 feedback weight into a blur
+// filter applied once per frame: the loss compounds for as long as a pixel
+// keeps reprojecting.
+vec3 sampleHistory(vec2 uv, vec2 size)
+{
+    vec2 texelSize = 1.0 / size;
+    vec2 samplePosition = uv * size;
+    vec2 center = floor(samplePosition - 0.5) + 0.5;
+    vec2 f = samplePosition - center;
+
+    vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+    vec2 w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+    vec2 w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+    vec2 w3 = f * f * (-0.5 + 0.5 * f);
+    vec2 w12 = w1 + w2;
+
+    vec2 uv0 = (center - 1.0) * texelSize;
+    vec2 uv3 = (center + 2.0) * texelSize;
+    vec2 uv12 = (center + w2 / w12) * texelSize;
+
+    vec3 result = texture(uHistory, vec2(uv12.x, uv0.y)).rgb * (w12.x * w0.y);
+    result += texture(uHistory, vec2(uv0.x, uv12.y)).rgb * (w0.x * w12.y);
+    result += texture(uHistory, vec2(uv12.x, uv12.y)).rgb * (w12.x * w12.y);
+    result += texture(uHistory, vec2(uv3.x, uv12.y)).rgb * (w3.x * w12.y);
+    result += texture(uHistory, vec2(uv12.x, uv3.y)).rgb * (w12.x * w3.y);
+
+    // The filter's negative lobes are what keeps edges sharp, but they can
+    // undershoot past zero on a high-contrast HDR edge.
+    return max(result, vec3(0.0));
+}
+
+// Moves `history` along the line towards the neighbourhood centre only as far
+// as the box demands. Clamping each channel on its own instead moves the
+// colour off that line and desaturates the result.
+vec3 clipToBox(vec3 history, vec3 minimum, vec3 maximum)
+{
+    vec3 center = 0.5 * (maximum + minimum);
+    vec3 extents = max(0.5 * (maximum - minimum), vec3(1e-5));
+    vec3 offset = history - center;
+    vec3 ratio = abs(offset) / extents;
+    float longest = max(ratio.x, max(ratio.y, ratio.z));
+    return longest > 1.0 ? center + offset / longest : history;
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(uSizeAndFeedback.xy);
+    if (any(greaterThanEqual(pixel, size)))
+        return;
+
+    vec2 uv = (vec2(pixel) + 0.5) / uSizeAndFeedback.xy;
+    vec3 currentRaw = texture(uCurrent, uv).rgb;
+    vec3 current = compressRange(currentRaw);
+
+    // The neighbourhood's first two moments in YCoCg, and the closest depth in
+    // the same loop. Taking velocity from the nearest neighbour rather than
+    // from this pixel keeps a thin silhouette from reprojecting with the
+    // background's motion, which is what smears its edge.
+    vec3 moment1 = vec3(0.0);
+    vec3 moment2 = vec3(0.0);
+    vec3 minimum = vec3(1e20);
+    vec3 maximum = vec3(-1e20);
+    ivec2 closestPixel = pixel;
+    float closestDepth = 1e20;
+    for (int y = -1; y <= 1; ++y)
+        for (int x = -1; x <= 1; ++x)
+        {
+            ivec2 samplePixel = clamp(pixel + ivec2(x, y), ivec2(0), size - 1);
+            vec3 sampleYCoCg = rgbToYCoCg(compressRange(texelFetch(uCurrent, samplePixel, 0).rgb));
+            moment1 += sampleYCoCg;
+            moment2 += sampleYCoCg * sampleYCoCg;
+            minimum = min(minimum, sampleYCoCg);
+            maximum = max(maximum, sampleYCoCg);
+            float sampleDepth = texelFetch(uDepth, samplePixel, 0).r;
+            if (sampleDepth < closestDepth)
+            {
+                closestDepth = sampleDepth;
+                closestPixel = samplePixel;
+            }
+        }
+
+    vec2 velocity = texelFetch(uVelocity, closestPixel, 0).xy;
+    if (any(isnan(velocity)) || any(isinf(velocity)))
+        velocity = vec2(0.0);
+    vec2 historyUV = uv + velocity * 0.5;
+    bool historyInBounds = all(greaterThanEqual(historyUV, vec2(0.0))) &&
+                           all(lessThanEqual(historyUV, vec2(1.0)));
+    if (!historyInBounds)
+    {
+        imageStore(uOutput, pixel, vec4(currentRaw, 1.0));
+        return;
+    }
+
+    const float kInverseSamples = 1.0 / 9.0;
+    vec3 mean = moment1 * kInverseSamples;
+    vec3 deviation = sqrt(max(moment2 * kInverseSamples - mean * mean, vec3(0.0)));
+    vec3 width = deviation * uClipAndSharpen.x;
+    // Variance bounds are tighter than the raw 3x3 extent on a noisy pixel and
+    // wider on a clean gradient, so they reject stale history without pinning
+    // the result to whatever single outlier the neighbourhood happened to hold.
+    vec3 clipMinimum = max(mean - width, minimum);
+    vec3 clipMaximum = min(mean + width, maximum);
+
+    vec3 history = clipToBox(rgbToYCoCg(compressRange(sampleHistory(historyUV, uSizeAndFeedback.xy))),
+                             clipMinimum, clipMaximum);
+    vec3 currentYCoCg = rgbToYCoCg(current);
+
+    float motionPixels = length(velocity * uSizeAndFeedback.xy * 0.5);
+    // At about eight pixels of reprojection, current colour wins. This is
+    // deliberately sharper than a gentle blend: clamping cannot recover a
+    // whole wall that became visible after a camera turn.
+    //
+    // Nothing here reacts to how far the history's luminance sits from the
+    // current colour. Clipping already bounded it to the neighbourhood, so
+    // what is left of that difference is the anti-aliasing signal itself - an
+    // edge pixel's coverage is meant to change with every jitter sample - and
+    // dropping feedback because of it stops exactly the edges that need
+    // accumulating from ever converging.
+    float feedback = mix(uSizeAndFeedback.z, uSizeAndFeedback.w,
+                         smoothstep(0.5, 8.0, motionPixels));
+    feedback *= 1.0 - clamp(texture(uReactive, uv).r, 0.0, 1.0);
+
+    // Unsharp against the neighbourhood mean, on luma only so the chroma
+    // planes cannot ring. Even an exact resolve is softer than the unfiltered
+    // image, because every accumulated sample sits at a different sub-pixel
+    // position; this puts back the high frequency that costs. It sharpens the
+    // sample going into the blend rather than the blend's result: applied
+    // afterwards, a term that changes with each jitter offset would be added
+    // on top of a converged pixel every frame instead of averaging into it.
+    float sharpened = max(currentYCoCg.x + uClipAndSharpen.y * (currentYCoCg.x - mean.x), 0.0);
+    vec3 resolved = mix(vec3(sharpened, currentYCoCg.yz), history, feedback);
+    imageStore(uOutput, pixel,
+               vec4(expandRange(max(yCoCgToRgb(resolved), vec3(0.0))), 1.0));
+}

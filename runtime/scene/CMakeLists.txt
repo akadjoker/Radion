@@ -1,0 +1,50 @@
+add_library(radion_scene
+    src/Animation.cpp
+    src/Octree.cpp
+    src/components/ActionRunner.cpp
+    src/components/Beam.cpp
+    src/components/Billboard.cpp
+    src/components/ReflectionProbe.cpp
+    src/components/BoneAttachment.cpp
+    src/components/Camera.cpp
+    src/components/CameraControllers.cpp
+    src/components/CharacterController.cpp
+    src/components/Collider.cpp
+    src/components/Component.cpp
+    src/components/MeshRenderer.cpp
+    src/components/Forest.cpp
+    src/components/Grass.cpp
+    src/components/Hair.cpp
+    src/components/Ocean.cpp
+    src/components/ParticleEffect.cpp
+    src/components/ParticleEmitter.cpp
+    src/components/ParticleEffectPool.cpp
+    src/components/PathAnimator.cpp
+    src/components/Light.cpp
+    src/components/ManualMesh.cpp
+    src/components/RibbonTrail.cpp
+    src/components/Road.cpp
+    src/components/ScriptComponent.cpp
+    src/components/SelfDestroy.cpp
+    src/components/Terrain.cpp
+    src/components/Text3D.cpp
+    src/components/NavMeshSurface.cpp
+    src/components/Waypoints.cpp
+    src/components/Landscape.cpp
+    src/components/ZenBehaviour.cpp
+    src/CollisionWorld.cpp
+    src/GameObject.cpp
+    src/Scene.cpp
+    src/SceneBVH.cpp
+    src/ScriptCache.cpp
+    src/ScriptProperty.cpp
+    src/SceneScriptBindings.cpp
+    src/SceneSerializer.cpp
+    src/VegetationGrid.cpp
+)
+
+target_precompile_headers(radion_scene PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_include_directories(radion_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(radion_scene PUBLIC radion_render radion_ai radion_physics radion_script zen_static)

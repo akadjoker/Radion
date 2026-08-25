@@ -1,0 +1,148 @@
+#version 450 core
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+#define ENTITY_TYPE_SPOTLIGHT 2u
+#define ENTITY_FLAG_LIGHT_VOLUMETRIC 4u
+
+struct ShaderEntity
+{
+    vec3 position;
+    float range;
+    vec3 direction;
+    float coneAngleCos;
+    vec3 color;
+    float coneAngleScale;
+    uint type;
+    uint flags;
+    int matrixIndex;
+    float shadowFade;
+    vec4 shadowAtlasMulAdd;
+    vec3 rectRight;
+    float rectWidth;
+    vec3 rectUp;
+    float rectHeight;
+};
+
+// Same entity and matrix buffers Lighting already built for the scene draw -
+// nothing local-lights-related is duplicated here.
+layout(std430, binding = 0) readonly buffer EntityBuffer { ShaderEntity entities[]; };
+layout(std430, binding = 1) readonly buffer MatrixBuffer { mat4 entityMatrices[]; };
+
+layout(binding = 0) uniform sampler2D uDepthTex;
+layout(binding = 1) uniform sampler2DShadow uShadowAtlas;
+
+layout(rgba16f, binding = 2) uniform writeonly image2D uDest;
+
+layout(std140, binding = 1) uniform VolumetricSettings
+{
+    mat4 uInvViewProj;
+    vec4 uCameraPosAndMaxDistance;
+    vec4 uDestSizeAndSamples;
+};
+
+layout(std140, binding = 2) uniform VolumetricSpot
+{
+    vec4 uDensityAndCount; // x density, y entity count
+};
+
+#define uCameraPos       uCameraPosAndMaxDistance.xyz
+#define uMaxDistance     uCameraPosAndMaxDistance.w
+#define uDestSize        uDestSizeAndSamples.xy
+#define uSampleCount     int(uDestSizeAndSamples.z)
+#define uScattering      uDestSizeAndSamples.w
+#define uDensity         uDensityAndCount.x
+#define uEntityCount     int(uDensityAndCount.y)
+
+float HenyeyGreenstein(float cosTheta, float g)
+{
+    float g2 = g * g;
+    float denom = 1.0 + g2 - 2.0 * g * cosTheta;
+    return (1.0 - g2) / (4.0 * 3.14159265 * pow(max(denom, 1e-4), 1.5));
+}
+
+float Dither(vec2 pos)
+{
+    return fract(52.9829189 * fract(dot(pos, vec2(0.06711056, 0.00583715))));
+}
+
+vec3 WorldPosFromDepth(vec2 uv, float depth)
+{
+    vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 world = uInvViewProj * clip;
+    return world.xyz / world.w;
+}
+
+float SpotShadowAt(ShaderEntity e, vec3 P)
+{
+    if (e.matrixIndex < 0 || e.shadowFade <= 0.0) return 1.0;
+
+    vec4 lp = entityMatrices[e.matrixIndex] * vec4(P, 1.0);
+    if (lp.w <= 0.0) return 1.0;
+    vec3 uv = (lp.xyz / lp.w) * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || uv.z < 0.0 || uv.z > 1.0)
+        return 1.0;
+
+    vec2 atlasUV = uv.xy * e.shadowAtlasMulAdd.xy + e.shadowAtlasMulAdd.zw;
+    float s = texture(uShadowAtlas, vec3(atlasUV, uv.z));
+    return mix(1.0, s, e.shadowFade);
+}
+
+void main()
+{
+    ivec2 id = ivec2(gl_GlobalInvocationID.xy);
+    if (id.x >= int(uDestSize.x) || id.y >= int(uDestSize.y))
+        return;
+
+    vec2 uv = (vec2(id) + 0.5) / uDestSize;
+    float depth = texture(uDepthTex, uv).r;
+
+    vec3 rayEnd = WorldPosFromDepth(uv, min(depth, 0.9999));
+    vec3 toEnd = rayEnd - uCameraPos;
+    float rayLen = min(length(toEnd), uMaxDistance);
+    vec3 rayDir = toEnd / max(length(toEnd), 1e-5);
+
+    float stepSize = rayLen / float(uSampleCount);
+    float offset = Dither(vec2(id));
+
+    vec3 accum = vec3(0.0);
+
+    for (int li = 0; li < uEntityCount; ++li)
+    {
+        ShaderEntity e = entities[li];
+        if (e.type != ENTITY_TYPE_SPOTLIGHT) continue;
+        if (e.range <= 0.0) continue;
+        if ((e.flags & ENTITY_FLAG_LIGHT_VOLUMETRIC) == 0u) continue;
+
+        vec3 spotDir = normalize(e.direction);
+
+        for (int i = 0; i < uSampleCount; ++i)
+        {
+            float t = (float(i) + offset) * stepSize;
+            vec3 P = uCameraPos + rayDir * t;
+
+            vec3 toLight = e.position - P;
+            float dist2 = dot(toLight, toLight);
+            if (dist2 > e.range * e.range) continue;
+
+            float dist = sqrt(dist2);
+            vec3 L = toLight / max(dist, 1e-5);
+
+            float spotCos = dot(-L, spotDir);
+            float cone = clamp((spotCos - e.coneAngleCos) * e.coneAngleScale, 0.0, 1.0);
+            if (cone <= 0.0) continue;
+
+            float ratio2 = dist2 / max(1e-4, e.range * e.range);
+            float atten = clamp(1.0 - ratio2, 0.0, 1.0);
+            atten *= atten;
+
+            float shadow = SpotShadowAt(e, P);
+            float phase = HenyeyGreenstein(dot(rayDir, -L), uScattering);
+
+            accum += e.color * atten * cone * cone * shadow * phase;
+        }
+    }
+
+    accum *= uDensity * stepSize;
+    imageStore(uDest, id, vec4(accum, 1.0));
+}

@@ -1,0 +1,56 @@
+#version 450 core
+
+// Pass 2 of 4: KICKOFF. A single thread.
+//
+// Does two things, and both HAVE TO happen on one thread, with no
+// concurrency, between emit and simulation:
+//
+//  1. Promotes aliveCountAfterSim -> aliveCount. That counter holds last
+//     frame's survivors PLUS whatever emit just added (emit runs before this
+//     pass on purpose). It becomes the number of particles to simulate now,
+//     and the survivor counter zeroes so simulation can fill it again.
+//
+//  2. Writes the SIMULATION dispatch's arguments. This is what closes the
+//     GPU-driven loop: simulation is launched with an indirect dispatch, so
+//     the group count comes from this buffer and never from the CPU. The CPU
+//     never learns how many particles exist.
+
+layout(local_size_x = 1) in;
+
+// --- particle_common.glsl (pasted; see the note in it) ---
+struct Counters
+{
+    uint aliveCount;
+    int  deadCount;
+    uint emitCount;
+    uint aliveCountAfterSim;
+};
+// --- end ---
+
+#define THREADCOUNT_SIMULATION 64
+
+layout(std430, binding = 3) buffer CounterBuffer { Counters c; };
+
+layout(std430, binding = 4) buffer IndirectBuffer
+{
+    uint dispatchX, dispatchY, dispatchZ, pad0;
+    uint vertexCount, instanceCount, firstVertex, baseInstance;
+} indirect;
+
+void main()
+{
+    uint aliveCount = c.aliveCountAfterSim;
+
+    c.aliveCount = aliveCount;
+    c.aliveCountAfterSim = 0u;
+
+    // Emit may have driven deadCount negative by racing for the last free
+    // slots. Clamping is mandatory: without it the next emit reads an
+    // out-of-bounds index.
+    c.deadCount = max(0, c.deadCount);
+
+    indirect.dispatchX =
+        (aliveCount + uint(THREADCOUNT_SIMULATION) - 1u) / uint(THREADCOUNT_SIMULATION);
+    indirect.dispatchY = 1u;
+    indirect.dispatchZ = 1u;
+}

@@ -1,0 +1,26 @@
+/build*/
+bin/
+docs/
+
+*.gch
+*.pch
+*.PCH
+
+*.o
+*.a
+*.so
+*.d
+
+imgui.ini
+OgreXMLConverter.log
+__pycache__/
+*.pyc
+
+CLAUDE.md
+.claude/
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*~
