@@ -64,7 +64,7 @@ public:
     // Editor Viewport quality only. These never alter the scene or the Game
     // view; they remove expensive preview passes while authoring.
     bool previewShadows = true;
-    bool previewSSAO = true;
+    bool previewSSAO = false;
     bool previewVolumetrics = false;
     bool previewLensFlares = false;
     bool previewPlanarReflections = false;

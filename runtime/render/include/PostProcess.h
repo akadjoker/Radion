@@ -124,7 +124,7 @@ public:
     // HDR temporal resolve happens before Bloom/ToneMap.  It is intentionally
     // independent from the generic effect list: a history buffer has ordering
     // and lifetime requirements that a stateless post layer does not have.
-    bool taaEnabled = true;
+    bool taaEnabled = false;
     f32 taaFeedback = 0.95f;
     f32 taaMotionFeedback = 0.85f;
     // How many standard deviations of the 3x3 neighbourhood the history is
@@ -135,7 +135,7 @@ public:
     // softer than the raw image by construction; zero disables the correction
     // and anything past ~0.5 starts to ring on high-contrast edges.
     f32 taaSharpness = 0.0f;
-    bool enabled = true;
+    bool enabled = false;
 
     const std::vector<PostLayer>& layers() const
     {
