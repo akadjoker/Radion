@@ -2,6 +2,7 @@
 
 #include "VoxelBlock.h"
 #include "VoxelMesher.h"
+#include "VoxelTerrain.h"
 #include "VoxelWorld.h"
 
 #include <cstdio>
@@ -84,18 +85,22 @@ void testMeshing()
 
     VoxelWorld world;
     world.setBlock({0, 0, 0}, stoneId);
-    const VoxelMeshData oneBlock = VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
+    const VoxelMeshData oneBlock =
+        VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
     CHECK(oneBlock.opaque.positions.size() == 24);
+    CHECK(oneBlock.opaque.colors.size() == 24);
     CHECK(oneBlock.opaque.indices.size() == 36);
     CHECK(oneBlock.opaque.triangleCount() == 12);
 
     world.setBlock({1, 0, 0}, stoneId);
-    const VoxelMeshData adjacent = VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
+    const VoxelMeshData adjacent =
+        VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
     CHECK(adjacent.opaque.indices.size() == 60);
     CHECK(adjacent.opaque.triangleCount() == 20);
 
     world.setBlock({32, 0, 0}, stoneId);
-    const VoxelMeshData border = VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
+    const VoxelMeshData border =
+        VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
     CHECK(border.opaque.indices.size() == 60);
 
     BlockDefinition water;
@@ -113,6 +118,65 @@ void testMeshing()
     CHECK(waterMesh.opaque.indices.empty());
     CHECK(waterMesh.transparent.indices.size() == 60);
 }
+
+BlockRegistry makeTerrainRegistry()
+{
+    BlockRegistry registry;
+    for (const char* name : {"grass", "dirt", "stone", "sand", "bedrock", "water"})
+    {
+        BlockDefinition definition;
+        definition.name = name;
+        registry.registerBlock(definition);
+    }
+    return registry;
+}
+
+void testTerrainGeneration()
+{
+    const BlockRegistry registry = makeTerrainRegistry();
+
+    VoxelWorld worldA;
+    VoxelWorld worldB;
+    VoxelTerrain terrainA(registry, 12345);
+    VoxelTerrain terrainB(registry, 12345);
+    terrainA.generate(worldA, {0, 0, 0});
+    terrainB.generate(worldB, {0, 0, 0});
+
+    const VoxelChunk& chunkA = *worldA.findChunk({0, 0, 0});
+    const VoxelChunk& chunkB = *worldB.findChunk({0, 0, 0});
+
+    // Same seed reproduces the same chunk, block for block.
+    bool identical = true;
+    for (s32 z = 0; z < VoxelChunk::Size && identical; ++z)
+        for (s32 y = 0; y < VoxelChunk::Size && identical; ++y)
+            for (s32 x = 0; x < VoxelChunk::Size && identical; ++x)
+                identical = chunkA.block({x, y, z}) == chunkB.block({x, y, z});
+    CHECK(identical);
+
+    // A different seed differs somewhere.
+    VoxelWorld worldC;
+    VoxelTerrain terrainC(registry, 54321);
+    terrainC.generate(worldC, {0, 0, 0});
+    const VoxelChunk& chunkC = *worldC.findChunk({0, 0, 0});
+    bool differs = false;
+    for (s32 z = 0; z < VoxelChunk::Size && !differs; ++z)
+        for (s32 y = 0; y < VoxelChunk::Size && !differs; ++y)
+            for (s32 x = 0; x < VoxelChunk::Size && !differs; ++x)
+                differs = chunkA.block({x, y, z}) != chunkC.block({x, y, z});
+    CHECK(differs);
+
+    // Bedrock floor and a solid surface column exist regardless of seed.
+    CHECK(chunkA.block({0, 0, 0}) == registry.findId("bedrock"));
+    const BlockId grass = registry.findId("grass");
+    const BlockId sand = registry.findId("sand");
+    bool hasSurface = false;
+    for (s32 z = 0; z < VoxelChunk::Size && !hasSurface; ++z)
+        for (s32 x = 0; x < VoxelChunk::Size && !hasSurface; ++x)
+            for (s32 y = 1; y < VoxelChunk::Size; ++y)
+                if (chunkA.block({x, y, z}) == grass || chunkA.block({x, y, z}) == sand)
+                    hasSurface = true;
+    CHECK(hasSurface);
+}
 } // namespace
 
 int main()
@@ -121,5 +185,6 @@ int main()
     testWorldCoordinates();
     testChunkAndBoundaries();
     testMeshing();
+    testTerrainGeneration();
     return gFailures == 0 ? 0 : 1;
 }

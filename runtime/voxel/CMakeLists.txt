@@ -2,6 +2,7 @@ add_library(radion_voxel
     src/VoxelBlock.cpp
     src/VoxelChunk.cpp
     src/VoxelMesher.cpp
+    src/VoxelTerrain.cpp
     src/VoxelWorld.cpp
 )
 

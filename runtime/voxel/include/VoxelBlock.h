@@ -4,6 +4,7 @@
 #include "Types.h"
 
 #include <array>
+#include <glm/glm.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -38,10 +39,13 @@ enum class BlockFace : u8
 
 // A tile in a texture atlas.  The renderer will turn these coordinates into
 // UVs; chunks and world generation never need to know about texture assets.
+// `color` is the face's tint, written straight into the meshed vertices so a
+// block shows distinct faces before an atlas texture exists.
 struct BlockFaceMaterial
 {
     u16 atlasX = 0;
     u16 atlasY = 0;
+    glm::vec4 color = glm::vec4(1.0f);
 };
 
 struct BlockDefinition
@@ -69,7 +73,10 @@ public:
     BlockDefinition* find(BlockId id);
     BlockId findId(const std::string& name) const;
 
-    usize size() const { return mDefinitions.size(); }
+    usize size() const
+    {
+        return mDefinitions.size();
+    }
     const BlockDefinition& air() const;
 
 private:

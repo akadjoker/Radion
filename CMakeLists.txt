@@ -54,6 +54,7 @@ option(RADION_ENABLE_SANITIZERS "Enable sanitizers in Debug builds" ON)
 option(RADION_BUILD_EDITOR "Build the Radion editor" ON)
 option(RADION_BUILD_RUNNER "Build the standalone Radion game runner" ON)
 option(RADION_BUILD_BLENDER "Build the Radion Blender tool" ON)
+option(RADION_BUILD_VOXEL_DEMO "Build the voxel terrain demo" ON)
  
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -109,6 +110,10 @@ endif()
 
 if(RADION_BUILD_BLENDER)
     add_subdirectory(blend)
+endif()
+
+if(RADION_BUILD_VOXEL_DEMO)
+    add_subdirectory(examples/voxel_demo)
 endif()
 
 add_subdirectory(tools/lightmapbake)
