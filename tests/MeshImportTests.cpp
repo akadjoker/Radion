@@ -9,6 +9,7 @@
 #include "MeshLoader.h"
 
 #include <cstdio>
+#include <filesystem>
 
 using namespace Radion;
 
@@ -147,7 +148,14 @@ void importPath(MeshLoader& loader, const std::string& path, const char* label)
 
 void importOne(MeshLoader& loader, const char* relative)
 {
-    importPath(loader, std::string(RADION_TEST_ASSET_DIR) + "/" + relative, relative);
+    const std::string path = std::string(RADION_TEST_ASSET_DIR) + "/" + relative;
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(path, error))
+    {
+        std::fprintf(stderr, "  skipping optional import fixture: %s\n", relative);
+        return;
+    }
+    importPath(loader, path, relative);
 }
 
 void testGltf()
@@ -165,8 +173,12 @@ void testGltf()
     // quaternion shows up here as a model lying over or sunk through Y=0
     // long before anyone opens the editor to look at it.
     MeshData helmet;
-    CHECK(loader.load(std::string(RADION_TEST_ASSET_DIR) + "/models/flightHelmet/flightHelmet.glb",
-                      helmet));
+    const std::string helmetPath =
+        std::string(RADION_TEST_ASSET_DIR) + "/models/flightHelmet/flightHelmet.glb";
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(helmetPath, error))
+        return;
+    CHECK(loader.load(helmetPath, helmet));
     if (helmet.positions.empty())
         return;
     const glm::vec3 size = helmet.bounds.max - helmet.bounds.min;

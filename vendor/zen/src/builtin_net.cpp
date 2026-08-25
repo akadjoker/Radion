@@ -33,7 +33,6 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 typedef int socklen_t;
-typedef int ssize_t;
 #define MSG_NOSIGNAL 0
 #define close closesocket
 static bool wsa_init_done = false;
@@ -374,7 +373,7 @@ namespace zen
         }
 
         ObjString *data = as_string(args[1]);
-        ssize_t sent = ::send(fd, data->chars, (size_t)data->length, MSG_NOSIGNAL);
+        int sent = ::send(fd, data->chars, (size_t)data->length, MSG_NOSIGNAL);
         args[0] = val_int((int64_t)sent);
         return 1;
     }
@@ -410,7 +409,7 @@ namespace zen
             return 1;
         }
 
-        ssize_t n = ::recv(fd, buf, (size_t)max_bytes, 0);
+        int n = ::recv(fd, buf, (size_t)max_bytes, 0);
         if (n <= 0)
         {
             free(buf);
@@ -452,8 +451,8 @@ namespace zen
         addr.sin_port = htons((uint16_t)port);
         inet_pton(AF_INET, host, &addr.sin_addr);
 
-        ssize_t sent = ::sendto(fd, data->chars, (size_t)data->length, 0,
-                                (struct sockaddr *)&addr, sizeof(addr));
+        int sent = ::sendto(fd, data->chars, (size_t)data->length, 0,
+                            (struct sockaddr *)&addr, sizeof(addr));
         args[0] = val_int((int64_t)sent);
         return 1;
     }
@@ -491,8 +490,8 @@ namespace zen
 
         struct sockaddr_in from_addr;
         socklen_t from_len = sizeof(from_addr);
-        ssize_t n = ::recvfrom(fd, buf, (size_t)max_bytes, 0,
-                               (struct sockaddr *)&from_addr, &from_len);
+        int n = ::recvfrom(fd, buf, (size_t)max_bytes, 0,
+                           (struct sockaddr *)&from_addr, &from_len);
         if (n <= 0)
         {
             free(buf);
