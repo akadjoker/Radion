@@ -5,9 +5,9 @@
 #include "MiniRenderer.h"
 #include "Types.h"
 
-#include <glm/mat4x4.hpp>
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
+#include "Math.h"
+#include "Math.h"
+#include "Math.h"
 #include <array>
 #include <vector>
 
@@ -74,7 +74,7 @@ private:
     // the GameObject/Scene it is normally read out of there.
     struct CameraState
     {
-        glm::vec3 target = glm::vec3(0.0f);
+        Math::vec3 target = Math::vec3(0.0f);
         f32 yaw = 0.0f;   // radians
         f32 pitch = 0.3f; // radians
         f32 distance = 6.0f;
@@ -98,22 +98,22 @@ private:
     };
 
     void updateCameraNavigation(usize index, CameraState& camera, ViewMode mode);
-    void computeMatrices(const CameraState& camera, ViewMode mode, f32 aspect, glm::mat4& view,
-                         glm::mat4& projection, glm::vec3& cameraPos) const;
-    void drawNavigationGizmo(CameraState& camera, const glm::mat4& view, const glm::vec2& imageMin,
-                             const glm::vec2& imageSize);
-    void drawSelectionOverlay(const MeshData* mesh, const glm::mat4& viewProjection);
-    void drawDebugVectorOverlay(const MeshData* mesh, const glm::mat4& viewProjection);
-    void drawSkeletonOverlay(const glm::mat4& viewProjection);
-    void updateSelectionInput(usize index, const MeshData* mesh, const glm::mat4& view,
-                              const glm::mat4& projection, const glm::vec3& cameraPos,
-                              const glm::vec2& imageMin, const glm::vec2& imageSize,
+    void computeMatrices(const CameraState& camera, ViewMode mode, f32 aspect, Math::mat4& view,
+                         Math::mat4& projection, Math::vec3& cameraPos) const;
+    void drawNavigationGizmo(CameraState& camera, const Math::mat4& view, const Math::vec2& imageMin,
+                             const Math::vec2& imageSize);
+    void drawSelectionOverlay(const MeshData* mesh, const Math::mat4& viewProjection);
+    void drawDebugVectorOverlay(const MeshData* mesh, const Math::mat4& viewProjection);
+    void drawSkeletonOverlay(const Math::mat4& viewProjection);
+    void updateSelectionInput(usize index, const MeshData* mesh, const Math::mat4& view,
+                              const Math::mat4& projection, const Math::vec3& cameraPos,
+                              const Math::vec2& imageMin, const Math::vec2& imageSize,
                               const RenderTarget& target);
     void handleToolShortcuts();
     void uploadVertexSelection(const MeshData& mesh, const BlenderSelection& selection);
-    void drawTransformGizmo(usize index, const MeshData* mesh, const glm::mat4& view,
-                            const glm::mat4& projection, const glm::vec2& imageMin,
-                            const glm::vec2& imageSize, bool orthographic);
+    void drawTransformGizmo(usize index, const MeshData* mesh, const Math::mat4& view,
+                            const Math::mat4& projection, const Math::vec2& imageMin,
+                            const Math::vec2& imageSize, bool orthographic);
 
     // One depth read covering the whole area a selection needs to test,
     // instead of one glReadPixels per candidate. Each of those binds the FBO
@@ -127,12 +127,12 @@ private:
         s32 width = 0;
         s32 height = 0;
     };
-    static bool readDepthRect(const RenderTarget& target, const glm::vec2& localMin,
-                              const glm::vec2& localMax, DepthRect& out);
-    static bool isScreenPointVisible(const DepthRect& depthRect, const glm::vec2& localPoint,
-                                     const glm::vec3& worldPos,
-                                     const glm::mat4& inverseViewProjection,
-                                     const glm::vec3& cameraPos, const RenderTarget& target);
+    static bool readDepthRect(const RenderTarget& target, const Math::vec2& localMin,
+                              const Math::vec2& localMax, DepthRect& out);
+    static bool isScreenPointVisible(const DepthRect& depthRect, const Math::vec2& localPoint,
+                                     const Math::vec3& worldPos,
+                                     const Math::mat4& inverseViewProjection,
+                                     const Math::vec3& cameraPos, const RenderTarget& target);
 
     LayoutMode mLayoutMode = LayoutMode::Single;
     std::array<CameraState, 4> mCameras;
@@ -151,7 +151,7 @@ private:
 
     s32 mBoxSelectViewport = -1;
     bool mBoxSelecting = false;
-    glm::vec2 mBoxSelectStart = glm::vec2(0.0f);
+    Math::vec2 mBoxSelectStart = Math::vec2(0.0f);
 
     // Toolbar state. Only Grid is actually wired to a visible effect right
     // now - Move/Rotate/Scale have no gizmo to drive yet, and Snap has no
@@ -171,8 +171,8 @@ private:
     // draw a gizmo - the hovered one, or whichever owns a drag in progress.
     s32 mGizmoViewport = -1;
     bool mGizmoDragging = false;
-    glm::mat4 mGizmoMatrix = glm::mat4(1.0f);
-    glm::mat4 mGizmoStartMatrix = glm::mat4(1.0f);
+    Math::mat4 mGizmoMatrix = Math::mat4(1.0f);
+    Math::mat4 mGizmoStartMatrix = Math::mat4(1.0f);
     bool mShowGrid = true;
     bool mSelectVisibleOnly = false;
 

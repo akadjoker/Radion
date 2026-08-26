@@ -18,7 +18,7 @@
 #include "panels/TimelinePanel.h"
 #include "panels/ViewportPanel.h"
 
-#include <glm/common.hpp>
+#include "Math.h"
 #include <imgui.h>
 #include <imgui_internal.h> // DockBuilder* - building the first-run default layout
 #include <utility>
@@ -65,7 +65,7 @@ void BlenderApplication::run()
 {
     while (mEngine.update())
     {
-        const f32 deltaTime = glm::min(mEngine.getWindow().getDeltaTime(), 0.1f);
+        const f32 deltaTime = Math::min(mEngine.getWindow().getDeltaTime(), 0.1f);
         runFrame(deltaTime);
         handleShortcuts();
         drawDockspace();
@@ -265,7 +265,7 @@ void BlenderApplication::setActiveAnimationClip(s32 index)
 
     mActiveClip = index;
     mCurrentFrame = 0;
-    mTotalFrames = glm::max(
+    mTotalFrames = Math::max(
         1u, static_cast<u32>(mAnimationClips[mActiveClip].duration() * kAnimationFramesPerSecond));
     updateAnimationPose();
 }
@@ -1121,8 +1121,8 @@ void BlenderApplication::drawFaceMenu()
     ImGui::EndDisabled();
 }
 
-void BlenderApplication::applyFaceUVTransform(const glm::vec2& scale, f32 rotationDegrees,
-                                              const glm::vec2& offset)
+void BlenderApplication::applyFaceUVTransform(const Math::vec2& scale, f32 rotationDegrees,
+                                              const Math::vec2& offset)
 {
     if (!mMeshData)
         return;
@@ -1176,20 +1176,20 @@ void BlenderApplication::extrudeSelectedFaces()
     applyMeshEdit();
 }
 
-glm::vec3 BlenderApplication::transformPivot() const
+::Radion::Math::vec3 BlenderApplication::transformPivot() const
 {
     if (!mMeshData || mMeshData->positions.empty())
-        return glm::vec3(0.0f);
+        return Math::vec3(0.0f);
 
     const std::vector<u32>& selected = mSelection.selectedVertices();
-    const std::vector<glm::vec3>& positions = mMeshData->positions;
+    const std::vector<Math::vec3>& positions = mMeshData->positions;
 
-    glm::dvec3 sum(0.0);
+    Math::dvec3 sum(0.0);
     usize counted = 0;
     if (selected.empty())
     {
         for (usize i = 0; i < positions.size(); ++i)
-            sum += glm::dvec3(positions[i]);
+            sum += Math::dvec3(positions[i]);
         counted = positions.size();
     }
     else
@@ -1199,14 +1199,14 @@ glm::vec3 BlenderApplication::transformPivot() const
             const usize index = static_cast<usize>(selected[i]);
             if (index >= positions.size())
                 continue;
-            sum += glm::dvec3(positions[index]);
+            sum += Math::dvec3(positions[index]);
             ++counted;
         }
     }
 
     if (counted == 0)
-        return glm::vec3(0.0f);
-    return glm::vec3(sum / static_cast<double>(counted));
+        return Math::vec3(0.0f);
+    return Math::vec3(sum / static_cast<double>(counted));
 }
 
 bool BlenderApplication::beginGizmoDrag()
@@ -1231,7 +1231,7 @@ bool BlenderApplication::beginGizmoDrag()
     return true;
 }
 
-void BlenderApplication::updateGizmoDrag(const glm::mat4& worldDelta)
+void BlenderApplication::updateGizmoDrag(const Math::mat4& worldDelta)
 {
     if (!mGizmoDragging || !mMeshData)
         return;
@@ -1243,7 +1243,7 @@ void BlenderApplication::updateGizmoDrag(const glm::mat4& worldDelta)
 
     // The gizmo's matrix already sits at the pivot, so the delta is applied
     // in world space rather than around the median a second time.
-    Assets().transformVerticesAbout(*mMeshData, worldDelta, glm::vec3(0.0f), mGizmoIndices);
+    Assets().transformVerticesAbout(*mMeshData, worldDelta, Math::vec3(0.0f), mGizmoIndices);
     applyMeshEdit();
 }
 
@@ -1265,7 +1265,7 @@ void BlenderApplication::endGizmoDrag()
     mGizmoWinding.shrink_to_fit();
 }
 
-void BlenderApplication::applyTransform(const glm::mat4& matrix, const char* verb)
+void BlenderApplication::applyTransform(const Math::mat4& matrix, const char* verb)
 {
     if (!mMeshData)
         return;
@@ -1405,7 +1405,7 @@ bool BlenderApplication::bisectMesh()
     if (!mMeshData || mMeshData->positions.empty())
         return false;
 
-    glm::vec3 normal(0.0f);
+    Math::vec3 normal(0.0f);
     normal[mBisectAxis] = 1.0f;
 
     MeshData cut;
@@ -1512,9 +1512,9 @@ bool BlenderApplication::unwrapUVs()
         return false;
 
     LightmapUnwrapSettings settings;
-    settings.resolution = static_cast<u32>(glm::max(mUnwrapResolution, 0));
-    settings.padding = static_cast<u32>(glm::max(mUnwrapPadding, 0));
-    settings.texelsPerUnit = glm::max(mUnwrapTexelsPerUnit, 0.0f);
+    settings.resolution = static_cast<u32>(Math::max(mUnwrapResolution, 0));
+    settings.padding = static_cast<u32>(Math::max(mUnwrapPadding, 0));
+    settings.texelsPerUnit = Math::max(mUnwrapTexelsPerUnit, 0.0f);
 
     MeshData unwrapped;
     LightmapUnwrapResult result;
@@ -1807,7 +1807,7 @@ void BlenderApplication::drawTransformMenu()
     // No shortcut on these two: S and R put the interactive gizmo into scale
     // and rotate, and these apply a typed amount instead.
     if (ImGui::MenuItem("Scale"))
-        applyTransform(glm::scale(glm::mat4(1.0f), glm::vec3(mScaleFactor)), "scaled");
+        applyTransform(Math::scale(Math::mat4(1.0f), Math::vec3(mScaleFactor)), "scaled");
 
     ImGui::SetNextItemWidth(150.0f);
     ImGui::Combo("Axis", &mRotationAxis, "X\0Y\0Z\0");
@@ -1815,9 +1815,9 @@ void BlenderApplication::drawTransformMenu()
     ImGui::SliderFloat("Rotation Angle (deg)", &mRotationAngle, -180.0f, 180.0f);
     if (ImGui::MenuItem("Rotate"))
     {
-        glm::vec3 axis(0.0f);
+        Math::vec3 axis(0.0f);
         axis[mRotationAxis] = 1.0f;
-        applyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(mRotationAngle), axis), "rotated");
+        applyTransform(Math::rotate(Math::mat4(1.0f), Math::radians(mRotationAngle), axis), "rotated");
     }
 
     ImGui::EndDisabled();

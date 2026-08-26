@@ -5,7 +5,7 @@
 #include "Mesh.h"
 
 #include <glad.h>
-#include <glm/gtc/type_ptr.hpp>
+#include "Math.h"
 #include <cmath>
 
 using namespace Radion;
@@ -213,30 +213,30 @@ void main()
 
 struct MiniVertex
 {
-    glm::vec3 position;
-    glm::vec3 normal;
-    glm::vec2 uv;
-    glm::vec4 tangent;
-    glm::vec4 joints;
-    glm::vec4 weights;
+    Radion::Math::vec3 position;
+    Radion::Math::vec3 normal;
+    Radion::Math::vec2 uv;
+    Radion::Math::vec4 tangent;
+    Radion::Math::vec4 joints;
+    Radion::Math::vec4 weights;
 };
 
-glm::vec3 colorForSubmesh(u32 index)
+Radion::Math::vec3 colorForSubmesh(u32 index)
 {
     const f32 hue = std::fmod(static_cast<f32>(index) * 0.6180339887f, 1.0f);
     const f32 h6 = hue * 6.0f;
     const f32 x = 1.0f - std::fabs(std::fmod(h6, 2.0f) - 1.0f);
     if (h6 < 1.0f)
-        return glm::vec3(1.0f, x, 0.0f);
+        return Radion::Math::vec3(1.0f, x, 0.0f);
     if (h6 < 2.0f)
-        return glm::vec3(x, 1.0f, 0.0f);
+        return Radion::Math::vec3(x, 1.0f, 0.0f);
     if (h6 < 3.0f)
-        return glm::vec3(0.0f, 1.0f, x);
+        return Radion::Math::vec3(0.0f, 1.0f, x);
     if (h6 < 4.0f)
-        return glm::vec3(0.0f, x, 1.0f);
+        return Radion::Math::vec3(0.0f, x, 1.0f);
     if (h6 < 5.0f)
-        return glm::vec3(x, 0.0f, 1.0f);
-    return glm::vec3(1.0f, 0.0f, x);
+        return Radion::Math::vec3(x, 0.0f, 1.0f);
+    return Radion::Math::vec3(1.0f, 0.0f, x);
 }
 
 // The GL id to bind for one material slot, or `fallback` when there is no
@@ -431,20 +431,20 @@ void MiniRenderer::uploadMesh(const MeshData& mesh)
     for (usize v = 0; v < vertexCount; ++v)
     {
         vertices[v].position = mesh.positions[v];
-        vertices[v].normal = v < mesh.normals.size() ? mesh.normals[v] : glm::vec3(0.0f, 1.0f, 0.0f);
-        vertices[v].uv = v < mesh.uvs.size() ? mesh.uvs[v] : glm::vec2(0.0f);
-        vertices[v].tangent = v < mesh.tangents.size() ? mesh.tangents[v] : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        vertices[v].normal = v < mesh.normals.size() ? mesh.normals[v] : Math::vec3(0.0f, 1.0f, 0.0f);
+        vertices[v].uv = v < mesh.uvs.size() ? mesh.uvs[v] : Math::vec2(0.0f);
+        vertices[v].tangent = v < mesh.tangents.size() ? mesh.tangents[v] : Math::vec4(1.0f, 0.0f, 0.0f, 1.0f);
 
         if (v < mesh.skin.size())
         {
             const MeshSkinVertex& skin = mesh.skin[v];
-            vertices[v].joints = glm::vec4(skin.joints[0], skin.joints[1], skin.joints[2], skin.joints[3]);
+            vertices[v].joints = Math::vec4(skin.joints[0], skin.joints[1], skin.joints[2], skin.joints[3]);
             vertices[v].weights = skin.weights;
         }
         else
         {
-            vertices[v].joints = glm::vec4(0.0f);
-            vertices[v].weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+            vertices[v].joints = Math::vec4(0.0f);
+            vertices[v].weights = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
         }
     }
 
@@ -512,9 +512,9 @@ void MiniRenderer::setVertexSelection(const u8* selected, u32 count)
 }
 
 void MiniRenderer::renderViewport(const MeshData* mesh,
-                                   const glm::mat4& viewMatrix,
-                                   const glm::mat4& projectionMatrix,
-                                   const glm::vec3& cameraPos,
+                                   const Math::mat4& viewMatrix,
+                                   const Math::mat4& projectionMatrix,
+                                   const Math::vec3& cameraPos,
                                    const MiniDrawParams& params)
 {
     if (!mShaderProgram || !mesh || mesh->positions.empty() || mesh->indices.empty())
@@ -528,41 +528,41 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
 
     glUseProgram(mShaderProgram);
 
-    const glm::mat4 model(1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(mShaderProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
-    glUniformMatrix4fv(glGetUniformLocation(mShaderProgram, "uView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+    const Math::mat4 model(1.0f);
+    glUniformMatrix4fv(glGetUniformLocation(mShaderProgram, "uModel"), 1, GL_FALSE, Math::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(mShaderProgram, "uView"), 1, GL_FALSE, Math::value_ptr(viewMatrix));
     glUniformMatrix4fv(glGetUniformLocation(mShaderProgram, "uProjection"), 1, GL_FALSE,
-                        glm::value_ptr(projectionMatrix));
+                        Math::value_ptr(projectionMatrix));
 
-    const glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+    const Math::mat3 normalMatrix = Math::transpose(Math::inverse(Math::mat3(model)));
     glUniformMatrix3fv(glGetUniformLocation(mShaderProgram, "uNormalMatrix"), 1, GL_FALSE,
-                        glm::value_ptr(normalMatrix));
+                        Math::value_ptr(normalMatrix));
 
     if (params.bonePalette && params.boneCount > 0)
     {
         const u32 count = params.boneCount < kMiniRendererMaxBones ? params.boneCount : kMiniRendererMaxBones;
         glUniformMatrix4fv(glGetUniformLocation(mShaderProgram, "uBonePalette"), static_cast<GLsizei>(count),
-                            GL_FALSE, glm::value_ptr(params.bonePalette[0]));
+                            GL_FALSE, Math::value_ptr(params.bonePalette[0]));
     }
     else
     {
-        const glm::mat4 identity(1.0f);
+        const Math::mat4 identity(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(mShaderProgram, "uBonePalette"), 1, GL_FALSE,
-                            glm::value_ptr(identity));
+                            Math::value_ptr(identity));
     }
 
-    glUniform3fv(glGetUniformLocation(mShaderProgram, "uLightDirection"), 1, glm::value_ptr(mConfig.lightDirection));
+    glUniform3fv(glGetUniformLocation(mShaderProgram, "uLightDirection"), 1, Math::value_ptr(mConfig.lightDirection));
     glUniform1f(glGetUniformLocation(mShaderProgram, "uLightIntensity"), mConfig.lightIntensity);
-    glUniform3fv(glGetUniformLocation(mShaderProgram, "uAmbientColor"), 1, glm::value_ptr(mConfig.ambientColor));
+    glUniform3fv(glGetUniformLocation(mShaderProgram, "uAmbientColor"), 1, Math::value_ptr(mConfig.ambientColor));
     glUniform1f(glGetUniformLocation(mShaderProgram, "uAmbientIntensity"), mConfig.ambientIntensity);
-    glUniform3fv(glGetUniformLocation(mShaderProgram, "uCameraPos"), 1, glm::value_ptr(cameraPos));
+    glUniform3fv(glGetUniformLocation(mShaderProgram, "uCameraPos"), 1, Math::value_ptr(cameraPos));
 
     const f32 effectiveAlpha = (params.xray && params.alpha >= 1.0f) ? 0.35f : params.alpha;
 
     const int shadingMode = params.mode == MiniRenderMode::Textured ? 1 : 0;
     glUniform1i(glGetUniformLocation(mShaderProgram, "uShadingMode"), shadingMode);
     glUniform1f(glGetUniformLocation(mShaderProgram, "uAlpha"), effectiveAlpha);
-    glUniform3fv(glGetUniformLocation(mShaderProgram, "uTint"), 1, glm::value_ptr(params.tint));
+    glUniform3fv(glGetUniformLocation(mShaderProgram, "uTint"), 1, Math::value_ptr(params.tint));
     glUniform1i(glGetUniformLocation(mShaderProgram, "uDebugView"), static_cast<int>(params.debugView));
     glUniform1i(glGetUniformLocation(mShaderProgram, "uFacetedShading"), params.facetedShading ? 1 : 0);
     glUniform1i(glGetUniformLocation(mShaderProgram, "uUnlit"), params.unlit ? 1 : 0);
@@ -613,8 +613,8 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
             const SubMesh& submesh = mesh->submeshes[i];
             if (texturedPerSubmesh)
                 bindMaterialTextures(materialForSubmesh(*mesh, i), mWhiteTexture, mFlatNormalTexture);
-            const glm::vec3 tint = colorPerSubmesh ? params.tint * colorForSubmesh(i) : params.tint;
-            glUniform3fv(tintLocation, 1, glm::value_ptr(tint));
+            const Math::vec3 tint = colorPerSubmesh ? params.tint * colorForSubmesh(i) : params.tint;
+            glUniform3fv(tintLocation, 1, Math::value_ptr(tint));
             glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(submesh.indexCount), GL_UNSIGNED_INT,
                           reinterpret_cast<const void*>(static_cast<uintptr_t>(submesh.indexOffset) *
                                                         sizeof(u32)));
@@ -650,9 +650,9 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
         glUniform1i(glGetUniformLocation(mShaderProgram, "uDebugView"), 0);
         glUniform1i(glGetUniformLocation(mShaderProgram, "uPointPass"), 1);
         glUniform3fv(glGetUniformLocation(mShaderProgram, "uPointColor"), 1,
-                     glm::value_ptr(params.vertexColor));
+                     Math::value_ptr(params.vertexColor));
         glUniform3fv(glGetUniformLocation(mShaderProgram, "uSelectedPointColor"), 1,
-                     glm::value_ptr(params.selectedVertexColor));
+                     Math::value_ptr(params.selectedVertexColor));
         // A vertex sits exactly on the surface it belongs to: under the main
         // pass's GL_LESS it would fail its own mesh's depth and never appear.
         // Depth writes stay off so the points do not occlude the overlays

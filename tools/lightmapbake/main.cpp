@@ -9,7 +9,7 @@
 #include "MaterialManager.h"
 #include "Sky.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 #include <nlohmann/json.hpp>
 
 #include <atomic>
@@ -67,10 +67,10 @@ void readBakeSettings(const nlohmann::json& node, LightmapBakeSettings& settings
     if (auto it = node.find("ambient"); it != node.end())
     {
         if (it->is_array() && it->size() == 3)
-            settings.ambient = glm::vec3((*it)[0].get<f32>(), (*it)[1].get<f32>(),
+            settings.ambient = ::Radion::Math::vec3((*it)[0].get<f32>(), (*it)[1].get<f32>(),
                                          (*it)[2].get<f32>());
         else
-            settings.ambient = glm::vec3(it->get<f32>());
+            settings.ambient = ::Radion::Math::vec3(it->get<f32>());
     }
     if (auto it = node.find("ambientGround"); it != node.end())
         settings.ambientGround = it->get<f32>();
@@ -84,11 +84,11 @@ void readBakeSettings(const nlohmann::json& node, LightmapBakeSettings& settings
         settings.shadowResolution = it->get<u32>();
 }
 
-glm::vec3 readVec3(const nlohmann::json& node, const glm::vec3& fallback)
+::Radion::Math::vec3 readVec3(const nlohmann::json& node, const ::Radion::Math::vec3& fallback)
 {
     if (!node.is_array() || node.size() != 3)
         return fallback;
-    return glm::vec3(node[0].get<f32>(), node[1].get<f32>(), node[2].get<f32>());
+    return ::Radion::Math::vec3(node[0].get<f32>(), node[1].get<f32>(), node[2].get<f32>());
 }
 }
 
@@ -229,7 +229,7 @@ int main(int argc, char** argv)
     }
     u32 lightmapPages = 0;
     for (const SubMesh& submesh : data.submeshes)
-        lightmapPages = glm::max(lightmapPages, submesh.lightmapPage + 1);
+        lightmapPages = ::Radion::Math::max(lightmapPages, submesh.lightmapPage + 1);
     if (lightmapPages > 1)
     {
         // bake() has no per-page filter yet - it would draw every submesh
@@ -260,14 +260,14 @@ int main(int argc, char** argv)
     engine.sky().sunAzimuth = sunNode.value("azimuth", engine.sky().sunAzimuth);
     engine.sky().sunElevation = sunNode.value("elevation", engine.sky().sunElevation);
     engine.sky().updateSun();
-    const glm::vec3 sunColor =
-        readVec3(sunNode.value("color", nlohmann::json::array()), glm::vec3(1.0f, 0.95f, 0.85f));
+    const ::Radion::Math::vec3 sunColor =
+        readVec3(sunNode.value("color", nlohmann::json::array()), ::Radion::Math::vec3(1.0f, 0.95f, 0.85f));
     const f32 sunIntensity = sunNode.value("intensity", 1.0f);
-    const glm::vec3 lightColor = sunColor * sunIntensity;
-    const glm::vec3 lightDirection = -engine.sky().sunDirection;
+    const ::Radion::Math::vec3 lightColor = sunColor * sunIntensity;
+    const ::Radion::Math::vec3 lightDirection = -engine.sky().sunDirection;
 
     const Mesh* uploadedMesh = Assets().getMesh(mesh);
-    const glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(sceneScale));
+    const ::Radion::Math::mat4 model = ::Radion::Math::scale(::Radion::Math::mat4(1.0f), ::Radion::Math::vec3(sceneScale));
 
     LightmapBakePass baker;
     std::string appliedPreset;

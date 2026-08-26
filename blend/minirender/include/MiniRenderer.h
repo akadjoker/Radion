@@ -2,8 +2,8 @@
 #define RADION_MINI_RENDERER_H
 
 #include "Types.h"
-#include <glm/mat4x4.hpp>
-#include <glm/vec3.hpp>
+#include "Math.h"
+#include "Math.h"
 #include <vector>
 
 namespace Radion
@@ -19,8 +19,8 @@ constexpr u32 kMiniRendererMaxBones = 128;
 struct MiniRendererConfig
 {
     f32 lightIntensity = 1.0f;
-    glm::vec3 lightDirection = glm::normalize(glm::vec3(0.5f, 1.0f, 0.5f));
-    glm::vec3 ambientColor = glm::vec3(0.3f, 0.3f, 0.3f);
+    Math::vec3 lightDirection = Math::normalize(Math::vec3(0.5f, 1.0f, 0.5f));
+    Math::vec3 ambientColor = Math::vec3(0.3f, 0.3f, 0.3f);
     f32 ambientIntensity = 0.3f;
 };
 
@@ -46,7 +46,7 @@ struct MiniDrawParams
 {
     MiniRenderMode mode = MiniRenderMode::Textured;
     f32 alpha = 1.0f; // < 1 draws blended, depth write off (onion-skin ghosts)
-    glm::vec3 tint = glm::vec3(1.0f);
+    Math::vec3 tint = Math::vec3(1.0f);
 
     // Blender's X-ray: depth test off for the whole draw (main pass and any
     // overlay), so nothing behind the mesh is occluded by it - stacked
@@ -67,8 +67,8 @@ struct MiniDrawParams
     // vertex buffer - one draw call, nothing uploaded per frame. Which points
     // come out selected is whatever setVertexSelection() last stored.
     bool showVertexPoints = false;
-    glm::vec3 vertexColor = glm::vec3(1.0f, 0.8f, 0.1f);
-    glm::vec3 selectedVertexColor = glm::vec3(1.0f, 0.4f, 0.0f);
+    Math::vec3 vertexColor = Math::vec3(1.0f, 0.8f, 0.1f);
+    Math::vec3 selectedVertexColor = Math::vec3(1.0f, 0.4f, 0.0f);
     f32 vertexPointSize = 4.0f;
     bool showWireframeOverlay = false; // extra wireframe pass over the solid one
     bool colorBySubmesh = false;
@@ -87,7 +87,7 @@ struct MiniDrawParams
     // own palette output). Empty draws every vertex with joint 0 at identity
     // - the same "zero when unused" convention MeshPreview's GPUInstance uses,
     // so an unrigged mesh needs no separate vertex format or shader branch.
-    const glm::mat4* bonePalette = nullptr;
+    const Math::mat4* bonePalette = nullptr;
     u32 boneCount = 0;
 };
 
@@ -104,15 +104,15 @@ public:
     void shutdown();
 
     // Configuration
-    void setLightDirection(const glm::vec3& direction)
+    void setLightDirection(const Math::vec3& direction)
     {
-        mConfig.lightDirection = glm::normalize(direction);
+        mConfig.lightDirection = Math::normalize(direction);
     }
     void setLightIntensity(f32 intensity)
     {
         mConfig.lightIntensity = intensity;
     }
-    void setAmbientColor(const glm::vec3& color)
+    void setAmbientColor(const Math::vec3& color)
     {
         mConfig.ambientColor = color;
     }
@@ -145,9 +145,9 @@ public:
     }
 
     void renderViewport(const MeshData* mesh,
-                        const glm::mat4& viewMatrix,
-                        const glm::mat4& projectionMatrix,
-                        const glm::vec3& cameraPos,
+                        const Math::mat4& viewMatrix,
+                        const Math::mat4& projectionMatrix,
+                        const Math::vec3& cameraPos,
                         const MiniDrawParams& params = {});
 
 private:

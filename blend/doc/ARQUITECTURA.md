@@ -138,7 +138,7 @@ AnimationInstance mPlaybackInstance;
 
 void insertKeyframe() { ... }
 void playAnimation() { ... }
-glm::vec3 getAnimatedVertexPosition(u32 idx) { ... }
+Math::vec3 getAnimatedVertexPosition(u32 idx) { ... }
 ```
 
 ### ViewportPanel (Rendering UI)
@@ -172,7 +172,7 @@ PBR shader otimizado, render rápido, sem post-process:
 ```cpp
 class MiniRenderer {
     void renderViewport(usize index, MeshData* mesh, Camera* cam);
-    void setLightDirection(glm::vec3 dir);
+    void setLightDirection(Math::vec3 dir);
     void setLightIntensity(float intensity);
 };
 ```

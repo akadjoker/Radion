@@ -43,11 +43,11 @@ void BlenderSettings::clearRecentFiles()
 
 namespace
 {
-void readVec3(const nlohmann::json& json, const char* key, glm::vec3& out)
+void readVec3(const nlohmann::json& json, const char* key, ::Radion::Math::vec3& out)
 {
     const auto field = json.find(key);
     if (field != json.end() && field->is_array() && field->size() == 3)
-        out = glm::vec3((*field)[0].get<f32>(), (*field)[1].get<f32>(), (*field)[2].get<f32>());
+        out = ::Radion::Math::vec3((*field)[0].get<f32>(), (*field)[1].get<f32>(), (*field)[2].get<f32>());
 }
 
 void readFloat(const nlohmann::json& json, const char* key, f32& out)

@@ -1,7 +1,7 @@
 #ifndef RADION_BLENDER_SETTINGS_H
 #define RADION_BLENDER_SETTINGS_H
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <string>
 #include <vector>
 
@@ -20,24 +20,24 @@ public:
         f32 fov = 60.0f;
         f32 nearPlane = 0.1f;
         f32 farPlane = 1000.0f;
-        glm::vec3 backgroundColor = glm::vec3(0.12f, 0.12f, 0.12f);
+        Math::vec3 backgroundColor = Math::vec3(0.12f, 0.12f, 0.12f);
 
-        glm::vec3 vertexColor = glm::vec3(0.9f, 0.45f, 0.05f);
-        glm::vec3 selectedVertexColor = glm::vec3(1.0f, 0.9f, 0.2f);
-        glm::vec3 faceHighlightColor = glm::vec3(1.0f, 0.6f, 0.0f);
+        Math::vec3 vertexColor = Math::vec3(0.9f, 0.45f, 0.05f);
+        Math::vec3 selectedVertexColor = Math::vec3(1.0f, 0.9f, 0.2f);
+        Math::vec3 faceHighlightColor = Math::vec3(1.0f, 0.6f, 0.0f);
         f32 faceHighlightAlpha = 0.35f;
-        glm::vec3 faceEdgeHighlightColor = glm::vec3(1.0f, 1.0f, 1.0f);
-        glm::vec3 submeshHighlightColor = glm::vec3(1.0f, 0.8f, 0.1f);
+        Math::vec3 faceEdgeHighlightColor = Math::vec3(1.0f, 1.0f, 1.0f);
+        Math::vec3 submeshHighlightColor = Math::vec3(1.0f, 0.8f, 0.1f);
         f32 submeshHighlightAlpha = 0.35f;
-        glm::vec3 boxSelectColor = glm::vec3(1.0f, 0.65f, 0.0f);
+        Math::vec3 boxSelectColor = Math::vec3(1.0f, 0.65f, 0.0f);
         bool colorBySubmesh = false;
 
         // Normals/Tangents debug view: line length drawn from each vertex,
         // and the two colors - the shader's own color-coded surface is hard
         // to read a direction off of, this is the line-per-vertex on top.
         f32 debugVectorLength = 0.15f;
-        glm::vec3 normalVectorColor = glm::vec3(0.2f, 0.9f, 1.0f);
-        glm::vec3 tangentVectorColor = glm::vec3(1.0f, 0.3f, 0.7f);
+        Math::vec3 normalVectorColor = Math::vec3(0.2f, 0.9f, 1.0f);
+        Math::vec3 tangentVectorColor = Math::vec3(1.0f, 0.3f, 0.7f);
     };
 
     // Animation settings

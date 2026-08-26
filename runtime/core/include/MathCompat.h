@@ -155,7 +155,9 @@ inline float abs(float v) { return std::fabs(v); }
 inline vec2 abs(const vec2& v) { return vec2(std::fabs(v.x), std::fabs(v.y)); }
 inline vec3 abs(const vec3& v) { return vec3(std::fabs(v.x), std::fabs(v.y), std::fabs(v.z)); }
 inline vec4 abs(const vec4& v) { return vec4(std::fabs(v.x), std::fabs(v.y), std::fabs(v.z), std::fabs(v.w)); }
+inline float floor(float v) { return std::floor(v); }
 inline vec3 floor(const vec3& v) { return vec3(std::floor(v.x), std::floor(v.y), std::floor(v.z)); }
+inline float ceil(float v) { return std::ceil(v); }
 inline vec3 ceil(const vec3& v) { return vec3(std::ceil(v.x), std::ceil(v.y), std::ceil(v.z)); }
 inline vec3 round(const vec3& v) { return vec3(std::round(v.x), std::round(v.y), std::round(v.z)); }
 inline float round(float v) { return std::round(v); }
@@ -190,6 +192,12 @@ inline mat4 frustum(float left, float right, float bottom, float top, float near
                 (right + left) / (right - left), (top + bottom) / (top - bottom), -(farPlane + nearPlane) / (farPlane - nearPlane), -1.0f,
                 0.0f, 0.0f, -(2.0f * farPlane * nearPlane) / (farPlane - nearPlane), 0.0f);
 }
+inline const float* value_ptr(const vec2& v) { return &v.x; }
+inline float* value_ptr(vec2& v) { return &v.x; }
+inline const float* value_ptr(const vec3& v) { return &v.x; }
+inline float* value_ptr(vec3& v) { return &v.x; }
+inline const float* value_ptr(const vec4& v) { return &v.x; }
+inline float* value_ptr(vec4& v) { return &v.x; }
 inline const float* value_ptr(const mat2& m) { return m.Data(); }
 inline float* value_ptr(mat2& m) { return m.Data(); }
 inline const float* value_ptr(const mat3& m) { return m.Data(); }
@@ -228,6 +236,9 @@ inline quat rotation(const vec3& from, const vec3& to) { return quat::FromTo(fro
 inline float sin(float v) { return std::sin(v); }
 inline float cos(float v) { return std::cos(v); }
 inline float tan(float v) { return std::tan(v); }
+inline float asin(float v) { return std::asin(v); }
+inline float atan(float v) { return std::atan(v); }
+inline float atan(float y, float x) { return std::atan2(y, x); }
 inline float sqrt(float v) { return std::sqrt(v); }
 inline float exp(float v) { return std::exp(v); }
 inline vec3 exp(const vec3& v) { return vec3(std::exp(v.x), std::exp(v.y), std::exp(v.z)); }
