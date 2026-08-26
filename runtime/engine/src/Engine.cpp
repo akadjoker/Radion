@@ -36,6 +36,7 @@
 #include "Scene.h"
 #include "TrailRender.h"
 #include "TreeRender.h"
+#include "Thread.h"
 
 namespace Radion
 {
@@ -283,6 +284,9 @@ void Engine::shutdown()
 
     GPU::destroyDevice(mGpu);
     mGpu = nullptr;
+    // The global pool owns SDL threads. Join them while SDL is still alive,
+    // rather than relying on static destruction after Window::destroy().
+    shutdownJobs();
     mWindow.destroy();
     mInitialized = false;
 }

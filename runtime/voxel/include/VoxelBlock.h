@@ -36,12 +36,22 @@ enum class BlockFace : u8
     Count
 };
 
+enum class BlockFaceRotation : u8
+{
+    None,
+    Clockwise90,
+    HalfTurn,
+    CounterClockwise90
+};
+
 // A tile in a texture atlas. The mesher turns these coordinates into UVs;
 // chunks and world generation never need to know about texture assets.
 struct BlockFaceMaterial
 {
     u16 atlasX = 0;
     u16 atlasY = 0;
+    BlockFaceRotation rotation = BlockFaceRotation::None;
+    bool flipVertical = false;
 };
 
 struct BlockDefinition

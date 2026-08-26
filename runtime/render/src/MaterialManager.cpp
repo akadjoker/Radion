@@ -409,6 +409,8 @@ std::string withVariantDefines(const std::string& source, u32 variantFlags, u8 p
         result += "#define TERRAIN_SURFACE 1\n";
     if (variantFlags & MaterialTerrainClassic)
         result += "#define TERRAIN_CLASSIC 1\n";
+    if (variantFlags & MaterialVoxelAtlas)
+        result += "#define VOXEL_ATLAS 1\n";
     if (variantFlags & MaterialReflection)
         result += "#define HAS_REFLECTION 1\n";
     if (variantFlags & MaterialMirror)
@@ -597,6 +599,7 @@ PipelineKey MaterialManager::pipelineKeyOf(const Material& material, u8 pass) co
                                    MaterialReflection | MaterialMirror | MaterialAnimated |
                                    MaterialLit | MaterialReceiveShadow | MaterialLandscape |
                                    MaterialTerrain | MaterialTerrainClassic |
+                                   MaterialVoxelAtlas |
                                    MaterialParallax | MaterialMetallicRoughnessMap |
                                    MaterialSpecularGlossinessMap)) |
                 variantFlagsOf(material);

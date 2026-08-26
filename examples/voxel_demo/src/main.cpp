@@ -71,7 +71,8 @@ void addSearchPathIfPresent(FileSystem& files, const std::filesystem::path& path
 }
 
 BlockId registerBlock(BlockRegistry& registry, const char* name, bool solid,
-                      BlockRenderType renderType, AtlasTile tile, AtlasTile top = {-1, -1})
+                      BlockRenderType renderType, AtlasTile tile, AtlasTile top = {-1, -1},
+                      bool flipVertical = false)
 {
     BlockDefinition definition;
     definition.name = name;
@@ -83,6 +84,7 @@ BlockId registerBlock(BlockRegistry& registry, const char* name, bool solid,
     {
         face.atlasX = static_cast<u16>(tile.x);
         face.atlasY = static_cast<u16>(tile.y);
+        face.flipVertical = flipVertical;
     }
     if (top.x >= 0)
     {
@@ -95,6 +97,11 @@ BlockId registerBlock(BlockRegistry& registry, const char* name, bool solid,
 Material makeMaterial(TextureHandle atlas, bool transparent)
 {
     Material material;
+    material.flags |= MaterialVoxelAtlas;
+    const f32 atlasWidth = static_cast<f32>(kAtlasColumns * kAtlasTilePixels);
+    const f32 atlasHeight = static_cast<f32>(kAtlasRows * kAtlasTilePixels);
+    material.params.custom0 = {1.0f / kAtlasColumns, 1.0f / kAtlasRows, 0.5f / atlasWidth,
+                               0.5f / atlasHeight};
     material.blend = transparent ? BlendMode::Alpha : BlendMode::Opaque;
     if (transparent)
         material.flags |= MaterialNoDepthWrite;
@@ -183,13 +190,15 @@ int main(int, char**)
     sunObject->lookAt(kWorldCenter);
 
     BlockRegistry blocks;
-    // Atlas tiles, column/row in terrain.png's 16x16 grid.
-    registerBlock(blocks, "grass", true, BlockRenderType::Opaque, {3, 0}, {0, 0});
-    registerBlock(blocks, "dirt", true, BlockRenderType::Opaque, {2, 0});
-    registerBlock(blocks, "stone", true, BlockRenderType::Opaque, {1, 0});
-    registerBlock(blocks, "sand", true, BlockRenderType::Opaque, {2, 1});
-    registerBlock(blocks, "bedrock", true, BlockRenderType::Opaque, {1, 1});
-    registerBlock(blocks, "water", false, BlockRenderType::Transparent, {15, 12});
+    // terrain.png is a general-purpose tile sheet rather than a voxel atlas.
+    // Keep the temporary terrain coherent while a dedicated voxel atlas is authored.
+    constexpr AtlasTile terrainTile{0, 0};
+    registerBlock(blocks, "grass", true, BlockRenderType::Opaque, terrainTile);
+    registerBlock(blocks, "dirt", true, BlockRenderType::Opaque, terrainTile);
+    registerBlock(blocks, "stone", true, BlockRenderType::Opaque, terrainTile);
+    registerBlock(blocks, "sand", true, BlockRenderType::Opaque, terrainTile);
+    registerBlock(blocks, "bedrock", true, BlockRenderType::Opaque, terrainTile);
+    registerBlock(blocks, "water", false, BlockRenderType::Transparent, terrainTile);
 
     const TextureHandle atlas =
         Assets().loadTexture(kTerrainAtlasFile, ColorSpace::sRGB, true, kAtlasMipCount);

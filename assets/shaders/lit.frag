@@ -1025,6 +1025,10 @@ void main()
     // for tiled/cutout materials, and also makes the Inspector's tiling and
     // offset controls affect ordinary Lit materials as intended.
     vec2 uv = vUV * uvTransform.xy + uvTransform.zw;
+#ifdef VOXEL_ATLAS
+    vec2 voxelUv = fract(vUV);
+    uv = vUV2 + custom0.zw + voxelUv * (custom0.xy - custom0.zw * 2.0);
+#endif
 #if defined(HAS_PARALLAX) && defined(HAS_HEIGHT)
     uv = ParallaxOffset(N, vTangent, vUV, V, uParallaxScale);
 #endif

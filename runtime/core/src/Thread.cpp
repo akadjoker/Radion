@@ -320,12 +320,23 @@ u32 ThreadPool::pending() const
     return mQueued + mActive;
 }
 
-ThreadPool& Jobs()
+ThreadPool& jobPool()
 {
     static ThreadPool pool;
+    return pool;
+}
+
+ThreadPool& Jobs()
+{
+    ThreadPool& pool = jobPool();
     if (!pool.running())
         pool.start();
     return pool;
+}
+
+void shutdownJobs()
+{
+    jobPool().stop();
 }
 
 } // namespace Radion
