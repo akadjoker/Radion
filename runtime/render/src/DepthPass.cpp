@@ -15,8 +15,8 @@ namespace
 {
 struct PointDepthBlock
 {
-    Math::Vec4 lightPositionAndRange;
-    Math::Vec4 bias;
+    glm::vec4 lightPositionAndRange;
+    glm::vec4 bias;
 };
 
 CullMode shadowCullMode(const Material* material, bool forceFront)
@@ -88,10 +88,10 @@ bool DepthPass::ensurePaletteCapacity(u32 count)
     while (capacity < count)
         capacity *= 2;
     BufferDesc desc;
-    desc.size = static_cast<u64>(capacity) * sizeof(Math::Mat4);
+    desc.size = static_cast<u64>(capacity) * sizeof(glm::mat4);
     desc.usage = BufferStorage;
     desc.residency = Residency::Stream;
-    desc.stride = sizeof(Math::Mat4);
+    desc.stride = sizeof(glm::mat4);
     desc.debugName = "depth.palettes";
     GPU& gpu = GPU::getSingleton();
     BufferHandle next = gpu.createBuffer(desc);
@@ -242,7 +242,7 @@ bool DepthPass::collectInstances(const FrameContext& frame, RenderCategory categ
             // shadow pass compiles the same MATERIAL_SKINNED variant for a
             // skinned mesh and needs the same identity palette when there is
             // no Animator yet to pose it.
-            const std::vector<Math::Mat4>& identity = RenderList::identityPalette();
+            const std::vector<glm::mat4>& identity = RenderList::identityPalette();
             mPalettes.insert(mPalettes.end(), identity.begin(), identity.end());
         }
         mInstances.push_back(instance);
@@ -256,7 +256,7 @@ bool DepthPass::collectInstances(const FrameContext& frame, RenderCategory categ
     {
         if (!ensurePaletteCapacity(static_cast<u32>(mPalettes.size())))
             return false;
-        gpu.updateBuffer(mPaletteBuffer, 0, mPalettes.size() * sizeof(Math::Mat4), mPalettes.data());
+        gpu.updateBuffer(mPaletteBuffer, 0, mPalettes.size() * sizeof(glm::mat4), mPalettes.data());
         gpu.bindStorage(BindingPalettes, mPaletteBuffer);
     }
     return true;
@@ -294,7 +294,7 @@ void DepthPass::drawCategory(const FrameContext& frame, RenderCategory category,
 
     GPU& gpu = GPU::getSingleton();
     const CameraBlock camera{frame.viewProjection, frame.clipPlane,
-                             Math::Vec4(frame.cameraPosition, 1.0f), frame.view};
+                             glm::vec4(frame.cameraPosition, 1.0f), frame.view};
     gpu.updateBuffer(mCameraBuffer, 0, sizeof(camera), &camera);
     gpu.bindUniform(BindingCamera, mCameraBuffer);
     gpu.setTarget(frame.target);
@@ -466,7 +466,7 @@ void DepthPass::executeShadow(const FrameContext& frame, f32 biasSlope, f32 bias
     }
 }
 
-void DepthPass::executePoint(const FrameContext& frame, const Math::Vec3& lightPosition, f32 range,
+void DepthPass::executePoint(const FrameContext& frame, const glm::vec3& lightPosition, f32 range,
                              f32 bias)
 {
     if (!frame.list)
@@ -474,12 +474,12 @@ void DepthPass::executePoint(const FrameContext& frame, const Math::Vec3& lightP
 
     GPU& gpu = GPU::getSingleton();
     const CameraBlock camera{frame.viewProjection, frame.clipPlane,
-                             Math::Vec4(frame.cameraPosition, 1.0f), frame.view};
+                             glm::vec4(frame.cameraPosition, 1.0f), frame.view};
     gpu.updateBuffer(mCameraBuffer, 0, sizeof(camera), &camera);
     gpu.bindUniform(BindingCamera, mCameraBuffer);
 
-    const PointDepthBlock pointBlock{Math::Vec4(lightPosition, glm::max(range, 0.001f)),
-                                     Math::Vec4(bias, 0.0f, 0.0f, 0.0f)};
+    const PointDepthBlock pointBlock{glm::vec4(lightPosition, glm::max(range, 0.001f)),
+                                     glm::vec4(bias, 0.0f, 0.0f, 0.0f)};
     gpu.updateBuffer(mPointDepthBuffer, 0, sizeof(pointBlock), &pointBlock);
     gpu.bindUniform(2, mPointDepthBuffer);
 

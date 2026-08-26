@@ -233,18 +233,18 @@ private:
 class StayWithinSphereBehavior final : public Behavior
 {
 public:
-    StayWithinSphereBehavior(const Math::Vec3& center, float radius);
+    StayWithinSphereBehavior(const glm::vec3& center, float radius);
     void iterate(float timeDelta, Entity& entity) override;
     const char* name() const override
     {
         return "Stay Within Sphere Behavior";
     }
 
-    const Math::Vec3& sphereCenter() const
+    const glm::vec3& sphereCenter() const
     {
         return mCenter;
     }
-    void setSphereCenter(const Math::Vec3& center)
+    void setSphereCenter(const glm::vec3& center)
     {
         mCenter = center;
     }
@@ -258,7 +258,7 @@ public:
     }
 
 private:
-    Math::Vec3 mCenter;
+    glm::vec3 mCenter;
     float mRadius;
 };
 

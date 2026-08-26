@@ -103,35 +103,35 @@ u8 clampBone(cgltf_uint value, cgltf_size jointCount)
 }
 
 // T * R * S - the engine's own convention (see BoneAttachment: Translate * Rotate).
-Math::Mat4 nodeLocalMatrix(const cgltf_node& node)
+glm::mat4 nodeLocalMatrix(const cgltf_node& node)
 {
     if (node.has_matrix)
         return glm::make_mat4(node.matrix); // column-major flat copy, no transpose needed
 
-    const Math::Vec3 t = node.has_translation ? Math::Vec3(node.translation[0], node.translation[1],
+    const glm::vec3 t = node.has_translation ? glm::vec3(node.translation[0], node.translation[1],
                                                          node.translation[2])
-                                             : Math::Vec3(0.0f);
-    // glTF stores a rotation as [x, y, z, w]; Math::Quaternion's constructor takes
+                                             : glm::vec3(0.0f);
+    // glTF stores a rotation as [x, y, z, w]; glm::quat's constructor takes
     // (w, x, y, z). Passing the array straight through turns every rotation
     // into a different one about a different axis.
-    const Math::Quaternion r = node.has_rotation ? Math::Quaternion(node.rotation[3], node.rotation[0],
+    const glm::quat r = node.has_rotation ? glm::quat(node.rotation[3], node.rotation[0],
                                                       node.rotation[1], node.rotation[2])
-                                          : Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
-    const Math::Vec3 s =
-        node.has_scale ? Math::Vec3(node.scale[0], node.scale[1], node.scale[2]) : Math::Vec3(1.0f);
-    return glm::translate(Math::Mat4(1.0f), t) * glm::mat4_cast(r) * glm::scale(Math::Mat4(1.0f), s);
+                                          : glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    const glm::vec3 s =
+        node.has_scale ? glm::vec3(node.scale[0], node.scale[1], node.scale[2]) : glm::vec3(1.0f);
+    return glm::translate(glm::mat4(1.0f), t) * glm::mat4_cast(r) * glm::scale(glm::mat4(1.0f), s);
 }
 
-Math::Mat4 nodeGlobalMatrix(const cgltf_node& node)
+glm::mat4 nodeGlobalMatrix(const cgltf_node& node)
 {
-    std::vector<Math::Mat4> chain;
+    std::vector<glm::mat4> chain;
     const cgltf_node* current = &node;
     while (current)
     {
         chain.push_back(nodeLocalMatrix(*current));
         current = current->parent;
     }
-    Math::Mat4 result(1.0f);
+    glm::mat4 result(1.0f);
     for (auto it = chain.rbegin(); it != chain.rend(); ++it)
         result = result * (*it);
     return result;
@@ -267,7 +267,7 @@ u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
     if (material->has_pbr_metallic_roughness)
     {
         const cgltf_pbr_metallic_roughness& pbr = material->pbr_metallic_roughness;
-        out.params.baseColor = Math::Vec4(pbr.base_color_factor[0], pbr.base_color_factor[1],
+        out.params.baseColor = glm::vec4(pbr.base_color_factor[0], pbr.base_color_factor[1],
                                          pbr.base_color_factor[2], pbr.base_color_factor[3]);
         out.params.surface.x = pbr.roughness_factor; // roughness
         out.params.surface.y = pbr.metallic_factor;  // metalness
@@ -278,7 +278,7 @@ u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
         // that carries no pbrMetallicRoughness at all - every one of the
         // Bistro's 254 - imports with no base colour and no albedo texture.
         const cgltf_pbr_specular_glossiness& pbr = material->pbr_specular_glossiness;
-        out.params.baseColor = Math::Vec4(pbr.diffuse_factor[0], pbr.diffuse_factor[1],
+        out.params.baseColor = glm::vec4(pbr.diffuse_factor[0], pbr.diffuse_factor[1],
                                          pbr.diffuse_factor[2], pbr.diffuse_factor[3]);
         out.params.surface.x = 1.0f - pbr.glossiness_factor;
         // No texture to read them from leaves only the constant factors, and
@@ -287,10 +287,10 @@ u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
         const f32 specular = std::max(std::max(pbr.specular_factor[0], pbr.specular_factor[1]),
                                       pbr.specular_factor[2]);
         out.params.surface.y = glm::clamp((specular - 0.04f) / 0.96f, 0.0f, 1.0f);
-        out.params.custom0 = Math::Vec4(pbr.specular_factor[0], pbr.specular_factor[1],
+        out.params.custom0 = glm::vec4(pbr.specular_factor[0], pbr.specular_factor[1],
                                        pbr.specular_factor[2], pbr.glossiness_factor);
     }
-    out.params.emissive = Math::Vec4(material->emissive_factor[0], material->emissive_factor[1],
+    out.params.emissive = glm::vec4(material->emissive_factor[0], material->emissive_factor[1],
                                     material->emissive_factor[2], 1.0f);
     // normal_texture.scale is glTF's normalScale - lit.frag's uNormalStrength
     // (surface.w), 1.0 by default same as the spec's own default. Only
@@ -353,15 +353,15 @@ u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
 struct RawBoneChannels
 {
     std::vector<f32> posT;
-    std::vector<Math::Vec3> posV;
+    std::vector<glm::vec3> posV;
     std::vector<f32> rotT;
-    std::vector<Math::Quaternion> rotV;
+    std::vector<glm::quat> rotV;
     std::vector<f32> sclT;
-    std::vector<Math::Vec3> sclV;
+    std::vector<glm::vec3> sclV;
 };
 
-Math::Vec3 sampleVec3Channel(const std::vector<f32>& t, const std::vector<Math::Vec3>& v, f32 time,
-                            const Math::Vec3& fallback)
+glm::vec3 sampleVec3Channel(const std::vector<f32>& t, const std::vector<glm::vec3>& v, f32 time,
+                            const glm::vec3& fallback)
 {
     if (t.empty())
         return fallback;
@@ -376,8 +376,8 @@ Math::Vec3 sampleVec3Channel(const std::vector<f32>& t, const std::vector<Math::
     return v[k0] + (v[k1] - v[k0]) * f;
 }
 
-Math::Quaternion sampleQuatChannel(const std::vector<f32>& t, const std::vector<Math::Quaternion>& v, f32 time,
-                            const Math::Quaternion& fallback)
+glm::quat sampleQuatChannel(const std::vector<f32>& t, const std::vector<glm::quat>& v, f32 time,
+                            const glm::quat& fallback)
 {
     if (t.empty())
         return fallback;
@@ -435,7 +435,7 @@ void buildClipTracks(const cgltf_animation& src,
                 f32 v[4];
                 cgltf_accessor_read_float(output, ki, v, 4);
                 raw.rotT.push_back(t);
-                raw.rotV.push_back(glm::normalize(Math::Quaternion(v[3], v[0], v[1], v[2])));
+                raw.rotV.push_back(glm::normalize(glm::quat(v[3], v[0], v[1], v[2])));
             }
             else if (channel.target_path == cgltf_animation_path_type_scale)
             {
@@ -567,10 +567,10 @@ bool GltfImporter::import(const std::string& filename, ByteArray& data, FileSyst
         const bool skinned = node.skin != nullptr && node.skin->joints_count > 0;
         // A skinned mesh is stored in its own node-local space and driven by
         // the skeleton; node transforms are only baked into static geometry.
-        const Math::Mat4 nodeXform = skinned ? Math::Mat4(1.0f) : nodeGlobalMatrix(node);
-        const Math::Mat3 normalMatrix =
-            skinned ? Math::Mat3(1.0f)
-                    : Math::Mat3(glm::transpose(glm::inverse(Math::Mat3(nodeXform))));
+        const glm::mat4 nodeXform = skinned ? glm::mat4(1.0f) : nodeGlobalMatrix(node);
+        const glm::mat3 normalMatrix =
+            skinned ? glm::mat3(1.0f)
+                    : glm::mat3(glm::transpose(glm::inverse(glm::mat3(nodeXform))));
         const cgltf_size jointCount = node.skin ? node.skin->joints_count : 0;
 
         for (cgltf_size pi = 0; pi < node.mesh->primitives_count; ++pi)
@@ -620,33 +620,33 @@ bool GltfImporter::import(const std::string& filename, ByteArray& data, FileSyst
                 f32 f[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
                 cgltf_accessor_read_float(pos, vi, f, 3);
-                const Math::Vec3 p(f[0], f[1], f[2]);
+                const glm::vec3 p(f[0], f[1], f[2]);
                 mesh.positions[vertexBase + vi] =
-                    skinned ? p : Math::Vec3(nodeXform * Math::Vec4(p, 1.0f));
+                    skinned ? p : glm::vec3(nodeXform * glm::vec4(p, 1.0f));
 
-                Math::Vec3 n(0.0f, 1.0f, 0.0f);
+                glm::vec3 n(0.0f, 1.0f, 0.0f);
                 if (nor)
                 {
                     cgltf_accessor_read_float(nor, vi, f, 3);
-                    n = Math::Vec3(f[0], f[1], f[2]);
+                    n = glm::vec3(f[0], f[1], f[2]);
                     if (!skinned && glm::dot(n, n) > 1e-8f)
                         n = glm::normalize(normalMatrix * n);
                 }
                 mesh.normals[vertexBase + vi] = n;
 
-                Math::Vec4 tangent(1.0f, 0.0f, 0.0f, 1.0f);
+                glm::vec4 tangent(1.0f, 0.0f, 0.0f, 1.0f);
                 if (tan)
                 {
                     cgltf_accessor_read_float(tan, vi, f, 4);
-                    tangent = Math::Vec4(f[0], f[1], f[2], f[3]);
+                    tangent = glm::vec4(f[0], f[1], f[2], f[3]);
                 }
                 mesh.tangents[vertexBase + vi] = tangent;
 
-                Math::Vec2 uvCoord(0.0f, 0.0f);
+                glm::vec2 uvCoord(0.0f, 0.0f);
                 if (uv)
                 {
                     cgltf_accessor_read_float(uv, vi, f, 2);
-                    uvCoord = Math::Vec2(f[0], f[1]);
+                    uvCoord = glm::vec2(f[0], f[1]);
                 }
                 mesh.uvs[vertexBase + vi] = uvCoord;
 
@@ -664,7 +664,7 @@ bool GltfImporter::import(const std::string& filename, ByteArray& data, FileSyst
                         const f32 sum = wv[0] + wv[1] + wv[2] + wv[3];
                         if (sum > 1e-6f)
                             skinVertex.weights =
-                                Math::Vec4(wv[0] / sum, wv[1] / sum, wv[2] / sum, wv[3] / sum);
+                                glm::vec4(wv[0] / sum, wv[1] / sum, wv[2] / sum, wv[3] / sum);
                     }
                     mesh.skin[vertexBase + vi] = skinVertex;
                 }
@@ -701,7 +701,7 @@ bool GltfImporter::import(const std::string& filename, ByteArray& data, FileSyst
     }
 
     mesh.bounds = AABB();
-    for (const Math::Vec3& position : mesh.positions)
+    for (const glm::vec3& position : mesh.positions)
         mesh.bounds.expand(position);
     for (SubMesh& submesh : mesh.submeshes)
     {
@@ -773,7 +773,7 @@ bool loadGltfSkeleton(const std::string& filename, FileSystem& files, Skeleton& 
                 parent = static_cast<s32>(it->second);
         }
 
-        Math::Mat4 inverseBind = Math::Mat4(1.0f);
+        glm::mat4 inverseBind = glm::mat4(1.0f);
         if (skin->inverse_bind_matrices && i < skin->inverse_bind_matrices->count)
         {
             f32 ibm[16];
@@ -781,7 +781,7 @@ bool loadGltfSkeleton(const std::string& filename, FileSystem& files, Skeleton& 
             inverseBind = glm::make_mat4(ibm);
         }
 
-        const Math::Mat4 bindLocal = nodeLocalMatrix(*joint);
+        const glm::mat4 bindLocal = nodeLocalMatrix(*joint);
 
         if (!skeleton.addBone(name ? name : fallback.c_str(), parent, bindLocal, inverseBind))
         {

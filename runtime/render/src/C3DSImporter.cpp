@@ -58,8 +58,8 @@ struct FaceGroup3DS
 struct Object3DS
 {
     std::string name;
-    std::vector<Math::Vec3> verts;
-    std::vector<Math::Vec2> uvs;
+    std::vector<glm::vec3> verts;
+    std::vector<glm::vec2> uvs;
     std::vector<Face3DS> faces;
     std::vector<FaceGroup3DS> groups;
 };
@@ -67,7 +67,7 @@ struct Object3DS
 struct Material3DS
 {
     std::string name;
-    Math::Vec3 diffuse = Math::Vec3(1.0f);
+    glm::vec3 diffuse = glm::vec3(1.0f);
     std::string texFile;
 };
 
@@ -100,7 +100,7 @@ bool readCString(ByteArray& in, std::string& out)
     return false;
 }
 
-void readColorChunk(ByteArray& in, u32 end, Math::Vec3& outColor)
+void readColorChunk(ByteArray& in, u32 end, glm::vec3& outColor)
 {
     while (in.tell() + 6 <= end)
     {
@@ -124,7 +124,7 @@ void readColorChunk(ByteArray& in, u32 end, Math::Vec3& outColor)
                 const f32 r = static_cast<f32>(in.readU8()) / 255.0f;
                 const f32 g = static_cast<f32>(in.readU8()) / 255.0f;
                 const f32 b = static_cast<f32>(in.readU8()) / 255.0f;
-                outColor = Math::Vec3(r, g, b);
+                outColor = glm::vec3(r, g, b);
             }
         }
         in.seek(static_cast<long long>(subEnd));
@@ -181,7 +181,7 @@ void readTriVert(ByteArray& in, Object3DS& obj)
     {
         if (!in.canRead(12))
             return;
-        Math::Vec3 v;
+        glm::vec3 v;
         v.x = in.readF32();
         v.y = in.readF32();
         v.z = in.readF32();
@@ -202,7 +202,7 @@ void readTriUv(ByteArray& in, Object3DS& obj)
             return;
         const f32 u = in.readF32();
         const f32 v = in.readF32();
-        obj.uvs[i] = Math::Vec2(u, 1.0f - v);
+        obj.uvs[i] = glm::vec2(u, 1.0f - v);
     }
 }
 
@@ -350,7 +350,7 @@ u32 hashName(const std::string& name)
 struct OutMaterial
 {
     std::string name;
-    Math::Vec3 diffuse = Math::Vec3(1.0f);
+    glm::vec3 diffuse = glm::vec3(1.0f);
     std::string texFile;
 };
 
@@ -482,9 +482,9 @@ bool C3DSImporter::import(const std::string& filename, ByteArray& data, FileSyst
                         global = static_cast<u32>(mesh.positions.size());
                         remap[vi] = global;
                         mesh.positions.push_back(vi < obj.verts.size() ? obj.verts[vi]
-                                                                       : Math::Vec3(0.0f));
-                        mesh.normals.push_back(Math::Vec3(0.0f));
-                        mesh.uvs.push_back(vi < obj.uvs.size() ? obj.uvs[vi] : Math::Vec2(0.0f));
+                                                                       : glm::vec3(0.0f));
+                        mesh.normals.push_back(glm::vec3(0.0f));
+                        mesh.uvs.push_back(vi < obj.uvs.size() ? obj.uvs[vi] : glm::vec2(0.0f));
                     }
                     mesh.indices.push_back(global);
                 }
@@ -509,7 +509,7 @@ bool C3DSImporter::import(const std::string& filename, ByteArray& data, FileSyst
     {
         mesh.materials[i].name = outMaterials[i].name;
         mesh.materials[i].nameHash = hashName(outMaterials[i].name);
-        mesh.materials[i].params.baseColor = Math::Vec4(outMaterials[i].diffuse, 1.0f);
+        mesh.materials[i].params.baseColor = glm::vec4(outMaterials[i].diffuse, 1.0f);
         mesh.materialTextureFiles[i] = joinPath(directory, outMaterials[i].texFile);
     }
 
@@ -518,22 +518,22 @@ bool C3DSImporter::import(const std::string& filename, ByteArray& data, FileSyst
         const u32 a = mesh.indices[i];
         const u32 b = mesh.indices[i + 1];
         const u32 c = mesh.indices[i + 2];
-        const Math::Vec3 faceNormal = glm::cross(mesh.positions[b] - mesh.positions[a],
+        const glm::vec3 faceNormal = glm::cross(mesh.positions[b] - mesh.positions[a],
                                                 mesh.positions[c] - mesh.positions[a]);
         mesh.normals[a] += faceNormal;
         mesh.normals[b] += faceNormal;
         mesh.normals[c] += faceNormal;
     }
-    for (Math::Vec3& normal : mesh.normals)
+    for (glm::vec3& normal : mesh.normals)
     {
         if (glm::dot(normal, normal) > 0.0f)
             normal = glm::normalize(normal);
         else
-            normal = Math::Vec3(0.0f, 1.0f, 0.0f);
+            normal = glm::vec3(0.0f, 1.0f, 0.0f);
     }
 
     mesh.bounds = AABB();
-    for (const Math::Vec3& position : mesh.positions)
+    for (const glm::vec3& position : mesh.positions)
         mesh.bounds.expand(position);
     for (SubMesh& submesh : mesh.submeshes)
     {

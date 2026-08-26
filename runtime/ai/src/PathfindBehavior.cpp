@@ -18,11 +18,11 @@ namespace Radion::AI
 namespace
 {
 // normalize * turnRate without producing NaNs on a zero vector.
-Math::Vec3 normalizedScaled(const Math::Vec3& v, float scale)
+glm::vec3 normalizedScaled(const glm::vec3& v, float scale)
 {
     float len = glm::length(v);
     if (len <= 0.0f)
-        return Math::Vec3(0.0f);
+        return glm::vec3(0.0f);
     return v * (scale / len);
 }
 } // namespace
@@ -41,8 +41,8 @@ void PathfindBehavior::iterate(float timeDelta, Entity& entity)
 
     Path& path = squadmate.path();
     WaypointID wpID = squadmate.nextWaypoint();
-    Math::Vec3 entityPos = entity.position();
-    Math::Vec3 desiredMoveAdj(0.0f);
+    glm::vec3 entityPos = entity.position();
+    glm::vec3 desiredMoveAdj(0.0f);
 
     WaypointVisibility defaultVisibility;
     const WaypointVisibility& visibility =
@@ -95,7 +95,7 @@ void PathfindBehavior::iterate(float timeDelta, Entity& entity)
     Waypoint* wp = network->findWaypoint(wpID);
     if (wp)
     {
-        Math::Vec3 wppos = wp->position();
+        glm::vec3 wppos = wp->position();
         desiredMoveAdj = wppos - entityPos;
         desiredMoveAdj.y = 0.0f;
         if (glm::length(desiredMoveAdj) < wp->radius())
@@ -132,7 +132,7 @@ void PathfindBehavior::iterate(float timeDelta, Entity& entity)
 
     // Move in the direction of the next path node or the goal position.
     squadmate.incrementTimeSinceWaypointReached(timeDelta);
-    Math::Vec3 currentDesiredMove = entity.desiredMove();
+    glm::vec3 currentDesiredMove = entity.desiredMove();
     currentDesiredMove += normalizedScaled(desiredMoveAdj, mSettings.turnRate) * gain();
 
     // Do we need to agitate a bit to get back on track?
@@ -154,8 +154,8 @@ void PathfindBehavior::applyAvoidance(Entity& entity)
     if (mSettings.avoidDistance <= 0.0f)
         return;
 
-    Math::Vec3 repulsion(0.0f);
-    const Math::Vec3 position = entity.position();
+    glm::vec3 repulsion(0.0f);
+    const glm::vec3 position = entity.position();
     const float avoidRadius = mSettings.avoidDistance;
 
     for (Group* group : entity.world().groups())
@@ -165,7 +165,7 @@ void PathfindBehavior::applyAvoidance(Entity& entity)
             if (other == &entity)
                 continue;
 
-            Math::Vec3 away = position - other->position();
+            glm::vec3 away = position - other->position();
             away.y = 0.0f;
             float distance = glm::length(away);
             if (distance >= avoidRadius)
@@ -188,14 +188,14 @@ void PathfindBehavior::applyAvoidance(Entity& entity)
     if (repulsionLength <= 1e-5f)
         return;
 
-    Math::Vec3 desired = entity.desiredMove();
+    glm::vec3 desired = entity.desiredMove();
     const float desiredLength = glm::length(desired);
-    const Math::Vec3 escape = repulsion / repulsionLength;
+    const glm::vec3 escape = repulsion / repulsionLength;
     const float weight = std::clamp(mSettings.turnRate, 0.0f, 1.0f);
 
     if (desiredLength > 1e-5f)
     {
-        Math::Vec3 direction = desired / desiredLength;
+        glm::vec3 direction = desired / desiredLength;
         direction = glm::normalize(direction * (1.0f - weight) + escape * weight);
         desired = direction * desiredLength;
     }

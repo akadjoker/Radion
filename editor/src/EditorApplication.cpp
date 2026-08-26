@@ -355,18 +355,18 @@ void EditorApplication::buildDefaultScene()
 {
     // A fresh scene starts at the world origin, regardless of the cursor
     // position persisted from the scene that was edited previously.
-    mCursor3D = Math::Vec3(0.0f);
+    mCursor3D = glm::vec3(0.0f);
 
     GameObject* cameraObject = scene().createGameObject("Camera");
     Camera* camera = cameraObject->addComponent<Camera>();
-    cameraObject->setPosition(Math::Vec3(0.0f, 4.0f, 10.0f));
-    cameraObject->lookAt(Math::Vec3(0.0f, 0.0f, 0.0f));
+    cameraObject->setPosition(glm::vec3(0.0f, 4.0f, 10.0f));
+    cameraObject->lookAt(glm::vec3(0.0f, 0.0f, 0.0f));
     camera->setPerspective(60.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
     scene().setActiveCamera(camera);
 
     GameObject* sunObject = scene().createGameObject("Sun");
     DirectionalLight* sun = sunObject->addComponent<DirectionalLight>();
-    sun->setColor(Math::Vec3(1.0f, 0.96f, 0.88f));
+    sun->setColor(glm::vec3(1.0f, 0.96f, 0.88f));
     sun->setCastShadows(true);
 
     scene().update(0.0f);
@@ -485,7 +485,7 @@ GameObject* EditorApplication::duplicateObject(GameObject& source)
         return nullptr;
     }
 
-    clone->setPosition(source.position() + Math::Vec3(0.5f, 0.0f, 0.5f));
+    clone->setPosition(source.position() + glm::vec3(0.5f, 0.0f, 0.5f));
     clone->setName(nextIncrementedName(source.name()));
     selection().select(clone->id());
     markDirty();
@@ -501,7 +501,7 @@ bool EditorApplication::duplicateObjectGrid(GameObject& source, bool alongX, boo
         return false;
 
     recordUndo();
-    const Math::Vec3 base = source.position();
+    const glm::vec3 base = source.position();
     for (u32 z = 0; z < cellsZ; ++z)
         for (u32 x = 0; x < cellsX; ++x)
         {
@@ -517,7 +517,7 @@ bool EditorApplication::duplicateObjectGrid(GameObject& source, bool alongX, boo
                 markDirty();
                 return false;
             }
-            clone->setPosition(base + Math::Vec3(static_cast<f32>(x) * spacing, 0.0f,
+            clone->setPosition(base + glm::vec3(static_cast<f32>(x) * spacing, 0.0f,
                                                 static_cast<f32>(z) * spacing));
             clone->setName(nextIncrementedName(source.name()));
         }
@@ -659,7 +659,7 @@ void EditorApplication::fitShadowsToScene()
         camera.nearPlane = active->nearPlane();
     }
 
-    Math::Vec3 lightDirection = -mEngine.sky().sunDirection;
+    glm::vec3 lightDirection = -mEngine.sky().sunDirection;
     if (DirectionalLight* sun = scene().electedSunLight(); sun && sun->owner())
         lightDirection = sun->owner()->forward();
 

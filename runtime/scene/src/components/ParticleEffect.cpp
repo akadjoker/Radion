@@ -140,7 +140,7 @@ ParticleSystem::Emitter ParticleEffect::presetBulletImpact()
 {
     ParticleSystem::Emitter e;
     e.rate = 0.0f;
-    e.direction = Math::Vec3(0.0f, 1.0f, 0.0f);
+    e.direction = glm::vec3(0.0f, 1.0f, 0.0f);
     e.spread = 0.6f;
     e.speedMin = 3.0f;
     e.speedMax = 8.0f;
@@ -148,8 +148,8 @@ ParticleSystem::Emitter ParticleEffect::presetBulletImpact()
     e.lifeMax = 0.35f;
     e.sizeBegin = 0.08f;
     e.sizeEnd = 0.02f;
-    e.colorBegin = Math::Vec4(1.0f, 0.9f, 0.4f, 1.0f);
-    e.colorEnd = Math::Vec4(1.0f, 0.2f, 0.05f, 0.0f);
+    e.colorBegin = glm::vec4(1.0f, 0.9f, 0.4f, 1.0f);
+    e.colorEnd = glm::vec4(1.0f, 0.2f, 0.05f, 0.0f);
     e.mass = 1.0f;
     e.rotationVelocity = 2.0f;
     e.startRadius = 0.02f;
@@ -165,7 +165,7 @@ ParticleSystem::Emitter ParticleEffect::presetBlood()
     // finish at roughly the same time those land.
     ParticleSystem::Emitter e;
     e.rate = 0.0f;
-    e.direction = Math::Vec3(0.0f, 1.0f, 0.0f);
+    e.direction = glm::vec3(0.0f, 1.0f, 0.0f);
     e.spread = 0.55f;
     e.speedMin = 1.5f;
     e.speedMax = 4.5f;
@@ -173,8 +173,8 @@ ParticleSystem::Emitter ParticleEffect::presetBlood()
     e.lifeMax = 0.6f;
     e.sizeBegin = 0.06f;
     e.sizeEnd = 0.02f;
-    e.colorBegin = Math::Vec4(0.55f, 0.02f, 0.02f, 1.0f);
-    e.colorEnd = Math::Vec4(0.20f, 0.0f, 0.0f, 0.0f);
+    e.colorBegin = glm::vec4(0.55f, 0.02f, 0.02f, 1.0f);
+    e.colorEnd = glm::vec4(0.20f, 0.0f, 0.0f, 0.0f);
     e.mass = 1.0f;
     e.rotationVelocity = 1.0f;
     e.startRadius = 0.03f;
@@ -185,7 +185,7 @@ ParticleSystem::Emitter ParticleEffect::presetExplosion()
 {
     ParticleSystem::Emitter e;
     e.rate = 0.0f;
-    e.direction = Math::Vec3(0.0f, 1.0f, 0.0f);
+    e.direction = glm::vec3(0.0f, 1.0f, 0.0f);
     e.spread = 3.14159265f; // full sphere
     e.speedMin = 2.0f;
     e.speedMax = 9.0f;
@@ -193,8 +193,8 @@ ParticleSystem::Emitter ParticleEffect::presetExplosion()
     e.lifeMax = 1.2f;
     e.sizeBegin = 0.6f;
     e.sizeEnd = 1.2f;
-    e.colorBegin = Math::Vec4(1.0f, 0.6f, 0.15f, 1.0f);
-    e.colorEnd = Math::Vec4(0.2f, 0.05f, 0.02f, 0.0f);
+    e.colorBegin = glm::vec4(1.0f, 0.6f, 0.15f, 1.0f);
+    e.colorEnd = glm::vec4(0.2f, 0.05f, 0.02f, 0.0f);
     e.mass = 1.0f;
     e.rotationVelocity = 1.5f;
     e.startRadius = 0.1f;
@@ -205,7 +205,7 @@ ParticleSystem::Emitter ParticleEffect::presetFirework()
 {
     ParticleSystem::Emitter e;
     e.rate = 0.0f;
-    e.direction = Math::Vec3(0.0f, 1.0f, 0.0f);
+    e.direction = glm::vec3(0.0f, 1.0f, 0.0f);
     e.spread = 3.14159265f;
     // Speed kept in a narrow band on purpose - fireworks read as one
     // expanding shell when every particle is roughly the same distance out
@@ -218,8 +218,8 @@ ParticleSystem::Emitter ParticleEffect::presetFirework()
     e.lifeMax = 1.3f;
     e.sizeBegin = 0.22f;
     e.sizeEnd = 0.08f;
-    e.colorBegin = Math::Vec4(0.6f, 0.85f, 1.0f, 1.0f);
-    e.colorEnd = Math::Vec4(0.9f, 0.3f, 0.6f, 0.0f);
+    e.colorBegin = glm::vec4(0.6f, 0.85f, 1.0f, 1.0f);
+    e.colorEnd = glm::vec4(0.9f, 0.3f, 0.6f, 0.0f);
     e.mass = 0.5f;
     e.rotationVelocity = 2.5f;
     e.startRadius = 0.05f;
@@ -238,7 +238,7 @@ ParticleSystem::Emitter ParticleEffect::presetDust()
 {
     ParticleSystem::Emitter e;
     e.rate = 3.0f;
-    e.direction = Math::Vec3(0.0f, 1.0f, 0.0f);
+    e.direction = glm::vec3(0.0f, 1.0f, 0.0f);
     e.spread = 3.14159265f; // full sphere
     e.speedMin = 0.03f;
     e.speedMax = 0.15f;
@@ -249,8 +249,8 @@ ParticleSystem::Emitter ParticleEffect::presetDust()
     // (particle.frag) already shrinks the visible core well inside the quad.
     e.sizeBegin = 0.05f;
     e.sizeEnd = 0.08f;
-    e.colorBegin = Math::Vec4(1.0f, 1.0f, 0.95f, 0.85f);
-    e.colorEnd = Math::Vec4(1.0f, 1.0f, 0.95f, 0.0f);
+    e.colorBegin = glm::vec4(1.0f, 1.0f, 0.95f, 0.85f);
+    e.colorEnd = glm::vec4(1.0f, 1.0f, 0.95f, 0.0f);
     e.mass = 1.0f;
     e.rotationVelocity = 0.2f;
     e.startRadius = 2.0f;
@@ -261,7 +261,7 @@ ParticleSystem::Emitter ParticleEffect::presetSmoke()
 {
     ParticleSystem::Emitter e;
     e.rate = 40.0f;
-    e.direction = Math::Vec3(0.0f, 100.0f, 0.0f);
+    e.direction = glm::vec3(0.0f, 100.0f, 0.0f);
     e.spread = 0.4f;
     e.speedMin = 0.5f;
     e.speedMax = 1.5f;
@@ -269,8 +269,8 @@ ParticleSystem::Emitter ParticleEffect::presetSmoke()
     e.lifeMax = 4.0f;
     e.sizeBegin = 0.3f;
     e.sizeEnd = 1.0f;
-    e.colorBegin = Math::Vec4(0.6f, 0.6f, 0.6f, 0.4f);
-    e.colorEnd = Math::Vec4(0.5f, 0.5f, 0.5f, 0.0f);
+    e.colorBegin = glm::vec4(0.6f, 0.6f, 0.6f, 0.4f);
+    e.colorEnd = glm::vec4(0.5f, 0.5f, 0.5f, 0.0f);
     e.mass = 2.0f;
     e.rotationVelocity = 0.8f;
     e.startRadius = 0.05f;

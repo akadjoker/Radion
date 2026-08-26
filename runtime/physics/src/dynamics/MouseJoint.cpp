@@ -7,7 +7,7 @@
 namespace Radion::Physics
 {
 
-MouseJoint::MouseJoint(RigidBody& body, const Math::Vec3& worldGrabPoint)
+MouseJoint::MouseJoint(RigidBody& body, const glm::vec3& worldGrabPoint)
     : mBody(&body), mLocalAnchor(body.pointToLocal(worldGrabPoint)), mTarget(worldGrabPoint)
 {
     tuneSpring(5.0f, 0.7f);
@@ -28,7 +28,7 @@ bool MouseJoint::singleBody() const
     return true;
 }
 
-void MouseJoint::setTarget(const Math::Vec3& target)
+void MouseJoint::setTarget(const glm::vec3& target)
 {
     if (!std::isfinite(target.x) || !std::isfinite(target.y) || !std::isfinite(target.z))
         return;
@@ -39,7 +39,7 @@ void MouseJoint::setTarget(const Math::Vec3& target)
     }
 }
 
-const Math::Vec3& MouseJoint::target() const
+const glm::vec3& MouseJoint::target() const
 {
     return mTarget;
 }
@@ -80,12 +80,12 @@ void MouseJoint::setup(f32 duration)
 
     mArm = mBody->directionToWorld(mLocalAnchor);
 
-    Math::Mat3 inverseEffectiveMass(0.0f);
-    const Math::Vec3 axes[] = {Math::Vec3(1.0f, 0.0f, 0.0f), Math::Vec3(0.0f, 1.0f, 0.0f),
-                              Math::Vec3(0.0f, 0.0f, 1.0f)};
+    glm::mat3 inverseEffectiveMass(0.0f);
+    const glm::vec3 axes[] = {glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+                              glm::vec3(0.0f, 0.0f, 1.0f)};
     for (u32 axis = 0; axis < 3; ++axis)
     {
-        Math::Vec3 response = axes[axis] * (mBody->inverseMass() + mGamma);
+        glm::vec3 response = axes[axis] * (mBody->inverseMass() + mGamma);
         response += glm::cross(
             mBody->inverseInertiaTensorWorld() * glm::cross(mArm, axes[axis]), mArm);
         inverseEffectiveMass[axis] = response;
@@ -95,11 +95,11 @@ void MouseJoint::setup(f32 duration)
         mEffectiveMass = glm::inverse(inverseEffectiveMass);
     else
     {
-        mEffectiveMass = Math::Mat3(0.0f);
-        mTotalImpulse = Math::Vec3(0.0f);
+        mEffectiveMass = glm::mat3(0.0f);
+        mTotalImpulse = glm::vec3(0.0f);
     }
 
-    const Math::Vec3 error = mBody->position() + mArm - mTarget;
+    const glm::vec3 error = mBody->position() + mArm - mTarget;
     mSoftBias = error * beta;
     mMaxImpulse = mMaxForce * h;
 
@@ -117,7 +117,7 @@ void MouseJoint::setup(f32 duration)
     if (mPreviousDuration > 0.0f)
         mTotalImpulse *= duration / mPreviousDuration;
     else
-        mTotalImpulse = Math::Vec3(0.0f);
+        mTotalImpulse = glm::vec3(0.0f);
     mPreviousDuration = duration;
 }
 
@@ -135,17 +135,17 @@ void MouseJoint::solveVelocity()
     if (!mBody->isDynamic())
         return;
 
-    const Math::Vec3 pointVelocity =
+    const glm::vec3 pointVelocity =
         mBody->velocity() + glm::cross(mBody->angularVelocity(), mArm);
-    const Math::Vec3 impulse =
+    const glm::vec3 impulse =
         mEffectiveMass * (-(pointVelocity + mSoftBias + mGamma * mTotalImpulse));
 
-    const Math::Vec3 previous = mTotalImpulse;
+    const glm::vec3 previous = mTotalImpulse;
     mTotalImpulse += impulse;
     const f32 lengthSquared = glm::dot(mTotalImpulse, mTotalImpulse);
     if (lengthSquared > mMaxImpulse * mMaxImpulse && lengthSquared > 0.0f)
         mTotalImpulse *= mMaxImpulse / std::sqrt(lengthSquared);
-    const Math::Vec3 applied = mTotalImpulse - previous;
+    const glm::vec3 applied = mTotalImpulse - previous;
 
     mBody->setVelocity(mBody->velocity() + applied * mBody->inverseMass());
     mBody->setAngularVelocity(mBody->angularVelocity() +

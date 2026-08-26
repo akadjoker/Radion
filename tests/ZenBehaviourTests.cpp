@@ -58,7 +58,7 @@ void testScriptRotatesObjectOnPlay()
     CHECK(behaviour->loadSource(script));
     CHECK(!behaviour->hasError());
 
-    const Math::Quaternion startRotation = object->rotation();
+    const glm::quat startRotation = object->rotation();
 
     scene.setRunningInEditor(false);
     for (int i = 0; i < 10; ++i)
@@ -84,7 +84,7 @@ void testMoveScriptUsesScriptComponentContract()
     if (!object)
         return;
 
-    object->setPosition(Math::Vec3(4.0f, 2.0f, -1.0f));
+    object->setPosition(glm::vec3(4.0f, 2.0f, -1.0f));
     ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
     CHECK(behaviour != nullptr);
     if (!behaviour)
@@ -92,11 +92,11 @@ void testMoveScriptUsesScriptComponentContract()
 
     CHECK(behaviour->loadFile(path.string()));
 
-    const Math::Quaternion startRotation = object->rotation();
+    const glm::quat startRotation = object->rotation();
     scene.setRunningInEditor(false);
     scene.update(0.5f);
 
-    const Math::Vec3 position = object->position();
+    const glm::vec3 position = object->position();
     const f32 dx = position.x - 4.0f;
     const f32 dz = position.z + 1.0f;
     CHECK(!behaviour->hasError());
@@ -119,7 +119,7 @@ void testScriptDoesNotRunInEditorMode()
         "        self.owner.yaw(90.0 * dt)\n";
     CHECK(behaviour->loadSource(script));
 
-    const Math::Quaternion startRotation = object->rotation();
+    const glm::quat startRotation = object->rotation();
     scene.setRunningInEditor(true);
     for (int i = 0; i < 10; ++i)
         scene.update(1.0f / 60.0f);
@@ -216,10 +216,10 @@ void testGameObjectTransformAndVec3Arithmetic()
     scene.update(1.0f / 60.0f);
 
     CHECK(!behaviour->hasError());
-    CHECK(object->position() == Math::Vec3(1.0f, 2.0f, 3.0f));
-    CHECK(object->scale() == Math::Vec3(2.0f, 2.0f, 4.0f));
+    CHECK(object->position() == glm::vec3(1.0f, 2.0f, 3.0f));
+    CHECK(object->scale() == glm::vec3(2.0f, 2.0f, 4.0f));
 
-    const Math::Vec3 rotationDegrees = glm::degrees(glm::eulerAngles(object->rotation()));
+    const glm::vec3 rotationDegrees = glm::degrees(glm::eulerAngles(object->rotation()));
     CHECK(std::abs(rotationDegrees.y - 6.0f) < 0.01f);
 }
 
@@ -253,7 +253,7 @@ void testSceneFindAndCreateBindings()
     GameObject* spawned = scene.findGameObject("Spawned");
     CHECK(spawned != nullptr);
     if (spawned)
-        CHECK(spawned->position() == Math::Vec3(4.0f, 5.0f, 6.0f));
+        CHECK(spawned->position() == glm::vec3(4.0f, 5.0f, 6.0f));
 }
 
 // A full collection between every frame, with a script that allocates on
@@ -289,7 +289,7 @@ void testCollectionBetweenFramesKeepsBindingsAlive()
     }
 
     CHECK(!behaviour->hasError());
-    CHECK(object->position() == Math::Vec3(32.0f, 64.0f, 96.0f));
+    CHECK(object->position() == glm::vec3(32.0f, 64.0f, 96.0f));
     CHECK(anchor->position() == object->position());
     CHECK(anchor->name() == "Anchor");
 }
@@ -844,7 +844,7 @@ void testOnCollisionSeesOtherObjectName()
     Scene scene;
     GameObject* watcher = scene.createGameObject("Watcher");
     GameObject* bumper = scene.createGameObject("Bumper");
-    bumper->setPosition(Math::Vec3(0.5f, 0.0f, 0.0f));
+    bumper->setPosition(glm::vec3(0.5f, 0.0f, 0.0f));
 
     Collider* watcherCollider = watcher->addComponent<Collider>();
     watcherCollider->setSphere(1.0f);

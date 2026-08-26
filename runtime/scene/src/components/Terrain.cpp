@@ -219,13 +219,13 @@ private:
 
 Terrain::Terrain() : Component(Type)
 {
-    mMaterial.params.baseColor = Math::Vec4(1.0f);
+    mMaterial.params.baseColor = glm::vec4(1.0f);
     mMaterial.params.surface.x = 0.88f;
-    mMaterial.params.uvTransform = Math::Vec4(1.0f, 1.0f, 0.0f, 0.0f);
+    mMaterial.params.uvTransform = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f);
     // low height end, snow start, cliff blend start/end
-    mMaterial.params.custom0 = Math::Vec4(0.16f, 0.72f, 0.08f, 0.32f);
+    mMaterial.params.custom0 = glm::vec4(0.16f, 0.72f, 0.08f, 0.32f);
     // macro tiles/strength, splat strength, rock triplanar world scale
-    mMaterial.params.custom1 = Math::Vec4(1.0f, 0.32f, 1.0f, 0.12f);
+    mMaterial.params.custom1 = glm::vec4(1.0f, 0.32f, 1.0f, 0.12f);
     mMaterial.cull = CullMode::Back;
     // The real forward pipeline, not the flat unlit path: terrain takes
     // shadows and local lights the same way everything else does.
@@ -302,8 +302,8 @@ bool Terrain::load(const Pixmap& heightmap, f32 cellSize, f32 heightScale, u32 m
         }
     }
     mBounds = AABB();
-    mBounds.expand(Math::Vec3(-halfX, minH, -halfZ));
-    mBounds.expand(Math::Vec3(halfX, maxH, halfZ));
+    mBounds.expand(glm::vec3(-halfX, minH, -halfZ));
+    mBounds.expand(glm::vec3(halfX, maxH, halfZ));
 
     mChunks.resize(static_cast<usize>(mChunkCountX) * mChunkCountZ);
     for (u32 cz = 0; cz < mChunkCountZ; ++cz)
@@ -493,7 +493,7 @@ f32 Terrain::detailStrength() const
     return mSurfaceMode == SurfaceMode::Classic ? mMaterial.params.custom0.y : mClassicParams.y;
 }
 
-const Math::Vec4& Terrain::layerThresholds() const
+const glm::vec4& Terrain::layerThresholds() const
 {
     return mSurfaceMode == SurfaceMode::Layers ? mMaterial.params.custom0 : mLayerParams;
 }
@@ -594,13 +594,13 @@ void Terrain::fillVegetation(VegetationChannel channel, f32 density)
     mVegetationMaskFile.clear();
 }
 
-bool Terrain::paintVegetation(const Math::Vec3& worldCenter, f32 radius,
+bool Terrain::paintVegetation(const glm::vec3& worldCenter, f32 radius,
                               VegetationChannel channel, f32 strength, bool erase)
 {
     if (!valid() || !owner() || !hasVegetationMask() || radius <= 0.0f || strength <= 0.0f)
         return false;
-    const Math::Vec3 center = Math::Vec3(
-        glm::inverse(owner()->globalTransform()) * Math::Vec4(worldCenter, 1.0f));
+    const glm::vec3 center = glm::vec3(
+        glm::inverse(owner()->globalTransform()) * glm::vec4(worldCenter, 1.0f));
     const f32 sizeX = static_cast<f32>(mWidth - 1) * mCellSize;
     const f32 sizeZ = static_cast<f32>(mHeight - 1) * mCellSize;
     const f32 halfX = sizeX * 0.5f;
@@ -625,7 +625,7 @@ bool Terrain::paintVegetation(const Math::Vec3& worldCenter, f32 radius,
         {
             const f32 localX = static_cast<f32>(x) / pixelScaleX - halfX;
             const f32 localZ = static_cast<f32>(z) / pixelScaleZ - halfZ;
-            const f32 distance = glm::length(Math::Vec2(localX - center.x, localZ - center.z));
+            const f32 distance = glm::length(glm::vec2(localX - center.x, localZ - center.z));
             if (distance > radius)
                 continue;
             const f32 falloff = 1.0f - glm::smoothstep(0.0f, radius, distance);
@@ -673,11 +673,11 @@ f32 Terrain::vegetationDensity(f32 localX, f32 localZ, VegetationChannel channel
     return glm::mix(top, bottom, pz - z0);
 }
 
-Math::Vec4 Terrain::automaticSurfaceWeights(f32 localX, f32 localZ) const
+glm::vec4 Terrain::automaticSurfaceWeights(f32 localX, f32 localZ) const
 {
     const f32 height01 = glm::clamp(heightAt(localX, localZ) / mHeightScale, 0.0f, 1.0f);
     const f32 slope = 1.0f - glm::clamp(normalAt(localX, localZ).y, 0.0f, 1.0f);
-    const Math::Vec4& thresholds = layerThresholds();
+    const glm::vec4& thresholds = layerThresholds();
     const f32 lowEnd = glm::clamp(thresholds.x, 0.001f, 0.999f);
     const f32 highStart = glm::clamp(thresholds.y, 0.001f, 0.999f);
     const f32 slopeStart = glm::clamp(thresholds.z, 0.0f, 0.999f);
@@ -686,8 +686,8 @@ Math::Vec4 Terrain::automaticSurfaceWeights(f32 localX, f32 localZ) const
     const f32 low = (1.0f - glm::smoothstep(0.0f, lowEnd, height01)) * (1.0f - rock);
     const f32 high = glm::smoothstep(highStart, 1.0f, height01) * (1.0f - rock);
     const f32 base = glm::max(0.0f, 1.0f - rock - low - high);
-    Math::Vec4 weights(base, rock, low, high);
-    return weights / glm::max(glm::dot(weights, Math::Vec4(1.0f)), 0.0001f);
+    glm::vec4 weights(base, rock, low, high);
+    return weights / glm::max(glm::dot(weights, glm::vec4(1.0f)), 0.0001f);
 }
 
 void Terrain::uploadSurfaceSplat(bool recreate)
@@ -757,7 +757,7 @@ bool Terrain::createSurfaceSplat(u32 width, u32 height)
         {
             const f32 localX = static_cast<f32>(x) / (width - 1) * sizeX - sizeX * 0.5f;
             const f32 localZ = static_cast<f32>(z) / (height - 1) * sizeZ - sizeZ * 0.5f;
-            const Math::Vec4 w = automaticSurfaceWeights(localX, localZ) * 255.0f;
+            const glm::vec4 w = automaticSurfaceWeights(localX, localZ) * 255.0f;
             mSurfaceSplat->set_pixel(x, z, static_cast<u8>(w.x + 0.5f),
                                     static_cast<u8>(w.y + 0.5f),
                                     static_cast<u8>(w.z + 0.5f),
@@ -826,13 +826,13 @@ const std::string& Terrain::surfaceSplatFile() const
     return mSurfaceSplatFile;
 }
 
-bool Terrain::paintSurface(const Math::Vec3& worldCenter, f32 radius, SurfaceLayer layer,
+bool Terrain::paintSurface(const glm::vec3& worldCenter, f32 radius, SurfaceLayer layer,
                            f32 strength, bool restoreAutomatic)
 {
     if (!valid() || !owner() || !hasSurfaceSplat() || radius <= 0.0f || strength <= 0.0f)
         return false;
-    const Math::Vec3 center = Math::Vec3(
-        glm::inverse(owner()->globalTransform()) * Math::Vec4(worldCenter, 1.0f));
+    const glm::vec3 center = glm::vec3(
+        glm::inverse(owner()->globalTransform()) * glm::vec4(worldCenter, 1.0f));
     const f32 sizeX = static_cast<f32>(mWidth - 1) * mCellSize;
     const f32 sizeZ = static_cast<f32>(mHeight - 1) * mCellSize;
     const f32 halfX = sizeX * 0.5f;
@@ -847,7 +847,7 @@ bool Terrain::paintSurface(const Math::Vec3& worldCenter, f32 radius, SurfaceLay
                                 0, mSurfaceSplat->height - 1);
     const s32 maxZ = glm::clamp(static_cast<s32>(std::ceil((center.z + radius + halfZ) * pixelScaleZ)),
                                 0, mSurfaceSplat->height - 1);
-    Math::Vec4 target(0.0f);
+    glm::vec4 target(0.0f);
     target[static_cast<u32>(layer)] = 1.0f;
     bool changed = false;
     for (s32 z = minZ; z <= maxZ; ++z)
@@ -855,21 +855,21 @@ bool Terrain::paintSurface(const Math::Vec3& worldCenter, f32 radius, SurfaceLay
         {
             const f32 localX = static_cast<f32>(x) / pixelScaleX - halfX;
             const f32 localZ = static_cast<f32>(z) / pixelScaleZ - halfZ;
-            const f32 distance = glm::length(Math::Vec2(localX - center.x, localZ - center.z));
+            const f32 distance = glm::length(glm::vec2(localX - center.x, localZ - center.z));
             if (distance > radius)
                 continue;
             const f32 falloff = 1.0f - glm::smoothstep(0.0f, radius, distance);
             const usize offset = (static_cast<usize>(z) * mSurfaceSplat->width + x) * 4;
-            Math::Vec4 oldValue(mSurfaceSplat->pixels[offset + 0], mSurfaceSplat->pixels[offset + 1],
+            glm::vec4 oldValue(mSurfaceSplat->pixels[offset + 0], mSurfaceSplat->pixels[offset + 1],
                                mSurfaceSplat->pixels[offset + 2], mSurfaceSplat->pixels[offset + 3]);
             oldValue /= 255.0f;
-            oldValue /= glm::max(glm::dot(oldValue, Math::Vec4(1.0f)), 0.0001f);
-            const Math::Vec4 desired = restoreAutomatic
+            oldValue /= glm::max(glm::dot(oldValue, glm::vec4(1.0f)), 0.0001f);
+            const glm::vec4 desired = restoreAutomatic
                                           ? automaticSurfaceWeights(localX, localZ)
                                           : target;
-            Math::Vec4 value = glm::mix(oldValue, desired,
+            glm::vec4 value = glm::mix(oldValue, desired,
                                        glm::clamp(strength * falloff, 0.0f, 1.0f));
-            value /= glm::max(glm::dot(value, Math::Vec4(1.0f)), 0.0001f);
+            value /= glm::max(glm::dot(value, glm::vec4(1.0f)), 0.0001f);
             for (u32 component = 0; component < 4; ++component)
             {
                 const u8 encoded = static_cast<u8>(value[component] * 255.0f + 0.5f);
@@ -958,26 +958,26 @@ f32 Terrain::heightAt(f32 localX, f32 localZ) const
     return h11 + (h01 - h11) * (1.0f - tx) + (h10 - h11) * (1.0f - tz);
 }
 
-Math::Vec3 Terrain::normalAt(f32 localX, f32 localZ) const
+glm::vec3 Terrain::normalAt(f32 localX, f32 localZ) const
 {
     if (!valid())
-        return Math::Vec3(0.0f, 1.0f, 0.0f);
+        return glm::vec3(0.0f, 1.0f, 0.0f);
     const f32 step = mCellSize;
     const f32 left = heightAt(localX - step, localZ);
     const f32 right = heightAt(localX + step, localZ);
     const f32 top = heightAt(localX, localZ - step);
     const f32 bottom = heightAt(localX, localZ + step);
-    return glm::normalize(Math::Vec3(left - right, 2.0f * step, top - bottom));
+    return glm::normalize(glm::vec3(left - right, 2.0f * step, top - bottom));
 }
 
-bool Terrain::raycast(const Ray& worldRay, Math::Vec3& worldHit) const
+bool Terrain::raycast(const Ray& worldRay, glm::vec3& worldHit) const
 {
     if (!valid() || !owner())
         return false;
-    const Math::Mat4 inverse = glm::inverse(owner()->globalTransform());
+    const glm::mat4 inverse = glm::inverse(owner()->globalTransform());
     Ray ray;
-    ray.origin = Math::Vec3(inverse * Math::Vec4(worldRay.origin, 1.0f));
-    ray.direction = glm::normalize(Math::Vec3(inverse * Math::Vec4(worldRay.direction, 0.0f)));
+    ray.origin = glm::vec3(inverse * glm::vec4(worldRay.origin, 1.0f));
+    ray.direction = glm::normalize(glm::vec3(inverse * glm::vec4(worldRay.direction, 0.0f)));
     f32 enter = 0.0f;
     f32 leave = std::numeric_limits<f32>::max();
     for (u32 axis = 0; axis < 3; ++axis)
@@ -1001,7 +1001,7 @@ bool Terrain::raycast(const Ray& worldRay, Math::Vec3& worldHit) const
     const f32 halfX = static_cast<f32>(mWidth - 1) * mCellSize * 0.5f;
     const f32 halfZ = static_cast<f32>(mHeight - 1) * mCellSize * 0.5f;
     const f32 epsilon = glm::max(1e-5f, mCellSize * 1e-5f);
-    const Math::Vec3 start = ray.at(glm::min(leave, enter + epsilon));
+    const glm::vec3 start = ray.at(glm::min(leave, enter + epsilon));
     s32 cellX = glm::clamp(static_cast<s32>(std::floor((start.x + halfX) / mCellSize)), 0,
                            static_cast<s32>(mWidth) - 2);
     s32 cellZ = glm::clamp(static_cast<s32>(std::floor((start.z + halfZ) / mCellSize)), 0,
@@ -1033,10 +1033,10 @@ bool Terrain::raycast(const Ray& worldRay, Math::Vec3& worldHit) const
         const f32 cellLeave = glm::min(leave, glm::min(nextX, nextZ));
         const f32 x = static_cast<f32>(cellX) * mCellSize - halfX;
         const f32 z = static_cast<f32>(cellZ) * mCellSize - halfZ;
-        const Math::Vec3 p00(x, sampleHeight(cellX, cellZ), z);
-        const Math::Vec3 p10(x + mCellSize, sampleHeight(cellX + 1, cellZ), z);
-        const Math::Vec3 p01(x, sampleHeight(cellX, cellZ + 1), z + mCellSize);
-        const Math::Vec3 p11(x + mCellSize, sampleHeight(cellX + 1, cellZ + 1), z + mCellSize);
+        const glm::vec3 p00(x, sampleHeight(cellX, cellZ), z);
+        const glm::vec3 p10(x + mCellSize, sampleHeight(cellX + 1, cellZ), z);
+        const glm::vec3 p01(x, sampleHeight(cellX, cellZ + 1), z + mCellSize);
+        const glm::vec3 p11(x + mCellSize, sampleHeight(cellX + 1, cellZ + 1), z + mCellSize);
 
         f32 best = std::numeric_limits<f32>::max();
         f32 hit = 0.0f;
@@ -1048,7 +1048,7 @@ bool Terrain::raycast(const Ray& worldRay, Math::Vec3& worldHit) const
             best = glm::min(best, hit);
         if (best != std::numeric_limits<f32>::max())
         {
-            worldHit = Math::Vec3(owner()->globalTransform() * Math::Vec4(ray.at(best), 1.0f));
+            worldHit = glm::vec3(owner()->globalTransform() * glm::vec4(ray.at(best), 1.0f));
             return true;
         }
 
@@ -1075,25 +1075,25 @@ bool Terrain::raycast(const Ray& worldRay, Math::Vec3& worldHit) const
     return false;
 }
 
-bool Terrain::raise(const Math::Vec3& center, f32 radius, f32 amount)
+bool Terrain::raise(const glm::vec3& center, f32 radius, f32 amount)
 {
     return edit(center, radius, amount, false);
 }
-bool Terrain::lower(const Math::Vec3& center, f32 radius, f32 amount)
+bool Terrain::lower(const glm::vec3& center, f32 radius, f32 amount)
 {
     return edit(center, radius, -amount, false);
 }
-bool Terrain::smooth(const Math::Vec3& center, f32 radius, f32 strength)
+bool Terrain::smooth(const glm::vec3& center, f32 radius, f32 strength)
 {
     return edit(center, radius, glm::clamp(strength, 0.0f, 1.0f), true);
 }
 
-bool Terrain::flatten(const Math::Vec3& worldCenter, f32 radius, f32 targetHeight, f32 strength)
+bool Terrain::flatten(const glm::vec3& worldCenter, f32 radius, f32 targetHeight, f32 strength)
 {
     if (!valid() || !owner() || radius <= 0.0f || strength <= 0.0f)
         return false;
-    const Math::Vec3 center =
-        Math::Vec3(glm::inverse(owner()->globalTransform()) * Math::Vec4(worldCenter, 1.0f));
+    const glm::vec3 center =
+        glm::vec3(glm::inverse(owner()->globalTransform()) * glm::vec4(worldCenter, 1.0f));
     const f32 halfX = static_cast<f32>(mWidth - 1) * mCellSize * 0.5f;
     const f32 halfZ = static_cast<f32>(mHeight - 1) * mCellSize * 0.5f;
     const s32 minX =
@@ -1110,7 +1110,7 @@ bool Terrain::flatten(const Math::Vec3& worldCenter, f32 radius, f32 targetHeigh
     for (s32 z = minZ; z <= maxZ; ++z)
         for (s32 x = minX; x <= maxX; ++x)
         {
-            const Math::Vec2 delta(static_cast<f32>(x) * mCellSize - halfX - center.x,
+            const glm::vec2 delta(static_cast<f32>(x) * mCellSize - halfX - center.x,
                                   static_cast<f32>(z) * mCellSize - halfZ - center.z);
             const f32 distance = glm::length(delta);
             if (distance > radius)
@@ -1157,10 +1157,10 @@ u32 Terrain::generateGrass(Grass& grass, bool clearExisting) const
         rows = static_cast<u64>(std::ceil(sizeZ / spacing));
     }
 
-    const Math::Mat4 terrainToWorld = owner()->globalTransform();
-    const Math::Mat4 worldToGrass = glm::inverse(grass.owner()->globalTransform());
-    const Math::Mat3 normalToWorld = glm::transpose(glm::inverse(Math::Mat3(terrainToWorld)));
-    const Math::Mat3 normalToGrass = glm::transpose(Math::Mat3(grass.owner()->globalTransform()));
+    const glm::mat4 terrainToWorld = owner()->globalTransform();
+    const glm::mat4 worldToGrass = glm::inverse(grass.owner()->globalTransform());
+    const glm::mat3 normalToWorld = glm::transpose(glm::inverse(glm::mat3(terrainToWorld)));
+    const glm::mat3 normalToGrass = glm::transpose(glm::mat3(grass.owner()->globalTransform()));
     const f32 cosSlope = glm::cos(glm::radians(glm::clamp(settings.maximumSlopeDegrees,
                                                           0.0f, 89.9f)));
     const f32 jitter = glm::clamp(settings.jitter, 0.0f, 1.0f);
@@ -1189,15 +1189,15 @@ u32 Terrain::generateGrass(Grass& grass, bool clearExisting) const
             const f32 localY = heightAt(localX, localZ);
             if (localY < settings.minimumHeight || localY > settings.maximumHeight)
                 continue;
-            const Math::Vec3 localNormal = normalAt(localX, localZ);
+            const glm::vec3 localNormal = normalAt(localX, localZ);
             if (localNormal.y < cosSlope)
                 continue;
 
-            const Math::Vec3 worldPosition = Math::Vec3(
-                terrainToWorld * Math::Vec4(localX, localY, localZ, 1.0f));
-            const Math::Vec3 grassPosition = Math::Vec3(worldToGrass * Math::Vec4(worldPosition, 1.0f));
-            const Math::Vec3 worldNormal = glm::normalize(normalToWorld * localNormal);
-            const Math::Vec3 grassNormal = glm::normalize(normalToGrass * worldNormal);
+            const glm::vec3 worldPosition = glm::vec3(
+                terrainToWorld * glm::vec4(localX, localY, localZ, 1.0f));
+            const glm::vec3 grassPosition = glm::vec3(worldToGrass * glm::vec4(worldPosition, 1.0f));
+            const glm::vec3 worldNormal = glm::normalize(normalToWorld * localNormal);
+            const glm::vec3 grassNormal = glm::normalize(normalToGrass * worldNormal);
             const f32 scale = glm::mix(scaleMin, scaleMax, terrainRandom(key ^ 0xa511e9b3u));
             if (grass.plant(grassPosition, grassNormal, scale))
                 ++planted;
@@ -1237,8 +1237,8 @@ u32 Terrain::generateTrees(Forest& forest, bool clearExisting) const
     for (u32 i = 0; i < forest.speciesCount(); ++i)
         totalWeight += glm::max(0.0f, forest.speciesWeight(i));
 
-    const Math::Mat4 terrainToWorld = owner()->globalTransform();
-    const Math::Mat4 worldToForest = glm::inverse(forest.owner()->globalTransform());
+    const glm::mat4 terrainToWorld = owner()->globalTransform();
+    const glm::mat4 worldToForest = glm::inverse(forest.owner()->globalTransform());
     const f32 cosSlope = glm::cos(glm::radians(glm::clamp(settings.maximumSlopeDegrees,
                                                           0.0f, 89.9f)));
     const f32 jitter = glm::clamp(settings.jitter, 0.0f, 1.0f);
@@ -1283,9 +1283,9 @@ u32 Terrain::generateTrees(Forest& forest, bool clearExisting) const
                     }
                 }
             }
-            const Math::Vec3 worldPosition = Math::Vec3(
-                terrainToWorld * Math::Vec4(localX, localY, localZ, 1.0f));
-            const Math::Vec3 forestPosition = Math::Vec3(worldToForest * Math::Vec4(worldPosition, 1.0f));
+            const glm::vec3 worldPosition = glm::vec3(
+                terrainToWorld * glm::vec4(localX, localY, localZ, 1.0f));
+            const glm::vec3 forestPosition = glm::vec3(worldToForest * glm::vec4(worldPosition, 1.0f));
             const f32 scale = glm::mix(scaleMin, scaleMax, terrainRandom(key ^ 0x9e3779b9u));
             const f32 yaw = terrainRandom(key ^ 0x85ebca6bu) * 360.0f;
             if (forest.plant(forestPosition, species, scale, yaw))
@@ -1295,12 +1295,12 @@ u32 Terrain::generateTrees(Forest& forest, bool clearExisting) const
     return planted;
 }
 
-bool Terrain::edit(const Math::Vec3& worldCenter, f32 radius, f32 amount, bool smoothing)
+bool Terrain::edit(const glm::vec3& worldCenter, f32 radius, f32 amount, bool smoothing)
 {
     if (!valid() || !owner() || radius <= 0.0f || amount == 0.0f)
         return false;
-    const Math::Vec3 center =
-        Math::Vec3(glm::inverse(owner()->globalTransform()) * Math::Vec4(worldCenter, 1.0f));
+    const glm::vec3 center =
+        glm::vec3(glm::inverse(owner()->globalTransform()) * glm::vec4(worldCenter, 1.0f));
     const f32 halfX = static_cast<f32>(mWidth - 1) * mCellSize * 0.5f;
     const f32 halfZ = static_cast<f32>(mHeight - 1) * mCellSize * 0.5f;
     const s32 minX =
@@ -1321,7 +1321,7 @@ bool Terrain::edit(const Math::Vec3& worldCenter, f32 radius, f32 amount, bool s
     {
         for (s32 x = minX; x <= maxX; ++x)
         {
-            const Math::Vec2 delta(static_cast<f32>(x) * mCellSize - halfX - center.x,
+            const glm::vec2 delta(static_cast<f32>(x) * mCellSize - halfX - center.x,
                                   static_cast<f32>(z) * mCellSize - halfZ - center.z);
             const f32 distance = glm::length(delta);
             if (distance > radius)
@@ -1385,7 +1385,7 @@ void Terrain::rebuildChunksTouching(u32 minX, u32 minZ, u32 maxX, u32 maxZ)
         {
             const f32 halfX = static_cast<f32>(mWidth - 1) * mCellSize * 0.5f;
             const f32 halfZ = static_cast<f32>(mHeight - 1) * mCellSize * 0.5f;
-            mBounds.expand(Math::Vec3(static_cast<f32>(x) * mCellSize - halfX,
+            mBounds.expand(glm::vec3(static_cast<f32>(x) * mCellSize - halfX,
                                      mHeights[vertexIndex(x, z)],
                                      static_cast<f32>(z) * mCellSize - halfZ));
         }
@@ -1404,7 +1404,7 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
     constexpr f32 chunkHalfWidth = static_cast<f32>(ChunkWidth - 1) * 0.5f;
     const u32 originX = chunkX * ChunkSpan;
     const u32 originZ = chunkZ * ChunkSpan;
-    chunk.position = Math::Vec3((static_cast<f32>(originX) + chunkHalfWidth) * mCellSize - halfX,
+    chunk.position = glm::vec3((static_cast<f32>(originX) + chunkHalfWidth) * mCellSize - halfX,
                                0.0f,
                                (static_cast<f32>(originZ) + chunkHalfWidth) * mCellSize - halfZ);
 
@@ -1421,7 +1421,7 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
             padded[lx + lz * paddedWidth] = sampleHeight(static_cast<s32>(originX + lx),
                                                           static_cast<s32>(originZ + lz));
 
-    std::vector<Math::Vec3> positions(Terrain::VertexCount);
+    std::vector<glm::vec3> positions(Terrain::VertexCount);
     std::vector<MeshAttribs> attribs(Terrain::VertexCount);
 
     const f32 inverseX = 1.0f / static_cast<f32>(mWidth - 1);
@@ -1438,24 +1438,24 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
             const f32 z = (static_cast<f32>(lz) - chunkHalfWidth) * mCellSize;
             const f32 height = padded[lx + lz * paddedWidth];
 
-            const Math::Vec3 c0(x, height, z);
-            const Math::Vec3 c1(x + mCellSize, padded[(lx + 1) + lz * paddedWidth], z);
-            const Math::Vec3 c2(x, padded[lx + (lz + 1) * paddedWidth], z + mCellSize);
-            const Math::Vec3 t = c1 - c2;
-            const Math::Vec3 b = c0 - c1;
-            const Math::Vec3 n = glm::normalize(glm::cross(t, b));
+            const glm::vec3 c0(x, height, z);
+            const glm::vec3 c1(x + mCellSize, padded[(lx + 1) + lz * paddedWidth], z);
+            const glm::vec3 c2(x, padded[lx + (lz + 1) * paddedWidth], z + mCellSize);
+            const glm::vec3 t = c1 - c2;
+            const glm::vec3 b = c0 - c1;
+            const glm::vec3 n = glm::normalize(glm::cross(t, b));
 
             const f32 slopeAmount = 1.0f - glm::clamp(n.y, 0.0f, 1.0f);
             if (slopeAmount > 0.1f)
                 slopeCastShadow = true;
 
-            positions[index] = Math::Vec3(x, height, z);
+            positions[index] = glm::vec3(x, height, z);
 
             const u32 gx = originX + lx;
             const u32 gz = originZ + lz;
             attribs[index].normal = n;
-            attribs[index].tangent = Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            const Math::Vec2 terrainUV(static_cast<f32>(gx) * inverseX,
+            attribs[index].tangent = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            const glm::vec2 terrainUV(static_cast<f32>(gx) * inverseX,
                                       static_cast<f32>(gz) * inverseZ);
             attribs[index].uv = terrainUV;
             attribs[index].uv2 = terrainUV;
@@ -1480,7 +1480,7 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
     chunk.castShadow = slopeCastShadow;
     chunk.minimumY = minY;
     chunk.maximumY = maxY;
-    chunk.sphereCentre = chunk.position + Math::Vec3(0.0f, (minY + maxY) * 0.5f, 0.0f);
+    chunk.sphereCentre = chunk.position + glm::vec3(0.0f, (minY + maxY) * 0.5f, 0.0f);
     const f32 chunkSpan = static_cast<f32>(ChunkWidth - 1) * mCellSize;
     const f32 halfSpan = chunkSpan * 0.5f;
     const f32 halfY = (maxY - minY) * 0.5f;
@@ -1488,14 +1488,14 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
 
     GPU& gpu = GPU::getSingleton();
     AABB chunkBounds;
-    for (const Math::Vec3& p : positions)
+    for (const glm::vec3& p : positions)
         chunkBounds.expand(p);
 
     // Sculpting never changes a chunk's vertex count or layout. Reuse its
     // buffers instead of destroying/adopting a Mesh for every brush sample.
     if (Mesh* existing = Assets().getMesh(chunk.mesh))
     {
-        gpu.updateBuffer(existing->positionBuffer, 0, positions.size() * sizeof(Math::Vec3),
+        gpu.updateBuffer(existing->positionBuffer, 0, positions.size() * sizeof(glm::vec3),
                          positions.data());
         gpu.updateBuffer(existing->attribBuffer, 0, attribs.size() * sizeof(MeshAttribs),
                          attribs.data());
@@ -1506,13 +1506,13 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
     }
 
     BufferDesc positionDesc;
-    positionDesc.size = positions.size() * sizeof(Math::Vec3);
+    positionDesc.size = positions.size() * sizeof(glm::vec3);
     positionDesc.usage = BufferVertex;
     // Sculpting updates this buffer in-place in buildChunk(). Static buffers
     // reject updateBuffer() on the backends, leaving the rendered ground at
     // the old height while Road already conforms to the new CPU heightmap.
     positionDesc.residency = Residency::Dynamic;
-    positionDesc.stride = sizeof(Math::Vec3);
+    positionDesc.stride = sizeof(glm::vec3);
     positionDesc.data = positions.data();
     positionDesc.debugName = "terrain.chunk.position";
     const BufferHandle positionBuffer = gpu.createBuffer(positionDesc);
@@ -1545,7 +1545,7 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
     mesh.indexCount = indices.lods[0].indexCount;
 
     mesh.depthLayout.streamCount = 1;
-    mesh.depthLayout.streams[StreamPosition].stride = sizeof(Math::Vec3);
+    mesh.depthLayout.streams[StreamPosition].stride = sizeof(glm::vec3);
     mesh.depthLayout.attribCount = 1;
     mesh.depthLayout.attribs[0] = {0, StreamPosition, 0, AttribFormat::Float3};
 
@@ -1583,17 +1583,17 @@ void Terrain::releaseChunk(Chunk& chunk)
     chunk.mesh = MeshHandle();
 }
 
-u32 Terrain::pickLod(const Chunk& chunk, const Math::Vec3& cameraPosition,
-                     const Math::Mat4& transform) const
+u32 Terrain::pickLod(const Chunk& chunk, const glm::vec3& cameraPosition,
+                     const glm::mat4& transform) const
 {
     const TerrainIndices& indices = TerrainIndices::instance();
     const s32 maxLod = glm::min(static_cast<s32>(indices.lods.size()) - 1,
                                 static_cast<s32>(mMaxLod) - 1);
-    const f32 scale = glm::max(glm::length(Math::Vec3(transform[0])),
-                              glm::max(glm::length(Math::Vec3(transform[1])),
-                                       glm::length(Math::Vec3(transform[2]))));
+    const f32 scale = glm::max(glm::length(glm::vec3(transform[0])),
+                              glm::max(glm::length(glm::vec3(transform[1])),
+                                       glm::length(glm::vec3(transform[2]))));
     const f32 chunkSpan = static_cast<f32>(ChunkWidth - 1) * mCellSize * scale;
-    const Math::Vec3 centre = Math::Vec3(transform * Math::Vec4(chunk.sphereCentre, 1.0f));
+    const glm::vec3 centre = glm::vec3(transform * glm::vec4(chunk.sphereCentre, 1.0f));
     const f32 radius = chunk.sphereRadius * scale;
 
     const f32 distance =
@@ -1622,19 +1622,19 @@ u32 Terrain::pickLod(const Chunk& chunk, const Math::Vec3& cameraPosition,
     return static_cast<u32>(lod);
 }
 
-void Terrain::prepare(const Frustum& frustum, const Math::Vec3& cameraPosition)
+void Terrain::prepare(const Frustum& frustum, const glm::vec3& cameraPosition)
 {
     if (!valid() || !owner())
         return;
 
-    const Math::Mat4 transform = owner()->globalTransform();
-    const f32 scale = glm::max(glm::length(Math::Vec3(transform[0])),
-                              glm::max(glm::length(Math::Vec3(transform[1])),
-                                       glm::length(Math::Vec3(transform[2]))));
+    const glm::mat4 transform = owner()->globalTransform();
+    const f32 scale = glm::max(glm::length(glm::vec3(transform[0])),
+                              glm::max(glm::length(glm::vec3(transform[1])),
+                                       glm::length(glm::vec3(transform[2]))));
     mVisibleChunks = 0;
     for (Chunk& chunk : mChunks)
     {
-        const Math::Vec3 centre = Math::Vec3(transform * Math::Vec4(chunk.sphereCentre, 1.0f));
+        const glm::vec3 centre = glm::vec3(transform * glm::vec4(chunk.sphereCentre, 1.0f));
         chunk.visible = frustum.intersects(Sphere{centre, chunk.sphereRadius * scale});
         if (chunk.visible)
         {
@@ -1644,7 +1644,7 @@ void Terrain::prepare(const Frustum& frustum, const Math::Vec3& cameraPosition)
     }
 }
 
-void Terrain::submitCamera(RenderList& list, const Math::Mat4& transform)
+void Terrain::submitCamera(RenderList& list, const glm::mat4& transform)
 {
     const TerrainIndices& indices = TerrainIndices::instance();
     if (!indices.buffer.valid() || mChunks.empty())
@@ -1667,12 +1667,12 @@ void Terrain::submitCamera(RenderList& list, const Math::Mat4& transform)
         mesh->submeshes[0].indexOffset = range.indexOffset;
         mesh->submeshes[0].indexCount = range.indexCount;
 
-        const Math::Mat4 model = glm::translate(transform, chunk.position);
+        const glm::mat4 model = glm::translate(transform, chunk.position);
         list.submit(chunk.mesh, *mesh, model, &mMaterial, 1);
     }
 }
 
-void Terrain::submitShadow(RenderList& list, const Math::Mat4& transform)
+void Terrain::submitShadow(RenderList& list, const glm::mat4& transform)
 {
     const TerrainIndices& indices = TerrainIndices::instance();
     if (!indices.buffer.valid() || mChunks.empty())
@@ -1699,7 +1699,7 @@ void Terrain::submitShadow(RenderList& list, const Math::Mat4& transform)
         mesh->submeshes[0].indexOffset = range.indexOffset;
         mesh->submeshes[0].indexCount = range.indexCount;
 
-        const Math::Mat4 model = glm::translate(transform, chunk.position);
+        const glm::mat4 model = glm::translate(transform, chunk.position);
         list.submit(chunk.mesh, *mesh, model, &mMaterial, 1);
     }
 }

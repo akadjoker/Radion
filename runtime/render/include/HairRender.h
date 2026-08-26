@@ -16,12 +16,12 @@ namespace Radion
 // packed/interleaved vertex format.
 struct alignas(16) HairRoot
 {
-    Math::Vec4 positionLength = Math::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    Math::Vec4 normalWidth = Math::Vec4(0.0f, 1.0f, 0.0f, 0.01f);
+    glm::vec4 positionLength = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 normalWidth = glm::vec4(0.0f, 1.0f, 0.0f, 0.01f);
     glm::uvec4 joints = glm::uvec4(0u);
-    Math::Vec4 weights = Math::Vec4(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec4 weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
     // x rotation, y stable colour variation, z clump offset, w reserved.
-    Math::Vec4 params = Math::Vec4(0.0f);
+    glm::vec4 params = glm::vec4(0.0f);
 };
 
 enum class HairColliderType : u32
@@ -33,8 +33,8 @@ enum class HairColliderType : u32
 struct alignas(16) HairCollider
 {
     // Sphere: a.xyz=center, a.w=radius. Capsule: a/b are endpoints, a.w=radius.
-    Math::Vec4 a = Math::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    Math::Vec4 b = Math::Vec4(0.0f);
+    glm::vec4 a = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec4 b = glm::vec4(0.0f);
     HairColliderType type = HairColliderType::Sphere;
     u32 padding[3] = {};
 };
@@ -53,16 +53,16 @@ struct HairDrawCommand
     u32 rootCount = 0;
     u64 revision = 0;
 
-    const std::vector<Math::Mat4>* palette = nullptr;
-    const std::vector<Math::Mat4>* previousPalette = nullptr;
-    Math::Mat4 model = Math::Mat4(1.0f);
-    Math::Mat4 previousModel = Math::Mat4(1.0f);
+    const std::vector<glm::mat4>* palette = nullptr;
+    const std::vector<glm::mat4>* previousPalette = nullptr;
+    glm::mat4 model = glm::mat4(1.0f);
+    glm::mat4 previousModel = glm::mat4(1.0f);
 
     const HairCollider* colliders = nullptr;
     u32 colliderCount = 0;
     TextureHandle texture;
 
-    Math::Vec3 color = Math::Vec3(0.12f, 0.055f, 0.025f);
+    glm::vec3 color = glm::vec3(0.12f, 0.055f, 0.025f);
     f32 roughness = 0.38f;
     f32 specularStrength = 0.12f;
     f32 specularTint = 0.55f;

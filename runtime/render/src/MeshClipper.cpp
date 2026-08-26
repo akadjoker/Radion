@@ -13,11 +13,11 @@ constexpr u32 kInvalidVertex = static_cast<u32>(-1);
 
 struct ClipVertex
 {
-    Math::Vec3 position{0.0f};
-    Math::Vec3 normal{0.0f, 1.0f, 0.0f};
-    Math::Vec4 tangent{1.0f, 0.0f, 0.0f, 1.0f};
-    Math::Vec2 uv{0.0f};
-    Math::Vec2 uv2{0.0f};
+    glm::vec3 position{0.0f};
+    glm::vec3 normal{0.0f, 1.0f, 0.0f};
+    glm::vec4 tangent{1.0f, 0.0f, 0.0f, 1.0f};
+    glm::vec2 uv{0.0f};
+    glm::vec2 uv2{0.0f};
     u32 color = Color::White;
     f32 distance = 0.0f;
     u32 sourceIndex = kInvalidVertex;
@@ -29,15 +29,15 @@ T vertexAttribute(const std::vector<T>& values, u32 index, const T& fallback)
     return index < values.size() ? values[index] : fallback;
 }
 
-ClipVertex readVertex(const MeshData& mesh, u32 index, const Math::Vec3& normal, f32 offset)
+ClipVertex readVertex(const MeshData& mesh, u32 index, const glm::vec3& normal, f32 offset)
 {
     ClipVertex vertex;
     vertex.position = mesh.positions[index];
-    vertex.normal = vertexAttribute(mesh.normals, index, Math::Vec3(0.0f, 1.0f, 0.0f));
+    vertex.normal = vertexAttribute(mesh.normals, index, glm::vec3(0.0f, 1.0f, 0.0f));
     vertex.tangent =
-        vertexAttribute(mesh.tangents, index, Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f));
-    vertex.uv = vertexAttribute(mesh.uvs, index, Math::Vec2(0.0f));
-    vertex.uv2 = vertexAttribute(mesh.uvs2, index, Math::Vec2(0.0f));
+        vertexAttribute(mesh.tangents, index, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    vertex.uv = vertexAttribute(mesh.uvs, index, glm::vec2(0.0f));
+    vertex.uv2 = vertexAttribute(mesh.uvs2, index, glm::vec2(0.0f));
     vertex.color = vertexAttribute(mesh.colors, index, Color::White);
     vertex.distance = glm::dot(normal, vertex.position) + offset;
     vertex.sourceIndex = index;
@@ -53,16 +53,16 @@ ClipVertex interpolate(const ClipVertex& a, const ClipVertex& b)
     ClipVertex vertex;
     vertex.position = glm::mix(a.position, b.position, t);
 
-    const Math::Vec3 normal = glm::mix(a.normal, b.normal, t);
+    const glm::vec3 normal = glm::mix(a.normal, b.normal, t);
     vertex.normal = glm::dot(normal, normal) > kClipEpsilon * kClipEpsilon
                         ? glm::normalize(normal)
                         : a.normal;
 
-    const Math::Vec3 tangent = glm::mix(Math::Vec3(a.tangent), Math::Vec3(b.tangent), t);
-    const Math::Vec3 tangentDirection = glm::dot(tangent, tangent) > kClipEpsilon * kClipEpsilon
+    const glm::vec3 tangent = glm::mix(glm::vec3(a.tangent), glm::vec3(b.tangent), t);
+    const glm::vec3 tangentDirection = glm::dot(tangent, tangent) > kClipEpsilon * kClipEpsilon
                                            ? glm::normalize(tangent)
-                                           : Math::Vec3(a.tangent);
-    vertex.tangent = Math::Vec4(tangentDirection, t < 0.5f ? a.tangent.w : b.tangent.w);
+                                           : glm::vec3(a.tangent);
+    vertex.tangent = glm::vec4(tangentDirection, t < 0.5f ? a.tangent.w : b.tangent.w);
     vertex.uv = glm::mix(a.uv, b.uv, t);
     vertex.uv2 = glm::mix(a.uv2, b.uv2, t);
     vertex.color = Color::lerp(Color(a.color), Color(b.color), t).value();
@@ -92,7 +92,7 @@ u32 appendVertex(MeshData& output, const MeshData& input, const ClipVertex& vert
     return index;
 }
 
-void clipTriangle(const MeshData& input, const Math::Vec3& normal, f32 offset,
+void clipTriangle(const MeshData& input, const glm::vec3& normal, f32 offset,
                   bool keepPositive, u32 first, u32 second, u32 third, MeshData& output,
                   std::vector<u32>& remap)
 {
@@ -144,7 +144,7 @@ bool validSubmesh(const MeshData& mesh, const SubMesh& submesh)
 }
 }
 
-bool clipMeshByPlane(const MeshData& input, const Math::Vec3& planeNormal, f32 planeOffset,
+bool clipMeshByPlane(const MeshData& input, const glm::vec3& planeNormal, f32 planeOffset,
                      bool keepPositive, MeshData& output)
 {
     const f32 normalLength = glm::length(planeNormal);
@@ -159,7 +159,7 @@ bool clipMeshByPlane(const MeshData& input, const Math::Vec3& planeNormal, f32 p
         if (!validSubmesh(input, submesh))
             return false;
 
-    const Math::Vec3 normal = planeNormal / normalLength;
+    const glm::vec3 normal = planeNormal / normalLength;
     const f32 offset = planeOffset / normalLength;
     MeshData result;
     result.materials = input.materials;

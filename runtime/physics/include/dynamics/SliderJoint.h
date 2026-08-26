@@ -10,11 +10,11 @@ namespace Radion::Physics
 class SliderJoint final : public Joint
 {
 public:
-    SliderJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor,
-                const Math::Vec3& worldSliderAxis);
-    SliderJoint(RigidBody& a, const Math::Vec3& localAnchorA, const Math::Vec3& localSliderAxisA,
-                const Math::Vec3& localNormalAxisA, RigidBody& b, const Math::Vec3& localAnchorB,
-                const Math::Vec3& localSliderAxisB, const Math::Vec3& localNormalAxisB);
+    SliderJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                const glm::vec3& worldSliderAxis);
+    SliderJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localSliderAxisA,
+                const glm::vec3& localNormalAxisA, RigidBody& b, const glm::vec3& localAnchorB,
+                const glm::vec3& localSliderAxisB, const glm::vec3& localNormalAxisB);
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -35,31 +35,31 @@ private:
     void calculateSlideAxisAndPosition();
     void calculateLimitProperties();
     void calculateMotorProperties();
-    void applyVelocityImpulse(const Math::Vec3& impulse);
-    void applyAngularVelocityImpulse(const Math::Vec3& impulse);
+    void applyVelocityImpulse(const glm::vec3& impulse);
+    void applyAngularVelocityImpulse(const glm::vec3& impulse);
 
     RigidBody* mBodyA;
     RigidBody* mBodyB;
-    Math::Vec3 mLocalAnchorA;
-    Math::Vec3 mLocalAnchorB;
-    Math::Vec3 mLocalSliderAxisA;
-    Math::Vec3 mLocalNormalAxisA;
-    Math::Vec3 mLocalNormalAxisA2;
-    Math::Quaternion mInverseInitialOrientation;
+    glm::vec3 mLocalAnchorA;
+    glm::vec3 mLocalAnchorB;
+    glm::vec3 mLocalSliderAxisA;
+    glm::vec3 mLocalNormalAxisA;
+    glm::vec3 mLocalNormalAxisA2;
+    glm::quat mInverseInitialOrientation;
 
-    Math::Vec3 mArmA{0.0f};
-    Math::Vec3 mArmB{0.0f};
-    Math::Vec3 mOffset{0.0f};
+    glm::vec3 mArmA{0.0f};
+    glm::vec3 mArmB{0.0f};
+    glm::vec3 mOffset{0.0f};
 
-    Math::Vec3 mN1{1.0f, 0.0f, 0.0f};
-    Math::Vec3 mN2{0.0f, 0.0f, 1.0f};
+    glm::vec3 mN1{1.0f, 0.0f, 0.0f};
+    glm::vec3 mN2{0.0f, 0.0f, 1.0f};
     glm::mat2 mPositionLockEffectiveMass{0.0f};
-    Math::Vec2 mTotalPositionLockImpulse{0.0f};
+    glm::vec2 mTotalPositionLockImpulse{0.0f};
 
-    Math::Mat3 mRotationEffectiveMass{0.0f};
-    Math::Vec3 mTotalRotationImpulse{0.0f};
+    glm::mat3 mRotationEffectiveMass{0.0f};
+    glm::vec3 mTotalRotationImpulse{0.0f};
 
-    Math::Vec3 mWorldSliderAxis{1.0f, 0.0f, 0.0f};
+    glm::vec3 mWorldSliderAxis{1.0f, 0.0f, 0.0f};
     f32 mSlidePosition = 0.0f;
 
     f32 mLimitsMin = -M_INFINITY;

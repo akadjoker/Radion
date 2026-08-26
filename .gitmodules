@@ -1,6 +1,0 @@
-[submodule "vendor/mathc"]
-	path = vendor/mathc
-	url = https://github.com/akadjoker/math.git
-[submodule "vendor/containers"]
-	path = vendor/containers
-	url = https://github.com/akadjoker/containers.git

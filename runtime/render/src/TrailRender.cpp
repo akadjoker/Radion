@@ -7,10 +7,10 @@
 namespace Radion
 {
 
-void resolveBillboardAxes(BillboardMode mode, const Math::Vec3& cameraRight,
-                          const Math::Vec3& cameraUp, const Math::Vec3& cameraForward,
-                          const Math::Vec3& fixedRight, const Math::Vec3& fixedUp,
-                          Math::Vec3& outRight, Math::Vec3& outUp)
+void resolveBillboardAxes(BillboardMode mode, const glm::vec3& cameraRight,
+                          const glm::vec3& cameraUp, const glm::vec3& cameraForward,
+                          const glm::vec3& fixedRight, const glm::vec3& fixedUp,
+                          glm::vec3& outRight, glm::vec3& outUp)
 {
     if (mode == BillboardMode::Free)
     {
@@ -23,13 +23,13 @@ void resolveBillboardAxes(BillboardMode mode, const Math::Vec3& cameraRight,
         // Yaw-only facing: flatten the camera's forward onto the world XZ
         // plane, keep world up fixed - doesn't tilt as the camera looks
         // up/down, same as a tree/grass billboard.
-        const Math::Vec3 worldUp(0.0f, 1.0f, 0.0f);
-        Math::Vec3 flatForward(cameraForward.x, 0.0f, cameraForward.z);
+        const glm::vec3 worldUp(0.0f, 1.0f, 0.0f);
+        glm::vec3 flatForward(cameraForward.x, 0.0f, cameraForward.z);
         f32 len = glm::length(flatForward);
-        flatForward = len > 1e-5f ? flatForward * (1.0f / len) : Math::Vec3(0.0f, 0.0f, 1.0f);
-        Math::Vec3 right = glm::cross(flatForward, worldUp);
+        flatForward = len > 1e-5f ? flatForward * (1.0f / len) : glm::vec3(0.0f, 0.0f, 1.0f);
+        glm::vec3 right = glm::cross(flatForward, worldUp);
         len = glm::length(right);
-        outRight = len > 1e-5f ? right * (1.0f / len) : Math::Vec3(1.0f, 0.0f, 0.0f);
+        outRight = len > 1e-5f ? right * (1.0f / len) : glm::vec3(1.0f, 0.0f, 0.0f);
         outUp = worldUp;
         return;
     }
@@ -54,10 +54,10 @@ u32 packBatchColor(Color color)
     return BatchRenderer::packColor(color.r(), color.g(), color.b(), color.a());
 }
 
-void quadCorners(const Math::Vec3& center, const Math::Vec3& right, const Math::Vec3& up,
-                 const Math::Vec2& size, f32 rotation, Math::Vec3 outPosition[4])
+void quadCorners(const glm::vec3& center, const glm::vec3& right, const glm::vec3& up,
+                 const glm::vec2& size, f32 rotation, glm::vec3 outPosition[4])
 {
-    Math::Vec3 axisRight = right, axisUp = up;
+    glm::vec3 axisRight = right, axisUp = up;
     if (rotation != 0.0f)
     {
         // Spins the quad in its own plane - without this, many aligned
@@ -67,8 +67,8 @@ void quadCorners(const Math::Vec3& center, const Math::Vec3& right, const Math::
         axisRight = right * c + up * s;
         axisUp = up * c - right * s;
     }
-    const Math::Vec3 hr = axisRight * (size.x * 0.5f);
-    const Math::Vec3 hu = axisUp * (size.y * 0.5f);
+    const glm::vec3 hr = axisRight * (size.x * 0.5f);
+    const glm::vec3 hu = axisUp * (size.y * 0.5f);
     outPosition[0] = center - hr - hu;
     outPosition[1] = center + hr - hu;
     outPosition[2] = center + hr + hu;
@@ -149,21 +149,21 @@ private:
         // Same extraction ParticlePass uses for GPU billboarding: the
         // columns of an orthonormal view matrix are the camera axes in
         // world space.
-        const Math::Mat3 viewRotation(frame.view);
-        const Math::Vec3 cameraRight = glm::normalize(
-            Math::Vec3(viewRotation[0][0], viewRotation[1][0], viewRotation[2][0]));
-        const Math::Vec3 cameraUp = glm::normalize(
-            Math::Vec3(viewRotation[0][1], viewRotation[1][1], viewRotation[2][1]));
-        const Math::Vec3 cameraForward = -glm::normalize(
-            Math::Vec3(viewRotation[0][2], viewRotation[1][2], viewRotation[2][2]));
+        const glm::mat3 viewRotation(frame.view);
+        const glm::vec3 cameraRight = glm::normalize(
+            glm::vec3(viewRotation[0][0], viewRotation[1][0], viewRotation[2][0]));
+        const glm::vec3 cameraUp = glm::normalize(
+            glm::vec3(viewRotation[0][1], viewRotation[1][1], viewRotation[2][1]));
+        const glm::vec3 cameraForward = -glm::normalize(
+            glm::vec3(viewRotation[0][2], viewRotation[1][2], viewRotation[2][2]));
 
         for (const BillboardInstance& instance : billboards)
         {
-            Math::Vec3 right, up;
+            glm::vec3 right, up;
             resolveBillboardAxes(instance.mode, cameraRight, cameraUp, cameraForward,
                                  instance.fixedRight, instance.fixedUp, right, up);
 
-            Math::Vec3 corner[4];
+            glm::vec3 corner[4];
             quadCorners(instance.position, right, up, instance.size, instance.rotation, corner);
 
             const f32 u0 = instance.uvRect.x, v0 = instance.uvRect.y;
@@ -174,11 +174,11 @@ private:
             mBatch.setDepthTest(instance.depthTest);
             mBatch.setBlendMode(instance.blend);
             const u32 packedColor = packBatchColor(instance.color);
-            mBatch.drawTriangle3D(corner[0], Math::Vec2(u0, v1), packedColor, corner[1],
-                                  Math::Vec2(u1, v1), packedColor, corner[2], Math::Vec2(u1, v0),
+            mBatch.drawTriangle3D(corner[0], glm::vec2(u0, v1), packedColor, corner[1],
+                                  glm::vec2(u1, v1), packedColor, corner[2], glm::vec2(u1, v0),
                                   packedColor);
-            mBatch.drawTriangle3D(corner[0], Math::Vec2(u0, v1), packedColor, corner[2],
-                                  Math::Vec2(u1, v0), packedColor, corner[3], Math::Vec2(u0, v0),
+            mBatch.drawTriangle3D(corner[0], glm::vec2(u0, v1), packedColor, corner[2],
+                                  glm::vec2(u1, v0), packedColor, corner[3], glm::vec2(u0, v0),
                                   packedColor);
         }
 
@@ -187,7 +187,7 @@ private:
             if (!instance.glyphs || instance.glyphCount == 0)
                 continue;
 
-            Math::Vec3 right, up;
+            glm::vec3 right, up;
             resolveBillboardAxes(instance.mode, cameraRight, cameraUp, cameraForward,
                                  instance.fixedRight, instance.fixedUp, right, up);
 
@@ -205,21 +205,21 @@ private:
                 // glyph.offset places this glyph's bottom-left corner in the
                 // string's own right/up plane; the quad extends one
                 // glyphSize further along each axis from there.
-                const Math::Vec3 bottomLeft =
+                const glm::vec3 bottomLeft =
                     instance.position + right * glyph.offset.x + up * glyph.offset.y;
-                const Math::Vec3 bottomRight = bottomLeft + right * instance.glyphSize;
-                const Math::Vec3 topRight = bottomRight + up * instance.glyphSize;
-                const Math::Vec3 topLeft = bottomLeft + up * instance.glyphSize;
+                const glm::vec3 bottomRight = bottomLeft + right * instance.glyphSize;
+                const glm::vec3 topRight = bottomRight + up * instance.glyphSize;
+                const glm::vec3 topLeft = bottomLeft + up * instance.glyphSize;
 
                 const f32 u0 = glyph.uvRect.x, v0 = glyph.uvRect.y;
                 const f32 u1 = glyph.uvRect.x + glyph.uvRect.z;
                 const f32 v1 = glyph.uvRect.y + glyph.uvRect.w;
 
-                mBatch.drawTriangle3D(bottomLeft, Math::Vec2(u0, v1), packedColor, bottomRight,
-                                      Math::Vec2(u1, v1), packedColor, topRight, Math::Vec2(u1, v0),
+                mBatch.drawTriangle3D(bottomLeft, glm::vec2(u0, v1), packedColor, bottomRight,
+                                      glm::vec2(u1, v1), packedColor, topRight, glm::vec2(u1, v0),
                                       packedColor);
-                mBatch.drawTriangle3D(bottomLeft, Math::Vec2(u0, v1), packedColor, topRight,
-                                      Math::Vec2(u1, v0), packedColor, topLeft, Math::Vec2(u0, v0),
+                mBatch.drawTriangle3D(bottomLeft, glm::vec2(u0, v1), packedColor, topRight,
+                                      glm::vec2(u1, v0), packedColor, topLeft, glm::vec2(u0, v0),
                                       packedColor);
             }
         }

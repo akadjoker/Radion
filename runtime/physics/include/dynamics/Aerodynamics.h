@@ -13,44 +13,44 @@ class AeroSurface
 {
 public:
     AeroSurface() = default;
-    AeroSurface(const Math::Mat3& tensor, const Math::Vec3& position);
+    AeroSurface(const glm::mat3& tensor, const glm::vec3& position);
     virtual ~AeroSurface() = default;
 
-    void applyTo(RigidBody& body, const Math::Vec3& windspeed) const;
+    void applyTo(RigidBody& body, const glm::vec3& windspeed) const;
 
-    void setTensor(const Math::Mat3& tensor)
+    void setTensor(const glm::mat3& tensor)
     {
         mTensor = tensor;
     }
-    const Math::Mat3& tensor() const
+    const glm::mat3& tensor() const
     {
         return mTensor;
     }
-    void setPosition(const Math::Vec3& position)
+    void setPosition(const glm::vec3& position)
     {
         mPosition = position;
     }
-    const Math::Vec3& position() const
+    const glm::vec3& position() const
     {
         return mPosition;
     }
 
 protected:
-    virtual Math::Mat3 activeTensor() const
+    virtual glm::mat3 activeTensor() const
     {
         return mTensor;
     }
 
-    Math::Mat3 mTensor{0.0f};
-    Math::Vec3 mPosition{0.0f};
+    glm::mat3 mTensor{0.0f};
+    glm::vec3 mPosition{0.0f};
 };
 
 class AeroControlSurface final : public AeroSurface
 {
 public:
     AeroControlSurface() = default;
-    AeroControlSurface(const Math::Mat3& base, const Math::Mat3& minimum, const Math::Mat3& maximum,
-                       const Math::Vec3& position);
+    AeroControlSurface(const glm::mat3& base, const glm::mat3& minimum, const glm::mat3& maximum,
+                       const glm::vec3& position);
 
     void setControl(f32 control);
     f32 control() const
@@ -59,11 +59,11 @@ public:
     }
 
 protected:
-    Math::Mat3 activeTensor() const override;
+    glm::mat3 activeTensor() const override;
 
 private:
-    Math::Mat3 mMinimum{0.0f};
-    Math::Mat3 mMaximum{0.0f};
+    glm::mat3 mMinimum{0.0f};
+    glm::mat3 mMaximum{0.0f};
     f32 mControl = 0.0f;
 };
 
@@ -99,11 +99,11 @@ public:
         return mYaw;
     }
 
-    void setWindspeed(const Math::Vec3& windspeed)
+    void setWindspeed(const glm::vec3& windspeed)
     {
         mWindspeed = windspeed;
     }
-    const Math::Vec3& windspeed() const
+    const glm::vec3& windspeed() const
     {
         return mWindspeed;
     }
@@ -135,7 +135,7 @@ private:
     AeroControlSurface mRightWing;
     AeroControlSurface mRudder;
     AeroSurface mTail;
-    Math::Vec3 mWindspeed{0.0f};
+    glm::vec3 mWindspeed{0.0f};
     f32 mThrust = 10.0f;
     f32 mRoll = 0.0f;
     f32 mYaw = 0.0f;

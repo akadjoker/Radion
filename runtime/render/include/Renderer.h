@@ -125,7 +125,7 @@ public:
     void debugDrawShadows(bool showCascades, bool showAtlas, u32 windowWidth, u32 windowHeight);
     void debugDrawTexture(TextureHandle texture, bool isArray, u32 layer, TargetHandle target,
                           u32 width, u32 height,
-                          const Math::Vec4& sourceRect = Math::Vec4(1.0f, 1.0f, 0.0f, 0.0f));
+                          const glm::vec4& sourceRect = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f));
     void debugDrawCubemap(TextureHandle texture, u32 face, u32 mip, TargetHandle target,
                           u32 width, u32 height);
     TextureHandle directionalShadowTexture() const;

@@ -24,7 +24,7 @@ bool WaterPass::setup()
     mCameraBuffer = gpu.createBuffer(cameraDesc);
 
     BufferDesc reflectionDesc;
-    reflectionDesc.size = sizeof(Math::Mat4);
+    reflectionDesc.size = sizeof(glm::mat4);
     reflectionDesc.usage = BufferUniform;
     reflectionDesc.residency = Residency::Dynamic;
     reflectionDesc.debugName = "water.reflection_camera";
@@ -47,10 +47,10 @@ bool WaterPass::setup()
     // One water plane's worth up front; grown the same way ForwardPass grows
     // its own if more instances ever submit.
     BufferDesc instanceDesc;
-    instanceDesc.size = sizeof(Math::Mat4);
+    instanceDesc.size = sizeof(glm::mat4);
     instanceDesc.usage = BufferStorage;
     instanceDesc.residency = Residency::Stream;
-    instanceDesc.stride = sizeof(Math::Mat4);
+    instanceDesc.stride = sizeof(glm::mat4);
     instanceDesc.debugName = "water.instances";
     mInstanceBuffer = gpu.createBuffer(instanceDesc);
 
@@ -96,11 +96,11 @@ void WaterPass::execute(const FrameContext& frame)
     gpu.setViewport(frame.viewport);
 
     const CameraBlock camera{frame.viewProjection, frame.clipPlane,
-                             Math::Vec4(frame.cameraPosition, 1.0f), frame.view};
+                             glm::vec4(frame.cameraPosition, 1.0f), frame.view};
     gpu.updateBuffer(mCameraBuffer, 0, sizeof(CameraBlock), &camera);
     gpu.bindUniform(BindingCamera, mCameraBuffer);
 
-    gpu.updateBuffer(mReflectionCameraBuffer, 0, sizeof(Math::Mat4), &frame.reflectionViewProj);
+    gpu.updateBuffer(mReflectionCameraBuffer, 0, sizeof(glm::mat4), &frame.reflectionViewProj);
     gpu.bindUniform(BindingReflectionCamera, mReflectionCameraBuffer);
 
     const EnvironmentBlock environment = environmentForFrame(frame);
@@ -110,7 +110,7 @@ void WaterPass::execute(const FrameContext& frame)
     // Recovered from the projection rather than taken from FrameContext,
     // which carries a near plane but no far one. Both are needed to turn the
     // refraction depth sample back into a distance.
-    const Math::Mat4& projection = frame.projection;
+    const glm::mat4& projection = frame.projection;
     WaterBlock water;
     water.timeNearFar.x = frame.time;
     water.timeNearFar.y = projection[3][2] / (projection[2][2] - 1.0f);
@@ -141,8 +141,8 @@ void WaterPass::execute(const FrameContext& frame)
         if (!mesh)
             continue;
 
-        const Math::Mat4 model = frame.list->models()[packet.instance];
-        gpu.updateBuffer(mInstanceBuffer, 0, sizeof(Math::Mat4), &model);
+        const glm::mat4 model = frame.list->models()[packet.instance];
+        gpu.updateBuffer(mInstanceBuffer, 0, sizeof(glm::mat4), &model);
         gpu.bindStorage(BindingInstances, mInstanceBuffer);
 
         const Material& material = *instance.material;

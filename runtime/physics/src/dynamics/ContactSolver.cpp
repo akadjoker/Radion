@@ -14,18 +14,18 @@ namespace
 // actually produces - the linear part plus what the two inertia tensors let
 // the resulting torque do. Dividing by it is what turns a wanted velocity
 // change into the impulse that delivers it.
-f32 effectiveMass(const RigidBody& a, const RigidBody& b, const Math::Vec3& armA,
-                  const Math::Vec3& armB, const Math::Vec3& direction)
+f32 effectiveMass(const RigidBody& a, const RigidBody& b, const glm::vec3& armA,
+                  const glm::vec3& armB, const glm::vec3& direction)
 {
-    const Math::Vec3 angularA = glm::cross(armA, direction);
-    const Math::Vec3 angularB = glm::cross(armB, direction);
+    const glm::vec3 angularA = glm::cross(armA, direction);
+    const glm::vec3 angularB = glm::cross(armB, direction);
     return a.inverseMass() + b.inverseMass() +
            glm::dot(direction, glm::cross(a.inverseInertiaTensorWorld() * angularA, armA)) +
            glm::dot(direction, glm::cross(b.inverseInertiaTensorWorld() * angularB, armB));
 }
 
-Math::Vec3 relativeVelocity(const RigidBody& a, const RigidBody& b, const Math::Vec3& armA,
-                           const Math::Vec3& armB)
+glm::vec3 relativeVelocity(const RigidBody& a, const RigidBody& b, const glm::vec3& armA,
+                           const glm::vec3& armB)
 {
     return (b.velocity() + glm::cross(b.angularVelocity(), armB)) -
            (a.velocity() + glm::cross(a.angularVelocity(), armA));
@@ -40,7 +40,7 @@ Math::Vec3 relativeVelocity(const RigidBody& a, const RigidBody& b, const Math::
 // counter reset before it could ever cross the threshold - so nothing slept
 // and the whole tower kept creeping. Waking belongs to the moment a contact
 // is NEW, which PhysicsWorld does from its pair cache.
-void applyOne(RigidBody& body, const Math::Vec3& impulse, const Math::Vec3& point)
+void applyOne(RigidBody& body, const glm::vec3& impulse, const glm::vec3& point)
 {
     if (!body.isDynamic())
         return;
@@ -50,7 +50,7 @@ void applyOne(RigidBody& body, const Math::Vec3& impulse, const Math::Vec3& poin
                                 glm::cross(point - body.position(), impulse));
 }
 
-void applyPair(RigidBody& a, RigidBody& b, const Math::Vec3& impulse, const Math::Vec3& point)
+void applyPair(RigidBody& a, RigidBody& b, const glm::vec3& impulse, const glm::vec3& point)
 {
     applyOne(a, -impulse, point);
     applyOne(b, impulse, point);
@@ -71,7 +71,7 @@ void ContactSolver::warmStart(Contact* contacts, u32 count)
             // Last step's answer, applied before this step's first iteration.
             // Without it every step starts from zero and a tall stack sinks
             // by however much the iterations could not recover.
-            const Math::Vec3 impulse = manifold.normal * point.normalImpulse +
+            const glm::vec3 impulse = manifold.normal * point.normalImpulse +
                                       manifold.tangent[0] * point.tangentImpulse[0] +
                                       manifold.tangent[1] * point.tangentImpulse[1];
             applyPair(*contact.a, *contact.b, impulse, point.position);
@@ -93,8 +93,8 @@ void ContactSolver::solveVelocity(Contact* contacts, u32 count)
         for (u32 i = 0; i < manifold.count; ++i)
         {
             ContactPoint& point = manifold.points[i];
-            const Math::Vec3 armA = point.position - a.position();
-            const Math::Vec3 armB = point.position - b.position();
+            const glm::vec3 armA = point.position - a.position();
+            const glm::vec3 armB = point.position - b.position();
 
             // Friction first, and against the normal impulse the last
             // iteration settled on: the friction cone needs a normal force to
@@ -103,7 +103,7 @@ void ContactSolver::solveVelocity(Contact* contacts, u32 count)
             const f32 maxFriction = contact.friction * point.normalImpulse;
             for (u32 t = 0; t < 2; ++t)
             {
-                const Math::Vec3& tangent = manifold.tangent[t];
+                const glm::vec3& tangent = manifold.tangent[t];
                 const f32 mass = effectiveMass(a, b, armA, armB, tangent);
                 if (mass <= 0.0f)
                     continue;
@@ -156,12 +156,12 @@ void ContactSolver::solvePosition(Contact* contacts, u32 count)
             if (excess <= 0.0f)
                 continue;
 
-            const Math::Vec3 armA = point.position - a.position();
-            const Math::Vec3 armB = point.position - b.position();
+            const glm::vec3 armA = point.position - a.position();
+            const glm::vec3 armB = point.position - b.position();
             const f32 mass = effectiveMass(a, b, armA, armB, manifold.normal);
             if (mass <= 0.0f)
                 continue;
-            const Math::Vec3 impulse =
+            const glm::vec3 impulse =
                 manifold.normal * (excess * mSettings.baumgarte / mass);
 
             // Moved directly rather than through a bias impulse: a bias adds
@@ -207,8 +207,8 @@ void ContactSolver::solve(Contact* contacts, u32 count, Joint* const* joints, u3
             point.velocityBias = 0.0f;
             if (contact.restitution <= 0.0f)
                 continue;
-            const Math::Vec3 armA = point.position - contact.a->position();
-            const Math::Vec3 armB = point.position - contact.b->position();
+            const glm::vec3 armA = point.position - contact.a->position();
+            const glm::vec3 armB = point.position - contact.b->position();
             const f32 approach =
                 glm::dot(relativeVelocity(*contact.a, *contact.b, armA, armB), manifold.normal);
             // Below the threshold it is a resting contact, not an impact.

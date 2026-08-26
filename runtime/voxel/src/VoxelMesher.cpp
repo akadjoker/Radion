@@ -13,8 +13,8 @@ struct FaceInfo
 {
     VoxelCoord neighbourOffset;
     BlockFace face;
-    Math::Vec3 normal;
-    Math::Vec3 corners[4];
+    glm::vec3 normal;
+    glm::vec3 corners[4];
     VoxelCoord uAxis;
     VoxelCoord vAxis;
 };
@@ -91,7 +91,7 @@ MeshData& meshFor(VoxelMeshData& result, BlockRenderType type)
     }
 }
 
-Math::Vec2 rotateUv(const Math::Vec2& uv, s32 width, s32 height, BlockFaceRotation rotation)
+glm::vec2 rotateUv(const glm::vec2& uv, s32 width, s32 height, BlockFaceRotation rotation)
 {
     switch (rotation)
     {
@@ -112,11 +112,11 @@ void appendFace(MeshData& mesh, const VoxelCoord& local, const FaceInfo& face,
                 s32 height)
 {
     const u32 base = static_cast<u32>(mesh.positions.size());
-    const Math::Vec3 origin(static_cast<f32>(local.x), static_cast<f32>(local.y),
+    const glm::vec3 origin(static_cast<f32>(local.x), static_cast<f32>(local.y),
                            static_cast<f32>(local.z));
-    const Math::Vec3 uEdge = face.corners[1] - face.corners[0];
-    const Math::Vec3 vEdge = face.corners[3] - face.corners[0];
-    const Math::Vec3 corners[] = {
+    const glm::vec3 uEdge = face.corners[1] - face.corners[0];
+    const glm::vec3 vEdge = face.corners[3] - face.corners[0];
+    const glm::vec3 corners[] = {
         face.corners[0],
         face.corners[0] + uEdge * static_cast<f32>(width),
         face.corners[0] + uEdge * static_cast<f32>(width) + vEdge * static_cast<f32>(height),
@@ -124,21 +124,21 @@ void appendFace(MeshData& mesh, const VoxelCoord& local, const FaceInfo& face,
     };
     const f32 tileWidth = 1.0f / std::max<u16>(settings.atlasColumns, 1);
     const f32 tileHeight = 1.0f / std::max<u16>(settings.atlasRows, 1);
-    const Math::Vec2 uvs[] = {
+    const glm::vec2 uvs[] = {
         rotateUv({0.0f, 0.0f}, width, height, material.rotation),
         rotateUv({static_cast<f32>(width), 0.0f}, width, height, material.rotation),
         rotateUv({static_cast<f32>(width), static_cast<f32>(height)}, width, height,
                  material.rotation),
         rotateUv({0.0f, static_cast<f32>(height)}, width, height, material.rotation),
     };
-    const Math::Vec2 atlasOrigin(static_cast<f32>(material.atlasX) * tileWidth,
+    const glm::vec2 atlasOrigin(static_cast<f32>(material.atlasX) * tileWidth,
                                 static_cast<f32>(material.atlasY) * tileHeight);
 
     for (u32 i = 0; i < 4; ++i)
     {
         mesh.positions.push_back(origin + corners[i]);
         mesh.normals.push_back(face.normal);
-        Math::Vec2 uv = uvs[i];
+        glm::vec2 uv = uvs[i];
         if (material.flipVertical)
             uv.y = static_cast<f32>(height) - uv.y;
         mesh.uvs.push_back(uv);

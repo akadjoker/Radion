@@ -34,12 +34,12 @@ void VortexAffector::apply(Particle& particle, f32)
 {
     if (!enabled)
         return;
-    const Math::Vec3 toCenter = center - particle.position;
+    const glm::vec3 toCenter = center - particle.position;
     const f32 d = glm::length(toCenter);
     if (d < radius && d > 0.001f)
     {
-        const Math::Vec3 dir = toCenter * (1.0f / d);
-        const Math::Vec3 tangent(-dir.z, 0.0f, dir.x);
+        const glm::vec3 dir = toCenter * (1.0f / d);
+        const glm::vec3 tangent(-dir.z, 0.0f, dir.x);
         particle.acceleration += tangent * (strength * (1.0f - d / radius));
     }
 }
@@ -47,7 +47,7 @@ void AttractorAffector::apply(Particle& particle, f32)
 {
     if (!enabled)
         return;
-    const Math::Vec3 to = position - particle.position;
+    const glm::vec3 to = position - particle.position;
     const f32 d = glm::length(to);
     if (d < radius && d > 0.001f)
         particle.acceleration +=
@@ -59,7 +59,7 @@ void TurbulenceAffector::apply(Particle& particle, f32 deltaTime)
         return;
     time += deltaTime;
     particle.acceleration +=
-        Math::Vec3(glm::sin(particle.position.x * frequency + time) * strength,
+        glm::vec3(glm::sin(particle.position.x * frequency + time) * strength,
                  glm::sin(particle.position.y * frequency + time * 1.3f) * strength,
                  glm::cos(particle.position.z * frequency + time * 0.7f) * strength);
 }
@@ -168,7 +168,7 @@ void ParticleEmitter::setShapeSphere(f32 radius)
     mShape = ParticleEmitterShape::Sphere;
     mRadius = radius;
 }
-void ParticleEmitter::setShapeBox(const Math::Vec3& size)
+void ParticleEmitter::setShapeBox(const glm::vec3& size)
 {
     mShape = ParticleEmitterShape::Box;
     mBoxSize = size;
@@ -206,24 +206,24 @@ f32 ParticleEmitter::shapeConeAngle() const
 {
     return mConeAngle * kRadToDeg;
 }
-const Math::Vec3& ParticleEmitter::shapeBoxSize() const
+const glm::vec3& ParticleEmitter::shapeBoxSize() const
 {
     return mBoxSize;
 }
 
-void ParticleEmitter::setEmissionOffset(const Math::Vec3& offset)
+void ParticleEmitter::setEmissionOffset(const glm::vec3& offset)
 {
     mEmissionOffset = offset;
 }
-const Math::Vec3& ParticleEmitter::emissionOffset() const
+const glm::vec3& ParticleEmitter::emissionOffset() const
 {
     return mEmissionOffset;
 }
-void ParticleEmitter::setEmissionDirection(const Math::Vec3& direction)
+void ParticleEmitter::setEmissionDirection(const glm::vec3& direction)
 {
     mEmissionDirection = direction;
 }
-const Math::Vec3& ParticleEmitter::emissionDirection() const
+const glm::vec3& ParticleEmitter::emissionDirection() const
 {
     return mEmissionDirection;
 }
@@ -262,16 +262,16 @@ f32 ParticleEmitter::speedMax() const
 {
     return mSpeedMax;
 }
-void ParticleEmitter::setSize(const Math::Vec2& sizeStart, const Math::Vec2& sizeEnd)
+void ParticleEmitter::setSize(const glm::vec2& sizeStart, const glm::vec2& sizeEnd)
 {
     mSizeStart = sizeStart;
     mSizeEnd = sizeEnd;
 }
-const Math::Vec2& ParticleEmitter::sizeStart() const
+const glm::vec2& ParticleEmitter::sizeStart() const
 {
     return mSizeStart;
 }
-const Math::Vec2& ParticleEmitter::sizeEnd() const
+const glm::vec2& ParticleEmitter::sizeEnd() const
 {
     return mSizeEnd;
 }
@@ -302,11 +302,11 @@ f32 ParticleEmitter::rotationSpeedMax() const
     return mRotationSpeedMax;
 }
 
-void ParticleEmitter::setGravity(const Math::Vec3& gravity)
+void ParticleEmitter::setGravity(const glm::vec3& gravity)
 {
     mGravity = gravity;
 }
-const Math::Vec3& ParticleEmitter::gravity() const
+const glm::vec3& ParticleEmitter::gravity() const
 {
     return mGravity;
 }
@@ -343,7 +343,7 @@ void ParticleEmitter::setAtlasGrid(u32 cols, u32 rows)
     const f32 cw = 1.0f / (f32)cols, ch = 1.0f / (f32)rows;
     for (u32 row = 0; row < rows; ++row)
         for (u32 col = 0; col < cols; ++col)
-            mAtlasFrames.push_back(Math::Vec4((f32)col * cw, (f32)row * ch, cw, ch));
+            mAtlasFrames.push_back(glm::vec4((f32)col * cw, (f32)row * ch, cw, ch));
     mAtlasCols = cols;
     mAtlasRows = rows;
     mUseAtlas = true;
@@ -544,9 +544,9 @@ void ParticleEmitter::emitContinuous(f32 deltaTime)
     if (count == 0)
         return;
 
-    const Math::Vec3 currentPosition = owner()->globalPosition();
-    const Math::Vec3 travel =
-        mHasLastEmitPosition ? currentPosition - mLastEmitPosition : Math::Vec3(0.0f);
+    const glm::vec3 currentPosition = owner()->globalPosition();
+    const glm::vec3 travel =
+        mHasLastEmitPosition ? currentPosition - mLastEmitPosition : glm::vec3(0.0f);
     mLastEmitPosition = currentPosition;
     mHasLastEmitPosition = true;
 
@@ -640,7 +640,7 @@ void ParticleEmitter::initParticle(Particle& particle)
     }
     else
     {
-        particle.texRect = Math::Vec4(0.0f, 0.0f, 1.0f, 1.0f);
+        particle.texRect = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
     }
     particle.active = true;
 }
@@ -652,11 +652,11 @@ void ParticleEmitter::initParticle(Particle& particle)
 // original, where that already-world-space offset was rotated by the
 // owner's transform a second time, spinning the spawn disk further than
 // intended whenever the emitter itself wasn't axis-aligned.
-Math::Vec3 ParticleEmitter::calcEmissionPosition() const
+glm::vec3 ParticleEmitter::calcEmissionPosition() const
 {
     GameObject* object = owner();
-    const Math::Mat4& world = object->globalTransform();
-    const Math::Vec3 basePosition = Math::Vec3(world * Math::Vec4(mEmissionOffset, 1.0f));
+    const glm::mat4& world = object->globalTransform();
+    const glm::vec3 basePosition = glm::vec3(world * glm::vec4(mEmissionOffset, 1.0f));
 
     switch (mShape)
     {
@@ -665,17 +665,17 @@ Math::Vec3 ParticleEmitter::calcEmissionPosition() const
 
     case ParticleEmitterShape::Sphere:
     {
-        const Math::Vec3 dir = randomUnitVector();
+        const glm::vec3 dir = randomUnitVector();
         const f32 r = std::cbrt(mDist01(mRng)) * mRadius; // cbrt: uniform over the volume
-        const Math::Vec3 localOffset = dir * r;
-        return basePosition + Math::Vec3(world * Math::Vec4(localOffset, 0.0f));
+        const glm::vec3 localOffset = dir * r;
+        return basePosition + glm::vec3(world * glm::vec4(localOffset, 0.0f));
     }
     case ParticleEmitterShape::Box:
     {
-        const Math::Vec3 localOffset(rnd(-mBoxSize.x * 0.5f, mBoxSize.x * 0.5f),
+        const glm::vec3 localOffset(rnd(-mBoxSize.x * 0.5f, mBoxSize.x * 0.5f),
                                     rnd(-mBoxSize.y * 0.5f, mBoxSize.y * 0.5f),
                                     rnd(-mBoxSize.z * 0.5f, mBoxSize.z * 0.5f));
-        return basePosition + Math::Vec3(world * Math::Vec4(localOffset, 0.0f));
+        return basePosition + glm::vec3(world * glm::vec4(localOffset, 0.0f));
     }
     case ParticleEmitterShape::Cone:
     case ParticleEmitterShape::Circle:
@@ -696,21 +696,21 @@ Math::Vec3 ParticleEmitter::calcEmissionPosition() const
     return basePosition;
 }
 
-Math::Vec3 ParticleEmitter::calcEmissionVelocity() const
+glm::vec3 ParticleEmitter::calcEmissionVelocity() const
 {
     GameObject* object = owner();
     const f32 speed = rnd(mSpeedMin, mSpeedMax);
-    Math::Vec3 dir = glm::normalize(
-        Math::Vec3(object->globalTransform() * Math::Vec4(mEmissionDirection, 0.0f)));
+    glm::vec3 dir = glm::normalize(
+        glm::vec3(object->globalTransform() * glm::vec4(mEmissionDirection, 0.0f)));
 
     if (mSpreadAngle > 0.0f)
     {
         const f32 theta = rnd(0.0f, kTau);
         const f32 phi = rnd(0.0f, mSpreadAngle);
-        Math::Vec3 u(0.0f, 1.0f, 0.0f);
+        glm::vec3 u(0.0f, 1.0f, 0.0f);
         if (glm::abs(glm::dot(dir, u)) > 0.99f)
-            u = Math::Vec3(1.0f, 0.0f, 0.0f);
-        const Math::Vec3 r2 = glm::normalize(glm::cross(dir, u));
+            u = glm::vec3(1.0f, 0.0f, 0.0f);
+        const glm::vec3 r2 = glm::normalize(glm::cross(dir, u));
         u = glm::normalize(glm::cross(r2, dir));
         dir = glm::normalize(dir * glm::cos(phi) +
                              (r2 * glm::cos(theta) + u * glm::sin(theta)) * glm::sin(phi));
@@ -764,8 +764,8 @@ void ParticleEmitter::submit()
     if (mParticles.empty())
         return;
     GameObject* object = owner();
-    const Math::Vec3 fixedRight = object->right();
-    const Math::Vec3 fixedUp = object->up();
+    const glm::vec3 fixedRight = object->right();
+    const glm::vec3 fixedUp = object->up();
 
     for (const Particle& p : mParticles)
     {
@@ -792,26 +792,26 @@ f32 ParticleEmitter::rnd(f32 a, f32 b) const
 {
     return a + mDist01(mRng) * (b - a);
 }
-Math::Vec3 ParticleEmitter::randomUnitVector() const
+glm::vec3 ParticleEmitter::randomUnitVector() const
 {
     const f32 z = rnd(-1.0f, 1.0f);
     const f32 a = rnd(0.0f, kTau);
     const f32 r = glm::sqrt(glm::max(0.0f, 1.0f - z * z));
-    return Math::Vec3(r * glm::cos(a), r * glm::sin(a), z);
+    return glm::vec3(r * glm::cos(a), r * glm::sin(a), z);
 }
 
 void ParticleEmitter::presetBulletImpact(ParticleEmitter& emitter)
 {
     emitter.setOneShot(20);
     emitter.setShapePoint();
-    emitter.setEmissionDirection(Math::Vec3(0.0f, 1.0f, 0.0f));
+    emitter.setEmissionDirection(glm::vec3(0.0f, 1.0f, 0.0f));
     emitter.setSpreadAngle(70.0f);
     emitter.setSpeed(2.0f, 6.0f);
     emitter.setLifetime(0.15f, 0.35f);
-    emitter.setSize(Math::Vec2(0.06f), Math::Vec2(0.015f));
+    emitter.setSize(glm::vec2(0.06f), glm::vec2(0.015f));
     emitter.setColor(Color(255, 220, 120, 255), Color(255, 60, 20, 0));
     emitter.setRotationSpeed(-6.0f, 6.0f);
-    emitter.setGravity(Math::Vec3(0.0f, -9.8f, 0.0f));
+    emitter.setGravity(glm::vec3(0.0f, -9.8f, 0.0f));
     emitter.setDrag(2.0f);
 }
 
@@ -819,21 +819,21 @@ void ParticleEmitter::presetDust(ParticleEmitter& emitter)
 {
     emitter.setContinuous(3.0f);
     emitter.setShapeSphere(2.0f); // call setShapeSphere() again to change the volume's radius
-    emitter.setEmissionDirection(Math::Vec3(0.0f, 1.0f, 0.0f));
+    emitter.setEmissionDirection(glm::vec3(0.0f, 1.0f, 0.0f));
     emitter.setSpreadAngle(180.0f); // full sphere: drifts every which way, not just "up"
     emitter.setSpeed(0.03f, 0.15f);
     emitter.setLifetime(15.0f, 25.0f);
     // Small enough to read as a fine speck, not so small it falls under a
     // pixel at normal viewing distance and vanishes. Near-constant size -
     // a mote drifting in a sunbeam doesn't visibly grow the way smoke does.
-    emitter.setSize(Math::Vec2(0.02f), Math::Vec2(0.025f));
+    emitter.setSize(glm::vec2(0.02f), glm::vec2(0.025f));
     emitter.setColor(Color(255, 255, 242, 230), Color(255, 255, 242, 0));
     emitter.setRotationSpeed(-0.2f, 0.2f);
     // The whole point of this being its own CPU emitter: gravity/drag are
     // this emitter's own, not ParticleSystem's shared setting, so dust can
     // float while a bullet impact or explosion sharing the GPU pool still
     // falls normally.
-    emitter.setGravity(Math::Vec3(0.0f));
+    emitter.setGravity(glm::vec3(0.0f));
     emitter.setDrag(0.1f);
 }
 
@@ -841,13 +841,13 @@ void ParticleEmitter::presetSmoke(ParticleEmitter& emitter)
 {
     emitter.setContinuous(40.0f);
     emitter.setShapeSphere(0.05f);
-    emitter.setEmissionDirection(Math::Vec3(0.0f, 1.0f, 0.0f));
+    emitter.setEmissionDirection(glm::vec3(0.0f, 1.0f, 0.0f));
     emitter.setSpreadAngle(23.0f); // ~0.4 radians, a narrow rising column
     emitter.setSpeed(0.5f, 1.5f);
     emitter.setLifetime(2.0f, 4.0f);
-    emitter.setSize(Math::Vec2(0.3f), Math::Vec2(1.0f));
+    emitter.setSize(glm::vec2(0.3f), glm::vec2(1.0f));
     emitter.setColor(Color(153, 153, 153, 102), Color(128, 128, 128, 0));
-    emitter.setGravity(Math::Vec3(0.0f));
+    emitter.setGravity(glm::vec3(0.0f));
     emitter.setDrag(0.3f);
 }
 
@@ -855,14 +855,14 @@ void ParticleEmitter::presetDebris(ParticleEmitter& emitter)
 {
     emitter.setOneShot(14);
     emitter.setShapeSphere(0.05f);
-    emitter.setEmissionDirection(Math::Vec3(0.0f, 1.0f, 0.0f));
+    emitter.setEmissionDirection(glm::vec3(0.0f, 1.0f, 0.0f));
     emitter.setSpreadAngle(120.0f);
     emitter.setSpeed(1.5f, 5.0f);
     emitter.setLifetime(0.6f, 1.4f);
-    emitter.setSize(Math::Vec2(0.04f), Math::Vec2(0.04f));
+    emitter.setSize(glm::vec2(0.04f), glm::vec2(0.04f));
     emitter.setColor(Color(170, 150, 130, 255), Color(120, 105, 90, 255));
     emitter.setRotationSpeed(-8.0f, 8.0f);
-    emitter.setGravity(Math::Vec3(0.0f, -9.8f, 0.0f));
+    emitter.setGravity(glm::vec3(0.0f, -9.8f, 0.0f));
     emitter.setDrag(0.4f);
 }
 

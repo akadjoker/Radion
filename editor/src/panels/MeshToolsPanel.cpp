@@ -106,11 +106,11 @@ void MeshToolsPanel::onImGui()
         ImGui::BeginDisabled(!data || skinned);
         if (ImGui::Button("Apply open cut"))
         {
-            const Math::Vec3 worldNormal = glm::normalize(cutter->up());
-            const Math::Vec3 worldPoint = cutter->globalPosition();
-            const Math::Mat4 targetTransform = object->globalTransform();
-            const Math::Vec3 localNormal =
-                glm::transpose(Math::Mat3(targetTransform)) * worldNormal;
+            const glm::vec3 worldNormal = glm::normalize(cutter->up());
+            const glm::vec3 worldPoint = cutter->globalPosition();
+            const glm::mat4 targetTransform = object->globalTransform();
+            const glm::vec3 localNormal =
+                glm::transpose(glm::mat3(targetTransform)) * worldNormal;
             const f32 normalLength = glm::length(localNormal);
             if (normalLength <= 1e-6f)
             {
@@ -118,7 +118,7 @@ void MeshToolsPanel::onImGui()
             }
             else
             {
-                const Math::Vec3 targetOrigin = Math::Vec3(targetTransform[3]);
+                const glm::vec3 targetOrigin = glm::vec3(targetTransform[3]);
                 const f32 localOffset =
                     glm::dot(worldNormal, targetOrigin - worldPoint) / normalLength;
                 MeshData clipped;
@@ -388,7 +388,7 @@ void MeshToolsPanel::onImGui()
         // above is confirmed against the real vertices. A rotated or
         // diagonal piece has box corners well below any vertex it actually
         // owns, which alone would keep roofs that should have gone.
-        const Math::Mat4 transform = object->globalTransform();
+        const glm::mat4 transform = object->globalTransform();
         std::vector<u32> doomed;
         for (u32 i = 0; i < static_cast<u32>(data->submeshes.size()); ++i)
         {
@@ -397,10 +397,10 @@ void MeshToolsPanel::onImGui()
             f32 lowestCorner = std::numeric_limits<f32>::max();
             for (u32 corner = 0; corner < 8; ++corner)
             {
-                const Math::Vec3 local((corner & 1) ? bounds.max.x : bounds.min.x,
+                const glm::vec3 local((corner & 1) ? bounds.max.x : bounds.min.x,
                                       (corner & 2) ? bounds.max.y : bounds.min.y,
                                       (corner & 4) ? bounds.max.z : bounds.min.z);
-                lowestCorner = glm::min(lowestCorner, (transform * Math::Vec4(local, 1.0f)).y);
+                lowestCorner = glm::min(lowestCorner, (transform * glm::vec4(local, 1.0f)).y);
             }
             if (lowestCorner <= stripHeight)
                 continue;
@@ -414,7 +414,7 @@ void MeshToolsPanel::onImGui()
                 if (vertex >= data->positions.size())
                     continue;
                 lowestVertex =
-                    glm::min(lowestVertex, (transform * Math::Vec4(data->positions[vertex], 1.0f)).y);
+                    glm::min(lowestVertex, (transform * glm::vec4(data->positions[vertex], 1.0f)).y);
                 if (lowestVertex <= stripHeight)
                     break; // reaches the ground after all - keep it, stop looking
             }
@@ -450,24 +450,24 @@ void MeshToolsPanel::onImGui()
         ImGui::SetTooltip("Moves/rotates the vertices themselves, shared by every object using "
                           "this mesh - not this one object's own Transform in the Inspector. "
                           "Useful for an import that landed off-centre or on its side.");
-    static Math::Vec3 bakeTranslate(0.0f);
+    static glm::vec3 bakeTranslate(0.0f);
     ImGui::DragFloat3("Translate##bake", &bakeTranslate.x, 0.01f);
     ImGui::SameLine();
     if (ImGui::Button("Apply##bakeTranslate"))
     {
         assets.translate(*data, bakeTranslate);
         app().applyMeshEdit(renderer->mesh());
-        bakeTranslate = Math::Vec3(0.0f);
+        bakeTranslate = glm::vec3(0.0f);
     }
-    static Math::Vec3 bakeRotateDegrees(0.0f);
+    static glm::vec3 bakeRotateDegrees(0.0f);
     ImGui::DragFloat3("Rotate##bake", &bakeRotateDegrees.x, 0.5f);
     ImGui::SameLine();
     if (ImGui::Button("Apply##bakeRotate"))
     {
-        const Math::Mat4 rotation = glm::mat4_cast(Math::Quaternion(glm::radians(bakeRotateDegrees)));
+        const glm::mat4 rotation = glm::mat4_cast(glm::quat(glm::radians(bakeRotateDegrees)));
         assets.transform(*data, rotation);
         app().applyMeshEdit(renderer->mesh());
-        bakeRotateDegrees = Math::Vec3(0.0f);
+        bakeRotateDegrees = glm::vec3(0.0f);
     }
 
     ImGui::Separator();

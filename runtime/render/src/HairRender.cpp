@@ -18,19 +18,19 @@ namespace
 
 struct alignas(16) HairUniforms
 {
-    Math::Mat4 viewProjection = Math::Mat4(1.0f);
-    Math::Mat4 viewProjectionNoJitter = Math::Mat4(1.0f);
-    Math::Mat4 previousViewProjectionNoJitter = Math::Mat4(1.0f);
-    Math::Mat4 model = Math::Mat4(1.0f);
-    Math::Mat4 previousModel = Math::Mat4(1.0f);
-    Math::Vec4 colorRoughness = Math::Vec4(1.0f);
-    Math::Vec4 cameraTime = Math::Vec4(0.0f);
-    Math::Vec4 cameraUp = Math::Vec4(0.0f, 1.0f, 0.0f, 0.0f);
-    Math::Vec4 lightDirectionWind = Math::Vec4(0.0f);
-    Math::Vec4 lightColorGravity = Math::Vec4(1.0f);
-    Math::Vec4 ambientDeltaTime = Math::Vec4(0.0f);
-    Math::Vec4 physics = Math::Vec4(0.0f);
-    Math::Vec4 appearance = Math::Vec4(0.0f);
+    glm::mat4 viewProjection = glm::mat4(1.0f);
+    glm::mat4 viewProjectionNoJitter = glm::mat4(1.0f);
+    glm::mat4 previousViewProjectionNoJitter = glm::mat4(1.0f);
+    glm::mat4 model = glm::mat4(1.0f);
+    glm::mat4 previousModel = glm::mat4(1.0f);
+    glm::vec4 colorRoughness = glm::vec4(1.0f);
+    glm::vec4 cameraTime = glm::vec4(0.0f);
+    glm::vec4 cameraUp = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+    glm::vec4 lightDirectionWind = glm::vec4(0.0f);
+    glm::vec4 lightColorGravity = glm::vec4(1.0f);
+    glm::vec4 ambientDeltaTime = glm::vec4(0.0f);
+    glm::vec4 physics = glm::vec4(0.0f);
+    glm::vec4 appearance = glm::vec4(0.0f);
     glm::ivec4 counts = glm::ivec4(0);
     glm::ivec4 state = glm::ivec4(0);
     HairCollider colliders[kHairMaxColliders];
@@ -38,15 +38,15 @@ struct alignas(16) HairUniforms
 
 struct HairSimulationState
 {
-    Math::Vec4 current = Math::Vec4(0.0f);
-    Math::Vec4 previous = Math::Vec4(0.0f);
+    glm::vec4 current = glm::vec4(0.0f);
+    glm::vec4 previous = glm::vec4(0.0f);
 };
 
 struct HairPose
 {
-    Math::Vec4 positionLength = Math::Vec4(0.0f);
-    Math::Vec4 normalWidth = Math::Vec4(0.0f);
-    Math::Vec4 previousPosition = Math::Vec4(0.0f);
+    glm::vec4 positionLength = glm::vec4(0.0f);
+    glm::vec4 normalWidth = glm::vec4(0.0f);
+    glm::vec4 previousPosition = glm::vec4(0.0f);
 };
 
 struct HairIndirectArgs
@@ -283,10 +283,10 @@ private:
     bool ensurePalettes(GPU& gpu, HairResources& resources, const HairDrawCommand& command,
                         u32& paletteCount, u32& previousPaletteCount)
     {
-        static const std::vector<Math::Mat4> identity(1, Math::Mat4(1.0f));
-        const std::vector<Math::Mat4>& palette = command.palette && !command.palette->empty()
+        static const std::vector<glm::mat4> identity(1, glm::mat4(1.0f));
+        const std::vector<glm::mat4>& palette = command.palette && !command.palette->empty()
                                                     ? *command.palette : identity;
-        const std::vector<Math::Mat4>& previous =
+        const std::vector<glm::mat4>& previous =
             command.previousPalette && !command.previousPalette->empty()
                 ? *command.previousPalette : palette;
         paletteCount = static_cast<u32>(palette.size());
@@ -297,10 +297,10 @@ private:
         {
             const u32 capacity = growCapacity(resources.paletteCapacity, required, 64);
             BufferDesc desc;
-            desc.size = static_cast<u64>(capacity) * sizeof(Math::Mat4);
+            desc.size = static_cast<u64>(capacity) * sizeof(glm::mat4);
             desc.usage = BufferStorage;
             desc.residency = Residency::Stream;
-            desc.stride = sizeof(Math::Mat4);
+            desc.stride = sizeof(glm::mat4);
             desc.debugName = "hair.palette";
             BufferHandle current = gpu.createBuffer(desc);
             desc.debugName = "hair.previous_palette";
@@ -316,9 +316,9 @@ private:
             resources.paletteCapacity = capacity;
         }
         gpu.updateBuffer(resources.palette, 0,
-                         static_cast<u64>(paletteCount) * sizeof(Math::Mat4), palette.data());
+                         static_cast<u64>(paletteCount) * sizeof(glm::mat4), palette.data());
         gpu.updateBuffer(resources.previousPalette, 0,
-                         static_cast<u64>(previousPaletteCount) * sizeof(Math::Mat4), previous.data());
+                         static_cast<u64>(previousPaletteCount) * sizeof(glm::mat4), previous.data());
         return true;
     }
 
@@ -341,16 +341,16 @@ private:
         uniforms.previousViewProjectionNoJitter = frame.prevViewProjectionNoJitter;
         uniforms.model = command.model;
         uniforms.previousModel = command.previousModel;
-        uniforms.colorRoughness = Math::Vec4(command.color, command.roughness);
-        uniforms.cameraTime = Math::Vec4(frame.cameraPosition, frame.time);
-        uniforms.cameraUp = Math::Vec4(frame.view[0][1], frame.view[1][1], frame.view[2][1], 0.0f);
+        uniforms.colorRoughness = glm::vec4(command.color, command.roughness);
+        uniforms.cameraTime = glm::vec4(frame.cameraPosition, frame.time);
+        uniforms.cameraUp = glm::vec4(frame.view[0][1], frame.view[1][1], frame.view[2][1], 0.0f);
         const EnvironmentBlock environment = environmentForFrame(frame);
-        uniforms.lightDirectionWind = Math::Vec4(Math::Vec3(environment.sunDirection), command.wind);
-        uniforms.lightColorGravity = Math::Vec4(Math::Vec3(environment.sunColor), command.gravity);
-        uniforms.ambientDeltaTime = Math::Vec4(Math::Vec3(environment.ambient), command.deltaTime);
-        uniforms.physics = Math::Vec4(command.stiffness, command.drag, command.drawDistance,
+        uniforms.lightDirectionWind = glm::vec4(glm::vec3(environment.sunDirection), command.wind);
+        uniforms.lightColorGravity = glm::vec4(glm::vec3(environment.sunColor), command.gravity);
+        uniforms.ambientDeltaTime = glm::vec4(glm::vec3(environment.ambient), command.deltaTime);
+        uniforms.physics = glm::vec4(command.stiffness, command.drag, command.drawDistance,
                                      command.alphaCut);
-        uniforms.appearance = Math::Vec4(command.specularStrength, command.specularTint,
+        uniforms.appearance = glm::vec4(command.specularStrength, command.specularTint,
                                         command.transmission, 0.0f);
         uniforms.counts = glm::ivec4(command.rootCount, command.segments, command.followers,
                                      glm::min(command.colliderCount, kHairMaxColliders));

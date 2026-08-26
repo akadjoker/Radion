@@ -82,7 +82,7 @@ PointOfInterest* PointsOfInterest::selectRandom(PointOfInterestID current) const
     return find(newId);
 }
 
-PointOfInterest* PointsOfInterest::findNearest(const Math::Vec3& position) const
+PointOfInterest* PointsOfInterest::findNearest(const glm::vec3& position) const
 {
     PointOfInterest* closest = nullptr;
     float closestDist = FLT_MAX;

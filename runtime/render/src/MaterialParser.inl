@@ -383,10 +383,10 @@ private:
             runtimeTexture.source = texture.source;
             runtimeTexture.layers = static_cast<u16>(texture.frames.size());
             runtimeTexture.targetName = hashName(texture.target);
-            if (texture.scrollSpeed != Math::Vec2(0.0f) || texture.rotateSpeed != 0.0f)
+            if (texture.scrollSpeed != glm::vec2(0.0f) || texture.rotateSpeed != 0.0f)
             {
                 definition.material.params.uvAnim =
-                    Math::Vec4(texture.scrollSpeed, texture.rotateSpeed, 0.0f);
+                    glm::vec4(texture.scrollSpeed, texture.rotateSpeed, 0.0f);
                 definition.material.flags |= MaterialAnimated;
             }
             definition.textures.push_back(texture);
@@ -421,10 +421,10 @@ private:
             if (word("scrollSpeed"))
             {
                 next();
-                Math::Vec4 value(0.0f);
+                glm::vec4 value(0.0f);
                 if (!parseVector(value, 2))
                     return false;
-                texture.scrollSpeed = Math::Vec2(value);
+                texture.scrollSpeed = glm::vec2(value);
             }
             else if (word("rotateSpeed"))
             {
@@ -655,14 +655,14 @@ private:
         return true;
     }
 
-    bool parseVector(Math::Vec4& value, u8 minimumComponents)
+    bool parseVector(glm::vec4& value, u8 minimumComponents)
     {
         if (mToken.kind != TokenKind::LeftParen)
         {
             f32 scalar;
             if (!parseNumber(scalar))
                 return false;
-            value = Math::Vec4(scalar);
+            value = glm::vec4(scalar);
             return true;
         }
 
@@ -682,7 +682,7 @@ private:
             return fail("not enough vector components");
         if (!take(TokenKind::RightParen, "expected ')' after vector"))
             return false;
-        value = Math::Vec4(components[0], components[1], components[2], components[3]);
+        value = glm::vec4(components[0], components[1], components[2], components[3]);
         return true;
     }
 

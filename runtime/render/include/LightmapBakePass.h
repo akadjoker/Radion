@@ -43,7 +43,7 @@ struct LightmapBakeSettings
     // is a uniform sky dome with a bounce off the ground - the cheapest model
     // that still separates the three, and enough to stop shadowed geometry
     // reading as holes.
-    Math::Vec3 ambient = Math::Vec3(0.12f, 0.16f, 0.24f);
+    glm::vec3 ambient = glm::vec3(0.12f, 0.16f, 0.24f);
     // The ground bounce, as a fraction of `ambient`. Never zero unless a
     // black underside is what you want.
     f32 ambientGround = 0.35f;
@@ -78,8 +78,8 @@ class LightmapBakePass
 public:
     ~LightmapBakePass();
 
-    bool bake(MeshHandle mesh, const Math::Mat4& model, const AABB& bounds,
-              const Math::Vec3& lightDirection, const Math::Vec3& lightColor,
+    bool bake(MeshHandle mesh, const glm::mat4& model, const AABB& bounds,
+              const glm::vec3& lightDirection, const glm::vec3& lightColor,
               u32 resolution = 1024, const LightmapBakeSettings& settings = LightmapBakeSettings());
     bool save(const std::string& filename) const;
 

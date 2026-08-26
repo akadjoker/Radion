@@ -19,21 +19,21 @@ using detail::scalarRandomWalk;
 
 // --- seek / flee ------------------------------------------------------------
 
-Math::Vec3 SteerLibrary::seek(const Math::Vec3& target) const
+glm::vec3 SteerLibrary::seek(const glm::vec3& target) const
 {
-    const Math::Vec3 desiredVelocity = target - vehicle().position();
+    const glm::vec3 desiredVelocity = target - vehicle().position();
     return desiredVelocity - vehicle().velocity();
 }
 
-Math::Vec3 SteerLibrary::flee(const Math::Vec3& target) const
+glm::vec3 SteerLibrary::flee(const glm::vec3& target) const
 {
-    const Math::Vec3 desiredVelocity = vehicle().position() - target;
+    const glm::vec3 desiredVelocity = vehicle().position() - target;
     return desiredVelocity - vehicle().velocity();
 }
 
 // --- wander -----------------------------------------------------------------
 
-Math::Vec3 SteerLibrary::wander(float dt)
+glm::vec3 SteerLibrary::wander(float dt)
 {
     // Random walk WanderSide and WanderUp between -1 and +1.
     const float speed = 12.0f * dt;
@@ -46,17 +46,17 @@ Math::Vec3 SteerLibrary::wander(float dt)
 
 // --- pursuit / evasion ------------------------------------------------------
 
-Math::Vec3 SteerLibrary::pursuit(const Entity& quarry) const
+glm::vec3 SteerLibrary::pursuit(const Entity& quarry) const
 {
     return pursuit(quarry, FLT_MAX);
 }
 
-Math::Vec3 SteerLibrary::pursuit(const Entity& quarry, float maxPredictionTime) const
+glm::vec3 SteerLibrary::pursuit(const Entity& quarry, float maxPredictionTime) const
 {
     // Offset from this to the quarry, its distance, and a unit vector toward it.
-    const Math::Vec3 offset = quarry.position() - vehicle().position();
+    const glm::vec3 offset = quarry.position() - vehicle().position();
     const float distance = glm::length(offset);
-    const Math::Vec3 unitOffset = distance > 0.0f ? offset / distance : vehicle().forward();
+    const glm::vec3 unitOffset = distance > 0.0f ? offset / distance : vehicle().forward();
 
     // How parallel are the paths of "this" and the quarry?
     const float parallelness = glm::dot(vehicle().forward(), quarry.forward());
@@ -123,15 +123,15 @@ Math::Vec3 SteerLibrary::pursuit(const Entity& quarry, float maxPredictionTime) 
     const float etl = (et > maxPredictionTime) ? maxPredictionTime : et;
 
     // Estimated position of the quarry at intercept.
-    const Math::Vec3 target = quarry.predictFuturePosition(etl);
+    const glm::vec3 target = quarry.predictFuturePosition(etl);
 
     return seek(target);
 }
 
-Math::Vec3 SteerLibrary::evasion(const Entity& menace, float maxPredictionTime) const
+glm::vec3 SteerLibrary::evasion(const Entity& menace, float maxPredictionTime) const
 {
     // Offset from this to the menace, its distance, unit vector toward menace.
-    const Math::Vec3 offset = menace.position() - vehicle().position();
+    const glm::vec3 offset = menace.position() - vehicle().position();
     const float distance = glm::length(offset);
 
     // Predicted intercept time, capped at maxPredictionTime (a stationary
@@ -139,7 +139,7 @@ Math::Vec3 SteerLibrary::evasion(const Entity& menace, float maxPredictionTime) 
     const float roughTime = menace.speed() > 0.0f ? distance / menace.speed() : maxPredictionTime;
     const float predictionTime = (roughTime > maxPredictionTime) ? maxPredictionTime : roughTime;
 
-    const Math::Vec3 target = menace.predictFuturePosition(predictionTime);
+    const glm::vec3 target = menace.predictFuturePosition(predictionTime);
 
     return flee(target);
 }
@@ -152,7 +152,7 @@ bool SteerLibrary::inBoidNeighborhood(const Entity& other, float minDistance, fl
     if (&other == &vehicle())
         return false;
 
-    const Math::Vec3 offset = other.position() - vehicle().position();
+    const glm::vec3 offset = other.position() - vehicle().position();
     const float distanceSquared = glm::dot(offset, offset);
 
     // Definitely in the neighborhood if inside the minDistance sphere.
@@ -164,16 +164,16 @@ bool SteerLibrary::inBoidNeighborhood(const Entity& other, float minDistance, fl
         return false;
 
     // Otherwise, test the angular offset from the forward axis.
-    const Math::Vec3 unitOffset = offset / std::sqrt(distanceSquared);
+    const glm::vec3 unitOffset = offset / std::sqrt(distanceSquared);
     const float forwardness = glm::dot(vehicle().forward(), unitOffset);
     return forwardness > cosMaxAngle;
 }
 
-Math::Vec3 SteerLibrary::separation(float maxDistance, float cosMaxAngle,
+glm::vec3 SteerLibrary::separation(float maxDistance, float cosMaxAngle,
                                    const std::vector<EntityDist>& flock) const
 {
     // Steering accumulator and neighbor count, both initially zero.
-    Math::Vec3 steering(0.0f);
+    glm::vec3 steering(0.0f);
 
     for (const EntityDist& member : flock)
     {
@@ -182,7 +182,7 @@ Math::Vec3 SteerLibrary::separation(float maxDistance, float cosMaxAngle,
         {
             // Add the steering contribution: opposite of the offset direction,
             // divided once by distance to normalize, again for a 1/d falloff.
-            const Math::Vec3 offset = other.position() - vehicle().position();
+            const glm::vec3 offset = other.position() - vehicle().position();
             const float distanceSquared = glm::dot(offset, offset);
             if (distanceSquared > 0.0f)
                 steering += (offset / -distanceSquared);
@@ -193,10 +193,10 @@ Math::Vec3 SteerLibrary::separation(float maxDistance, float cosMaxAngle,
     return safeNormalize(steering);
 }
 
-Math::Vec3 SteerLibrary::alignment(float maxDistance, float cosMaxAngle,
+glm::vec3 SteerLibrary::alignment(float maxDistance, float cosMaxAngle,
                                   const std::vector<EntityDist>& flock) const
 {
-    Math::Vec3 steering(0.0f);
+    glm::vec3 steering(0.0f);
     int neighbors = 0;
 
     for (const EntityDist& member : flock)
@@ -218,10 +218,10 @@ Math::Vec3 SteerLibrary::alignment(float maxDistance, float cosMaxAngle,
     return steering;
 }
 
-Math::Vec3 SteerLibrary::cohesion(float maxDistance, float cosMaxAngle,
+glm::vec3 SteerLibrary::cohesion(float maxDistance, float cosMaxAngle,
                                  const std::vector<EntityDist>& flock) const
 {
-    Math::Vec3 steering(0.0f);
+    glm::vec3 steering(0.0f);
     int neighbors = 0;
 
     for (const EntityDist& member : flock)
@@ -245,7 +245,7 @@ Math::Vec3 SteerLibrary::cohesion(float maxDistance, float cosMaxAngle,
 
 // --- obstacle avoidance -----------------------------------------------------
 
-Math::Vec3 SteerLibrary::avoidObstacles(float minTimeToCollision,
+glm::vec3 SteerLibrary::avoidObstacles(float minTimeToCollision,
                                        const ObstacleGroup& obstacles) const
 {
     return Obstacle::steerToAvoidObstacles(vehicle(), minTimeToCollision, obstacles);
@@ -253,7 +253,7 @@ Math::Vec3 SteerLibrary::avoidObstacles(float minTimeToCollision,
 
 // --- neighbor avoidance -----------------------------------------------------
 
-Math::Vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
+glm::vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
                                             const std::vector<EntityDist>& others) const
 {
     // Hard steer away from any other entity within a critical distance.
@@ -265,7 +265,7 @@ Math::Vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
 
         const float sumOfRadii = vehicle().radius() + other.radius();
         const float minCenterToCenter = minSeparationDistance + sumOfRadii;
-        const Math::Vec3 offset = other.position() - vehicle().position();
+        const glm::vec3 offset = other.position() - vehicle().position();
         const float currentDistance = glm::length(offset);
 
         if (currentDistance < minCenterToCenter)
@@ -274,21 +274,21 @@ Math::Vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
             // lateral escape direction.  If the overlap is head-on this
             // projection is zero; use the vehicle's side as a deterministic
             // escape direction instead of returning no avoidance force.
-            const Math::Vec3 lateral = perpendicularComponent(-offset, vehicle().forward());
+            const glm::vec3 lateral = perpendicularComponent(-offset, vehicle().forward());
             if (glm::dot(lateral, lateral) > 1e-8f)
                 return safeNormalize(lateral);
             return vehicle().side();
         }
     }
 
-    return Math::Vec3(0.0f);
+    return glm::vec3(0.0f);
 }
 
 float SteerLibrary::predictNearestApproachTime(const Entity& other) const
 {
     // Imagine we are at the origin with no velocity; compute the relative
     // velocity of the other entity.
-    const Math::Vec3 relVelocity = other.velocity() - vehicle().velocity();
+    const glm::vec3 relVelocity = other.velocity() - vehicle().velocity();
     const float relSpeed = glm::length(relVelocity);
 
     // For parallel paths the vehicles are always at the same distance, so
@@ -299,8 +299,8 @@ float SteerLibrary::predictNearestApproachTime(const Entity& other) const
     // In this relative space the other vehicle's path is a line defined by
     // its relative position and velocity. The distance from the origin (us)
     // to that line is the nearest approach.
-    const Math::Vec3 relTangent = relVelocity / relSpeed;
-    const Math::Vec3 relPosition = vehicle().position() - other.position();
+    const glm::vec3 relTangent = relVelocity / relSpeed;
+    const glm::vec3 relPosition = vehicle().position() - other.position();
     const float projection = glm::dot(relTangent, relPosition);
 
     return projection / relSpeed;
@@ -308,11 +308,11 @@ float SteerLibrary::predictNearestApproachTime(const Entity& other) const
 
 float SteerLibrary::computeNearestApproachPositions(const Entity& other, float time)
 {
-    const Math::Vec3 myTravel = vehicle().velocity() * time;
-    const Math::Vec3 otherTravel = other.velocity() * time;
+    const glm::vec3 myTravel = vehicle().velocity() * time;
+    const glm::vec3 otherTravel = other.velocity() * time;
 
-    const Math::Vec3 myFinal = vehicle().position() + myTravel;
-    const Math::Vec3 otherFinal = other.position() + otherTravel;
+    const glm::vec3 myFinal = vehicle().position() + myTravel;
+    const glm::vec3 otherFinal = other.position() + otherTravel;
 
     // For annotation.
     ourPositionAtNearestApproach = myFinal;
@@ -321,11 +321,11 @@ float SteerLibrary::computeNearestApproachPositions(const Entity& other, float t
     return glm::length(myFinal - otherFinal);
 }
 
-Math::Vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
+glm::vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
                                        const std::vector<EntityDist>& others)
 {
     // First priority is to prevent immediate interpenetration.
-    const Math::Vec3 separation = avoidCloseNeighbors(0.0f, others);
+    const glm::vec3 separation = avoidCloseNeighbors(0.0f, others);
     if (glm::length(separation) > 0.0f)
         return separation;
 
@@ -338,8 +338,8 @@ Math::Vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
     // seconds into the future.
     float minTime = minTimeToCollision;
 
-    Math::Vec3 threatPositionAtNearestApproach(0.0f);
-    Math::Vec3 ourPositionAtNearestApproachTmp(0.0f);
+    glm::vec3 threatPositionAtNearestApproach(0.0f);
+    glm::vec3 ourPositionAtNearestApproachTmp(0.0f);
 
     for (const EntityDist& entry : others)
     {
@@ -379,14 +379,14 @@ Math::Vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
         {
             // Anti-parallel "head on" paths: steer away from the future
             // threat position.
-            const Math::Vec3 offset = threatPositionAtNearestApproach - vehicle().position();
+            const glm::vec3 offset = threatPositionAtNearestApproach - vehicle().position();
             const float sideDot = glm::dot(offset, vehicle().side());
             steer = (sideDot > 0.0f) ? -1.0f : 1.0f;
         }
         else if (parallelness > angle)
         {
             // Parallel paths: steer away from the threat.
-            const Math::Vec3 offset = threat->position() - vehicle().position();
+            const glm::vec3 offset = threat->position() - vehicle().position();
             const float sideDot = glm::dot(offset, vehicle().side());
             steer = (sideDot > 0.0f) ? -1.0f : 1.0f;
         }
@@ -407,7 +407,7 @@ Math::Vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
 
 // --- target speed -----------------------------------------------------------
 
-Math::Vec3 SteerLibrary::targetSpeed(float targetSpeed) const
+glm::vec3 SteerLibrary::targetSpeed(float targetSpeed) const
 {
     const float mf = vehicle().maxForce();
     const float speedError = targetSpeed - vehicle().speed();
@@ -416,31 +416,31 @@ Math::Vec3 SteerLibrary::targetSpeed(float targetSpeed) const
 
 // --- isAhead / isAside / isBehind -------------------------------------------
 
-bool SteerLibrary::isAhead(const Math::Vec3& target, float cosThreshold) const
+bool SteerLibrary::isAhead(const glm::vec3& target, float cosThreshold) const
 {
-    const Math::Vec3 offset = target - vehicle().position();
+    const glm::vec3 offset = target - vehicle().position();
     if (glm::dot(offset, offset) <= 1e-8f)
         return false;
-    const Math::Vec3 targetDirection = safeNormalize(offset);
+    const glm::vec3 targetDirection = safeNormalize(offset);
     return glm::dot(vehicle().forward(), targetDirection) > cosThreshold;
 }
 
-bool SteerLibrary::isAside(const Math::Vec3& target, float cosThreshold) const
+bool SteerLibrary::isAside(const glm::vec3& target, float cosThreshold) const
 {
-    const Math::Vec3 offset = target - vehicle().position();
+    const glm::vec3 offset = target - vehicle().position();
     if (glm::dot(offset, offset) <= 1e-8f)
         return false;
-    const Math::Vec3 targetDirection = safeNormalize(offset);
+    const glm::vec3 targetDirection = safeNormalize(offset);
     const float dp = glm::dot(vehicle().forward(), targetDirection);
     return (dp < cosThreshold) && (dp > -cosThreshold);
 }
 
-bool SteerLibrary::isBehind(const Math::Vec3& target, float cosThreshold) const
+bool SteerLibrary::isBehind(const glm::vec3& target, float cosThreshold) const
 {
-    const Math::Vec3 offset = target - vehicle().position();
+    const glm::vec3 offset = target - vehicle().position();
     if (glm::dot(offset, offset) <= 1e-8f)
         return false;
-    const Math::Vec3 targetDirection = safeNormalize(offset);
+    const glm::vec3 targetDirection = safeNormalize(offset);
     return glm::dot(vehicle().forward(), targetDirection) < cosThreshold;
 }
 

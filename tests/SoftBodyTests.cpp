@@ -30,7 +30,7 @@ bool near(f32 a, f32 b, f32 epsilon = 1e-4f)
 }
 
 // A rows x cols grid on the XZ plane at y = 0, as a triangle mesh.
-void makeGrid(u32 rows, u32 cols, f32 spacing, std::vector<Math::Vec3>& positions,
+void makeGrid(u32 rows, u32 cols, f32 spacing, std::vector<glm::vec3>& positions,
               std::vector<u32>& indices)
 {
     positions.clear();
@@ -38,7 +38,7 @@ void makeGrid(u32 rows, u32 cols, f32 spacing, std::vector<Math::Vec3>& position
     for (u32 r = 0; r < rows; ++r)
         for (u32 c = 0; c < cols; ++c)
             positions.push_back(
-                Math::Vec3(static_cast<f32>(c) * spacing, 0.0f, static_cast<f32>(r) * spacing));
+                glm::vec3(static_cast<f32>(c) * spacing, 0.0f, static_cast<f32>(r) * spacing));
 
     for (u32 r = 0; r + 1 < rows; ++r)
         for (u32 c = 0; c + 1 < cols; ++c)
@@ -53,7 +53,7 @@ void makeGrid(u32 rows, u32 cols, f32 spacing, std::vector<Math::Vec3>& position
 
 void testMeshBuildsSharedEdgesOnce()
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(2, 2, 1.0f, positions, indices);
 
@@ -69,7 +69,7 @@ void testMeshBuildsSharedEdgesOnce()
 
 void testStiffClothDoesNotExplode()
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(8, 8, 0.25f, positions, indices);
 
@@ -86,7 +86,7 @@ void testStiffClothDoesNotExplode()
 
     for (u32 i = 0; i < body.particleCount(); ++i)
     {
-        const Math::Vec3& position = body.particle(i).position;
+        const glm::vec3& position = body.particle(i).position;
         CHECK(position.x == position.x); // NaN never equals itself
         CHECK(std::abs(position.x) < 1000.0f);
         CHECK(std::abs(position.y) < 1000.0f);
@@ -98,7 +98,7 @@ void testStiffnessIsIndependentOfStepSize()
 {
     auto settle = [](f32 dt, u32 steps)
     {
-        std::vector<Math::Vec3> positions;
+        std::vector<glm::vec3> positions;
         std::vector<u32> indices;
         makeGrid(6, 6, 0.2f, positions, indices);
 
@@ -123,7 +123,7 @@ void testAttachmentsHoldASheetFromStretching()
 {
     auto stretchAfterYank = [](bool useAttachments)
     {
-        std::vector<Math::Vec3> positions;
+        std::vector<glm::vec3> positions;
         std::vector<u32> indices;
         makeGrid(12, 4, 0.2f, positions, indices);
 
@@ -139,7 +139,7 @@ void testAttachmentsHoldASheetFromStretching()
 
         // Two iterations, which is where a constraint chain cannot carry a
         // correction to the far end and the sheet stretches.
-        body.setGravity(Math::Vec3(0.0f, -40.0f, 0.0f));
+        body.setGravity(glm::vec3(0.0f, -40.0f, 0.0f));
         for (u32 i = 0; i < 60; ++i)
             body.step(1.0f / 60.0f, 2);
         return body.worstStretch();
@@ -153,7 +153,7 @@ void testAttachmentsHoldASheetFromStretching()
 
 void testPinnedParticlesNeverMove()
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(5, 5, 0.3f, positions, indices);
 
@@ -161,7 +161,7 @@ void testPinnedParticlesNeverMove()
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 1.0f);
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 0.0f);
     body.setPinned(0, true);
-    const Math::Vec3 anchor = body.particle(0).position;
+    const glm::vec3 anchor = body.particle(0).position;
 
     for (u32 i = 0; i < 120; ++i)
         body.step(1.0f / 60.0f, 8);
@@ -176,7 +176,7 @@ void testSubstepsBeatOneBigStep()
 {
     auto stretch = [](u32 substeps)
     {
-        std::vector<Math::Vec3> positions;
+        std::vector<glm::vec3> positions;
         std::vector<u32> indices;
         makeGrid(16, 4, 0.2f, positions, indices);
 
@@ -185,7 +185,7 @@ void testSubstepsBeatOneBigStep()
         body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 1.0e-4f);
         for (u32 c = 0; c < 4; ++c)
             body.setPinned(c, true);
-        body.setGravity(Math::Vec3(0.0f, -60.0f, 0.0f));
+        body.setGravity(glm::vec3(0.0f, -60.0f, 0.0f));
         for (u32 i = 0; i < 60; ++i)
             body.step(1.0f / 60.0f, substeps);
         return body.worstStretch();
@@ -217,19 +217,19 @@ void testEmptyBodyIsHarmless()
 
 void testWindDoesNotDependOnParticleCount()
 {
-    const Math::Vec3 onePosition(0.0f);
+    const glm::vec3 onePosition(0.0f);
     SoftBody one;
     one.setParticles(&onePosition, 1, 2.0f);
-    one.setGravity(Math::Vec3(0.0f));
+    one.setGravity(glm::vec3(0.0f));
     one.setDamping(1.0f);
-    one.setWind(Math::Vec3(20.0f, 0.0f, 0.0f));
+    one.setWind(glm::vec3(20.0f, 0.0f, 0.0f));
 
-    std::vector<Math::Vec3> manyPositions(100, Math::Vec3(0.0f));
+    std::vector<glm::vec3> manyPositions(100, glm::vec3(0.0f));
     SoftBody many;
     many.setParticles(manyPositions.data(), static_cast<u32>(manyPositions.size()), 2.0f);
-    many.setGravity(Math::Vec3(0.0f));
+    many.setGravity(glm::vec3(0.0f));
     many.setDamping(1.0f);
-    many.setWind(Math::Vec3(20.0f, 0.0f, 0.0f));
+    many.setWind(glm::vec3(20.0f, 0.0f, 0.0f));
 
     one.step(0.1f, 1);
     many.step(0.1f, 1);
@@ -239,11 +239,11 @@ void testWindDoesNotDependOnParticleCount()
 
 void testDenseSheetDoesNotLaunchFromSphere()
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(45, 45, 6.0f / 44.0f, positions, indices);
-    for (Math::Vec3& position : positions)
-        position += Math::Vec3(-3.0f, 6.0f, -3.0f);
+    for (glm::vec3& position : positions)
+        position += glm::vec3(-3.0f, 6.0f, -3.0f);
 
     SoftBody body;
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 4.0f);
@@ -252,13 +252,13 @@ void testDenseSheetDoesNotLaunchFromSphere()
     body.setMaxLinearVelocity(20.0f);
     PhysicsWorld collisionWorld;
     SphereShape sphereShape(1.4f);
-    PlaneShape groundShape(Math::Vec3(0.0f, 1.0f, 0.0f));
+    PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Static);
-    sphereBody.setPosition(Math::Vec3(0.0f, 3.0f, 0.0f));
+    sphereBody.setPosition(glm::vec3(0.0f, 3.0f, 0.0f));
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
-    groundBody.setPosition(Math::Vec3(0.0f));
+    groundBody.setPosition(glm::vec3(0.0f));
     BodyEntry sphereEntry;
     sphereEntry.body = &sphereBody;
     sphereEntry.shape = &sphereShape;
@@ -296,11 +296,11 @@ void testDenseSheetDoesNotLaunchFromSphere()
 
 void testHangingSheetRemainsStableAgainstSphere()
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(25, 25, 4.0f / 24.0f, positions, indices);
-    for (Math::Vec3& position : positions)
-        position = Math::Vec3(position.x - 2.0f, 8.0f - position.z, -2.6f);
+    for (glm::vec3& position : positions)
+        position = glm::vec3(position.x - 2.0f, 8.0f - position.z, -2.6f);
 
     SoftBody body;
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 2.0f);
@@ -313,13 +313,13 @@ void testHangingSheetRemainsStableAgainstSphere()
     body.setMaxLinearVelocity(20.0f);
     PhysicsWorld collisionWorld;
     SphereShape sphereShape(1.4f);
-    PlaneShape groundShape(Math::Vec3(0.0f, 1.0f, 0.0f));
+    PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Kinematic);
-    sphereBody.setPosition(Math::Vec3(0.0f, 5.5f, 0.0f));
+    sphereBody.setPosition(glm::vec3(0.0f, 5.5f, 0.0f));
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
-    groundBody.setPosition(Math::Vec3(0.0f));
+    groundBody.setPosition(glm::vec3(0.0f));
     BodyEntry sphereEntry;
     sphereEntry.body = &sphereBody;
     sphereEntry.shape = &sphereShape;
@@ -337,18 +337,18 @@ void testHangingSheetRemainsStableAgainstSphere()
                               : step < 360
                                   ? -1.8f * static_cast<f32>(step - 120) / 240.0f
                                   : -1.8f;
-        sphereBody.setPosition(Math::Vec3(0.0f, 5.5f, sphereZ));
+        sphereBody.setPosition(glm::vec3(0.0f, 5.5f, sphereZ));
         sphereBody.setVelocity(
-            Math::Vec3(0.0f, 0.0f, (sphereZ - previousSphereZ) * 120.0f));
+            glm::vec3(0.0f, 0.0f, (sphereZ - previousSphereZ) * 120.0f));
         previousSphereZ = sphereZ;
-        body.setWind(step >= 360 && step < 480 ? Math::Vec3(20.0f, 0.0f, 6.0f)
-                                               : Math::Vec3(0.0f));
+        body.setWind(step >= 360 && step < 480 ? glm::vec3(20.0f, 0.0f, 6.0f)
+                                               : glm::vec3(0.0f));
         body.step(1.0f / 120.0f, 8);
         for (const SoftBody::Particle& particle : body.particles())
         {
             CHECK(std::isfinite(particle.position.x) && std::isfinite(particle.position.y) &&
                   std::isfinite(particle.position.z));
-            CHECK(glm::all(glm::lessThan(glm::abs(particle.position), Math::Vec3(20.0f))));
+            CHECK(glm::all(glm::lessThan(glm::abs(particle.position), glm::vec3(20.0f))));
             maximumSpeed = glm::max(maximumSpeed, glm::length(particle.velocity));
         }
     }
@@ -360,10 +360,10 @@ void testHangingSheetRemainsStableAgainstSphere()
 void slideRestingSheet(f32 friction, f32& averageSpeed, f32& displacement,
                        bool boxGround = false)
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(6, 6, 0.25f, positions, indices);
-    for (Math::Vec3& position : positions)
+    for (glm::vec3& position : positions)
         position.y = 0.02f;
 
     SoftBody body;
@@ -371,11 +371,11 @@ void slideRestingSheet(f32 friction, f32& averageSpeed, f32& displacement,
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 0.0f);
     body.setCollisionMargin(0.02f);
     PhysicsWorld collisionWorld;
-    PlaneShape planeShape(Math::Vec3(0.0f, 1.0f, 0.0f));
-    BoxShape boxShape(Math::Vec3(15.0f, 0.5f, 15.0f));
+    PlaneShape planeShape(glm::vec3(0.0f, 1.0f, 0.0f));
+    BoxShape boxShape(glm::vec3(15.0f, 0.5f, 15.0f));
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
-    groundBody.setPosition(boxGround ? Math::Vec3(0.0f, -0.5f, 0.0f) : Math::Vec3(0.0f));
+    groundBody.setPosition(boxGround ? glm::vec3(0.0f, -0.5f, 0.0f) : glm::vec3(0.0f));
     BodyEntry groundEntry;
     groundEntry.body = &groundBody;
     groundEntry.shape = boxGround ? static_cast<CollisionShape*>(&boxShape)
@@ -384,10 +384,10 @@ void slideRestingSheet(f32 friction, f32& averageSpeed, f32& displacement,
     collisionWorld.addBody(groundEntry);
     body.setCollisionWorld(&collisionWorld);
 
-    Math::Vec3 startCentre(0.0f);
+    glm::vec3 startCentre(0.0f);
     for (u32 i = 0; i < body.particleCount(); ++i)
     {
-        body.particle(i).velocity = Math::Vec3(1.0f, 0.0f, 0.0f);
+        body.particle(i).velocity = glm::vec3(1.0f, 0.0f, 0.0f);
         startCentre += body.particle(i).position;
     }
     startCentre /= static_cast<f32>(body.particleCount());
@@ -395,7 +395,7 @@ void slideRestingSheet(f32 friction, f32& averageSpeed, f32& displacement,
     for (u32 step = 0; step < 120; ++step)
         body.step(1.0f / 120.0f, 8);
 
-    Math::Vec3 endCentre(0.0f);
+    glm::vec3 endCentre(0.0f);
     averageSpeed = 0.0f;
     for (u32 i = 0; i < body.particleCount(); ++i)
     {
@@ -442,11 +442,11 @@ void testFallenSheetComesToRest(bool withSphere = true)
     // The demo scene, headless: the 45x45 sheet dropped from 6 m over the
     // sphere, sliding off onto the ground. Once everything is down, friction
     // has to bring it to rest instead of letting it glide like ice.
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(45, 45, 6.0f / 44.0f, positions, indices);
-    for (Math::Vec3& position : positions)
-        position += Math::Vec3(-3.0f, 6.0f, -3.0f);
+    for (glm::vec3& position : positions)
+        position += glm::vec3(-3.0f, 6.0f, -3.0f);
 
     SoftBody body;
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 4.0f);
@@ -455,13 +455,13 @@ void testFallenSheetComesToRest(bool withSphere = true)
     body.setMaxLinearVelocity(20.0f);
     PhysicsWorld collisionWorld;
     SphereShape sphereShape(1.4f);
-    PlaneShape groundShape(Math::Vec3(0.0f, 1.0f, 0.0f));
+    PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Static);
-    sphereBody.setPosition(Math::Vec3(0.0f, 3.0f, 0.0f));
+    sphereBody.setPosition(glm::vec3(0.0f, 3.0f, 0.0f));
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
-    groundBody.setPosition(Math::Vec3(0.0f));
+    groundBody.setPosition(glm::vec3(0.0f));
     if (withSphere)
     {
         BodyEntry sphereEntry;
@@ -526,10 +526,10 @@ void testDihedralBendRestoresAFlatRestPose()
     // the tip of one wing, which is lifted and released. The dihedral bend
     // has to pull it back to the plane - the sign test that catches a port
     // pushing the fold open instead of closed.
-    std::vector<Math::Vec3> positions = {Math::Vec3(0.0f, 0.0f, 0.0f),
-                                        Math::Vec3(1.0f, 0.0f, 0.0f),
-                                        Math::Vec3(0.5f, 0.0f, 1.0f),
-                                        Math::Vec3(0.5f, 0.0f, -1.0f)};
+    std::vector<glm::vec3> positions = {glm::vec3(0.0f, 0.0f, 0.0f),
+                                        glm::vec3(1.0f, 0.0f, 0.0f),
+                                        glm::vec3(0.5f, 0.0f, 1.0f),
+                                        glm::vec3(0.5f, 0.0f, -1.0f)};
     std::vector<u32> indices = {0, 2, 1, 0, 1, 3};
     SoftBody body;
     body.setParticles(positions.data(), 4, 1.0f);
@@ -538,8 +538,8 @@ void testDihedralBendRestoresAFlatRestPose()
     body.setPinned(0, true);
     body.setPinned(1, true);
     body.setPinned(3, true);
-    body.particle(2).position = Math::Vec3(0.5f, 0.8f, 0.35f);
-    body.setGravity(Math::Vec3(0.0f));
+    body.particle(2).position = glm::vec3(0.5f, 0.8f, 0.35f);
+    body.setGravity(glm::vec3(0.0f));
     for (u32 i = 0; i < 40; ++i)
         body.step(1.0f / 120.0f, 8);
     CHECK(std::abs(body.particle(2).position.y) < 0.01f);
@@ -554,7 +554,7 @@ f32 tremorAfterSettling(SoftBody& body, u32 settleSteps, u32 measureSteps)
     for (u32 step = 0; step < settleSteps; ++step)
         body.step(1.0f / 120.0f, 8);
 
-    std::vector<Math::Vec3> previous(body.particleCount());
+    std::vector<glm::vec3> previous(body.particleCount());
     for (u32 i = 0; i < body.particleCount(); ++i)
         previous[i] = body.particle(i).position;
 
@@ -573,11 +573,11 @@ f32 tremorAfterSettling(SoftBody& body, u32 settleSteps, u32 measureSteps)
 
 void testHeavyFallenSheetDoesNotTremble()
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(45, 45, 6.0f / 44.0f, positions, indices);
-    for (Math::Vec3& position : positions)
-        position += Math::Vec3(-3.0f, 6.0f, -3.0f);
+    for (glm::vec3& position : positions)
+        position += glm::vec3(-3.0f, 6.0f, -3.0f);
 
     SoftBody body;
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 40.0f);
@@ -586,13 +586,13 @@ void testHeavyFallenSheetDoesNotTremble()
     body.setMaxLinearVelocity(20.0f);
     PhysicsWorld collisionWorld;
     SphereShape sphereShape(1.4f);
-    PlaneShape groundShape(Math::Vec3(0.0f, 1.0f, 0.0f));
+    PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Static);
-    sphereBody.setPosition(Math::Vec3(0.0f, 3.0f, 0.0f));
+    sphereBody.setPosition(glm::vec3(0.0f, 3.0f, 0.0f));
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
-    groundBody.setPosition(Math::Vec3(0.0f));
+    groundBody.setPosition(glm::vec3(0.0f));
     BodyEntry sphereEntry;
     sphereEntry.body = &sphereBody;
     sphereEntry.shape = &sphereShape;
@@ -618,11 +618,11 @@ void testHeavyFallenSheetDoesNotTremble()
 
 void testCurtainPressedBySphereComesToRest()
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     makeGrid(37, 37, 4.0f / 36.0f, positions, indices);
-    for (Math::Vec3& position : positions)
-        position = Math::Vec3(position.x - 2.0f, 6.0f - position.z, -2.6f);
+    for (glm::vec3& position : positions)
+        position = glm::vec3(position.x - 2.0f, 6.0f - position.z, -2.6f);
 
     SoftBody body;
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 2.0f);
@@ -639,7 +639,7 @@ void testCurtainPressedBySphereComesToRest()
     sphereBody.setBodyType(BodyType::Static);
     // Pressed 0.3 m through the curtain's rest plane, the way the demo's
     // slider pushes the sphere back into the hanging sheet.
-    sphereBody.setPosition(Math::Vec3(0.0f, 4.0f, -1.5f));
+    sphereBody.setPosition(glm::vec3(0.0f, 4.0f, -1.5f));
     BodyEntry sphereEntry;
     sphereEntry.body = &sphereBody;
     sphereEntry.shape = &sphereShape;

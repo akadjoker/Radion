@@ -31,8 +31,8 @@ public:
     // scene otherwise means re-navigating to wherever the work actually is
     // after every single reopen. ViewportPanel owns the live values; this is
     // only where the last-known pose is kept between sessions.
-    Math::Vec3 cameraPosition = Math::Vec3(0.0f, 2.5f, 9.5f);
-    Math::Vec3 cameraOrbitTarget = Math::Vec3(0.0f);
+    glm::vec3 cameraPosition = glm::vec3(0.0f, 2.5f, 9.5f);
+    glm::vec3 cameraOrbitTarget = glm::vec3(0.0f);
     f32 cameraOrbitDistance = 10.0f;
     f32 cameraOrbitYaw = 0.0f;
     f32 cameraOrbitPitch = -0.25f;
@@ -52,7 +52,7 @@ public:
     bool viewportSnap = false;
     int viewportTool = 0;
     int viewportNavigationTool = 0;
-    Math::Vec3 cursor3D = Math::Vec3(0.0f);
+    glm::vec3 cursor3D = glm::vec3(0.0f);
     int viewMode = 0;
     bool showStatsOverlay = false;
     bool showDynamicIndexDebug = false;

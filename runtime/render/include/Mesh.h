@@ -35,7 +35,7 @@ struct SubMesh
 // because collision has no use for normals or uvs.
 struct CollisionMesh
 {
-    std::vector<Math::Vec3> positions;
+    std::vector<glm::vec3> positions;
     std::vector<u32> indices;
     AABB bounds;
 };
@@ -55,17 +55,17 @@ enum MeshStream : u8
 // Everything the colour pass needs and the depth passes do not.
 struct MeshAttribs
 {
-    Math::Vec3 normal;
-    Math::Vec4 tangent;
-    Math::Vec2 uv;
+    glm::vec3 normal;
+    glm::vec4 tangent;
+    glm::vec2 uv;
     u32 color;
-    Math::Vec2 uv2;
+    glm::vec2 uv2;
 };
 
 struct MeshSkinVertex
 {
     u8 joints[4] = {0, 0, 0, 0};
-    Math::Vec4 weights = Math::Vec4(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec4 weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 };
 
 // The mesh while it is still being built: loaded, edited, measured. Nothing
@@ -74,15 +74,15 @@ struct MeshSkinVertex
 // walks over normals and uvs it will not read.
 struct MeshData
 {
-    std::vector<Math::Vec3> positions;
-    std::vector<Math::Vec3> normals;
-    std::vector<Math::Vec4> tangents;
-    std::vector<Math::Vec2> uvs;
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec3> normals;
+    std::vector<glm::vec4> tangents;
+    std::vector<glm::vec2> uvs;
     // A second UV set, parallel to `uvs` - a lightmap's own unwrap. Empty
     // for every importer/builder that has no such data; upload() fills
     // MeshAttribs::uv2 with (0,0) per vertex in that case, same as it
     // already does for a short/absent `uvs`.
-    std::vector<Math::Vec2> uvs2;
+    std::vector<glm::vec2> uvs2;
     std::vector<u32> colors;
     std::vector<MeshSkinVertex> skin;
     std::vector<u32> indices;

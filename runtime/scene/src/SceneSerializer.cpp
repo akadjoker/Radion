@@ -86,20 +86,20 @@ bool readNonNegativeInteger(const nlohmann::json& field, u64& out)
     return false;
 }
 
-bool readVec3(const nlohmann::json& array, Math::Vec3& out)
+bool readVec3(const nlohmann::json& array, glm::vec3& out)
 {
     if (!array.is_array() || array.size() != 3)
         return false;
     for (const nlohmann::json& component : array)
         if (!component.is_number())
             return false;
-    out = Math::Vec3(array[0].get<f32>(), array[1].get<f32>(), array[2].get<f32>());
+    out = glm::vec3(array[0].get<f32>(), array[1].get<f32>(), array[2].get<f32>());
     return std::isfinite(out.x) && std::isfinite(out.y) && std::isfinite(out.z);
 }
 
-// File order is [x, y, z, w]; Math::Quaternion's own constructor takes (w, x, y, z)
+// File order is [x, y, z, w]; glm::quat's own constructor takes (w, x, y, z)
 // - swapped from the file order, never confuse the two here or on write.
-bool readQuat(const nlohmann::json& array, Math::Quaternion& out)
+bool readQuat(const nlohmann::json& array, glm::quat& out)
 {
     if (!array.is_array() || array.size() != 4)
         return false;
@@ -112,32 +112,32 @@ bool readQuat(const nlohmann::json& array, Math::Quaternion& out)
     const f32 w = array[3].get<f32>();
     if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) || !std::isfinite(w))
         return false;
-    out = Math::Quaternion(w, x, y, z);
+    out = glm::quat(w, x, y, z);
     // Matches GameObject's own valid() tolerance (GameObject.cpp): not
     // degenerate, not necessarily already unit-length - setRotation()
     // normalizes it regardless.
     return glm::dot(out, out) > 0.000001f;
 }
 
-bool readVec4(const nlohmann::json& array, Math::Vec4& out)
+bool readVec4(const nlohmann::json& array, glm::vec4& out)
 {
     if (!array.is_array() || array.size() != 4)
         return false;
     for (const nlohmann::json& component : array)
         if (!component.is_number())
             return false;
-    out = Math::Vec4(array[0].get<f32>(), array[1].get<f32>(), array[2].get<f32>(),
+    out = glm::vec4(array[0].get<f32>(), array[1].get<f32>(), array[2].get<f32>(),
                     array[3].get<f32>());
     return std::isfinite(out.x) && std::isfinite(out.y) && std::isfinite(out.z) &&
            std::isfinite(out.w);
 }
 
-nlohmann::json writeVec4(const Math::Vec4& v)
+nlohmann::json writeVec4(const glm::vec4& v)
 {
     return nlohmann::json{v.x, v.y, v.z, v.w};
 }
 
-nlohmann::json writeVec3(const Math::Vec3& v)
+nlohmann::json writeVec3(const glm::vec3& v)
 {
     return nlohmann::json{v.x, v.y, v.z};
 }
@@ -183,7 +183,7 @@ bool readBoolOr(const nlohmann::json& json, const char* key, bool fallback)
     return field != json.end() && field->is_boolean() ? field->get<bool>() : fallback;
 }
 
-bool readVec4Field(const nlohmann::json& json, const char* key, Math::Vec4& out,
+bool readVec4Field(const nlohmann::json& json, const char* key, glm::vec4& out,
                    const std::string& path, SceneLoadResult& result)
 {
     const auto field = json.find(key);
@@ -195,7 +195,7 @@ bool readVec4Field(const nlohmann::json& json, const char* key, Math::Vec4& out,
     return true;
 }
 
-bool readVec3Field(const nlohmann::json& json, const char* key, Math::Vec3& out,
+bool readVec3Field(const nlohmann::json& json, const char* key, glm::vec3& out,
                    const std::string& path, SceneLoadResult& result)
 {
     const auto field = json.find(key);
@@ -307,7 +307,7 @@ void readReflectionProbe(GameObject& object, const nlohmann::json& json, const s
 {
     f32 resolution = 128.0f, influenceRadius = 0.0f, intensity = 1.0f, interval = 0.5f,
         nearPlane = 0.1f, farPlane = 1000.0f;
-    Math::Vec3 extents(0.0f);
+    glm::vec3 extents(0.0f);
     bool ok = true;
     ok &= readFloatField(json, "resolution", resolution, path, result);
     ok &= readVec3Field(json, "extents", extents, path, result);
@@ -454,7 +454,7 @@ void readOcean(GameObject& object, const nlohmann::json& json, const std::string
     ocean->setSteepness(readNumberOr(json, "steepness", ocean->steepness()));
     ocean->setTimeScale(readNumberOr(json, "timeScale", ocean->timeScale()));
     ocean->setLevel(readNumberOr(json, "level", ocean->level()));
-    Math::Vec3 color;
+    glm::vec3 color;
     if (json.find("shallowColor") != json.end() && readVec3(*json.find("shallowColor"), color)) ocean->setShallowColor(color);
     if (json.find("deepColor") != json.end() && readVec3(*json.find("deepColor"), color)) ocean->setDeepColor(color);
     ocean->setAbsorptionDistance(readNumberOr(json, "absorptionDistance", ocean->absorptionDistance()));
@@ -506,7 +506,7 @@ void readOcean(GameObject& object, const nlohmann::json& json, const std::string
             if (direction == entry.end() || !direction->is_array() || direction->size() != 2 ||
                 !(*direction)[0].is_number() || !(*direction)[1].is_number())
                 continue;
-            const Math::Vec2 dir(direction->at(0).get<f32>(), direction->at(1).get<f32>());
+            const glm::vec2 dir(direction->at(0).get<f32>(), direction->at(1).get<f32>());
             ocean->setWave(i, dir, readNumberOr(entry, "wavelength", ocean->wave(i).wavelength),
                            readNumberOr(entry, "amplitude", ocean->wave(i).amplitude));
         }
@@ -753,7 +753,7 @@ void readForest(GameObject& object, const nlohmann::json& json, const std::strin
     if (instances != json.end() && instances->is_array())
         for (const auto& entry : *instances)
         {
-            Math::Vec3 position;
+            glm::vec3 position;
             const auto p = entry.find("position");
             if (p == entry.end() || !readVec3(*p, position)) continue;
             forest->plant(position, static_cast<u32>(readNumberOr(entry, "species", 0.0f)),
@@ -927,7 +927,7 @@ void readHair(GameObject& object, const nlohmann::json& json, const std::string&
         readNumberOr(json, "specularStrength", hair->specularStrength()));
     hair->setSpecularTint(readNumberOr(json, "specularTint", hair->specularTint()));
     hair->setTransmission(readNumberOr(json, "transmission", hair->transmission()));
-    Math::Vec3 color;
+    glm::vec3 color;
     const auto colorField = json.find("color");
     if (colorField != json.end() && readVec3(*colorField, color))
         hair->setColor(color);
@@ -1294,7 +1294,7 @@ void readLight(GameObject& object, const nlohmann::json& json, const std::string
         return;
     }
 
-    Math::Vec3 color(1.0f);
+    glm::vec3 color(1.0f);
     const auto colorField = json.find("color");
     if (colorField == json.end() || !readVec3(*colorField, color))
     {
@@ -2032,7 +2032,7 @@ void readFreeLookController(GameObject& object, const nlohmann::json& json, cons
 // ---------------------------------------------------------------- Orbit/Maya
 
 nlohmann::json writeOrbitLike(const char* typeName, f32 yaw, f32 pitch, f32 pitchLimit,
-                              f32 distance, GameObject* target, const Math::Vec3& targetPoint)
+                              f32 distance, GameObject* target, const glm::vec3& targetPoint)
 {
     nlohmann::json json;
     json["type"] = typeName;
@@ -2087,7 +2087,7 @@ void readOrbit(GameObject& object, const nlohmann::json& json, const std::string
                SceneLoadResult& result)
 {
     f32 yaw = 0.0f, pitch = 0.0f, distance = 0.0f;
-    Math::Vec3 targetPoint(0.0f);
+    glm::vec3 targetPoint(0.0f);
     bool ok = true;
     ok &= readFloatField(json, "yaw", yaw, path, result);
     ok &= readFloatField(json, "pitch", pitch, path, result);
@@ -2195,7 +2195,7 @@ nlohmann::json writeMaya(Maya& maya)
     json["version"] = 1;
     json["active"] = maya.active();
     json["distance"] = maya.distance();
-    const Math::Vec3& targetPoint = maya.targetPoint();
+    const glm::vec3& targetPoint = maya.targetPoint();
     json["targetPoint"] = {targetPoint.x, targetPoint.y, targetPoint.z};
     json["target"] = maya.target() ? nlohmann::json(maya.target()->id()) : nlohmann::json(nullptr);
     json["yaw"] = maya.yaw();
@@ -2207,7 +2207,7 @@ void readMaya(GameObject& object, const nlohmann::json& json, const std::string&
               SceneLoadResult& result)
 {
     f32 distance = 0.0f;
-    Math::Vec3 targetPoint(0.0f);
+    glm::vec3 targetPoint(0.0f);
     bool ok = true;
     ok &= readFloatField(json, "distance", distance, path, result);
     const auto targetPointField = json.find("targetPoint");
@@ -2411,7 +2411,7 @@ void readBillboard(GameObject& object, const nlohmann::json& json, const std::st
     }
     else
     {
-        Math::Vec4 uvRect(0.0f, 0.0f, 1.0f, 1.0f);
+        glm::vec4 uvRect(0.0f, 0.0f, 1.0f, 1.0f);
         const auto uvField = json.find("uvRect");
         if (uvField != json.end() && readVec4(*uvField, uvRect))
             billboard->setUVRect(uvRect.x, uvRect.y, uvRect.z, uvRect.w);
@@ -2533,10 +2533,10 @@ void readWaypoints(GameObject& object, const nlohmann::json& json, const std::st
     // Two passes: every node has to exist before any link can name one.
     for (const nlohmann::json& entry : *points)
     {
-        Math::Vec3 position(0.0f);
+        glm::vec3 position(0.0f);
         const auto positionField = entry.find("position");
         if (positionField != entry.end() && positionField->is_array() && positionField->size() == 3)
-            position = Math::Vec3((*positionField)[0].get<f32>(), (*positionField)[1].get<f32>(),
+            position = glm::vec3((*positionField)[0].get<f32>(), (*positionField)[1].get<f32>(),
                                  (*positionField)[2].get<f32>());
         f32 radius = 1.5f;
         const auto radiusField = entry.find("radius");
@@ -2579,7 +2579,7 @@ nlohmann::json writeNavMeshSurface(NavMeshSurface& surface)
     // of rebuilt - the recipe below is then only what a future re-bake would
     // use, not what this scene pays for on every open.
     json["navData"] = surface.navDataFile();
-    const Math::Vec3& seed = surface.groundSeed();
+    const glm::vec3& seed = surface.groundSeed();
     json["groundSeed"] = {seed.x, seed.y, seed.z};
     json["cellSize"] = config.cellSize;
     json["cellHeight"] = config.cellHeight;
@@ -2631,7 +2631,7 @@ void readNavMeshSurface(GameObject& object, const nlohmann::json& json, const st
 
     const auto seedField = json.find("groundSeed");
     if (seedField != json.end() && seedField->is_array() && seedField->size() == 3)
-        surface->setGroundSeed(Math::Vec3((*seedField)[0].get<f32>(), (*seedField)[1].get<f32>(),
+        surface->setGroundSeed(glm::vec3((*seedField)[0].get<f32>(), (*seedField)[1].get<f32>(),
                                          (*seedField)[2].get<f32>()));
 
     const auto activeField = json.find("active");
@@ -2779,7 +2779,7 @@ void readCollider(GameObject& object, const nlohmann::json& json, const std::str
     }
 
     f32 radius = 0.5f, height = 1.0f;
-    Math::Vec3 halfExtents(0.5f);
+    glm::vec3 halfExtents(0.5f);
     bool ok = true;
     ok &= readFloatField(json, "radius", radius, path, result);
     ok &= readVec3Field(json, "halfExtents", halfExtents, path, result);
@@ -2996,7 +2996,7 @@ void readParticleEffect(GameObject& object, const nlohmann::json& json, const st
     ParticleSystem::Emitter emitter;
     bool ok = true;
     ok &= readFloatField(json, "rate", emitter.rate, path, result);
-    Math::Vec3 direction = emitter.direction;
+    glm::vec3 direction = emitter.direction;
     const auto directionField = json.find("direction");
     ok &= directionField != json.end() && readVec3(*directionField, direction);
     emitter.direction = direction;
@@ -3234,7 +3234,7 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
             const auto typeField = value.find("type");
             if (!value.is_object() || typeField == value.end() || !typeField->is_string()) continue;
             const std::string type = typeField->get<std::string>();
-            const auto readAffectorVec3 = [&](const char* key, Math::Vec3& out)
+            const auto readAffectorVec3 = [&](const char* key, glm::vec3& out)
             {
                 const auto field = value.find(key);
                 return field != value.end() && readVec3(*field, out);
@@ -3255,10 +3255,10 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
                 return true;
             };
             ParticleAffector* affector = nullptr;
-            if (type == "Gravity") { Math::Vec3 v; if (readAffectorVec3("gravity", v)) affector = new GravityAffector(v); }
+            if (type == "Gravity") { glm::vec3 v; if (readAffectorVec3("gravity", v)) affector = new GravityAffector(v); }
             else if (type == "Drag") affector = new DragAffector(readNumberOr(value, "drag", 0.0f));
-            else if (type == "Vortex") { Math::Vec3 v; if (readAffectorVec3("center", v)) affector = new VortexAffector(v, readNumberOr(value, "strength", 0.0f), readNumberOr(value, "radius", 1.0f)); }
-            else if (type == "Attractor") { Math::Vec3 v; if (readAffectorVec3("position", v)) affector = new AttractorAffector(v, readNumberOr(value, "strength", 0.0f), readNumberOr(value, "radius", 1.0f), readAffectorBool("repulse", false)); }
+            else if (type == "Vortex") { glm::vec3 v; if (readAffectorVec3("center", v)) affector = new VortexAffector(v, readNumberOr(value, "strength", 0.0f), readNumberOr(value, "radius", 1.0f)); }
+            else if (type == "Attractor") { glm::vec3 v; if (readAffectorVec3("position", v)) affector = new AttractorAffector(v, readNumberOr(value, "strength", 0.0f), readNumberOr(value, "radius", 1.0f), readAffectorBool("repulse", false)); }
             else if (type == "Turbulence") affector = new TurbulenceAffector(readNumberOr(value, "strength", 0.0f), readNumberOr(value, "frequency", 1.0f));
             else if (type == "ColorOverLifetime")
             {
@@ -3269,7 +3269,7 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
             }
             else if (type == "SizeOverLifetime")
             {
-                Math::Vec2 a(0.0f), b(0.0f);
+                glm::vec2 a(0.0f), b(0.0f);
                 const auto start = value.find("start");
                 const auto end = value.find("end");
                 if (start == value.end() || !start->is_array() || start->size() != 2 ||
@@ -3296,7 +3296,7 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
         const f32 radius = readNumberOr(json, "shapeRadius", 1.0f);
         const f32 innerRadius = readNumberOr(json, "shapeInnerRadius", 0.5f);
         const f32 coneAngle = readNumberOr(json, "shapeConeAngle", 45.0f);
-        Math::Vec3 boxSize(1.0f);
+        glm::vec3 boxSize(1.0f);
         const auto boxSizeField = json.find("shapeBoxSize");
         if (boxSizeField != json.end())
             readVec3(*boxSizeField, boxSize);
@@ -3325,12 +3325,12 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
     }
 
     const auto emissionOffsetField = json.find("emissionOffset");
-    Math::Vec3 emissionOffset(0.0f);
+    glm::vec3 emissionOffset(0.0f);
     if (emissionOffsetField != json.end() && readVec3(*emissionOffsetField, emissionOffset))
         emitter->setEmissionOffset(emissionOffset);
 
     const auto emissionDirectionField = json.find("emissionDirection");
-    Math::Vec3 emissionDirection(0.0f, 1.0f, 0.0f);
+    glm::vec3 emissionDirection(0.0f, 1.0f, 0.0f);
     if (emissionDirectionField != json.end() &&
         readVec3(*emissionDirectionField, emissionDirection))
         emitter->setEmissionDirection(emissionDirection);
@@ -3353,7 +3353,7 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
         emitter->setSpeed(hasSpeedMin ? speedMin : emitter->speedMin(),
                           hasSpeedMax ? speedMax : emitter->speedMax());
 
-    Math::Vec3 sizeStart3(0.0f), sizeEnd3(0.0f);
+    glm::vec3 sizeStart3(0.0f), sizeEnd3(0.0f);
     const auto sizeStartField = json.find("sizeStart");
     const bool hasSizeStart = sizeStartField != json.end() && sizeStartField->is_array() &&
                               sizeStartField->size() == 2 && (*sizeStartField)[0].is_number() &&
@@ -3364,11 +3364,11 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
                             (*sizeEndField)[1].is_number();
     if (hasSizeStart || hasSizeEnd)
     {
-        const Math::Vec2 sizeStart = hasSizeStart ? Math::Vec2((*sizeStartField)[0].get<f32>(),
+        const glm::vec2 sizeStart = hasSizeStart ? glm::vec2((*sizeStartField)[0].get<f32>(),
                                                              (*sizeStartField)[1].get<f32>())
                                                  : emitter->sizeStart();
-        const Math::Vec2 sizeEnd =
-            hasSizeEnd ? Math::Vec2((*sizeEndField)[0].get<f32>(), (*sizeEndField)[1].get<f32>())
+        const glm::vec2 sizeEnd =
+            hasSizeEnd ? glm::vec2((*sizeEndField)[0].get<f32>(), (*sizeEndField)[1].get<f32>())
                        : emitter->sizeEnd();
         emitter->setSize(sizeStart, sizeEnd);
     }
@@ -3387,7 +3387,7 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
                                   hasRotationMax ? rotationMax : emitter->rotationSpeedMax());
 
     const auto gravityField = json.find("gravity");
-    Math::Vec3 gravity(0.0f);
+    glm::vec3 gravity(0.0f);
     if (gravityField != json.end() && readVec3(*gravityField, gravity))
         emitter->setGravity(gravity);
 
@@ -3863,9 +3863,9 @@ struct ParsedObject
     bool active = true;
     bool visible = true;
     bool isStatic = false;
-    Math::Vec3 position{0.0f};
-    Math::Quaternion rotation{1.0f, 0.0f, 0.0f, 0.0f};
-    Math::Vec3 scale{1.0f};
+    glm::vec3 position{0.0f};
+    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    glm::vec3 scale{1.0f};
 };
 
 void parseObjects(const nlohmann::json& objectsJson, std::vector<ParsedObject>& parsed,
@@ -4131,9 +4131,9 @@ nlohmann::json writeObject(GameObject& object, GameObject& root)
     json["flags"] = flags;
 
     nlohmann::json transform;
-    const Math::Vec3& position = object.position();
-    const Math::Quaternion& rotation = object.rotation();
-    const Math::Vec3& scale = object.scale();
+    const glm::vec3& position = object.position();
+    const glm::quat& rotation = object.rotation();
+    const glm::vec3& scale = object.scale();
     transform["position"] = {position.x, position.y, position.z};
     // [x, y, z, w] on disk - see readQuat() for the constructor-order note.
     transform["rotation"] = {rotation.x, rotation.y, rotation.z, rotation.w};
@@ -4540,7 +4540,7 @@ void readSkySettings(const nlohmann::json& json, SkySettings& sky)
     sky.cloudSpeed = json.value("cloudSpeed", sky.cloudSpeed);
     const auto direction = json.find("cloudDirection");
     if (direction != json.end() && direction->is_array() && direction->size() == 2)
-        sky.cloudDirection = Math::Vec2((*direction)[0].get<f32>(), (*direction)[1].get<f32>());
+        sky.cloudDirection = glm::vec2((*direction)[0].get<f32>(), (*direction)[1].get<f32>());
     const auto color = json.find("cloudColor");
     if (color != json.end()) readVec3(*color, sky.cloudColor);
 }

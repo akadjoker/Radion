@@ -9,27 +9,17 @@ namespace
 {
 constexpr f32 kEpsilon = 1e-6f;
 
-Math::Vec3 toMath(const Math::Vec3& value)
-{
-    return Math::Vec3(value.x, value.y, value.z);
-}
-
-Math::Vec3 toGlm(const Math::Vec3& value)
-{
-    return Math::Vec3(value.x, value.y, value.z);
-}
-
 // Overlap of the two shadows on `axis`, and which way the axis has to point
 // to push B off A. Negative means a gap, which ends the test.
-bool axisOverlap(const CollisionShape& a, const Math::Mat4& transformA, const CollisionShape& b,
-                 const Math::Mat4& transformB, const Math::Vec3& axis, f32 margin,
-                 f32& penetration, Math::Vec3& normal)
+bool axisOverlap(const CollisionShape& a, const glm::mat4& transformA, const CollisionShape& b,
+                 const glm::mat4& transformB, const glm::vec3& axis, f32 margin,
+                 f32& penetration, glm::vec3& normal)
 {
     const f32 length = glm::length(axis);
     if (length < kEpsilon)
         return true; // degenerate axis carries no information; not a separation
 
-    const Math::Vec3 unit = axis / length;
+    const glm::vec3 unit = axis / length;
     f32 minA, maxA, minB, maxB;
     a.project(transformA, unit, minA, maxA);
     b.project(transformB, unit, minB, maxB);
@@ -56,14 +46,14 @@ bool axisOverlap(const CollisionShape& a, const Math::Mat4& transformA, const Co
 }
 
 // Sutherland-Hodgman against one plane, keeping what is behind it.
-u32 clipPolygon(const Math::Vec3* input, u32 count, const Math::Vec3& planeNormal, f32 planeOffset,
-                Math::Vec3* output, u32 capacity)
+u32 clipPolygon(const glm::vec3* input, u32 count, const glm::vec3& planeNormal, f32 planeOffset,
+                glm::vec3* output, u32 capacity)
 {
     u32 written = 0;
     for (u32 i = 0; i < count && written + 1 < capacity; ++i)
     {
-        const Math::Vec3& current = input[i];
-        const Math::Vec3& next = input[(i + 1) % count];
+        const glm::vec3& current = input[i];
+        const glm::vec3& next = input[(i + 1) % count];
         const f32 distanceCurrent = glm::dot(planeNormal, current) - planeOffset;
         const f32 distanceNext = glm::dot(planeNormal, next) - planeOffset;
 
@@ -81,7 +71,7 @@ u32 clipPolygon(const Math::Vec3* input, u32 count, const Math::Vec3& planeNorma
 
 // Face of `box` whose outward normal is most opposed to `normal` - the face
 // that is actually being pressed into the other shape.
-u32 incidentFace(const BoxShape& box, const Math::Mat4& transform, const Math::Vec3& normal)
+u32 incidentFace(const BoxShape& box, const glm::mat4& transform, const glm::vec3& normal)
 {
     u32 best = 0;
     f32 bestDot = 1.0e30f;
@@ -97,7 +87,7 @@ u32 incidentFace(const BoxShape& box, const Math::Mat4& transform, const Math::V
     return best;
 }
 
-u32 reducePoints(const Math::Vec3* points, const f32* depths, u32 count, ContactManifold& out);
+u32 reducePoints(const glm::vec3* points, const f32* depths, u32 count, ContactManifold& out);
 
 // Generous enough for a shatter shard - VoronoiShatter cells run to a handful
 // of faces and tens of vertices, nowhere near this.
@@ -107,26 +97,26 @@ constexpr u32 kHullArrayCapacity = 32;
 // hull's own equivalent of BoxShape::faceNormal(). Built the same way
 // VoronoiShatter builds its half-space planes: cross of the first two edges
 // of the face loop.
-Math::Vec3 hullFaceNormal(const ConvexHullShape& hull, const Math::Mat4& transform, u32 face)
+glm::vec3 hullFaceNormal(const ConvexHullShape& hull, const glm::mat4& transform, u32 face)
 {
     const ConvexHullShape::Edge* edge = &hull.edges()[static_cast<usize>(hull.faces()[face])];
     const int v0 = edge->getSourceVertex();
     const int v1 = edge->getTargetVertex();
     edge = edge->getNextEdgeOfFace();
     const int v2 = edge->getTargetVertex();
-    const Math::Vec3& p0 = hull.vertices()[static_cast<usize>(v0)];
-    const Math::Vec3& p1 = hull.vertices()[static_cast<usize>(v1)];
-    const Math::Vec3& p2 = hull.vertices()[static_cast<usize>(v2)];
-    const Math::Vec3 worldRaw = Math::Mat3(transform) * glm::cross(p1 - p0, p2 - p0);
+    const glm::vec3& p0 = hull.vertices()[static_cast<usize>(v0)];
+    const glm::vec3& p1 = hull.vertices()[static_cast<usize>(v1)];
+    const glm::vec3& p2 = hull.vertices()[static_cast<usize>(v2)];
+    const glm::vec3 worldRaw = glm::mat3(transform) * glm::cross(p1 - p0, p2 - p0);
     const f32 length = glm::length(worldRaw);
-    return length > kEpsilon ? worldRaw / length : Math::Vec3(0.0f, 1.0f, 0.0f);
+    return length > kEpsilon ? worldRaw / length : glm::vec3(0.0f, 1.0f, 0.0f);
 }
 
 // Hull's own face whose outward normal is most opposed to `normal` - the
 // same "most opposed wins" rule incidentFace() uses for a box, applied to
 // however many faces the hull actually has.
-u32 hullIncidentFace(const ConvexHullShape& hull, const Math::Mat4& transform,
-                     const Math::Vec3& normal)
+u32 hullIncidentFace(const ConvexHullShape& hull, const glm::mat4& transform,
+                     const glm::vec3& normal)
 {
     u32 best = 0;
     f32 bestDot = 1.0e30f;
@@ -148,8 +138,8 @@ u32 hullIncidentFace(const ConvexHullShape& hull, const Math::Mat4& transform,
 // corner list its side planes are built from. Same walk VoronoiShatter's
 // volume integration uses, minus the triangle fan: here the whole loop is
 // wanted, not just the triangles of it.
-u32 hullFacePolygon(const ConvexHullShape& hull, const Math::Mat4& transform, u32 face,
-                    Math::Vec3* out, u32 capacity)
+u32 hullFacePolygon(const ConvexHullShape& hull, const glm::mat4& transform, u32 face,
+                    glm::vec3* out, u32 capacity)
 {
     const ConvexHullShape::Edge* start = &hull.edges()[static_cast<usize>(hull.faces()[face])];
     const ConvexHullShape::Edge* edge = start;
@@ -159,7 +149,7 @@ u32 hullFacePolygon(const ConvexHullShape& hull, const Math::Mat4& transform, u3
         if (count >= capacity)
             break;
         out[count++] =
-            Math::Vec3(transform * Math::Vec4(hull.vertices()[static_cast<usize>(
+            glm::vec3(transform * glm::vec4(hull.vertices()[static_cast<usize>(
                                                 edge->getTargetVertex())],
                                             1.0f));
         edge = edge->getNextEdgeOfFace();
@@ -173,7 +163,7 @@ u32 hullFacePolygon(const ConvexHullShape& hull, const Math::Mat4& transform, u3
     // does, and clipFaceAgainstFace() needs no shape-specific case for it.
     for (u32 i = 0, j = count > 0 ? count - 1 : 0; i < j; ++i, --j)
     {
-        const Math::Vec3 temporary = out[i];
+        const glm::vec3 temporary = out[i];
         out[i] = out[j];
         out[j] = temporary;
     }
@@ -184,12 +174,12 @@ u32 hullFacePolygon(const ConvexHullShape& hull, const Math::Mat4& transform, u3
 // counted once, from whichever of its two half-edges has the smaller index.
 // Stands in for a box's three edge directions when SAT needs a cross-product
 // axis against another shape's edges.
-u32 hullEdgeDirections(const ConvexHullShape& hull, const Math::Mat4& transform, Math::Vec3* out,
+u32 hullEdgeDirections(const ConvexHullShape& hull, const glm::mat4& transform, glm::vec3* out,
                        u32 capacity)
 {
     const std::vector<ConvexHullShape::Edge>& edges = hull.edges();
-    const std::vector<Math::Vec3>& vertices = hull.vertices();
-    const Math::Mat3 rotation(transform);
+    const std::vector<glm::vec3>& vertices = hull.vertices();
+    const glm::mat3 rotation(transform);
     u32 count = 0;
     for (usize i = 0; i < edges.size() && count < capacity; ++i)
     {
@@ -197,7 +187,7 @@ u32 hullEdgeDirections(const ConvexHullShape& hull, const Math::Mat4& transform,
         const usize reverseIndex = static_cast<usize>(edge.getReverseEdge() - edges.data());
         if (reverseIndex <= i)
             continue;
-        const Math::Vec3 direction =
+        const glm::vec3 direction =
             vertices[static_cast<usize>(edge.getTargetVertex())] -
             vertices[static_cast<usize>(edge.getSourceVertex())];
         out[count++] = rotation * direction;
@@ -209,13 +199,13 @@ u32 hullEdgeDirections(const ConvexHullShape& hull, const Math::Mat4& transform,
 // what an edge-edge separation, or a grazing face pair clipPolygon() clipped
 // down to nothing, both fall back to. The same block boxBox() repeats three
 // times inline, factored out for the hull routines that need it twice more.
-void supportPointContact(const CollisionShape& a, const Math::Mat4& transformA,
-                         const CollisionShape& b, const Math::Mat4& transformB, f32 penetration,
+void supportPointContact(const CollisionShape& a, const glm::mat4& transformA,
+                         const CollisionShape& b, const glm::mat4& transformB, f32 penetration,
                          ContactManifold& out)
 {
     out.count = 1;
-    const Math::Vec3 pointA = a.support(transformA, out.normal);
-    const Math::Vec3 pointB = b.support(transformB, -out.normal);
+    const glm::vec3 pointA = a.support(transformA, out.normal);
+    const glm::vec3 pointB = b.support(transformB, -out.normal);
     out.points[0].position = (pointA + pointB) * 0.5f;
     out.points[0].penetration = penetration;
     out.points[0].normalImpulse = 0.0f;
@@ -227,15 +217,15 @@ void supportPointContact(const CollisionShape& a, const Math::Mat4& transformA,
 // planes and keeps what ends up behind the reference plane - the shape-
 // agnostic half of boxBox()'s face case, generalized from four corners to
 // however many either polygon has.
-bool clipFaceAgainstFace(const Math::Vec3* referencePolygon, u32 referenceCount,
-                         const Math::Vec3& referenceNormal, const Math::Vec3* incidentPolygon,
+bool clipFaceAgainstFace(const glm::vec3* referencePolygon, u32 referenceCount,
+                         const glm::vec3& referenceNormal, const glm::vec3* incidentPolygon,
                          u32 incidentCount, f32 margin, ContactManifold& out)
 {
     if (referenceCount < 3 || incidentCount < 3)
         return false;
 
-    Math::Vec3 polygon[kHullArrayCapacity];
-    Math::Vec3 scratch[kHullArrayCapacity];
+    glm::vec3 polygon[kHullArrayCapacity];
+    glm::vec3 scratch[kHullArrayCapacity];
     u32 count = glm::min(incidentCount, kHullArrayCapacity);
     for (u32 i = 0; i < count; ++i)
         polygon[i] = incidentPolygon[i];
@@ -243,25 +233,25 @@ bool clipFaceAgainstFace(const Math::Vec3* referencePolygon, u32 referenceCount,
     const f32 referenceOffset = glm::dot(referenceNormal, referencePolygon[0]);
     for (u32 i = 0; i < referenceCount && count > 0; ++i)
     {
-        const Math::Vec3& edgeStart = referencePolygon[i];
-        const Math::Vec3& edgeEnd = referencePolygon[(i + 1) % referenceCount];
-        const Math::Vec3 edge = edgeEnd - edgeStart;
+        const glm::vec3& edgeStart = referencePolygon[i];
+        const glm::vec3& edgeEnd = referencePolygon[(i + 1) % referenceCount];
+        const glm::vec3 edge = edgeEnd - edgeStart;
         // cross(normal, edge), not cross(edge, normal) - boxBox() found the
         // hard way that the other order points the side plane into the face
         // instead of out of it. Both the box's kFaces winding and the hull's
         // own face winding go outward-CCW, so the same sign works for either.
-        const Math::Vec3 planeNormal = glm::cross(referenceNormal, edge);
+        const glm::vec3 planeNormal = glm::cross(referenceNormal, edge);
         const f32 planeLength = glm::length(planeNormal);
         if (planeLength < kEpsilon)
             continue;
-        const Math::Vec3 unit = planeNormal / planeLength;
+        const glm::vec3 unit = planeNormal / planeLength;
         count = clipPolygon(polygon, count, unit, glm::dot(unit, edgeStart), scratch,
                             kHullArrayCapacity);
         for (u32 p = 0; p < count; ++p)
             polygon[p] = scratch[p];
     }
 
-    Math::Vec3 kept[kHullArrayCapacity];
+    glm::vec3 kept[kHullArrayCapacity];
     f32 depths[kHullArrayCapacity];
     u32 keptCount = 0;
     for (u32 i = 0; i < count; ++i)
@@ -290,7 +280,7 @@ bool clipFaceAgainstFace(const Math::Vec3* referencePolygon, u32 referenceCount,
 // each other, so the patch spans the real contact area instead of clustering
 // in one corner. A manifold of four points all but touching is a manifold of
 // one, and a box balanced on it wobbles.
-u32 reducePoints(const Math::Vec3* points, const f32* depths, u32 count, ContactManifold& out)
+u32 reducePoints(const glm::vec3* points, const f32* depths, u32 count, ContactManifold& out)
 {
     if (count == 0)
         return 0;
@@ -363,19 +353,19 @@ void ContactManifold::buildTangents()
 {
     // Any vector not parallel to the normal will do; picking the world axis
     // the normal leans on least keeps the cross product away from zero.
-    const Math::Vec3 reference = std::abs(normal.x) < 0.57735f ? Math::Vec3(1.0f, 0.0f, 0.0f)
-                                                              : Math::Vec3(0.0f, 1.0f, 0.0f);
+    const glm::vec3 reference = std::abs(normal.x) < 0.57735f ? glm::vec3(1.0f, 0.0f, 0.0f)
+                                                              : glm::vec3(0.0f, 1.0f, 0.0f);
     tangent[0] = glm::normalize(glm::cross(reference, normal));
     tangent[1] = glm::cross(normal, tangent[0]);
 }
 
-bool Narrowphase::sphereSphere(const SphereShape& a, const Math::Mat4& transformA,
-                               const SphereShape& b, const Math::Mat4& transformB,
+bool Narrowphase::sphereSphere(const SphereShape& a, const glm::mat4& transformA,
+                               const SphereShape& b, const glm::mat4& transformB,
                                ContactManifold& out, f32 margin)
 {
-    const Math::Vec3 centerA(transformA[3]);
-    const Math::Vec3 centerB(transformB[3]);
-    const Math::Vec3 delta = centerB - centerA;
+    const glm::vec3 centerA(transformA[3]);
+    const glm::vec3 centerB(transformB[3]);
+    const glm::vec3 delta = centerB - centerA;
     const f32 distance = glm::length(delta);
     const f32 total = a.radius() + b.radius();
     if (distance >= total + margin)
@@ -383,7 +373,7 @@ bool Narrowphase::sphereSphere(const SphereShape& a, const Math::Mat4& transform
 
     // Concentric spheres have no direction to separate along; any one will
     // do, and picking it here beats dividing by zero.
-    out.normal = distance > kEpsilon ? delta / distance : Math::Vec3(0.0f, 1.0f, 0.0f);
+    out.normal = distance > kEpsilon ? delta / distance : glm::vec3(0.0f, 1.0f, 0.0f);
     out.buildTangents();
     out.count = 1;
     out.points[0].penetration = total - distance;
@@ -395,23 +385,23 @@ bool Narrowphase::sphereSphere(const SphereShape& a, const Math::Mat4& transform
     return true;
 }
 
-bool Narrowphase::sphereBox(const SphereShape& a, const Math::Mat4& transformA, const BoxShape& b,
-                            const Math::Mat4& transformB, ContactManifold& out, f32 margin)
+bool Narrowphase::sphereBox(const SphereShape& a, const glm::mat4& transformA, const BoxShape& b,
+                            const glm::mat4& transformB, ContactManifold& out, f32 margin)
 {
-    const Math::Vec3 center(transformA[3]);
-    const Math::Mat3 rotation(transformB);
-    const Math::Vec3 boxCenter(transformB[3]);
-    const Math::Vec3 local = glm::transpose(rotation) * (center - boxCenter);
-    const Math::Vec3& half = b.halfExtents();
+    const glm::vec3 center(transformA[3]);
+    const glm::mat3 rotation(transformB);
+    const glm::vec3 boxCenter(transformB[3]);
+    const glm::vec3 local = glm::transpose(rotation) * (center - boxCenter);
+    const glm::vec3& half = b.halfExtents();
 
-    const Math::Vec3 closestLocal = glm::clamp(local, -half, half);
-    const Math::Vec3 offset = local - closestLocal;
+    const glm::vec3 closestLocal = glm::clamp(local, -half, half);
+    const glm::vec3 offset = local - closestLocal;
     const f32 distanceSquared = glm::dot(offset, offset);
     const f32 reach = a.radius() + margin;
     if (distanceSquared > reach * reach)
         return false;
 
-    Math::Vec3 normalLocal;
+    glm::vec3 normalLocal;
     f32 penetration = 0.0f;
     if (distanceSquared > kEpsilon * kEpsilon)
     {
@@ -423,20 +413,20 @@ bool Narrowphase::sphereBox(const SphereShape& a, const Math::Mat4& transformA, 
     {
         // Centre inside the box: the closest face is the one it is least far
         // from, and the sphere has to come out through that one.
-        const Math::Vec3 depth = half - glm::abs(local);
+        const glm::vec3 depth = half - glm::abs(local);
         if (depth.x <= depth.y && depth.x <= depth.z)
         {
-            normalLocal = Math::Vec3(local.x >= 0.0f ? 1.0f : -1.0f, 0.0f, 0.0f);
+            normalLocal = glm::vec3(local.x >= 0.0f ? 1.0f : -1.0f, 0.0f, 0.0f);
             penetration = a.radius() + depth.x;
         }
         else if (depth.y <= depth.z)
         {
-            normalLocal = Math::Vec3(0.0f, local.y >= 0.0f ? 1.0f : -1.0f, 0.0f);
+            normalLocal = glm::vec3(0.0f, local.y >= 0.0f ? 1.0f : -1.0f, 0.0f);
             penetration = a.radius() + depth.y;
         }
         else
         {
-            normalLocal = Math::Vec3(0.0f, 0.0f, local.z >= 0.0f ? 1.0f : -1.0f);
+            normalLocal = glm::vec3(0.0f, 0.0f, local.z >= 0.0f ? 1.0f : -1.0f);
             penetration = a.radius() + depth.z;
         }
     }
@@ -453,33 +443,33 @@ bool Narrowphase::sphereBox(const SphereShape& a, const Math::Mat4& transformA, 
     return true;
 }
 
-bool Narrowphase::boxBox(const BoxShape& a, const Math::Mat4& transformA, const BoxShape& b,
-                         const Math::Mat4& transformB, ContactManifold& out, f32 margin)
+bool Narrowphase::boxBox(const BoxShape& a, const glm::mat4& transformA, const BoxShape& b,
+                         const glm::mat4& transformB, ContactManifold& out, f32 margin)
 {
     // Fifteen axes: three face normals each, and the nine cross products of
     // their edge directions. Without the nine, two boxes meeting edge to edge
     // come back with a face normal that is not the real separating direction,
     // and slide along it.
-    const Math::Mat3 rotationA(transformA);
-    const Math::Mat3 rotationB(transformB);
+    const glm::mat3 rotationA(transformA);
+    const glm::mat3 rotationB(transformB);
 
-    Math::Vec3 axes[15];
+    glm::vec3 axes[15];
     u32 axisCount = 0;
     for (u32 i = 0; i < 3; ++i)
-        axes[axisCount++] = glm::normalize(Math::Vec3(rotationA[i]));
+        axes[axisCount++] = glm::normalize(glm::vec3(rotationA[i]));
     for (u32 i = 0; i < 3; ++i)
-        axes[axisCount++] = glm::normalize(Math::Vec3(rotationB[i]));
+        axes[axisCount++] = glm::normalize(glm::vec3(rotationB[i]));
     for (u32 i = 0; i < 3; ++i)
         for (u32 j = 0; j < 3; ++j)
-            axes[axisCount++] = glm::cross(Math::Vec3(rotationA[i]), Math::Vec3(rotationB[j]));
+            axes[axisCount++] = glm::cross(glm::vec3(rotationA[i]), glm::vec3(rotationB[j]));
 
     f32 bestPenetration = 1.0e30f;
-    Math::Vec3 bestNormal(0.0f, 1.0f, 0.0f);
+    glm::vec3 bestNormal(0.0f, 1.0f, 0.0f);
     u32 bestAxis = 0;
     for (u32 i = 0; i < axisCount; ++i)
     {
         f32 penetration = 0.0f;
-        Math::Vec3 normal(0.0f);
+        glm::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axes[i], margin, penetration, normal))
             return false;
         // A parallel edge pair gives a zero-length cross product, which
@@ -504,8 +494,8 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::Mat4& transformA, const 
     if (bestAxis >= 6)
     {
         out.count = 1;
-        const Math::Vec3 pointA = a.support(transformA, out.normal);
-        const Math::Vec3 pointB = b.support(transformB, -out.normal);
+        const glm::vec3 pointA = a.support(transformA, out.normal);
+        const glm::vec3 pointB = b.support(transformB, -out.normal);
         out.points[0].position = (pointA + pointB) * 0.5f;
         out.points[0].penetration = bestPenetration;
         out.points[0].normalImpulse = 0.0f;
@@ -519,10 +509,10 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::Mat4& transformA, const 
     const bool referenceIsA = bestAxis < 3;
     const BoxShape& reference = referenceIsA ? a : b;
     const BoxShape& incident = referenceIsA ? b : a;
-    const Math::Mat4& referenceTransform = referenceIsA ? transformA : transformB;
-    const Math::Mat4& incidentTransform = referenceIsA ? transformB : transformA;
+    const glm::mat4& referenceTransform = referenceIsA ? transformA : transformB;
+    const glm::mat4& incidentTransform = referenceIsA ? transformB : transformA;
     // The reference face is the one pointing at the other box.
-    const Math::Vec3 referenceDirection = referenceIsA ? out.normal : -out.normal;
+    const glm::vec3 referenceDirection = referenceIsA ? out.normal : -out.normal;
 
     u32 referenceFace = 0;
     f32 bestDot = -1.0e30f;
@@ -537,20 +527,20 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::Mat4& transformA, const 
         }
     }
 
-    const Math::Vec3 referenceNormal = BoxShape::faceNormal(referenceTransform, referenceFace);
-    Math::Vec3 referenceCorner[8];
+    const glm::vec3 referenceNormal = BoxShape::faceNormal(referenceTransform, referenceFace);
+    glm::vec3 referenceCorner[8];
     reference.corners(referenceTransform, referenceCorner);
     const u8* referenceIndices = BoxShape::faceCorners(referenceFace);
     const f32 referenceOffset = glm::dot(referenceNormal, referenceCorner[referenceIndices[0]]);
 
     const u32 incidentFaceIndex = incidentFace(incident, incidentTransform, referenceNormal);
-    Math::Vec3 incidentCorner[8];
+    glm::vec3 incidentCorner[8];
     incident.corners(incidentTransform, incidentCorner);
     const u8* incidentIndices = BoxShape::faceCorners(incidentFaceIndex);
 
     constexpr u32 capacity = 16;
-    Math::Vec3 polygon[capacity];
-    Math::Vec3 scratch[capacity];
+    glm::vec3 polygon[capacity];
+    glm::vec3 scratch[capacity];
     u32 count = 4;
     for (u32 i = 0; i < 4; ++i)
         polygon[i] = incidentCorner[incidentIndices[i]];
@@ -559,25 +549,25 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::Mat4& transformA, const 
     // its normal, all pointing outwards.
     for (u32 i = 0; i < 4 && count > 0; ++i)
     {
-        const Math::Vec3& edgeStart = referenceCorner[referenceIndices[i]];
-        const Math::Vec3& edgeEnd = referenceCorner[referenceIndices[(i + 1) % 4]];
-        const Math::Vec3 edge = edgeEnd - edgeStart;
+        const glm::vec3& edgeStart = referenceCorner[referenceIndices[i]];
+        const glm::vec3& edgeEnd = referenceCorner[referenceIndices[(i + 1) % 4]];
+        const glm::vec3 edge = edgeEnd - edgeStart;
         // cross(normal, edge), not cross(edge, normal). With the winding in
         // kFaces the latter points INTO the face, and clipping against it
         // throws the whole incident polygon away - a face-face contact then
         // falls back to a single support point and a box balanced on it
         // tips. Checked against all six faces, not just the one.
-        const Math::Vec3 planeNormal = glm::cross(referenceNormal, edge);
+        const glm::vec3 planeNormal = glm::cross(referenceNormal, edge);
         const f32 planeLength = glm::length(planeNormal);
         if (planeLength < kEpsilon)
             continue;
-        const Math::Vec3 unit = planeNormal / planeLength;
+        const glm::vec3 unit = planeNormal / planeLength;
         count = clipPolygon(polygon, count, unit, glm::dot(unit, edgeStart), scratch, capacity);
         for (u32 p = 0; p < count; ++p)
             polygon[p] = scratch[p];
     }
 
-    Math::Vec3 kept[capacity];
+    glm::vec3 kept[capacity];
     f32 depths[capacity];
     u32 keptCount = 0;
     for (u32 i = 0; i < count; ++i)
@@ -600,8 +590,8 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::Mat4& transformA, const 
         // already proved they overlap, so fall back to the support points
         // rather than dropping a contact the solver was told exists.
         out.count = 1;
-        const Math::Vec3 pointA = a.support(transformA, out.normal);
-        const Math::Vec3 pointB = b.support(transformB, -out.normal);
+        const glm::vec3 pointA = a.support(transformA, out.normal);
+        const glm::vec3 pointB = b.support(transformB, -out.normal);
         out.points[0].position = (pointA + pointB) * 0.5f;
         out.points[0].penetration = bestPenetration;
         out.points[0].normalImpulse = 0.0f;
@@ -625,16 +615,16 @@ namespace
 // Two spheres of the given radii at the given centres, written straight into
 // the manifold. Capsule contacts all reduce to this once the closest points
 // on the segments are known.
-bool sphereContact(const Math::Vec3& centerA, f32 radiusA, const Math::Vec3& centerB, f32 radiusB,
+bool sphereContact(const glm::vec3& centerA, f32 radiusA, const glm::vec3& centerB, f32 radiusB,
                    f32 margin, ContactManifold& out)
 {
-    const Math::Vec3 delta = centerB - centerA;
+    const glm::vec3 delta = centerB - centerA;
     const f32 distance = glm::length(delta);
     const f32 total = radiusA + radiusB;
     if (distance >= total + margin)
         return false;
 
-    out.normal = distance > kEpsilon ? delta / distance : Math::Vec3(0.0f, 1.0f, 0.0f);
+    out.normal = distance > kEpsilon ? delta / distance : glm::vec3(0.0f, 1.0f, 0.0f);
     out.buildTangents();
     out.count = 1;
     out.points[0].penetration = total - distance;
@@ -646,54 +636,54 @@ bool sphereContact(const Math::Vec3& centerA, f32 radiusA, const Math::Vec3& cen
 }
 } // namespace
 
-bool Narrowphase::capsuleSphere(const CapsuleShape& a, const Math::Mat4& transformA,
-                                const SphereShape& b, const Math::Mat4& transformB,
+bool Narrowphase::capsuleSphere(const CapsuleShape& a, const glm::mat4& transformA,
+                                const SphereShape& b, const glm::mat4& transformB,
                                 ContactManifold& out, f32 margin)
 {
-    Math::Vec3 lower, upper;
+    glm::vec3 lower, upper;
     a.segment(transformA, lower, upper);
-    const Math::Vec3 center(transformB[3]);
-    const Math::Vec3 closest = closestPointOnSegment(lower, upper, center);
+    const glm::vec3 center(transformB[3]);
+    const glm::vec3 closest = closestPointOnSegment(lower, upper, center);
     return sphereContact(closest, a.radius(), center, b.radius(), margin, out);
 }
 
-bool Narrowphase::capsuleCapsule(const CapsuleShape& a, const Math::Mat4& transformA,
-                                 const CapsuleShape& b, const Math::Mat4& transformB,
+bool Narrowphase::capsuleCapsule(const CapsuleShape& a, const glm::mat4& transformA,
+                                 const CapsuleShape& b, const glm::mat4& transformB,
                                  ContactManifold& out, f32 margin)
 {
-    Math::Vec3 lowerA, upperA, lowerB, upperB;
+    glm::vec3 lowerA, upperA, lowerB, upperB;
     a.segment(transformA, lowerA, upperA);
     b.segment(transformB, lowerB, upperB);
-    Math::Vec3 closestA, closestB;
+    glm::vec3 closestA, closestB;
     closestPointsBetweenSegments(lowerA, upperA, lowerB, upperB, closestA, closestB);
     return sphereContact(closestA, a.radius(), closestB, b.radius(), margin, out);
 }
 
-bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::Mat4& transformA, const BoxShape& b,
-                             const Math::Mat4& transformB, ContactManifold& out, f32 margin)
+bool Narrowphase::capsuleBox(const CapsuleShape& a, const glm::mat4& transformA, const BoxShape& b,
+                             const glm::mat4& transformB, ContactManifold& out, f32 margin)
 {
-    Math::Vec3 lower, upper;
+    glm::vec3 lower, upper;
     a.segment(transformA, lower, upper);
-    const Math::Mat3 rotationB(transformB);
-    const Math::Vec3 capsuleAxis = glm::normalize(Math::Vec3(transformA[1]));
+    const glm::mat3 rotationB(transformB);
+    const glm::vec3 capsuleAxis = glm::normalize(glm::vec3(transformA[1]));
 
     // The box's three faces, the capsule's own axis, and the three cross
     // products between them. The last set is what catches a capsule lying
     // diagonally across an edge, which no face normal separates.
-    Math::Vec3 axes[7];
+    glm::vec3 axes[7];
     u32 axisCount = 0;
     for (u32 i = 0; i < 3; ++i)
-        axes[axisCount++] = glm::normalize(Math::Vec3(rotationB[i]));
+        axes[axisCount++] = glm::normalize(glm::vec3(rotationB[i]));
     axes[axisCount++] = capsuleAxis;
     for (u32 i = 0; i < 3; ++i)
-        axes[axisCount++] = glm::cross(capsuleAxis, Math::Vec3(rotationB[i]));
+        axes[axisCount++] = glm::cross(capsuleAxis, glm::vec3(rotationB[i]));
 
     f32 bestPenetration = 1.0e30f;
-    Math::Vec3 bestNormal(0.0f, 1.0f, 0.0f);
+    glm::vec3 bestNormal(0.0f, 1.0f, 0.0f);
     for (u32 i = 0; i < axisCount; ++i)
     {
         f32 penetration = 0.0f;
-        Math::Vec3 normal(0.0f);
+        glm::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axes[i], margin, penetration, normal))
             return false;
         if (glm::length(axes[i]) < kEpsilon)
@@ -717,16 +707,16 @@ bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::Mat4& transformA
         // The box face TOWARDS the capsule, which is its extreme against the
         // normal - the normal runs from capsule to box, so supporting along
         // it lands on the far side of the box instead.
-        const Math::Vec3 onBoxFace = b.support(transformB, -out.normal);
+        const glm::vec3 onBoxFace = b.support(transformB, -out.normal);
         const f32 faceOffset = glm::dot(out.normal, onBoxFace);
 
-        Math::Vec3 points[2] = {lower, upper};
+        glm::vec3 points[2] = {lower, upper};
         u32 written = 0;
         for (u32 i = 0; i < 2; ++i)
         {
             // The capsule's own surface is its segment pushed a radius ALONG
             // the normal, that being the direction of the box.
-            const Math::Vec3 surface = points[i] + out.normal * a.radius();
+            const glm::vec3 surface = points[i] + out.normal * a.radius();
             const f32 depth = glm::dot(out.normal, surface) - faceOffset;
             if (depth < -margin)
                 continue;
@@ -746,12 +736,12 @@ bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::Mat4& transformA
 
     // Anything else is one point: the closest point on the segment to the
     // box, pushed out by the radius.
-    const Math::Vec3 boxCenter(transformB[3]);
-    const Math::Vec3 nearSegment = closestPointOnSegment(lower, upper, boxCenter);
-    const Math::Vec3 localNear = glm::transpose(rotationB) * (nearSegment - boxCenter);
-    const Math::Vec3 onBox =
+    const glm::vec3 boxCenter(transformB[3]);
+    const glm::vec3 nearSegment = closestPointOnSegment(lower, upper, boxCenter);
+    const glm::vec3 localNear = glm::transpose(rotationB) * (nearSegment - boxCenter);
+    const glm::vec3 onBox =
         boxCenter + rotationB * glm::clamp(localNear, -b.halfExtents(), b.halfExtents());
-    const Math::Vec3 refined = closestPointOnSegment(lower, upper, onBox);
+    const glm::vec3 refined = closestPointOnSegment(lower, upper, onBox);
 
     out.count = 1;
     out.points[0].penetration = bestPenetration;
@@ -764,8 +754,8 @@ bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::Mat4& transformA
     return true;
 }
 
-bool Narrowphase::convexHullSphere(const ConvexHullShape& a, const Math::Mat4& transformA,
-                                   const SphereShape& b, const Math::Mat4& transformB,
+bool Narrowphase::convexHullSphere(const ConvexHullShape& a, const glm::mat4& transformA,
+                                   const SphereShape& b, const glm::mat4& transformB,
                                    ContactManifold& out, f32 margin)
 {
     // A sphere has no faces or edges of its own to separate on, so the
@@ -777,12 +767,12 @@ bool Narrowphase::convexHullSphere(const ConvexHullShape& a, const Math::Mat4& t
         return false;
 
     f32 bestPenetration = 1.0e30f;
-    Math::Vec3 bestNormal(0.0f, 1.0f, 0.0f);
+    glm::vec3 bestNormal(0.0f, 1.0f, 0.0f);
     for (u32 face = 0; face < faceCount; ++face)
     {
-        const Math::Vec3 axis = hullFaceNormal(a, transformA, face);
+        const glm::vec3 axis = hullFaceNormal(a, transformA, face);
         f32 penetration = 0.0f;
-        Math::Vec3 normal(0.0f);
+        glm::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axis, margin, penetration, normal))
             return false;
         if (penetration < bestPenetration)
@@ -798,23 +788,23 @@ bool Narrowphase::convexHullSphere(const ConvexHullShape& a, const Math::Mat4& t
     return true;
 }
 
-bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::Mat4& transformA,
-                                    const CapsuleShape& b, const Math::Mat4& transformB,
+bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const glm::mat4& transformA,
+                                    const CapsuleShape& b, const glm::mat4& transformB,
                                     ContactManifold& out, f32 margin)
 {
-    Math::Vec3 lower, upper;
+    glm::vec3 lower, upper;
     b.segment(transformB, lower, upper);
-    const Math::Vec3 capsuleAxis = glm::normalize(Math::Vec3(transformB[1]));
+    const glm::vec3 capsuleAxis = glm::normalize(glm::vec3(transformB[1]));
 
     const u32 hullFaceCount = a.faceCount();
-    Math::Vec3 hullEdges[kHullArrayCapacity];
+    glm::vec3 hullEdges[kHullArrayCapacity];
     const u32 hullEdgeCount = hullEdgeDirections(a, transformA, hullEdges, kHullArrayCapacity);
 
     // The hull's own face normals, the capsule's axis, and the cross of that
     // axis with every one of the hull's edge directions - the same three
     // groups capsuleBox() tests against a box's three faces and three edge
     // directions, generalized to however many the hull actually has.
-    Math::Vec3 axes[kHullArrayCapacity * 2 + 1];
+    glm::vec3 axes[kHullArrayCapacity * 2 + 1];
     u32 axisCount = 0;
     const u32 axisFaceCount = glm::min(hullFaceCount, kHullArrayCapacity);
     for (u32 face = 0; face < axisFaceCount; ++face)
@@ -824,11 +814,11 @@ bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::Mat4& 
         axes[axisCount++] = glm::cross(capsuleAxis, hullEdges[i]);
 
     f32 bestPenetration = 1.0e30f;
-    Math::Vec3 bestNormal(0.0f, 1.0f, 0.0f);
+    glm::vec3 bestNormal(0.0f, 1.0f, 0.0f);
     for (u32 i = 0; i < axisCount; ++i)
     {
         f32 penetration = 0.0f;
-        Math::Vec3 normal(0.0f);
+        glm::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axes[i], margin, penetration, normal))
             return false;
         if (glm::length(axes[i]) < kEpsilon)
@@ -861,13 +851,13 @@ bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::Mat4& 
                 referenceFace = face;
             }
         }
-        Math::Vec3 facePolygon[kHullArrayCapacity];
+        glm::vec3 facePolygon[kHullArrayCapacity];
         const u32 faceVertexCount =
             hullFacePolygon(a, transformA, referenceFace, facePolygon, kHullArrayCapacity);
         if (faceVertexCount > 0)
         {
             const f32 faceOffset = glm::dot(out.normal, facePolygon[0]);
-            const Math::Vec3 points[2] = {lower, upper};
+            const glm::vec3 points[2] = {lower, upper};
             ContactPoint generated[2];
             u32 written = 0;
             for (u32 i = 0; i < 2; ++i)
@@ -876,7 +866,7 @@ bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::Mat4& 
                 // hull - which is -out.normal here, since out.normal points
                 // hull to capsule and this end has to face back the other
                 // way.
-                const Math::Vec3 surface = points[i] - out.normal * b.radius();
+                const glm::vec3 surface = points[i] - out.normal * b.radius();
                 const f32 depth = faceOffset - glm::dot(out.normal, surface);
                 if (depth < -margin)
                     continue;
@@ -904,40 +894,40 @@ bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::Mat4& 
     return true;
 }
 
-bool Narrowphase::convexHullBox(const ConvexHullShape& a, const Math::Mat4& transformA,
-                                const BoxShape& b, const Math::Mat4& transformB,
+bool Narrowphase::convexHullBox(const ConvexHullShape& a, const glm::mat4& transformA,
+                                const BoxShape& b, const glm::mat4& transformB,
                                 ContactManifold& out, f32 margin)
 {
-    const Math::Mat3 rotationB(transformB);
+    const glm::mat3 rotationB(transformB);
     // Clamped once here and used for every axis-array index below, so the
     // fixed-size arrays and the bestAxis category thresholds stay in
     // agreement even on a hull with more faces than kHullArrayCapacity.
     const u32 hullFaceCount = glm::min(a.faceCount(), kHullArrayCapacity);
 
-    Math::Vec3 hullEdges[kHullArrayCapacity];
+    glm::vec3 hullEdges[kHullArrayCapacity];
     const u32 hullEdgeCount = hullEdgeDirections(a, transformA, hullEdges, kHullArrayCapacity);
 
     // The hull's own face normals stand in for boxBox()'s first three axes,
     // the box's three faces are its second three, and the cross products run
     // over the hull's actual edge directions against the box's three instead
     // of a fixed 3x3 grid.
-    Math::Vec3 axes[kHullArrayCapacity + 3 + kHullArrayCapacity * 3];
+    glm::vec3 axes[kHullArrayCapacity + 3 + kHullArrayCapacity * 3];
     u32 axisCount = 0;
     for (u32 face = 0; face < hullFaceCount; ++face)
         axes[axisCount++] = hullFaceNormal(a, transformA, face);
     for (u32 i = 0; i < 3; ++i)
-        axes[axisCount++] = glm::normalize(Math::Vec3(rotationB[i]));
+        axes[axisCount++] = glm::normalize(glm::vec3(rotationB[i]));
     for (u32 i = 0; i < hullEdgeCount; ++i)
         for (u32 j = 0; j < 3; ++j)
-            axes[axisCount++] = glm::cross(hullEdges[i], Math::Vec3(rotationB[j]));
+            axes[axisCount++] = glm::cross(hullEdges[i], glm::vec3(rotationB[j]));
 
     f32 bestPenetration = 1.0e30f;
-    Math::Vec3 bestNormal(0.0f, 1.0f, 0.0f);
+    glm::vec3 bestNormal(0.0f, 1.0f, 0.0f);
     u32 bestAxis = 0;
     for (u32 i = 0; i < axisCount; ++i)
     {
         f32 penetration = 0.0f;
-        Math::Vec3 normal(0.0f);
+        glm::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axes[i], margin, penetration, normal))
             return false;
         if (glm::length(axes[i]) < kEpsilon)
@@ -959,10 +949,10 @@ bool Narrowphase::convexHullBox(const ConvexHullShape& a, const Math::Mat4& tran
         return true;
     }
 
-    Math::Vec3 referencePolygon[kHullArrayCapacity];
+    glm::vec3 referencePolygon[kHullArrayCapacity];
     u32 referenceCount = 0;
-    Math::Vec3 referenceNormal(0.0f);
-    Math::Vec3 incidentPolygon[kHullArrayCapacity];
+    glm::vec3 referenceNormal(0.0f);
+    glm::vec3 incidentPolygon[kHullArrayCapacity];
     u32 incidentCount = 0;
 
     if (bestAxis < hullFaceCount)
@@ -984,7 +974,7 @@ bool Narrowphase::convexHullBox(const ConvexHullShape& a, const Math::Mat4& tran
             hullFacePolygon(a, transformA, referenceFace, referencePolygon, kHullArrayCapacity);
 
         const u32 incidentFaceIndex = incidentFace(b, transformB, referenceNormal);
-        Math::Vec3 boxCorners[8];
+        glm::vec3 boxCorners[8];
         b.corners(transformB, boxCorners);
         const u8* indices = BoxShape::faceCorners(incidentFaceIndex);
         incidentCount = 4;
@@ -1007,7 +997,7 @@ bool Narrowphase::convexHullBox(const ConvexHullShape& a, const Math::Mat4& tran
             }
         }
         referenceNormal = BoxShape::faceNormal(transformB, referenceFace);
-        Math::Vec3 boxCorners[8];
+        glm::vec3 boxCorners[8];
         b.corners(transformB, boxCorners);
         const u8* indices = BoxShape::faceCorners(referenceFace);
         referenceCount = 4;
@@ -1025,8 +1015,8 @@ bool Narrowphase::convexHullBox(const ConvexHullShape& a, const Math::Mat4& tran
     return true;
 }
 
-bool Narrowphase::convexHullConvexHull(const ConvexHullShape& a, const Math::Mat4& transformA,
-                                       const ConvexHullShape& b, const Math::Mat4& transformB,
+bool Narrowphase::convexHullConvexHull(const ConvexHullShape& a, const glm::mat4& transformA,
+                                       const ConvexHullShape& b, const glm::mat4& transformB,
                                        ContactManifold& out, f32 margin)
 {
     // Clamped once here and used for every axis-array index below, so the
@@ -1035,16 +1025,16 @@ bool Narrowphase::convexHullConvexHull(const ConvexHullShape& a, const Math::Mat
     const u32 faceCountA = glm::min(a.faceCount(), kHullArrayCapacity);
     const u32 faceCountB = glm::min(b.faceCount(), kHullArrayCapacity);
 
-    Math::Vec3 edgesA[kHullArrayCapacity];
+    glm::vec3 edgesA[kHullArrayCapacity];
     const u32 edgeCountA = hullEdgeDirections(a, transformA, edgesA, kHullArrayCapacity);
-    Math::Vec3 edgesB[kHullArrayCapacity];
+    glm::vec3 edgesB[kHullArrayCapacity];
     const u32 edgeCountB = hullEdgeDirections(b, transformB, edgesB, kHullArrayCapacity);
 
     // A's face normals, B's face normals, then the cross product of every
     // unique edge direction of A against every unique edge direction of B -
     // the same 3x3 edge grid boxBox() runs, generalized to however many edges
     // either hull actually has.
-    Math::Vec3 axes[kHullArrayCapacity * 2 + kHullArrayCapacity * kHullArrayCapacity];
+    glm::vec3 axes[kHullArrayCapacity * 2 + kHullArrayCapacity * kHullArrayCapacity];
     u32 axisCount = 0;
     for (u32 face = 0; face < faceCountA; ++face)
         axes[axisCount++] = hullFaceNormal(a, transformA, face);
@@ -1055,12 +1045,12 @@ bool Narrowphase::convexHullConvexHull(const ConvexHullShape& a, const Math::Mat
             axes[axisCount++] = glm::cross(edgesA[i], edgesB[j]);
 
     f32 bestPenetration = 1.0e30f;
-    Math::Vec3 bestNormal(0.0f, 1.0f, 0.0f);
+    glm::vec3 bestNormal(0.0f, 1.0f, 0.0f);
     u32 bestAxis = 0;
     for (u32 i = 0; i < axisCount; ++i)
     {
         f32 penetration = 0.0f;
-        Math::Vec3 normal(0.0f);
+        glm::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axes[i], margin, penetration, normal))
             return false;
         if (glm::length(axes[i]) < kEpsilon)
@@ -1082,10 +1072,10 @@ bool Narrowphase::convexHullConvexHull(const ConvexHullShape& a, const Math::Mat
         return true;
     }
 
-    Math::Vec3 referencePolygon[kHullArrayCapacity];
+    glm::vec3 referencePolygon[kHullArrayCapacity];
     u32 referenceCount = 0;
-    Math::Vec3 referenceNormal(0.0f);
-    Math::Vec3 incidentPolygon[kHullArrayCapacity];
+    glm::vec3 referenceNormal(0.0f);
+    glm::vec3 incidentPolygon[kHullArrayCapacity];
     u32 incidentCount = 0;
 
     if (bestAxis < faceCountA)
@@ -1137,15 +1127,15 @@ bool Narrowphase::convexHullConvexHull(const ConvexHullShape& a, const Math::Mat
     return true;
 }
 
-bool Narrowphase::convexPlane(const CollisionShape& a, const Math::Mat4& transformA,
-                              const PlaneShape& b, const Math::Mat4& transformB,
+bool Narrowphase::convexPlane(const CollisionShape& a, const glm::mat4& transformA,
+                              const PlaneShape& b, const glm::mat4& transformB,
                               ContactManifold& out, f32 margin)
 {
-    const Math::Vec3 planeNormal = glm::normalize(Math::Mat3(transformB) * b.normal());
-    const Math::Vec3 planeOrigin =
-        Math::Vec3(transformB * Math::Vec4(b.normal() * b.constant(), 1.0f));
+    const glm::vec3 planeNormal = glm::normalize(glm::mat3(transformB) * b.normal());
+    const glm::vec3 planeOrigin =
+        glm::vec3(transformB * glm::vec4(b.normal() * b.constant(), 1.0f));
     const f32 planeConstant = glm::dot(planeNormal, planeOrigin);
-    const Math::Vec3 vertex = a.support(transformA, -planeNormal);
+    const glm::vec3 vertex = a.support(transformA, -planeNormal);
     const f32 distance = glm::dot(planeNormal, vertex) - planeConstant;
     if (distance > margin)
         return false;
@@ -1161,8 +1151,8 @@ bool Narrowphase::convexPlane(const CollisionShape& a, const Math::Mat4& transfo
     return true;
 }
 
-bool Narrowphase::collide(const CollisionShape& a, const Math::Mat4& transformA,
-                          const CollisionShape& b, const Math::Mat4& transformB,
+bool Narrowphase::collide(const CollisionShape& a, const glm::mat4& transformA,
+                          const CollisionShape& b, const glm::mat4& transformB,
                           ContactManifold& out, f32 margin)
 {
     if (b.type() == ShapeType::Plane &&
@@ -1271,9 +1261,9 @@ namespace
 // or corner SHARED with another triangle it is the face normal again: that
 // seam is interior to the surface, and pushing along it is what stops a
 // character dead when he walks from one triangle onto the next.
-bool triangleContactNormal(const TriangleShape& triangle, const Math::Mat4& transform,
-                           TriangleFeature feature, const Math::Vec3& offset, f32 distanceSquared,
-                           Math::Vec3& out)
+bool triangleContactNormal(const TriangleShape& triangle, const glm::mat4& transform,
+                           TriangleFeature feature, const glm::vec3& offset, f32 distanceSquared,
+                           glm::vec3& out)
 {
     const bool degenerate = distanceSquared <= kEpsilon * kEpsilon;
     if (!degenerate && !triangle.featureIsInternal(feature))
@@ -1282,11 +1272,11 @@ bool triangleContactNormal(const TriangleShape& triangle, const Math::Mat4& tran
         return true;
     }
 
-    const Math::Vec3 raw = Math::Mat3(transform) * triangle.rawNormal();
+    const glm::vec3 raw = glm::mat3(transform) * triangle.rawNormal();
     const f32 length = glm::length(raw);
     if (length < kEpsilon)
         return false;
-    Math::Vec3 faceNormal = raw / length;
+    glm::vec3 faceNormal = raw / length;
     // Oriented to agree with which side the convex is actually on, so a body
     // under a ceiling triangle is not pushed up through it.
     if (!degenerate && glm::dot(faceNormal, offset) < 0.0f)
@@ -1297,24 +1287,24 @@ bool triangleContactNormal(const TriangleShape& triangle, const Math::Mat4& tran
 
 } // namespace
 
-bool Narrowphase::sphereTriangle(const SphereShape& a, const Math::Mat4& transformA,
-                                 const TriangleShape& b, const Math::Mat4& transformB,
+bool Narrowphase::sphereTriangle(const SphereShape& a, const glm::mat4& transformA,
+                                 const TriangleShape& b, const glm::mat4& transformB,
                                  ContactManifold& out, f32 margin)
 {
-    const Math::Vec3 center(transformA[3]);
-    const Math::Vec3 v0 = Math::Vec3(transformB * Math::Vec4(b.vertex(0), 1.0f));
-    const Math::Vec3 v1 = Math::Vec3(transformB * Math::Vec4(b.vertex(1), 1.0f));
-    const Math::Vec3 v2 = Math::Vec3(transformB * Math::Vec4(b.vertex(2), 1.0f));
+    const glm::vec3 center(transformA[3]);
+    const glm::vec3 v0 = glm::vec3(transformB * glm::vec4(b.vertex(0), 1.0f));
+    const glm::vec3 v1 = glm::vec3(transformB * glm::vec4(b.vertex(1), 1.0f));
+    const glm::vec3 v2 = glm::vec3(transformB * glm::vec4(b.vertex(2), 1.0f));
 
     TriangleFeature feature = TriangleFeature::Face;
-    const Math::Vec3 closest = closestPointOnTriangle(v0, v1, v2, center, &feature);
-    const Math::Vec3 offset = closest - center;
+    const glm::vec3 closest = closestPointOnTriangle(v0, v1, v2, center, &feature);
+    const glm::vec3 offset = closest - center;
     const f32 distanceSquared = glm::dot(offset, offset);
     const f32 reach = a.radius() + margin;
     if (distanceSquared > reach * reach)
         return false;
 
-    Math::Vec3 normal;
+    glm::vec3 normal;
     if (!triangleContactNormal(b, transformB, feature, offset, distanceSquared, normal))
         return false;
 
@@ -1329,40 +1319,40 @@ bool Narrowphase::sphereTriangle(const SphereShape& a, const Math::Mat4& transfo
     return true;
 }
 
-bool Narrowphase::boxTriangle(const BoxShape& a, const Math::Mat4& transformA,
-                              const TriangleShape& b, const Math::Mat4& transformB,
+bool Narrowphase::boxTriangle(const BoxShape& a, const glm::mat4& transformA,
+                              const TriangleShape& b, const glm::mat4& transformB,
                               ContactManifold& out, f32 margin)
 {
-    const Math::Mat3 rotationA(transformA);
-    const Math::Vec3 v0 = Math::Vec3(transformB * Math::Vec4(b.vertex(0), 1.0f));
-    const Math::Vec3 v1 = Math::Vec3(transformB * Math::Vec4(b.vertex(1), 1.0f));
-    const Math::Vec3 v2 = Math::Vec3(transformB * Math::Vec4(b.vertex(2), 1.0f));
+    const glm::mat3 rotationA(transformA);
+    const glm::vec3 v0 = glm::vec3(transformB * glm::vec4(b.vertex(0), 1.0f));
+    const glm::vec3 v1 = glm::vec3(transformB * glm::vec4(b.vertex(1), 1.0f));
+    const glm::vec3 v2 = glm::vec3(transformB * glm::vec4(b.vertex(2), 1.0f));
 
-    const Math::Vec3 faceNormalRaw = glm::cross(v1 - v0, v2 - v0);
+    const glm::vec3 faceNormalRaw = glm::cross(v1 - v0, v2 - v0);
     const f32 faceLength = glm::length(faceNormalRaw);
     if (faceLength < kEpsilon)
         return false;
-    const Math::Vec3 faceNormal = faceNormalRaw / faceLength;
+    const glm::vec3 faceNormal = faceNormalRaw / faceLength;
 
     // Thirteen axes: the box's three face normals, the triangle's one, and
     // the nine cross products of the box's edges with the triangle's.
-    const Math::Vec3 triangleEdges[3] = {v1 - v0, v2 - v1, v0 - v2};
-    Math::Vec3 axes[13];
+    const glm::vec3 triangleEdges[3] = {v1 - v0, v2 - v1, v0 - v2};
+    glm::vec3 axes[13];
     u32 axisCount = 0;
     for (u32 i = 0; i < 3; ++i)
-        axes[axisCount++] = glm::normalize(Math::Vec3(rotationA[i]));
+        axes[axisCount++] = glm::normalize(glm::vec3(rotationA[i]));
     axes[axisCount++] = faceNormal;
     for (u32 i = 0; i < 3; ++i)
         for (u32 j = 0; j < 3; ++j)
-            axes[axisCount++] = glm::cross(Math::Vec3(rotationA[i]), triangleEdges[j]);
+            axes[axisCount++] = glm::cross(glm::vec3(rotationA[i]), triangleEdges[j]);
 
     f32 bestPenetration = std::numeric_limits<f32>::max();
-    Math::Vec3 bestNormal(0.0f, 1.0f, 0.0f);
+    glm::vec3 bestNormal(0.0f, 1.0f, 0.0f);
     u32 bestAxis = 0;
     for (u32 i = 0; i < axisCount; ++i)
     {
         f32 penetration = 0.0f;
-        Math::Vec3 normal(0.0f);
+        glm::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axes[i], margin, penetration, normal))
             return false;
         // Same trap boxBox() guards: a zero-length cross product carries no
@@ -1385,8 +1375,8 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::Mat4& transformA,
     if (bestAxis > 3)
     {
         out.count = 1;
-        const Math::Vec3 pointA = a.support(transformA, out.normal);
-        const Math::Vec3 pointB = b.support(transformB, -out.normal);
+        const glm::vec3 pointA = a.support(transformA, out.normal);
+        const glm::vec3 pointB = b.support(transformB, -out.normal);
         out.points[0].position = (pointA + pointB) * 0.5f;
         out.points[0].penetration = bestPenetration;
         out.points[0].normalImpulse = 0.0f;
@@ -1396,17 +1386,17 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::Mat4& transformA,
     }
 
     constexpr u32 capacity = 16;
-    Math::Vec3 polygon[capacity];
-    Math::Vec3 scratch[capacity];
+    glm::vec3 polygon[capacity];
+    glm::vec3 scratch[capacity];
     u32 count = 0;
-    Math::Vec3 referenceNormal(0.0f);
+    glm::vec3 referenceNormal(0.0f);
     f32 referenceOffset = 0.0f;
-    Math::Vec3 referenceInterior(0.0f);
-    Math::Vec3 edgeStart[4];
-    Math::Vec3 edgeEnd[4];
+    glm::vec3 referenceInterior(0.0f);
+    glm::vec3 edgeStart[4];
+    glm::vec3 edgeEnd[4];
     u32 edgeCount = 0;
 
-    Math::Vec3 boxCorners[8];
+    glm::vec3 boxCorners[8];
     a.corners(transformA, boxCorners);
 
     if (bestAxis < 3)
@@ -1445,7 +1435,7 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::Mat4& transformA,
         referenceNormal = -out.normal;
         referenceOffset = glm::dot(referenceNormal, v0);
         referenceInterior = (v0 + v1 + v2) / 3.0f;
-        const Math::Vec3 vertices[3] = {v0, v1, v2};
+        const glm::vec3 vertices[3] = {v0, v1, v2};
         for (u32 i = 0; i < 3; ++i)
         {
             edgeStart[i] = vertices[i];
@@ -1461,12 +1451,12 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::Mat4& transformA,
 
     for (u32 i = 0; i < edgeCount && count > 0; ++i)
     {
-        const Math::Vec3 edge = edgeEnd[i] - edgeStart[i];
-        Math::Vec3 planeNormal = glm::cross(referenceNormal, edge);
+        const glm::vec3 edge = edgeEnd[i] - edgeStart[i];
+        glm::vec3 planeNormal = glm::cross(referenceNormal, edge);
         const f32 planeLength = glm::length(planeNormal);
         if (planeLength < kEpsilon)
             continue;
-        Math::Vec3 unit = planeNormal / planeLength;
+        glm::vec3 unit = planeNormal / planeLength;
         f32 offset = glm::dot(unit, edgeStart[i]);
         if (glm::dot(unit, referenceInterior) > offset)
         {
@@ -1478,7 +1468,7 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::Mat4& transformA,
             polygon[p] = scratch[p];
     }
 
-    Math::Vec3 kept[capacity];
+    glm::vec3 kept[capacity];
     f32 depths[capacity];
     u32 keptCount = 0;
     for (u32 i = 0; i < count; ++i)
@@ -1497,26 +1487,26 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::Mat4& transformA,
     return out.count > 0;
 }
 
-bool Narrowphase::capsuleTriangle(const CapsuleShape& a, const Math::Mat4& transformA,
-                                  const TriangleShape& b, const Math::Mat4& transformB,
+bool Narrowphase::capsuleTriangle(const CapsuleShape& a, const glm::mat4& transformA,
+                                  const TriangleShape& b, const glm::mat4& transformB,
                                   ContactManifold& out, f32 margin)
 {
-    Math::Vec3 lower, upper;
+    glm::vec3 lower, upper;
     a.segment(transformA, lower, upper);
-    const Math::Vec3 v0 = Math::Vec3(transformB * Math::Vec4(b.vertex(0), 1.0f));
-    const Math::Vec3 v1 = Math::Vec3(transformB * Math::Vec4(b.vertex(1), 1.0f));
-    const Math::Vec3 v2 = Math::Vec3(transformB * Math::Vec4(b.vertex(2), 1.0f));
+    const glm::vec3 v0 = glm::vec3(transformB * glm::vec4(b.vertex(0), 1.0f));
+    const glm::vec3 v1 = glm::vec3(transformB * glm::vec4(b.vertex(1), 1.0f));
+    const glm::vec3 v2 = glm::vec3(transformB * glm::vec4(b.vertex(2), 1.0f));
 
     // Closest point on the triangle to each end and to the segment against
     // each edge; the nearest of those is the contact. Cheaper and steadier
     // than SAT here, because a capsule has no faces to separate on.
     TriangleFeature bestFeature = TriangleFeature::Face;
-    Math::Vec3 bestOnSegment = lower;
-    Math::Vec3 bestOnTriangle = closestPointOnTriangle(v0, v1, v2, lower, &bestFeature);
+    glm::vec3 bestOnSegment = lower;
+    glm::vec3 bestOnTriangle = closestPointOnTriangle(v0, v1, v2, lower, &bestFeature);
     f32 bestSquared = glm::dot(bestOnTriangle - lower, bestOnTriangle - lower);
 
     TriangleFeature upperFeature = TriangleFeature::Face;
-    const Math::Vec3 upperClosest = closestPointOnTriangle(v0, v1, v2, upper, &upperFeature);
+    const glm::vec3 upperClosest = closestPointOnTriangle(v0, v1, v2, upper, &upperFeature);
     const f32 upperSquared = glm::dot(upperClosest - upper, upperClosest - upper);
     if (upperSquared < bestSquared)
     {
@@ -1526,12 +1516,12 @@ bool Narrowphase::capsuleTriangle(const CapsuleShape& a, const Math::Mat4& trans
         bestFeature = upperFeature;
     }
 
-    const Math::Vec3 edges[3][2] = {{v0, v1}, {v1, v2}, {v2, v0}};
+    const glm::vec3 edges[3][2] = {{v0, v1}, {v1, v2}, {v2, v0}};
     static constexpr TriangleFeature edgeFeature[3] = {
         TriangleFeature::Edge0, TriangleFeature::Edge1, TriangleFeature::Edge2};
     for (u32 i = 0; i < 3; ++i)
     {
-        Math::Vec3 onSegment, onEdge;
+        glm::vec3 onSegment, onEdge;
         closestPointsBetweenSegments(lower, upper, edges[i][0], edges[i][1], onSegment, onEdge);
         const f32 squared = glm::dot(onEdge - onSegment, onEdge - onSegment);
         if (squared < bestSquared)
@@ -1547,8 +1537,8 @@ bool Narrowphase::capsuleTriangle(const CapsuleShape& a, const Math::Mat4& trans
     if (bestSquared > reach * reach)
         return false;
 
-    const Math::Vec3 offset = bestOnTriangle - bestOnSegment;
-    Math::Vec3 normal;
+    const glm::vec3 offset = bestOnTriangle - bestOnSegment;
+    glm::vec3 normal;
     if (!triangleContactNormal(b, transformB, bestFeature, offset, bestSquared, normal))
         return false;
 
@@ -1563,25 +1553,25 @@ bool Narrowphase::capsuleTriangle(const CapsuleShape& a, const Math::Mat4& trans
     return true;
 }
 
-bool Narrowphase::convexTrimesh(const CollisionShape& convex, const Math::Mat4& convexTransform,
-                                const TrimeshShape& mesh, const Math::Mat4& meshTransform,
+bool Narrowphase::convexTrimesh(const CollisionShape& convex, const glm::mat4& convexTransform,
+                                const TrimeshShape& mesh, const glm::mat4& meshTransform,
                                 std::vector<ContactManifold>& out, f32 margin)
 {
     // The convex's world bounds, brought into the mesh's own space: the tree
     // was built there and moving one box in is cheaper than moving every
     // triangle out.
     AABB worldBox = convex.bounds(convexTransform);
-    worldBox.min -= Math::Vec3(margin);
-    worldBox.max += Math::Vec3(margin);
+    worldBox.min -= glm::vec3(margin);
+    worldBox.max += glm::vec3(margin);
 
     // A body transform is rotation and translation only - RigidBody builds it
     // from a normalized quaternion and never writes a scale - so the inverse
     // is the transpose, not a general 4x4 inverse. This runs per pair per
     // substep against a terrain that never moves.
-    const Math::Mat3 rotation(meshTransform);
-    const Math::Mat3 inverseRotation = glm::transpose(rotation);
-    Math::Mat4 inverseTransform(inverseRotation);
-    inverseTransform[3] = Math::Vec4(-(inverseRotation * Math::Vec3(meshTransform[3])), 1.0f);
+    const glm::mat3 rotation(meshTransform);
+    const glm::mat3 inverseRotation = glm::transpose(rotation);
+    glm::mat4 inverseTransform(inverseRotation);
+    inverseTransform[3] = glm::vec4(-(inverseRotation * glm::vec3(meshTransform[3])), 1.0f);
     const AABB localBox = transformAABB(worldBox, inverseTransform);
 
     // Reused rather than allocated per call, the same way the reference keeps
@@ -1623,29 +1613,29 @@ bool Narrowphase::convexTrimesh(const CollisionShape& convex, const Math::Mat4& 
 namespace
 {
 
-bool raycastPlane(const PlaneShape& shape, const Math::Mat4& transform, const Ray& ray,
+bool raycastPlane(const PlaneShape& shape, const glm::mat4& transform, const Ray& ray,
                   f32 maxDistance, ShapeRayHit& hit)
 {
-    const Math::Vec3 normal = glm::normalize(Math::Mat3(transform) * shape.normal());
-    const Math::Vec3 origin =
-        Math::Vec3(transform * Math::Vec4(shape.normal() * shape.constant(), 1.0f));
+    const glm::vec3 normal = glm::normalize(glm::mat3(transform) * shape.normal());
+    const glm::vec3 origin =
+        glm::vec3(transform * glm::vec4(shape.normal() * shape.constant(), 1.0f));
     Plane plane;
-    plane.normal = toMath(normal);
+    plane.normal = normal;
     plane.d = -glm::dot(normal, origin);
     f32 distance = 0.0f;
     if (!ray.intersects(plane, distance) || distance > maxDistance)
         return false;
     hit.distance = distance;
-    hit.point = toGlm(ray.at(distance));
-    hit.normal = glm::dot(toGlm(ray.direction), normal) < 0.0f ? normal : -normal;
+    hit.point = ray.at(distance);
+    hit.normal = glm::dot(ray.direction, normal) < 0.0f ? normal : -normal;
     return true;
 }
 
-bool raycastSphere(const SphereShape& sphere, const Math::Mat4& transform, const Ray& ray,
+bool raycastSphere(const SphereShape& sphere, const glm::mat4& transform, const Ray& ray,
                    f32 maxDistance, ShapeRayHit& hit)
 {
     Sphere world;
-    world.center = toMath(Math::Vec3(transform[3]));
+    world.center = glm::vec3(transform[3]);
     world.radius = sphere.radius();
 
     f32 t = 0.0f;
@@ -1653,35 +1643,35 @@ bool raycastSphere(const SphereShape& sphere, const Math::Mat4& transform, const
         return false;
 
     hit.distance = t;
-    hit.point = toGlm(ray.at(t));
-    const Math::Vec3 offset = hit.point - toGlm(world.center);
+    hit.point = ray.at(t);
+    const glm::vec3 offset = hit.point - world.center;
     const f32 length = glm::length(offset);
-    hit.normal = length > kEpsilon ? offset / length : Math::Vec3(0.0f, 1.0f, 0.0f);
+    hit.normal = length > kEpsilon ? offset / length : glm::vec3(0.0f, 1.0f, 0.0f);
     return true;
 }
 
-bool raycastBox(const BoxShape& box, const Math::Mat4& transform, const Ray& ray, f32 maxDistance,
+bool raycastBox(const BoxShape& box, const glm::mat4& transform, const Ray& ray, f32 maxDistance,
                 ShapeRayHit& hit)
 {
-    const Math::Mat3 rotation(transform);
-    const Math::Mat3 inverseRotation = glm::transpose(rotation);
-    const Math::Vec3 center(transform[3]);
+    const glm::mat3 rotation(transform);
+    const glm::mat3 inverseRotation = glm::transpose(rotation);
+    const glm::vec3 center(transform[3]);
 
     Ray localRay;
-    localRay.origin = toMath(inverseRotation * (toGlm(ray.origin) - center));
-    localRay.direction = toMath(inverseRotation * toGlm(ray.direction));
+    localRay.origin = inverseRotation * (ray.origin - center);
+    localRay.direction = inverseRotation * ray.direction;
 
-    const Math::Vec3& half = box.halfExtents();
+    const glm::vec3& half = box.halfExtents();
     AABB local;
-    local.min = toMath(-half);
-    local.max = toMath(half);
+    local.min = -half;
+    local.max = half;
 
     f32 t = 0.0f;
     if (!localRay.intersects(local, t) || t < 0.0f || t > maxDistance)
         return false;
 
-    const Math::Vec3 localPoint = toGlm(localRay.at(t));
-    Math::Vec3 localNormal(0.0f);
+    const glm::vec3 localPoint = localRay.at(t);
+    glm::vec3 localNormal(0.0f);
     f32 bestGap = std::numeric_limits<f32>::max();
     for (u32 axis = 0; axis < 3; ++axis)
     {
@@ -1689,7 +1679,7 @@ bool raycastBox(const BoxShape& box, const Math::Mat4& transform, const Ray& ray
         if (gap < bestGap)
         {
             bestGap = gap;
-            localNormal = Math::Vec3(0.0f);
+            localNormal = glm::vec3(0.0f);
             localNormal[axis] = localPoint[axis] >= 0.0f ? 1.0f : -1.0f;
         }
     }
@@ -1700,26 +1690,26 @@ bool raycastBox(const BoxShape& box, const Math::Mat4& transform, const Ray& ray
     return true;
 }
 
-bool raycastCapsule(const CapsuleShape& capsule, const Math::Mat4& transform, const Ray& ray,
+bool raycastCapsule(const CapsuleShape& capsule, const glm::mat4& transform, const Ray& ray,
                     f32 maxDistance, ShapeRayHit& hit)
 {
-    const Math::Mat3 rotation(transform);
-    const Math::Mat3 inverseRotation = glm::transpose(rotation);
-    const Math::Vec3 center(transform[3]);
+    const glm::mat3 rotation(transform);
+    const glm::mat3 inverseRotation = glm::transpose(rotation);
+    const glm::vec3 center(transform[3]);
 
     Ray localRay;
-    localRay.origin = toMath(inverseRotation * (toGlm(ray.origin) - center));
-    localRay.direction = toMath(inverseRotation * toGlm(ray.direction));
+    localRay.origin = inverseRotation * (ray.origin - center);
+    localRay.direction = inverseRotation * ray.direction;
 
     const f32 radius = capsule.radius();
     const f32 halfHeight = capsule.halfHeight();
-    const Math::Vec3 o = toGlm(localRay.origin);
-    const Math::Vec3 d = toGlm(localRay.direction);
+    const glm::vec3& o = localRay.origin;
+    const glm::vec3& d = localRay.direction;
 
     bool found = false;
     f32 nearest = maxDistance;
-    Math::Vec3 localPoint(0.0f);
-    Math::Vec3 localNormal(0.0f, 1.0f, 0.0f);
+    glm::vec3 localPoint(0.0f);
+    glm::vec3 localNormal(0.0f, 1.0f, 0.0f);
 
     const f32 a = d.x * d.x + d.z * d.z;
     if (a > kEpsilon)
@@ -1740,7 +1730,7 @@ bool raycastCapsule(const CapsuleShape& capsule, const Math::Mat4& transform, co
                     continue;
                 nearest = t;
                 localPoint = o + d * t;
-                localNormal = glm::normalize(Math::Vec3(localPoint.x, 0.0f, localPoint.z));
+                localNormal = glm::normalize(glm::vec3(localPoint.x, 0.0f, localPoint.z));
                 found = true;
             }
         }
@@ -1748,21 +1738,21 @@ bool raycastCapsule(const CapsuleShape& capsule, const Math::Mat4& transform, co
 
     Sphere cap;
     cap.radius = radius;
-    cap.center = Math::Vec3(0.0f, -halfHeight, 0.0f);
+    cap.center = glm::vec3(0.0f, -halfHeight, 0.0f);
     f32 t = 0.0f;
     if (localRay.intersects(cap, t) && t < nearest)
     {
         nearest = t;
-        localPoint = toGlm(localRay.at(t));
-        localNormal = glm::normalize(localPoint - toGlm(cap.center));
+        localPoint = localRay.at(t);
+        localNormal = glm::normalize(localPoint - cap.center);
         found = true;
     }
-    cap.center = Math::Vec3(0.0f, halfHeight, 0.0f);
+    cap.center = glm::vec3(0.0f, halfHeight, 0.0f);
     if (localRay.intersects(cap, t) && t < nearest)
     {
         nearest = t;
-        localPoint = toGlm(localRay.at(t));
-        localNormal = glm::normalize(localPoint - toGlm(cap.center));
+        localPoint = localRay.at(t);
+        localNormal = glm::normalize(localPoint - cap.center);
         found = true;
     }
 
@@ -1775,37 +1765,37 @@ bool raycastCapsule(const CapsuleShape& capsule, const Math::Mat4& transform, co
     return true;
 }
 
-bool raycastTriangle(const TriangleShape& triangle, const Math::Mat4& transform, const Ray& ray,
+bool raycastTriangle(const TriangleShape& triangle, const glm::mat4& transform, const Ray& ray,
                      f32 maxDistance, ShapeRayHit& hit)
 {
-    const Math::Vec3 v0 = Math::Vec3(transform * Math::Vec4(triangle.vertex(0), 1.0f));
-    const Math::Vec3 v1 = Math::Vec3(transform * Math::Vec4(triangle.vertex(1), 1.0f));
-    const Math::Vec3 v2 = Math::Vec3(transform * Math::Vec4(triangle.vertex(2), 1.0f));
+    const glm::vec3 v0 = glm::vec3(transform * glm::vec4(triangle.vertex(0), 1.0f));
+    const glm::vec3 v1 = glm::vec3(transform * glm::vec4(triangle.vertex(1), 1.0f));
+    const glm::vec3 v2 = glm::vec3(transform * glm::vec4(triangle.vertex(2), 1.0f));
 
     f32 t = 0.0f;
     if (!ray.intersects(v0, v1, v2, t) || t > maxDistance)
         return false;
 
     hit.distance = t;
-    hit.point = toGlm(ray.at(t));
-    const Math::Vec3 raw = glm::cross(v1 - v0, v2 - v0);
+    hit.point = ray.at(t);
+    const glm::vec3 raw = glm::cross(v1 - v0, v2 - v0);
     const f32 length = glm::length(raw);
-    hit.normal = length > kEpsilon ? raw / length : Math::Vec3(0.0f, 1.0f, 0.0f);
-    if (glm::dot(hit.normal, toGlm(ray.direction)) > 0.0f)
+    hit.normal = length > kEpsilon ? raw / length : glm::vec3(0.0f, 1.0f, 0.0f);
+    if (glm::dot(hit.normal, ray.direction) > 0.0f)
         hit.normal = -hit.normal;
     return true;
 }
 
-bool raycastTrimesh(const TrimeshShape& mesh, const Math::Mat4& transform, const Ray& ray,
+bool raycastTrimesh(const TrimeshShape& mesh, const glm::mat4& transform, const Ray& ray,
                     f32 maxDistance, ShapeRayHit& hit)
 {
-    const Math::Mat3 rotation(transform);
-    const Math::Mat3 inverseRotation = glm::transpose(rotation);
-    const Math::Vec3 center(transform[3]);
+    const glm::mat3 rotation(transform);
+    const glm::mat3 inverseRotation = glm::transpose(rotation);
+    const glm::vec3 center(transform[3]);
 
     Ray localRay;
-    localRay.origin = toMath(inverseRotation * (toGlm(ray.origin) - center));
-    localRay.direction = toMath(inverseRotation * toGlm(ray.direction));
+    localRay.origin = inverseRotation * (ray.origin - center);
+    localRay.direction = inverseRotation * ray.direction;
 
     TrimeshShape::RayHit localHit;
     if (!mesh.raycast(localRay, maxDistance, localHit))
@@ -1817,70 +1807,70 @@ bool raycastTrimesh(const TrimeshShape& mesh, const Math::Mat4& transform, const
     return true;
 }
 
-bool overlapSphereShape(const SphereShape& sphere, const Math::Mat4& transform,
-                        const Math::Vec3& centre, f32 radius)
+bool overlapSphereShape(const SphereShape& sphere, const glm::mat4& transform,
+                        const glm::vec3& centre, f32 radius)
 {
-    const Math::Vec3 center(transform[3]);
+    const glm::vec3 center(transform[3]);
     const f32 total = sphere.radius() + radius;
     return glm::dot(centre - center, centre - center) <= total * total;
 }
 
-bool overlapSphereShape(const BoxShape& box, const Math::Mat4& transform, const Math::Vec3& centre,
+bool overlapSphereShape(const BoxShape& box, const glm::mat4& transform, const glm::vec3& centre,
                         f32 radius)
 {
-    const Math::Mat3 rotation(transform);
-    const Math::Vec3 boxCenter(transform[3]);
-    const Math::Vec3 local = glm::transpose(rotation) * (centre - boxCenter);
-    const Math::Vec3 closest = glm::clamp(local, -box.halfExtents(), box.halfExtents());
-    const Math::Vec3 offset = local - closest;
+    const glm::mat3 rotation(transform);
+    const glm::vec3 boxCenter(transform[3]);
+    const glm::vec3 local = glm::transpose(rotation) * (centre - boxCenter);
+    const glm::vec3 closest = glm::clamp(local, -box.halfExtents(), box.halfExtents());
+    const glm::vec3 offset = local - closest;
     return glm::dot(offset, offset) <= radius * radius;
 }
 
-bool overlapSphereShape(const CapsuleShape& capsule, const Math::Mat4& transform,
-                        const Math::Vec3& centre, f32 radius)
+bool overlapSphereShape(const CapsuleShape& capsule, const glm::mat4& transform,
+                        const glm::vec3& centre, f32 radius)
 {
-    Math::Vec3 lower, upper;
+    glm::vec3 lower, upper;
     capsule.segment(transform, lower, upper);
-    const Math::Vec3 closest = closestPointOnSegment(lower, upper, centre);
+    const glm::vec3 closest = closestPointOnSegment(lower, upper, centre);
     const f32 total = capsule.radius() + radius;
     return glm::dot(centre - closest, centre - closest) <= total * total;
 }
 
-bool overlapSphereShape(const TriangleShape& triangle, const Math::Mat4& transform,
-                        const Math::Vec3& centre, f32 radius)
+bool overlapSphereShape(const TriangleShape& triangle, const glm::mat4& transform,
+                        const glm::vec3& centre, f32 radius)
 {
-    const Math::Vec3 v0 = Math::Vec3(transform * Math::Vec4(triangle.vertex(0), 1.0f));
-    const Math::Vec3 v1 = Math::Vec3(transform * Math::Vec4(triangle.vertex(1), 1.0f));
-    const Math::Vec3 v2 = Math::Vec3(transform * Math::Vec4(triangle.vertex(2), 1.0f));
-    const Math::Vec3 closest = closestPointOnTriangle(v0, v1, v2, centre);
-    const Math::Vec3 offset = closest - centre;
+    const glm::vec3 v0 = glm::vec3(transform * glm::vec4(triangle.vertex(0), 1.0f));
+    const glm::vec3 v1 = glm::vec3(transform * glm::vec4(triangle.vertex(1), 1.0f));
+    const glm::vec3 v2 = glm::vec3(transform * glm::vec4(triangle.vertex(2), 1.0f));
+    const glm::vec3 closest = closestPointOnTriangle(v0, v1, v2, centre);
+    const glm::vec3 offset = closest - centre;
     return glm::dot(offset, offset) <= radius * radius;
 }
 
-bool overlapSphereShape(const TrimeshShape& mesh, const Math::Mat4& transform,
-                        const Math::Vec3& centre, f32 radius)
+bool overlapSphereShape(const TrimeshShape& mesh, const glm::mat4& transform,
+                        const glm::vec3& centre, f32 radius)
 {
-    const Math::Mat3 rotation(transform);
-    const Math::Vec3 center(transform[3]);
-    const Math::Vec3 localCentre = glm::transpose(rotation) * (centre - center);
+    const glm::mat3 rotation(transform);
+    const glm::vec3 center(transform[3]);
+    const glm::vec3 localCentre = glm::transpose(rotation) * (centre - center);
 
     static thread_local std::vector<u32> triangles;
     mesh.overlapSphere(localCentre, radius, triangles);
     return !triangles.empty();
 }
 
-bool overlapSphereShape(const PlaneShape& plane, const Math::Mat4& transform,
-                        const Math::Vec3& centre, f32 radius)
+bool overlapSphereShape(const PlaneShape& plane, const glm::mat4& transform,
+                        const glm::vec3& centre, f32 radius)
 {
-    const Math::Vec3 normal = glm::normalize(Math::Mat3(transform) * plane.normal());
-    const Math::Vec3 origin =
-        Math::Vec3(transform * Math::Vec4(plane.normal() * plane.constant(), 1.0f));
+    const glm::vec3 normal = glm::normalize(glm::mat3(transform) * plane.normal());
+    const glm::vec3 origin =
+        glm::vec3(transform * glm::vec4(plane.normal() * plane.constant(), 1.0f));
     return glm::dot(normal, centre - origin) <= radius;
 }
 
 } // namespace
 
-bool Narrowphase::raycast(const CollisionShape& shape, const Math::Mat4& transform, const Ray& ray,
+bool Narrowphase::raycast(const CollisionShape& shape, const glm::mat4& transform, const Ray& ray,
                           f32 maxDistance, ShapeRayHit& hit)
 {
     switch (shape.type())
@@ -1906,8 +1896,8 @@ bool Narrowphase::raycast(const CollisionShape& shape, const Math::Mat4& transfo
     }
 }
 
-bool Narrowphase::overlapSphere(const CollisionShape& shape, const Math::Mat4& transform,
-                                const Math::Vec3& centre, f32 radius)
+bool Narrowphase::overlapSphere(const CollisionShape& shape, const glm::mat4& transform,
+                                const glm::vec3& centre, f32 radius)
 {
     switch (shape.type())
     {

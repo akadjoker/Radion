@@ -24,7 +24,7 @@ f32 playbackTime(f32 time, f32 duration, PlayMode mode)
     return mode == PlayMode::PingPong && wrapped > duration ? cycle - wrapped : wrapped;
 }
 
-Math::Quaternion nlerp(const Math::Quaternion& from, Math::Quaternion to, f32 amount)
+glm::quat nlerp(const glm::quat& from, glm::quat to, f32 amount)
 {
     if (glm::dot(from, to) < 0.0f)
         to = -to;
@@ -170,7 +170,7 @@ void Animator::update(f32 deltaTime)
     // corrected pose rather than the pre-IK one.
     if (!mIKChains.empty())
     {
-        const Math::Mat4 ownerTransform = owner() ? owner()->globalTransform() : Math::Mat4(1.0f);
+        const glm::mat4 ownerTransform = owner() ? owner()->globalTransform() : glm::mat4(1.0f);
         bool solved = false;
         for (const IKChain& chain : mIKChains)
         {
@@ -221,11 +221,11 @@ void Animator::setBoneLocalPose(u32 bone, const LocalPose& pose)
         mLocalPose[bone] = pose;
 }
 
-bool Animator::boneGlobalPosition(s32 bone, Math::Vec3& out) const
+bool Animator::boneGlobalPosition(s32 bone, glm::vec3& out) const
 {
     if (bone < 0 || static_cast<usize>(bone) >= mGlobalPose.size())
         return false;
-    out = Math::Vec3(mGlobalPose[static_cast<usize>(bone)][3]);
+    out = glm::vec3(mGlobalPose[static_cast<usize>(bone)][3]);
     return true;
 }
 
@@ -238,16 +238,16 @@ const std::vector<LocalPose>& Animator::localPose() const
 {
     return mLocalPose;
 }
-const std::vector<Math::Mat4>& Animator::globalPose() const
+const std::vector<glm::mat4>& Animator::globalPose() const
 {
     return mGlobalPose;
 }
-const std::vector<Math::Mat4>& Animator::palette() const
+const std::vector<glm::mat4>& Animator::palette() const
 {
     return mPalette;
 }
 
-const std::vector<Math::Mat4>& Animator::prevPalette() const
+const std::vector<glm::mat4>& Animator::prevPalette() const
 {
     return mPrevPalette;
 }

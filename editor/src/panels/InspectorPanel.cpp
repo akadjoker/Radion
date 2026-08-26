@@ -59,7 +59,7 @@ Material defaultPrimitiveMaterial()
 {
     Material material;
     material.flags |= MaterialLit;
-    material.params.baseColor = Math::Vec4(0.7f, 0.7f, 0.7f, 1.0f);
+    material.params.baseColor = glm::vec4(0.7f, 0.7f, 0.7f, 1.0f);
     material.params.surface.x = 0.7f; // roughness
     material.params.surface.y = 0.0f; // metal
     material.paramsDirty = true;
@@ -368,7 +368,7 @@ bool drawMouseButtonCombo(const char* label, MouseButton& current)
 // Target slot shared by Orbit and Maya - both orbit a GameObject (falling
 // back to a fixed world-space point when none is set). Returns true if the
 // target changed.
-bool drawOrbitTargetSlot(EditorApplication& app, GameObject*& target, Math::Vec3& targetPoint)
+bool drawOrbitTargetSlot(EditorApplication& app, GameObject*& target, glm::vec3& targetPoint)
 {
     bool changed = false;
     ImGui::TextUnformatted("Target");
@@ -661,10 +661,10 @@ void InspectorPanel::drawTransform(GameObject& object)
     if (resetButton(ICON_MDI_RESTORE "##resetPosition", "Reset position to 0, 0, 0"))
     {
         app().recordUndo();
-        object.setPosition(Math::Vec3(0.0f));
+        object.setPosition(glm::vec3(0.0f));
         app().markDirty();
     }
-    Math::Vec3 position = object.position();
+    glm::vec3 position = object.position();
     if (ImGui::DragFloat3("Position", &position.x, 0.05f))
     {
         object.setPosition(position);
@@ -678,11 +678,11 @@ void InspectorPanel::drawTransform(GameObject& object)
     if (resetButton(ICON_MDI_RESTORE "##resetRotation", "Reset rotation to 0, 0, 0"))
     {
         app().recordUndo();
-        object.setRotationDegrees(Math::Vec3(0.0f));
+        object.setRotationDegrees(glm::vec3(0.0f));
         app().markDirty();
     }
-    const Math::Vec3 eulerRadians = glm::eulerAngles(object.rotation());
-    Math::Vec3 eulerDegrees = glm::degrees(eulerRadians);
+    const glm::vec3 eulerRadians = glm::eulerAngles(object.rotation());
+    glm::vec3 eulerDegrees = glm::degrees(eulerRadians);
     if (ImGui::DragFloat3("Rotation", &eulerDegrees.x, 0.5f))
     {
         object.setRotationDegrees(eulerDegrees);
@@ -692,10 +692,10 @@ void InspectorPanel::drawTransform(GameObject& object)
     if (resetButton(ICON_MDI_RESTORE "##resetScale", "Reset scale to 1, 1, 1"))
     {
         app().recordUndo();
-        object.setScale(Math::Vec3(1.0f));
+        object.setScale(glm::vec3(1.0f));
         app().markDirty();
     }
-    Math::Vec3 scale = object.scale();
+    glm::vec3 scale = object.scale();
     if (ImGui::DragFloat3("Scale", &scale.x, 0.02f))
     {
         object.setScale(scale);
@@ -1467,22 +1467,22 @@ void InspectorPanel::drawGrassComponent(Grass& grass)
     ImGui::DragInt("Paint count", &paintCount, 1.0f, 1, 1000000);
     if (ImGui::Button("Plant grass", ImVec2(-FLT_MIN, 0.0f)))
     {
-        Math::Vec3 centre = app().cursor3D();
+        glm::vec3 centre = app().cursor3D();
         if (grass.owner())
-            centre = Math::Vec3(glm::inverse(grass.owner()->globalTransform()) * Math::Vec4(centre, 1.0f));
+            centre = glm::vec3(glm::inverse(grass.owner()->globalTransform()) * glm::vec4(centre, 1.0f));
         app().recordUndo();
         if (grass.paint(centre, paintRadius, static_cast<u32>(paintCount)) > 0)
             app().markDirty();
     }
     if (ImGui::Button("Plant one here", ImVec2(-FLT_MIN, 0.0f)))
     {
-        Math::Vec3 centre = app().cursor3D();
-        Math::Vec3 normal(0.0f, 1.0f, 0.0f);
+        glm::vec3 centre = app().cursor3D();
+        glm::vec3 normal(0.0f, 1.0f, 0.0f);
         if (grass.owner())
         {
-            const Math::Mat4 inverseTransform = glm::inverse(grass.owner()->globalTransform());
-            centre = Math::Vec3(inverseTransform * Math::Vec4(centre, 1.0f));
-            normal = glm::normalize(Math::Vec3(inverseTransform * Math::Vec4(normal, 0.0f)));
+            const glm::mat4 inverseTransform = glm::inverse(grass.owner()->globalTransform());
+            centre = glm::vec3(inverseTransform * glm::vec4(centre, 1.0f));
+            normal = glm::normalize(glm::vec3(inverseTransform * glm::vec4(normal, 0.0f)));
         }
         app().recordUndo();
         if (grass.plant(centre, normal))
@@ -1593,7 +1593,7 @@ void InspectorPanel::drawHairComponent(Hair& hair)
     value = hair.transmission();
     if (ImGui::SliderFloat("Transmission", &value, 0.0f, 1.0f))
     { hair.setTransmission(value); app().markDirty(); }
-    Math::Vec3 color = hair.color();
+    glm::vec3 color = hair.color();
     if (ImGui::ColorEdit3("Colour", &color.x))
     { hair.setColor(color); app().markDirty(); }
     bool fringe = hair.softFringe();
@@ -1840,9 +1840,9 @@ void InspectorPanel::drawForestComponent(Forest& forest)
     ImGui::DragInt("Paint count", &paintCount, 1.0f, 1, 1000000);
     if (ImGui::Button("Plant trees", ImVec2(-FLT_MIN, 0.0f)) && forest.speciesCount() > 0)
     {
-        Math::Vec3 centre = app().cursor3D();
+        glm::vec3 centre = app().cursor3D();
         if (forest.owner())
-            centre = Math::Vec3(glm::inverse(forest.owner()->globalTransform()) * Math::Vec4(centre, 1.0f));
+            centre = glm::vec3(glm::inverse(forest.owner()->globalTransform()) * glm::vec4(centre, 1.0f));
         app().recordUndo();
         if (forest.paint(centre, paintRadius, static_cast<u32>(paintCount)) > 0)
             app().markDirty();
@@ -1852,9 +1852,9 @@ void InspectorPanel::drawForestComponent(Forest& forest)
         // paint() only ever scatters (it rejects radius <= 0 outright) -
         // plant() is the same per-tree call it makes internally, exposed so
         // a single exact placement does not need a fake scatter radius.
-        Math::Vec3 centre = app().cursor3D();
+        glm::vec3 centre = app().cursor3D();
         if (forest.owner())
-            centre = Math::Vec3(glm::inverse(forest.owner()->globalTransform()) * Math::Vec4(centre, 1.0f));
+            centre = glm::vec3(glm::inverse(forest.owner()->globalTransform()) * glm::vec4(centre, 1.0f));
         const u32 speciesIndex =
             glm::clamp(static_cast<u32>(mForestSpeciesIndex), 0u, forest.speciesCount() - 1);
         app().recordUndo();
@@ -1936,7 +1936,7 @@ void InspectorPanel::drawOceanComponent(Ocean& ocean)
         for (u32 i = 0; i < kOceanMaxWaves; ++i)
         {
             const OceanWave& wave = ocean.wave(i);
-            Math::Vec2 direction = wave.direction;
+            glm::vec2 direction = wave.direction;
             f32 wavelength = wave.wavelength;
             f32 amplitude = wave.amplitude;
             ImGui::PushID(static_cast<int>(i));
@@ -1956,7 +1956,7 @@ void InspectorPanel::drawOceanComponent(Ocean& ocean)
     }
 
     ImGui::SeparatorText("Water shading");
-    Math::Vec3 color = ocean.shallowColor();
+    glm::vec3 color = ocean.shallowColor();
     if (ImGui::ColorEdit3("Shallow color", &color.x))
     {
         ocean.setShallowColor(color);
@@ -2001,7 +2001,7 @@ void InspectorPanel::drawOceanComponent(Ocean& ocean)
         ocean.setNormalOctaves(static_cast<u32>(octaves));
         changed = true;
     }
-    Math::Vec2 normalScale(ocean.normalScale1(), ocean.normalScale2());
+    glm::vec2 normalScale(ocean.normalScale1(), ocean.normalScale2());
     if (ImGui::DragFloat2("Normal scale", &normalScale.x, 0.001f, 0.0f, 100.0f))
     {
         ocean.setNormalScale(normalScale.x, normalScale.y);
@@ -2013,7 +2013,7 @@ void InspectorPanel::drawOceanComponent(Ocean& ocean)
         ocean.setNormalStrength(value);
         changed = true;
     }
-    Math::Vec2 normalSpeed(ocean.normalSpeed1(), ocean.normalSpeed2());
+    glm::vec2 normalSpeed(ocean.normalSpeed1(), ocean.normalSpeed2());
     if (ImGui::DragFloat2("Normal speed", &normalSpeed.x, 0.01f, -100.0f, 100.0f))
     {
         ocean.setNormalSpeed(normalSpeed.x, normalSpeed.y);
@@ -2248,7 +2248,7 @@ void InspectorPanel::drawParticleEmitterComponent(ParticleEmitter& emitter)
     }
     else if (shape == 2)
     {
-        Math::Vec3 box = emitter.shapeBoxSize();
+        glm::vec3 box = emitter.shapeBoxSize();
         if (ImGui::DragFloat3("Box size", &box.x, 0.01f, 0.0f, 100000.0f)) { emitter.setShapeBox(box); changed = true; }
     }
     else if (shape == 3)
@@ -2270,14 +2270,14 @@ void InspectorPanel::drawParticleEmitterComponent(ParticleEmitter& emitter)
         { emitter.setShapeRing(outer, inner); changed = true; }
     }
 
-    Math::Vec3 offset = emitter.emissionOffset();
+    glm::vec3 offset = emitter.emissionOffset();
     if (ImGui::DragFloat3("Offset", &offset.x, 0.01f)) { emitter.setEmissionOffset(offset); changed = true; }
     value = emitter.lifetimeMin();
     f32 value2 = emitter.lifetimeMax();
     if (ImGui::DragFloatRange2("Lifetime", &value, &value2, 0.01f, 0.001f, 100000.0f)) { emitter.setLifetime(value, value2); changed = true; }
     value = emitter.speedMin(); value2 = emitter.speedMax();
     if (ImGui::DragFloatRange2("Speed", &value, &value2, 0.01f, 0.0f, 100000.0f)) { emitter.setSpeed(value, value2); changed = true; }
-    Math::Vec2 size = emitter.sizeStart(); Math::Vec2 end = emitter.sizeEnd();
+    glm::vec2 size = emitter.sizeStart(); glm::vec2 end = emitter.sizeEnd();
     if (ImGui::DragFloat2("Start size", &size.x, 0.01f, 0.0f, 10000.0f)) { emitter.setSize(size, end); changed = true; }
     if (ImGui::DragFloat2("End size", &end.x, 0.01f, 0.0f, 10000.0f)) { emitter.setSize(size, end); changed = true; }
     float startColor[4] = {emitter.colorStart().red(), emitter.colorStart().green(), emitter.colorStart().blue(), emitter.colorStart().alpha()};
@@ -2290,13 +2290,13 @@ void InspectorPanel::drawParticleEmitterComponent(ParticleEmitter& emitter)
                          Color::fromRGBFloat(endColor[0], endColor[1], endColor[2], endColor[3]));
         changed = true;
     }
-    Math::Vec3 direction = emitter.emissionDirection();
+    glm::vec3 direction = emitter.emissionDirection();
     if (ImGui::DragFloat3("Direction", &direction.x, 0.01f, -1.0f, 1.0f)) { emitter.setEmissionDirection(direction); changed = true; }
     value = emitter.spreadAngle();
     if (ImGui::SliderFloat("Spread angle", &value, 0.0f, 180.0f)) { emitter.setSpreadAngle(value); changed = true; }
     value = emitter.rotationSpeedMin(); value2 = emitter.rotationSpeedMax();
     if (ImGui::DragFloatRange2("Rotation speed", &value, &value2, 0.01f, -1000.0f, 1000.0f)) { emitter.setRotationSpeed(value, value2); changed = true; }
-    Math::Vec3 gravity = emitter.gravity();
+    glm::vec3 gravity = emitter.gravity();
     if (ImGui::DragFloat3("Gravity", &gravity.x, 0.01f, -1000.0f, 1000.0f)) { emitter.setGravity(gravity); changed = true; }
     value = emitter.drag();
     if (ImGui::DragFloat("Drag", &value, 0.01f, 0.0f, 100.0f)) { emitter.setDrag(value); changed = true; }
@@ -2381,12 +2381,12 @@ void InspectorPanel::drawParticleEmitterComponent(ParticleEmitter& emitter)
         }
         if (removeAffector >= 0 && emitter.removeAffector(static_cast<usize>(removeAffector)))
             changed = true;
-        if (ImGui::Button("Add gravity")) { emitter.addAffector(new GravityAffector(Math::Vec3(0.0f, -9.8f, 0.0f))); changed = true; }
+        if (ImGui::Button("Add gravity")) { emitter.addAffector(new GravityAffector(glm::vec3(0.0f, -9.8f, 0.0f))); changed = true; }
         ImGui::SameLine();
         if (ImGui::Button("Add drag")) { emitter.addAffector(new DragAffector(0.1f)); changed = true; }
-        if (ImGui::Button("Add vortex")) { emitter.addAffector(new VortexAffector(Math::Vec3(0.0f), 1.0f, 1.0f)); changed = true; }
+        if (ImGui::Button("Add vortex")) { emitter.addAffector(new VortexAffector(glm::vec3(0.0f), 1.0f, 1.0f)); changed = true; }
         ImGui::SameLine();
-        if (ImGui::Button("Add attractor")) { emitter.addAffector(new AttractorAffector(Math::Vec3(0.0f), 1.0f, 1.0f)); changed = true; }
+        if (ImGui::Button("Add attractor")) { emitter.addAffector(new AttractorAffector(glm::vec3(0.0f), 1.0f, 1.0f)); changed = true; }
         if (ImGui::Button("Add turbulence")) { emitter.addAffector(new TurbulenceAffector(1.0f, 1.0f)); changed = true; }
         ImGui::SameLine();
         if (ImGui::Button("Add color")) { emitter.addAffector(new ColorOverLifetimeAffector(emitter.colorStart(), emitter.colorEnd())); changed = true; }
@@ -2600,7 +2600,7 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             ReflectionProbe* probeComponent = object.addComponent<ReflectionProbe>();
             probeComponent->create(128);
             EnvironmentProbe& env = probeComponent->probe();
-            env.extents = Math::Vec3(0.0f);
+            env.extents = glm::vec3(0.0f);
             env.influenceRadius = 5.0f;
             env.content = EnvironmentProbe::Content::SkyAndWorld;
             env.refresh = EnvironmentProbe::Refresh::Automatic;
@@ -2860,7 +2860,7 @@ void InspectorPanel::drawLightComponent(Light& light)
 {
     ImGui::Indent(14.0f);
 
-    Math::Vec3 color = light.color();
+    glm::vec3 color = light.color();
     if (ImGui::ColorEdit3("Color", &color.x))
     {
         light.setColor(color);
@@ -3116,7 +3116,7 @@ void InspectorPanel::drawBillboardComponent(Billboard& billboard)
 {
     ImGui::Indent(14.0f);
 
-    Math::Vec2 size = billboard.size();
+    glm::vec2 size = billboard.size();
     if (ImGui::DragFloat2("Size", &size.x, 0.01f, 0.001f, 10000.0f))
     {
         billboard.setSize(size);
@@ -3564,10 +3564,10 @@ void InspectorPanel::drawColliderComponent(GameObject& object, Collider& collide
     }
     case ColliderShape::Box:
     {
-        Math::Vec3 halfExtents = collider.halfExtents();
+        glm::vec3 halfExtents = collider.halfExtents();
         if (ImGui::DragFloat3("Half Extents", &halfExtents.x, 0.02f, 0.001f, 1000.0f, "%.3f"))
         {
-            collider.setBox(glm::max(halfExtents, Math::Vec3(0.001f)));
+            collider.setBox(glm::max(halfExtents, glm::vec3(0.001f)));
             app().markDirty();
         }
         if (ImGui::IsItemHovered())
@@ -3620,7 +3620,7 @@ void InspectorPanel::drawColliderComponent(GameObject& object, Collider& collide
                          "collider - Stop rejects the whole step, Slide/SlideXZ deflect along "
                          "the surface, None reports the contact without moving anything.");
 
-    const Math::Mat4& transform = object.globalTransform();
+    const glm::mat4& transform = object.globalTransform();
     const Color outlineColor = Color::Cyan;
     switch (collider.shape())
     {
@@ -3895,7 +3895,7 @@ void InspectorPanel::drawOrbitComponent(GameObject&, Orbit& orbit)
     ImGui::Indent(14.0f);
 
     GameObject* target = orbit.target();
-    Math::Vec3 targetPoint = orbit.targetPoint();
+    glm::vec3 targetPoint = orbit.targetPoint();
     if (drawOrbitTargetSlot(app(), target, targetPoint))
     {
         if (target)
@@ -3971,7 +3971,7 @@ void InspectorPanel::drawMayaComponent(GameObject&, Maya& maya)
     ImGui::Indent(14.0f);
 
     GameObject* target = maya.target();
-    Math::Vec3 targetPoint = maya.targetPoint();
+    glm::vec3 targetPoint = maya.targetPoint();
     if (drawOrbitTargetSlot(app(), target, targetPoint))
     {
         if (target)
@@ -4900,8 +4900,8 @@ void InspectorPanel::drawWaypointsComponent(GameObject& object, Waypoints& waypo
         app().recordUndo();
         // Dropped at the 3D cursor, in the object's own space - the same
         // place every other "create here" in the editor uses.
-        const Math::Vec3 local = Math::Vec3(glm::inverse(object.globalTransform()) *
-                                         Math::Vec4(app().cursor3D(), 1.0f));
+        const glm::vec3 local = glm::vec3(glm::inverse(object.globalTransform()) *
+                                         glm::vec4(app().cursor3D(), 1.0f));
         app().setSelectedWaypoint(static_cast<s32>(waypoints.addPoint(local)));
         app().markDirty();
     }
@@ -4946,7 +4946,7 @@ void InspectorPanel::drawWaypointsComponent(GameObject& object, Waypoints& waypo
             // Picking a point is what hands it the viewport's move gizmo.
             if (ImGui::RadioButton("Move with the gizmo", picked))
                 app().setSelectedWaypoint(picked ? -1 : static_cast<s32>(i));
-            Math::Vec3 position = node.position;
+            glm::vec3 position = node.position;
             if (ImGui::DragFloat3("Position", &position.x, 0.05f))
             {
                 waypoints.setPointPosition(i, position);
@@ -5010,7 +5010,7 @@ void InspectorPanel::drawNavMeshSurfaceComponent(GameObject& object, NavMeshSurf
         app().markDirty();
 
     ImGui::Separator();
-    Math::Vec3 groundSeed = surface.groundSeed();
+    glm::vec3 groundSeed = surface.groundSeed();
     ImGui::TextWrapped("Ground seed: only what a walker can actually reach from here survives - "
                       "a flat roof with no stairs down to it passes the same slope test the "
                       "ground does, so without this it stays in the surface as an island.");

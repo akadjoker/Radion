@@ -28,11 +28,11 @@ public:
     // ([-1,1]^3); `size` gives it its world dimensions.
     struct Decal
     {
-        Math::Vec3 position = Math::Vec3(0.0f);
-        Math::Quaternion rotation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
-        Math::Vec3 size = Math::Vec3(1.0f); // full box dimensions, in world units
+        glm::vec3 position = glm::vec3(0.0f);
+        glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        glm::vec3 size = glm::vec3(1.0f); // full box dimensions, in world units
 
-        Math::Vec3 color = Math::Vec3(1.0f); // tint, multiplied by the texture
+        glm::vec3 color = glm::vec3(1.0f); // tint, multiplied by the texture
         f32 opacity = 1.0f;
 
         // Exponent of the slope fade: a surface whose normal turns away from
@@ -95,13 +95,13 @@ public:
 
     // Places a decal centred on a hit surface, its box's +Z rotated onto
     // `normal` - the same axis the slope fade compares the surface against.
-    s32 placeOnSurface(const Math::Vec3& position, const Math::Vec3& normal, s32 layer, f32 size,
-                       f32 thickness, f32 rotationRadians, const Math::Vec3& color = Math::Vec3(1.0f),
+    s32 placeOnSurface(const glm::vec3& position, const glm::vec3& normal, s32 layer, f32 size,
+                       f32 thickness, f32 rotationRadians, const glm::vec3& color = glm::vec3(1.0f),
                        f32 opacity = 1.0f);
 
     // World -> decal box ([-1,1]^3), with the layer index hidden in the 4th
     // row. Public because Lighting::submitDecals() needs it too.
-    static Math::Mat4 makeProjection(const Decal& decal);
+    static glm::mat4 makeProjection(const Decal& decal);
 
     // Radius of the sphere enclosing the box, for the same tile culling the
     // lights go through.

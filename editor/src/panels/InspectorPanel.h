@@ -38,7 +38,7 @@ private:
 
     struct PrimitiveSettings
     {
-        Math::Vec3 dimensions = Math::Vec3(1.0f);
+        glm::vec3 dimensions = glm::vec3(1.0f);
         f32 uvTiles = 1.0f;
         int segmentsA = 0;
         int segmentsB = 0;

@@ -31,4 +31,4 @@ target_include_directories(radion_core SYSTEM PUBLIC
     ${PROJECT_SOURCE_DIR}/vendor/glm
     ${PROJECT_SOURCE_DIR}/vendor/miniz
 )
-target_link_libraries(radion_core PUBLIC radion_options radion_math radion_containers SDL2::SDL2)
+target_link_libraries(radion_core PUBLIC radion_options SDL2::SDL2)

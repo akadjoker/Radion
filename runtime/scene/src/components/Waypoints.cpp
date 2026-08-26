@@ -11,7 +11,7 @@ Waypoints::Waypoints() : Component(Type)
 {
 }
 
-u32 Waypoints::addPoint(const Math::Vec3& localPosition, f32 radius)
+u32 Waypoints::addPoint(const glm::vec3& localPosition, f32 radius)
 {
     WaypointNode node;
     node.position = localPosition;
@@ -61,7 +61,7 @@ WaypointNode& Waypoints::point(u32 index)
     return mPoints[index];
 }
 
-void Waypoints::setPointPosition(u32 index, const Math::Vec3& localPosition)
+void Waypoints::setPointPosition(u32 index, const glm::vec3& localPosition)
 {
     if (index < mPoints.size())
         mPoints[index].position = localPosition;
@@ -73,14 +73,14 @@ void Waypoints::setPointRadius(u32 index, f32 radius)
         mPoints[index].radius = glm::max(radius, 0.0f);
 }
 
-Math::Vec3 Waypoints::worldPosition(u32 index) const
+glm::vec3 Waypoints::worldPosition(u32 index) const
 {
     if (index >= mPoints.size())
-        return Math::Vec3(0.0f);
+        return glm::vec3(0.0f);
     const GameObject* object = owner();
     if (!object)
         return mPoints[index].position;
-    return Math::Vec3(object->globalTransform() * Math::Vec4(mPoints[index].position, 1.0f));
+    return glm::vec3(object->globalTransform() * glm::vec4(mPoints[index].position, 1.0f));
 }
 
 bool Waypoints::linked(u32 a, u32 b) const
@@ -128,7 +128,7 @@ void Waypoints::autoLink(f32 radius)
     for (u32 i = 0; i < mPoints.size(); ++i)
         for (u32 j = i + 1; j < static_cast<u32>(mPoints.size()); ++j)
         {
-            const Math::Vec3 delta = mPoints[j].position - mPoints[i].position;
+            const glm::vec3 delta = mPoints[j].position - mPoints[i].position;
             if (glm::dot(delta, delta) <= radiusSquared)
                 mPoints[i].links.push_back(j);
         }

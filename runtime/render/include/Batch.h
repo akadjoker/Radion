@@ -14,7 +14,7 @@ namespace Radion
 // 8x8 font atlas (BatchRenderer::fontTexture()), ASCII 32..127. Space and
 // out-of-range codes return a zero-area rect - callers skip drawing on
 // width == 0 rather than sampling a garbage cell.
-Math::Vec4 fontGlyphUVRect(unsigned char code);
+glm::vec4 fontGlyphUVRect(unsigned char code);
 
 class BatchRenderer
 {
@@ -129,11 +129,11 @@ public:
 
     // 3D debug primitives
     void drawLine3D(float x0, float y0, float z0, float x1, float y1, float z1);
-    void drawTriangle3D(const Math::Vec3& a, const Math::Vec3& b, const Math::Vec3& c);
-    void drawTriangle3D(const Math::Vec3& a, const Math::Vec2& uvA, const Math::Vec3& b,
-                        const Math::Vec2& uvB, const Math::Vec3& c, const Math::Vec2& uvC);
-    void drawTriangle3D(const Math::Vec3& a, const Math::Vec2& uvA, u32 colorA, const Math::Vec3& b,
-                        const Math::Vec2& uvB, u32 colorB, const Math::Vec3& c, const Math::Vec2& uvC,
+    void drawTriangle3D(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
+    void drawTriangle3D(const glm::vec3& a, const glm::vec2& uvA, const glm::vec3& b,
+                        const glm::vec2& uvB, const glm::vec3& c, const glm::vec2& uvC);
+    void drawTriangle3D(const glm::vec3& a, const glm::vec2& uvA, u32 colorA, const glm::vec3& b,
+                        const glm::vec2& uvB, u32 colorB, const glm::vec3& c, const glm::vec2& uvC,
                         u32 colorC);
 
     // Wireframe
@@ -179,8 +179,8 @@ public:
     }
 
     // Projection
-    void setProjection(const Math::Mat4& matrix);
-    const Math::Mat4& getProjection() const
+    void setProjection(const glm::mat4& matrix);
+    const glm::mat4& getProjection() const
     {
         return mProjection;
     }
@@ -262,8 +262,8 @@ private:
     std::vector<unsigned short> mIndices;
     std::vector<DrawCall> mDrawCalls;
 
-    std::vector<Math::Mat4> mMatrixStack;
-    Math::Mat4 mCurrentMatrix;
+    std::vector<glm::mat4> mMatrixStack;
+    glm::mat4 mCurrentMatrix;
 
     unsigned int mCurrentColor;
     TextureHandle mCurrentTexture;
@@ -274,7 +274,7 @@ private:
 
     int mWindowWidth;
     int mWindowHeight;
-    Math::Mat4 mProjection;
+    glm::mat4 mProjection;
     bool mDepthTestEnabled;
     bool mDepthWriteEnabled;
     bool mBlendEnabled;
