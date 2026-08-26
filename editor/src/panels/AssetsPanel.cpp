@@ -3,6 +3,7 @@
 #include "panels/AssetsPanel.h"
 
 #include "AssetManager.h"
+#include "Color.h"
 #include "EditorApplication.h"
 #include "Engine.h"
 #include "FileSystem.h"
@@ -207,12 +208,15 @@ bool exportRmeshToObj(const std::string& sourceFile, const std::string& objFile)
         const Material* material = index < mesh.materials.size() ? &mesh.materials[index] : nullptr;
         const Math::vec4 base = material ? material->params.baseColor : Math::vec4(0.75f, 0.78f, 0.82f, 1.0f);
         const Math::vec4 emissive = material ? material->params.emissive : Math::vec4(0.0f);
+        const Color baseColor = Color::fromRGBFloat(base.x, base.y, base.z, base.w);
+        const Color emissiveColor = Color::fromRGBFloat(emissive.x, emissive.y, emissive.z,
+                                                         emissive.w);
         mtl << "newmtl " << materialNames[index] << "\n"
              << "Ka 0.000000 0.000000 0.000000\n"
-             << "Kd " << base.r << ' ' << base.g << ' ' << base.b << "\n"
+             << "Kd " << baseColor.red() << ' ' << baseColor.green() << ' ' << baseColor.blue() << "\n"
              << "Ks 0.000000 0.000000 0.000000\n"
-             << "Ke " << emissive.r << ' ' << emissive.g << ' ' << emissive.b << "\n"
-             << "d " << base.a << "\n";
+             << "Ke " << emissiveColor.red() << ' ' << emissiveColor.green() << ' ' << emissiveColor.blue() << "\n"
+             << "d " << baseColor.alpha() << "\n";
 
         const auto textureFile = [&](MaterialSlot slot, usize fallbackIndex) -> std::string
         {
