@@ -29,6 +29,9 @@ public:
         // face material occupies the complete UV range.
         u16 atlasColumns = 1;
         u16 atlasRows = 1;
+        // Insets face UVs by half a texel when sampling an atlas with linear
+        // filtering, preventing bilinear sampling from crossing tile edges.
+        u16 atlasTilePixels = 0;
     };
 
     // Builds only faces visible from outside their block.  Neighbour lookups

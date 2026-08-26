@@ -10,6 +10,7 @@
 #include "Mesh.h"
 #include "MeshRenderer.h"
 #include "Scene.h"
+#include "Thread.h"
 #include "VoxelBlock.h"
 #include "VoxelMesher.h"
 #include "VoxelTerrain.h"
@@ -27,9 +28,15 @@ namespace
 {
 constexpr int kChunkRadius = 2; // chunks around the centre, per axis
 constexpr u32 kSeed = 1337;
-constexpr int kAtlasTile = 16; // texels per atlas tile
-constexpr u16 kAtlasColumns = 4;
-constexpr u16 kAtlasRows = 2;
+constexpr s32 kWorldMinY = -64;
+constexpr s32 kWorldMaxY = 127;
+constexpr s32 kMinChunkY = kWorldMinY / VoxelChunk::Size;
+constexpr s32 kMaxChunkY = kWorldMaxY / VoxelChunk::Size;
+constexpr u16 kAtlasTilePixels = 16;
+constexpr u16 kAtlasColumns = 16;
+constexpr u16 kAtlasRows = 16;
+constexpr u32 kAtlasMipCount = 5;
+constexpr const char* kTerrainAtlasFile = "terrain.png";
 
 // The world grows around this point. Streaming around a GameObject later is
 // the same loop with this read from playerObject->position() every frame.
@@ -40,6 +47,21 @@ struct AtlasTile
     int x;
     int y;
 };
+
+struct ChunkMeshBuild
+{
+    const VoxelWorld* world = nullptr;
+    const VoxelChunk* chunk = nullptr;
+    const BlockRegistry* blocks = nullptr;
+    VoxelMesher::Settings settings;
+    VoxelMeshData mesh;
+};
+
+void buildChunkMesh(void* userData)
+{
+    ChunkMeshBuild& build = *static_cast<ChunkMeshBuild*>(userData);
+    build.mesh = VoxelMesher::buildChunk(*build.world, *build.chunk, *build.blocks, build.settings);
+}
 
 void addSearchPathIfPresent(FileSystem& files, const std::filesystem::path& path)
 {
@@ -70,57 +92,6 @@ BlockId registerBlock(BlockRegistry& registry, const char* name, bool solid,
     return registry.registerBlock(std::move(definition));
 }
 
-TextureHandle makeAtlasTexture()
-{
-    const u32 width = static_cast<u32>(kAtlasTile) * kAtlasColumns;
-    const u32 height = static_cast<u32>(kAtlasTile) * kAtlasRows;
-    std::vector<u32> pixels(static_cast<usize>(width) * height);
-
-    struct TileColor
-    {
-        u8 r, g, b, a;
-    };
-    const TileColor tiles[kAtlasRows][kAtlasColumns] = {
-        {{106, 170, 64, 255}, {94, 144, 58, 255}, {134, 96, 67, 255}, {125, 125, 125, 255}},
-        {{216, 200, 146, 255}, {60, 60, 64, 255}, {58, 114, 184, 160}, {255, 0, 255, 255}},
-    };
-
-    for (int cy = 0; cy < kAtlasRows; ++cy)
-    {
-        for (int cx = 0; cx < kAtlasColumns; ++cx)
-        {
-            const TileColor& tile = tiles[cy][cx];
-            for (int ty = 0; ty < kAtlasTile; ++ty)
-            {
-                for (int tx = 0; tx < kAtlasTile; ++tx)
-                {
-                    const bool border =
-                        tx == 0 || ty == 0 || tx == kAtlasTile - 1 || ty == kAtlasTile - 1;
-                    const u8 r = border ? static_cast<u8>(tile.r * 3 / 4) : tile.r;
-                    const u8 g = border ? static_cast<u8>(tile.g * 3 / 4) : tile.g;
-                    const u8 b = border ? static_cast<u8>(tile.b * 3 / 4) : tile.b;
-                    const int px = cx * kAtlasTile + tx;
-                    const int py = cy * kAtlasTile + ty;
-                    pixels[static_cast<usize>(py) * width + static_cast<usize>(px)] =
-                        static_cast<u32>(r) | (static_cast<u32>(g) << 8) |
-                        (static_cast<u32>(b) << 16) | (static_cast<u32>(tile.a) << 24);
-                }
-            }
-        }
-    }
-
-    TextureDesc desc;
-    desc.type = TextureType::Tex2D;
-    desc.format = Format::RGBA8_sRGB;
-    desc.width = width;
-    desc.height = height;
-    desc.mips = 1;
-    desc.usage = TextureSampled;
-    desc.data = pixels.data();
-    desc.debugName = "voxel_atlas";
-    return Assets().createTexture("voxel_atlas", desc);
-}
-
 Material makeMaterial(TextureHandle atlas, bool transparent)
 {
     Material material;
@@ -129,7 +100,8 @@ Material makeMaterial(TextureHandle atlas, bool transparent)
         material.flags |= MaterialNoDepthWrite;
 
     SamplerDesc sampler;
-    sampler.filter = Filter::Point; // crisp tiles, no bleeding at tile borders
+    sampler.filter = Filter::Anisotropic;
+    sampler.anisotropy = 8.0f;
     sampler.wrapU = Wrap::Clamp;
     sampler.wrapV = Wrap::Clamp;
 
@@ -196,8 +168,8 @@ int main(int, char**)
     GameObject* cameraObject = scene->createGameObject("Camera");
     Camera* camera = cameraObject->addComponent<Camera>();
     camera->setPerspective(60.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
-    cameraObject->setPosition(kWorldCenter + glm::vec3(48.0f, 58.0f, -96.0f));
-    cameraObject->lookAt(kWorldCenter + glm::vec3(0.0f, 14.0f, 0.0f));
+    cameraObject->setPosition(kWorldCenter + glm::vec3(48.0f, 112.0f, -96.0f));
+    cameraObject->lookAt(kWorldCenter + glm::vec3(0.0f, 42.0f, 0.0f));
     FreeFly* fly = cameraObject->addComponent<FreeFly>();
     fly->setMoveSpeed(28.0f);
     fly->setSprintMultiplier(2.5f);
@@ -211,48 +183,70 @@ int main(int, char**)
     sunObject->lookAt(kWorldCenter);
 
     BlockRegistry blocks;
-    // Atlas tiles, column/row in the 4x2 grid: grass top, grass side, dirt,
-    // stone, sand, bedrock, water, (unused).
-    registerBlock(blocks, "grass", true, BlockRenderType::Opaque, {1, 0}, {0, 0});
+    // Atlas tiles, column/row in terrain.png's 16x16 grid.
+    registerBlock(blocks, "grass", true, BlockRenderType::Opaque, {3, 0}, {0, 0});
     registerBlock(blocks, "dirt", true, BlockRenderType::Opaque, {2, 0});
-    registerBlock(blocks, "stone", true, BlockRenderType::Opaque, {3, 0});
-    registerBlock(blocks, "sand", true, BlockRenderType::Opaque, {0, 1});
+    registerBlock(blocks, "stone", true, BlockRenderType::Opaque, {1, 0});
+    registerBlock(blocks, "sand", true, BlockRenderType::Opaque, {2, 1});
     registerBlock(blocks, "bedrock", true, BlockRenderType::Opaque, {1, 1});
-    registerBlock(blocks, "water", false, BlockRenderType::Transparent, {2, 1});
+    registerBlock(blocks, "water", false, BlockRenderType::Transparent, {15, 12});
 
-    const TextureHandle atlas = makeAtlasTexture();
+    const TextureHandle atlas =
+        Assets().loadTexture(kTerrainAtlasFile, ColorSpace::sRGB, true, kAtlasMipCount);
     const Material terrainMaterial = makeMaterial(atlas, false);
     const Material waterMaterial = makeMaterial(atlas, true);
 
     VoxelWorld world;
-    VoxelTerrain terrain(blocks, kSeed);
+    VoxelTerrain::Settings terrainSettings;
+    terrainSettings.minWorldY = kWorldMinY;
+    terrainSettings.maxWorldY = kWorldMaxY;
+    terrainSettings.waterLevel = 20;
+    terrainSettings.minSurfaceHeight = 4;
+    terrainSettings.maxSurfaceHeight = 96;
+    terrainSettings.baseSurfaceHeight = 48.0f;
+    terrainSettings.continentalAmplitude = 28.0f;
+    terrainSettings.detailAmplitude = 8.0f;
+    VoxelTerrain terrain(blocks, kSeed, terrainSettings);
 
     const VoxelCoord centerVoxel{static_cast<s32>(std::floor(kWorldCenter.x)),
                                  static_cast<s32>(std::floor(kWorldCenter.y)),
                                  static_cast<s32>(std::floor(kWorldCenter.z))};
     const ChunkCoord centerChunk = VoxelWorld::chunkFor(centerVoxel);
 
-    for (s32 z = centerChunk.z - kChunkRadius; z <= centerChunk.z + kChunkRadius; ++z)
-        for (s32 x = centerChunk.x - kChunkRadius; x <= centerChunk.x + kChunkRadius; ++x)
-            terrain.generate(world, {x, 0, z});
+    for (s32 y = kMinChunkY; y <= kMaxChunkY; ++y)
+        for (s32 z = centerChunk.z - kChunkRadius; z <= centerChunk.z + kChunkRadius; ++z)
+            for (s32 x = centerChunk.x - kChunkRadius; x <= centerChunk.x + kChunkRadius; ++x)
+                terrain.generate(world, {x, y, z});
 
     VoxelMesher::Settings settings;
     settings.atlasColumns = kAtlasColumns;
     settings.atlasRows = kAtlasRows;
+    settings.atlasTilePixels = kAtlasTilePixels;
 
-    for (s32 z = centerChunk.z - kChunkRadius; z <= centerChunk.z + kChunkRadius; ++z)
-        for (s32 x = centerChunk.x - kChunkRadius; x <= centerChunk.x + kChunkRadius; ++x)
+    std::vector<ChunkMeshBuild> meshBuilds;
+    meshBuilds.reserve(static_cast<usize>(kMaxChunkY - kMinChunkY + 1) *
+                       static_cast<usize>((kChunkRadius * 2 + 1) * (kChunkRadius * 2 + 1)));
+    for (s32 y = kMinChunkY; y <= kMaxChunkY; ++y)
+        for (s32 z = centerChunk.z - kChunkRadius; z <= centerChunk.z + kChunkRadius; ++z)
+            for (s32 x = centerChunk.x - kChunkRadius; x <= centerChunk.x + kChunkRadius; ++x)
+            {
+                const VoxelChunk* voxelChunk = world.findChunk({x, y, z});
+                if (voxelChunk)
+                    meshBuilds.push_back({&world, voxelChunk, &blocks, settings, {}});
+            }
+
+    JobGroup meshJobs;
+    for (ChunkMeshBuild& build : meshBuilds)
+        Jobs().enqueue(meshJobs, buildChunkMesh, &build);
+    Jobs().wait(meshJobs);
+
+    for (const ChunkMeshBuild& build : meshBuilds)
         {
-            const ChunkCoord chunk{x, 0, z};
-            const VoxelChunk* voxelChunk = world.findChunk(chunk);
-            if (!voxelChunk)
-                continue;
-            const VoxelMeshData mesh =
-                VoxelMesher::buildChunk(world, *voxelChunk, blocks, settings);
-            addChunkMesh(*scene, "Chunk", chunk, mesh.opaque, terrainMaterial);
-            addChunkMesh(*scene, "Chunk.Water", chunk, mesh.transparent, waterMaterial);
-            addChunkMesh(*scene, "Chunk.Cutout", chunk, mesh.cutout, terrainMaterial);
-        }
+        const ChunkCoord chunk = build.chunk->coordinate();
+        addChunkMesh(*scene, "Chunk", chunk, build.mesh.opaque, terrainMaterial);
+        addChunkMesh(*scene, "Chunk.Water", chunk, build.mesh.transparent, waterMaterial);
+        addChunkMesh(*scene, "Chunk.Cutout", chunk, build.mesh.cutout, terrainMaterial);
+    }
 
     while (engine.update())
     {
