@@ -22,8 +22,8 @@ public:
     static constexpr ComponentType Type = ComponentType::Light;
 
     LightType lightType() const;
-    void setColor(const glm::vec3& color);
-    const glm::vec3& color() const;
+    void setColor(const Math::Vec3& color);
+    const Math::Vec3& color() const;
     void setIntensity(f32 intensity);
     f32 intensity() const;
     void setCastShadows(bool enabled);
@@ -36,7 +36,7 @@ protected:
 
 private:
     LightType mType;
-    glm::vec3 mColor = glm::vec3(1.0f);
+    Math::Vec3 mColor = Math::Vec3(1.0f);
     f32 mIntensity = 1.0f;
     bool mCastShadows = false;
     bool mVolumetric = false;

@@ -12,10 +12,10 @@ namespace Radion::Geometry
 
 struct Shard
 {
-    std::vector<glm::vec3> vertices;
+    std::vector<Math::Vec3> vertices;
     std::vector<ConvexHullComputer::Edge> edges;
     std::vector<int> faces;
-    glm::vec3 centroid = glm::vec3(0.0f);
+    Math::Vec3 centroid = Math::Vec3(0.0f);
     f32 volume = 0.0f;
 };
 
@@ -29,8 +29,8 @@ public:
     // every triple-plane intersection that lies inside all planes, together with
     // the (sorted, unique) indices of the planes that actually produced one of
     // those vertices. Returns false when no such vertex exists.
-    static bool getVerticesInsidePlanes(const std::vector<glm::vec4>& planes,
-                                         std::vector<glm::vec3>& verticesOut,
+    static bool getVerticesInsidePlanes(const std::vector<Math::Vec4>& planes,
+                                         std::vector<Math::Vec3>& verticesOut,
                                          std::vector<int>& planeIndicesOut);
 
     // sourceVertices: convex point cloud of the shape being shattered, in the
@@ -38,8 +38,8 @@ public:
     // space. Produces one Shard per Voronoi point whose cell is non-empty; each
     // shard's vertices are relative to its own centroid (Shard::centroid holds
     // the position of that centroid back in the shared local space).
-    static void shatter(const std::vector<glm::vec3>& sourceVertices,
-                         const std::vector<glm::vec3>& voronoiPoints,
+    static void shatter(const std::vector<Math::Vec3>& sourceVertices,
+                         const std::vector<Math::Vec3>& voronoiPoints,
                          std::vector<Shard>& shardsOut);
 };
 

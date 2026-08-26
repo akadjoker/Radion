@@ -72,14 +72,14 @@ private:
     u32 mPaletteCapacity = 0;
     struct GPUInstance
     {
-        glm::mat4 model;
-        glm::mat4 prevModel;
+        Math::Mat4 model;
+        Math::Mat4 prevModel;
         u32 paletteOffset;
         u32 prevPaletteOffset;
         u32 padding[2];
     };
     std::vector<GPUInstance> mGPUInstances;
-    std::vector<glm::mat4> mPalettes;
+    std::vector<Math::Mat4> mPalettes;
 };
 
 } // namespace Radion

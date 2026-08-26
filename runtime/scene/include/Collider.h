@@ -30,18 +30,18 @@ public:
     struct Contact
     {
         Collider* other = nullptr;
-        glm::vec3 normal{0.0f, 1.0f, 0.0f};
-        glm::vec3 point{0.0f};
+        Math::Vec3 normal{0.0f, 1.0f, 0.0f};
+        Math::Vec3 point{0.0f};
     };
 
     void setSphere(f32 radius);
-    void setBox(const glm::vec3& halfExtents);
+    void setBox(const Math::Vec3& halfExtents);
     void setCapsule(f32 radius, f32 height); // height is total, cap to cap
     void setMesh(const TriangleOctree* octree); // borrowed, not owned
 
     ColliderShape shape() const;
     f32 radius() const;
-    const glm::vec3& halfExtents() const;
+    const Math::Vec3& halfExtents() const;
     f32 height() const;
     const TriangleOctree* mesh() const;
 
@@ -65,11 +65,11 @@ private:
     Collider();
 
     void clearContacts();
-    void addContact(Collider* other, const glm::vec3& normal, const glm::vec3& point);
+    void addContact(Collider* other, const Math::Vec3& normal, const Math::Vec3& point);
 
     ColliderShape mShape = ColliderShape::Sphere;
     f32 mRadius = 0.5f;
-    glm::vec3 mHalfExtents{0.5f, 0.5f, 0.5f};
+    Math::Vec3 mHalfExtents{0.5f, 0.5f, 0.5f};
     f32 mHeight = 1.0f;
     const TriangleOctree* mMesh = nullptr;
     u32 mType = 0;

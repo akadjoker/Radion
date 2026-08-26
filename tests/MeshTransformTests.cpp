@@ -33,7 +33,7 @@ bool near(f32 a, f32 b, f32 tolerance = 1e-4f)
     return glm::abs(a - b) <= tolerance;
 }
 
-bool near(const glm::vec3& a, const glm::vec3& b, f32 tolerance = 1e-4f)
+bool near(const Math::Vec3& a, const Math::Vec3& b, f32 tolerance = 1e-4f)
 {
     return near(a.x, b.x, tolerance) && near(a.y, b.y, tolerance) && near(a.z, b.z, tolerance);
 }
@@ -45,14 +45,14 @@ MeshData makeOffsetQuad()
 {
     MeshData mesh;
     mesh.positions = {
-        glm::vec3(100.0f, 0.0f, 100.0f), glm::vec3(102.0f, 0.0f, 100.0f),
-        glm::vec3(102.0f, 0.0f, 102.0f), glm::vec3(100.0f, 0.0f, 102.0f),
+        Math::Vec3(100.0f, 0.0f, 100.0f), Math::Vec3(102.0f, 0.0f, 100.0f),
+        Math::Vec3(102.0f, 0.0f, 102.0f), Math::Vec3(100.0f, 0.0f, 102.0f),
     };
     mesh.normals = {
-        glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+        Math::Vec3(0.0f, 1.0f, 0.0f), Math::Vec3(0.0f, 1.0f, 0.0f),
+        Math::Vec3(0.0f, 1.0f, 0.0f), Math::Vec3(0.0f, 1.0f, 0.0f),
     };
-    mesh.uvs = {glm::vec2(0.0f), glm::vec2(1.0f, 0.0f), glm::vec2(1.0f), glm::vec2(0.0f, 1.0f)};
+    mesh.uvs = {Math::Vec2(0.0f), Math::Vec2(1.0f, 0.0f), Math::Vec2(1.0f), Math::Vec2(0.0f, 1.0f)};
     mesh.indices = {0, 1, 2, 0, 2, 3};
 
     SubMesh submesh;
@@ -69,24 +69,24 @@ void testWholeMeshScalesAboutItsMedian()
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeOffsetQuad();
 
-    assets.transformVertices(mesh, glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
+    assets.transformVertices(mesh, glm::scale(Math::Mat4(1.0f), Math::Vec3(2.0f)));
 
-    CHECK(near(mesh.positions[0], glm::vec3(99.0f, 0.0f, 99.0f)));
-    CHECK(near(mesh.positions[1], glm::vec3(103.0f, 0.0f, 99.0f)));
-    CHECK(near(mesh.positions[2], glm::vec3(103.0f, 0.0f, 103.0f)));
-    CHECK(near(mesh.positions[3], glm::vec3(99.0f, 0.0f, 103.0f)));
+    CHECK(near(mesh.positions[0], Math::Vec3(99.0f, 0.0f, 99.0f)));
+    CHECK(near(mesh.positions[1], Math::Vec3(103.0f, 0.0f, 99.0f)));
+    CHECK(near(mesh.positions[2], Math::Vec3(103.0f, 0.0f, 103.0f)));
+    CHECK(near(mesh.positions[3], Math::Vec3(99.0f, 0.0f, 103.0f)));
 
     // The median is exactly where it was.
-    glm::vec3 median(0.0f);
+    Math::Vec3 median(0.0f);
     for (usize i = 0; i < mesh.positions.size(); ++i)
         median += mesh.positions[i];
     median /= static_cast<f32>(mesh.positions.size());
-    CHECK(near(median, glm::vec3(101.0f, 0.0f, 101.0f)));
+    CHECK(near(median, Math::Vec3(101.0f, 0.0f, 101.0f)));
 
     // Bounds follow, or anything that frames or culls the mesh is left with
     // the old box.
-    CHECK(near(mesh.bounds.min, glm::vec3(99.0f, 0.0f, 99.0f)));
-    CHECK(near(mesh.bounds.max, glm::vec3(103.0f, 0.0f, 103.0f)));
+    CHECK(near(mesh.bounds.min, Math::Vec3(99.0f, 0.0f, 99.0f)));
+    CHECK(near(mesh.bounds.max, Math::Vec3(103.0f, 0.0f, 103.0f)));
 }
 
 // The point of the selection argument: unselected geometry does not move.
@@ -94,15 +94,15 @@ void testSubsetLeavesTheRestAlone()
 {
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeOffsetQuad();
-    const std::vector<glm::vec3> before = mesh.positions;
+    const std::vector<Math::Vec3> before = mesh.positions;
 
     const std::vector<u32> selection = {0, 1};
-    assets.transformVertices(mesh, glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)), selection);
+    assets.transformVertices(mesh, glm::scale(Math::Mat4(1.0f), Math::Vec3(2.0f)), selection);
 
     // Median of the two selected corners is (101, 0, 100); they move apart
     // along x around it and stay put on z.
-    CHECK(near(mesh.positions[0], glm::vec3(99.0f, 0.0f, 100.0f)));
-    CHECK(near(mesh.positions[1], glm::vec3(103.0f, 0.0f, 100.0f)));
+    CHECK(near(mesh.positions[0], Math::Vec3(99.0f, 0.0f, 100.0f)));
+    CHECK(near(mesh.positions[1], Math::Vec3(103.0f, 0.0f, 100.0f)));
     CHECK(near(mesh.positions[2], before[2]));
     CHECK(near(mesh.positions[3], before[3]));
 }
@@ -111,10 +111,10 @@ void testTranslationMovesEverythingEqually()
 {
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeOffsetQuad();
-    const std::vector<glm::vec3> before = mesh.positions;
+    const std::vector<Math::Vec3> before = mesh.positions;
 
-    const glm::vec3 delta(5.0f, -2.0f, 0.5f);
-    assets.transformVertices(mesh, glm::translate(glm::mat4(1.0f), delta));
+    const Math::Vec3 delta(5.0f, -2.0f, 0.5f);
+    assets.transformVertices(mesh, glm::translate(Math::Mat4(1.0f), delta));
 
     // A translation is unaffected by which pivot it is applied around.
     for (usize i = 0; i < mesh.positions.size(); ++i)
@@ -131,10 +131,10 @@ void testRotationCarriesNormals()
 
     // Right-handed, so 90 degrees about +X takes +Y to +Z.
     assets.transformVertices(
-        mesh, glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
+        mesh, glm::rotate(Math::Mat4(1.0f), glm::radians(90.0f), Math::Vec3(1.0f, 0.0f, 0.0f)));
 
     for (usize i = 0; i < mesh.normals.size(); ++i)
-        CHECK(near(mesh.normals[i], glm::vec3(0.0f, 0.0f, 1.0f)));
+        CHECK(near(mesh.normals[i], Math::Vec3(0.0f, 0.0f, 1.0f)));
 
     CHECK(near(glm::length(mesh.normals[0]), 1.0f));
 }
@@ -146,15 +146,15 @@ void testRotationOfSubsetKeepsOtherNormals()
 
     const std::vector<u32> selection = {0};
     assets.transformVertices(
-        mesh, glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+        mesh, glm::rotate(Math::Mat4(1.0f), glm::radians(90.0f), Math::Vec3(1.0f, 0.0f, 0.0f)),
         selection);
 
-    CHECK(near(mesh.normals[0], glm::vec3(0.0f, 0.0f, 1.0f)));
-    CHECK(near(mesh.normals[1], glm::vec3(0.0f, 1.0f, 0.0f)));
-    CHECK(near(mesh.normals[2], glm::vec3(0.0f, 1.0f, 0.0f)));
+    CHECK(near(mesh.normals[0], Math::Vec3(0.0f, 0.0f, 1.0f)));
+    CHECK(near(mesh.normals[1], Math::Vec3(0.0f, 1.0f, 0.0f)));
+    CHECK(near(mesh.normals[2], Math::Vec3(0.0f, 1.0f, 0.0f)));
 
     // A single vertex is its own median, so rotating it moves it nowhere.
-    CHECK(near(mesh.positions[0], glm::vec3(100.0f, 0.0f, 100.0f)));
+    CHECK(near(mesh.positions[0], Math::Vec3(100.0f, 0.0f, 100.0f)));
 }
 
 // The selection comes from a BlenderSelection that may outlive the mesh it
@@ -164,21 +164,21 @@ void testOutOfRangeIndicesAreIgnored()
 {
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeOffsetQuad();
-    const std::vector<glm::vec3> before = mesh.positions;
+    const std::vector<Math::Vec3> before = mesh.positions;
 
     const std::vector<u32> selection = {0, 9999, 4};
-    assets.transformVertices(mesh, glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+    assets.transformVertices(mesh, glm::translate(Math::Mat4(1.0f), Math::Vec3(1.0f, 0.0f, 0.0f)),
                              selection);
 
     // Only vertex 0 was real, and it is its own median, so a translation
     // still moves it and nothing else.
-    CHECK(near(mesh.positions[0], before[0] + glm::vec3(1.0f, 0.0f, 0.0f)));
+    CHECK(near(mesh.positions[0], before[0] + Math::Vec3(1.0f, 0.0f, 0.0f)));
     CHECK(near(mesh.positions[1], before[1]));
 
     // A selection of nothing but garbage leaves the mesh untouched.
     MeshData untouched = makeOffsetQuad();
     const std::vector<u32> allBad = {500, 501};
-    assets.transformVertices(untouched, glm::scale(glm::mat4(1.0f), glm::vec3(3.0f)), allBad);
+    assets.transformVertices(untouched, glm::scale(Math::Mat4(1.0f), Math::Vec3(3.0f)), allBad);
     for (usize i = 0; i < untouched.positions.size(); ++i)
         CHECK(near(untouched.positions[i], before[i]));
 }
@@ -187,7 +187,7 @@ void testEmptyMeshIsSafe()
 {
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh;
-    assets.transformVertices(mesh, glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
+    assets.transformVertices(mesh, glm::scale(Math::Mat4(1.0f), Math::Vec3(2.0f)));
     CHECK(mesh.positions.empty());
 }
 
@@ -196,9 +196,9 @@ void testIdentityChangesNothing()
 {
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeOffsetQuad();
-    const std::vector<glm::vec3> before = mesh.positions;
+    const std::vector<Math::Vec3> before = mesh.positions;
 
-    assets.transformVertices(mesh, glm::mat4(1.0f));
+    assets.transformVertices(mesh, Math::Mat4(1.0f));
 
     for (usize i = 0; i < mesh.positions.size(); ++i)
         CHECK(near(mesh.positions[i], before[i], 1e-3f));
@@ -212,7 +212,7 @@ void testMirrorFlipsWinding()
     MeshData mesh = makeOffsetQuad();
     const std::vector<u32> before = mesh.indices;
 
-    assets.transformVertices(mesh, glm::scale(glm::mat4(1.0f), glm::vec3(-1.0f, 1.0f, 1.0f)));
+    assets.transformVertices(mesh, glm::scale(Math::Mat4(1.0f), Math::Vec3(-1.0f, 1.0f, 1.0f)));
 
     CHECK(mesh.indices.size() == before.size());
     bool reversed = false;

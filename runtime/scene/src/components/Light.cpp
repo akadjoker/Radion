@@ -21,12 +21,12 @@ LightType Light::lightType() const
 {
     return mType;
 }
-void Light::setColor(const glm::vec3& color)
+void Light::setColor(const Math::Vec3& color)
 {
     if (std::isfinite(color.x) && std::isfinite(color.y) && std::isfinite(color.z))
-        mColor = glm::max(color, glm::vec3(0.0f));
+        mColor = glm::max(color, Math::Vec3(0.0f));
 }
-const glm::vec3& Light::color() const
+const Math::Vec3& Light::color() const
 {
     return mColor;
 }

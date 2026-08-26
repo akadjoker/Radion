@@ -50,7 +50,7 @@ std::multiset<std::array<f32, 9>> triangleSet(const MeshData& mesh)
         std::array<std::array<f32, 3>, 3> tri;
         for (int corner = 0; corner < 3; ++corner)
         {
-            const glm::vec3& p = mesh.positions[mesh.indices[i + corner]];
+            const Math::Vec3& p = mesh.positions[mesh.indices[i + corner]];
             tri[corner] = {p.x, p.y, p.z};
         }
         while (tri[1] < tri[0] || tri[2] < tri[0])
@@ -72,14 +72,14 @@ MeshData makeGridWithDuplicates(u32 quads)
             const u32 base = static_cast<u32>(mesh.positions.size());
             const f32 fx = static_cast<f32>(x);
             const f32 fz = static_cast<f32>(z);
-            mesh.positions.push_back(glm::vec3(fx, 0.0f, fz));
-            mesh.positions.push_back(glm::vec3(fx + 1.0f, 0.0f, fz));
-            mesh.positions.push_back(glm::vec3(fx + 1.0f, 0.0f, fz + 1.0f));
-            mesh.positions.push_back(glm::vec3(fx, 0.0f, fz + 1.0f));
+            mesh.positions.push_back(Math::Vec3(fx, 0.0f, fz));
+            mesh.positions.push_back(Math::Vec3(fx + 1.0f, 0.0f, fz));
+            mesh.positions.push_back(Math::Vec3(fx + 1.0f, 0.0f, fz + 1.0f));
+            mesh.positions.push_back(Math::Vec3(fx, 0.0f, fz + 1.0f));
             for (int i = 0; i < 4; ++i)
             {
-                mesh.normals.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
-                mesh.uvs.push_back(glm::vec2(0.0f, 0.0f));
+                mesh.normals.push_back(Math::Vec3(0.0f, 1.0f, 0.0f));
+                mesh.uvs.push_back(Math::Vec2(0.0f, 0.0f));
             }
             const u32 quad[6] = {base, base + 2, base + 1, base, base + 3, base + 2};
             mesh.indices.insert(mesh.indices.end(), quad, quad + 6);
@@ -121,7 +121,7 @@ void testIndexReorderPasses()
 
     const auto before = triangleSet(mesh);
     const std::vector<SubMesh> submeshesBefore = mesh.submeshes;
-    const std::vector<glm::vec3> positionsBefore = mesh.positions;
+    const std::vector<Math::Vec3> positionsBefore = mesh.positions;
 
     assets.optimizeVertexCache(mesh);
     assets.optimizeOverdraw(mesh, 1.05f);
@@ -136,9 +136,9 @@ void testIndexReorderPasses()
 
     // Vertex fetch reorders the streams and drops unreferenced vertices; an
     // extra orphan vertex must disappear.
-    mesh.positions.push_back(glm::vec3(99.0f, 99.0f, 99.0f));
-    mesh.normals.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
-    mesh.uvs.push_back(glm::vec2(0.0f, 0.0f));
+    mesh.positions.push_back(Math::Vec3(99.0f, 99.0f, 99.0f));
+    mesh.normals.push_back(Math::Vec3(0.0f, 1.0f, 0.0f));
+    mesh.uvs.push_back(Math::Vec2(0.0f, 0.0f));
     assets.optimizeVertexFetch(mesh);
     CHECK(mesh.positions.size() == 25);
     CHECK(mesh.normals.size() == 25);

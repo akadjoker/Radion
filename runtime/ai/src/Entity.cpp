@@ -59,45 +59,45 @@ void Entity::alignWithVelocity()
 
     // Standard right-handed orthonormal regeneration:
     // forward = velocity, side = normalize(cross(up, forward)), up = cross(forward, side).
-    glm::vec3 newForward = mVelocity / spd;
-    glm::vec3 oldUp = up();
-    glm::vec3 sideReference = oldUp;
+    Math::Vec3 newForward = mVelocity / spd;
+    Math::Vec3 oldUp = up();
+    Math::Vec3 sideReference = oldUp;
     // A forward vector parallel to up has no valid cross product.  Keep the
     // previous side (projected onto the plane perpendicular to forward) so a
     // vertical/near-vertical velocity cannot poison the quaternion with NaNs.
-    glm::vec3 newSide = glm::cross(sideReference, newForward);
+    Math::Vec3 newSide = glm::cross(sideReference, newForward);
     if (glm::dot(newSide, newSide) <= 1e-8f)
         newSide = side();
     newSide -= newForward * glm::dot(newSide, newForward);
     if (glm::dot(newSide, newSide) <= 1e-8f)
-        newSide = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), newForward);
+        newSide = glm::cross(Math::Vec3(0.0f, 1.0f, 0.0f), newForward);
     newSide = glm::normalize(newSide);
-    glm::vec3 newUp = glm::cross(newForward, newSide);
+    Math::Vec3 newUp = glm::cross(newForward, newSide);
 
-    mOrientation = glm::quat_cast(glm::mat3(newSide, newUp, newForward));
+    mOrientation = glm::quat_cast(Math::Mat3(newSide, newUp, newForward));
 }
 
-glm::vec3 Entity::localizeDirection(const glm::vec3& globalDirection) const
+Math::Vec3 Entity::localizeDirection(const Math::Vec3& globalDirection) const
 {
-    const glm::mat3 basis(side(), up(), forward());
+    const Math::Mat3 basis(side(), up(), forward());
     return glm::transpose(basis) * globalDirection;
 }
 
-glm::vec3 Entity::localizePosition(const glm::vec3& globalPosition) const
+Math::Vec3 Entity::localizePosition(const Math::Vec3& globalPosition) const
 {
-    const glm::mat3 basis(side(), up(), forward());
+    const Math::Mat3 basis(side(), up(), forward());
     return glm::transpose(basis) * (globalPosition - mPosition);
 }
 
-glm::vec3 Entity::globalizePosition(const glm::vec3& localPosition) const
+Math::Vec3 Entity::globalizePosition(const Math::Vec3& localPosition) const
 {
-    const glm::mat3 basis(side(), up(), forward());
+    const Math::Mat3 basis(side(), up(), forward());
     return mPosition + (basis * localPosition);
 }
 
-glm::vec3 Entity::globalizeDirection(const glm::vec3& localDirection) const
+Math::Vec3 Entity::globalizeDirection(const Math::Vec3& localDirection) const
 {
-    const glm::mat3 basis(side(), up(), forward());
+    const Math::Mat3 basis(side(), up(), forward());
     return basis * localDirection;
 }
 
@@ -111,8 +111,8 @@ void Entity::iterate(float timeDelta)
     // still needs to look up to hide/pose its GameObject.
     if (!alive())
     {
-        mVelocity = glm::vec3(0.0f);
-        mDesiredMoveVector = glm::vec3(0.0f);
+        mVelocity = Math::Vec3(0.0f);
+        mDesiredMoveVector = Math::Vec3(0.0f);
         return;
     }
 
@@ -127,7 +127,7 @@ void Entity::iterate(float timeDelta)
     // Behaviors contribute to a per-frame steering accumulator.  Keeping the
     // previous value makes acceleration compound forever and is especially
     // visible as oscillating turns in formations.
-    mDesiredMoveVector = glm::vec3(0.0f);
+    mDesiredMoveVector = Math::Vec3(0.0f);
 
     // Refresh sense data.
     mVisibleGroupMembers.clear();
@@ -162,7 +162,7 @@ void Entity::iterate(float timeDelta)
     // those changes are especially visible when a debug path is aligned with
     // the camera.
     if (glm::length(mVelocity) < 0.1f)
-        mVelocity = glm::vec3(0.0f);
+        mVelocity = Math::Vec3(0.0f);
 }
 
 void Entity::updateGroupVisibility()
@@ -201,7 +201,7 @@ void Entity::updateEnemyVisibility()
 
 bool Entity::visibilityTest(const Entity& other, float& dist) const
 {
-    glm::vec3 distVec = other.position() - position();
+    Math::Vec3 distVec = other.position() - position();
     dist = glm::length(distVec);
     return dist < mSenseRange;
 }

@@ -10,22 +10,22 @@ namespace Radion::Physics
 namespace
 {
 
-glm::vec3 normalizedPerpendicular(const glm::vec3& v)
+Math::Vec3 normalizedPerpendicular(const Math::Vec3& v)
 {
     if (std::abs(v.x) > std::abs(v.y))
     {
         const f32 length = std::sqrt(v.x * v.x + v.z * v.z);
-        return glm::vec3(v.z, 0.0f, -v.x) / length;
+        return Math::Vec3(v.z, 0.0f, -v.x) / length;
     }
     const f32 length = std::sqrt(v.y * v.y + v.z * v.z);
-    return glm::vec3(0.0f, v.z, -v.y) / length;
+    return Math::Vec3(0.0f, v.z, -v.y) / length;
 }
 
-f32 rotationAngleAroundAxis(const glm::quat& q, const glm::vec3& axis)
+f32 rotationAngleAroundAxis(const Math::Quaternion& q, const Math::Vec3& axis)
 {
     if (q.w == 0.0f)
         return glm::pi<f32>();
-    return 2.0f * std::atan(glm::dot(glm::vec3(q.x, q.y, q.z), axis) / q.w);
+    return 2.0f * std::atan(glm::dot(Math::Vec3(q.x, q.y, q.z), axis) / q.w);
 }
 
 f32 centerAngleAroundZero(f32 angle)
@@ -37,20 +37,20 @@ f32 centerAngleAroundZero(f32 angle)
     return angle;
 }
 
-glm::quat invInitialOrientationXZ(const glm::vec3& xAxisA, const glm::vec3& zAxisA,
-                                  const glm::vec3& xAxisB, const glm::vec3& zAxisB)
+Math::Quaternion invInitialOrientationXZ(const Math::Vec3& xAxisA, const Math::Vec3& zAxisA,
+                                  const Math::Vec3& xAxisB, const Math::Vec3& zAxisB)
 {
     if (xAxisA == xAxisB && zAxisA == zAxisB)
-        return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    const glm::mat3 basisA(xAxisA, glm::cross(zAxisA, xAxisA), zAxisA);
-    const glm::mat3 basisB(xAxisB, glm::cross(zAxisB, xAxisB), zAxisB);
+        return Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    const Math::Mat3 basisA(xAxisA, glm::cross(zAxisA, xAxisA), zAxisA);
+    const Math::Mat3 basisB(xAxisB, glm::cross(zAxisB, xAxisB), zAxisB);
     return glm::quat_cast(basisB) * glm::conjugate(glm::quat_cast(basisA));
 }
 
 }
 
-HingeJoint::HingeJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
-                       const glm::vec3& worldHingeAxis)
+HingeJoint::HingeJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor,
+                       const Math::Vec3& worldHingeAxis)
     : HingeJoint(a, a.pointToLocal(worldAnchor), a.directionToLocal(glm::normalize(worldHingeAxis)),
                 a.directionToLocal(normalizedPerpendicular(glm::normalize(worldHingeAxis))), b,
                 b.pointToLocal(worldAnchor), b.directionToLocal(glm::normalize(worldHingeAxis)),
@@ -58,10 +58,10 @@ HingeJoint::HingeJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
 {
 }
 
-HingeJoint::HingeJoint(RigidBody& a, const glm::vec3& localAnchorA,
-                       const glm::vec3& localHingeAxisA, const glm::vec3& localNormalAxisA,
-                       RigidBody& b, const glm::vec3& localAnchorB,
-                       const glm::vec3& localHingeAxisB, const glm::vec3& localNormalAxisB)
+HingeJoint::HingeJoint(RigidBody& a, const Math::Vec3& localAnchorA,
+                       const Math::Vec3& localHingeAxisA, const Math::Vec3& localNormalAxisA,
+                       RigidBody& b, const Math::Vec3& localAnchorB,
+                       const Math::Vec3& localHingeAxisB, const Math::Vec3& localNormalAxisB)
     : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
       mLocalHingeAxisA(glm::normalize(localHingeAxisA)),
       mLocalHingeAxisB(glm::normalize(localHingeAxisB)),
@@ -91,7 +91,7 @@ void HingeJoint::setLimits(f32 minAngle, f32 maxAngle)
 
 f32 HingeJoint::currentAngle() const
 {
-    const glm::quat diff = mBodyB->orientation() * mInverseInitialOrientation *
+    const Math::Quaternion diff = mBodyB->orientation() * mInverseInitialOrientation *
                            glm::conjugate(mBodyA->orientation());
     return rotationAngleAroundAxis(diff, mBodyA->directionToWorld(mLocalHingeAxisA));
 }
@@ -115,12 +115,12 @@ void HingeJoint::calculatePositionProperties()
 {
     mArmA = mBodyA->directionToWorld(mLocalAnchorA);
     mArmB = mBodyB->directionToWorld(mLocalAnchorB);
-    glm::mat3 inverseEffectiveMass(0.0f);
-    const glm::vec3 axes[] = {glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-                              glm::vec3(0.0f, 0.0f, 1.0f)};
+    Math::Mat3 inverseEffectiveMass(0.0f);
+    const Math::Vec3 axes[] = {Math::Vec3(1.0f, 0.0f, 0.0f), Math::Vec3(0.0f, 1.0f, 0.0f),
+                              Math::Vec3(0.0f, 0.0f, 1.0f)};
     for (u32 axis = 0; axis < 3; ++axis)
     {
-        glm::vec3 response = axes[axis] * (mBodyA->inverseMass() + mBodyB->inverseMass());
+        Math::Vec3 response = axes[axis] * (mBodyA->inverseMass() + mBodyB->inverseMass());
         response += glm::cross(
             mBodyA->inverseInertiaTensorWorld() * glm::cross(mArmA, axes[axis]), mArmA);
         response += glm::cross(
@@ -132,20 +132,20 @@ void HingeJoint::calculatePositionProperties()
         mPositionEffectiveMass = glm::inverse(inverseEffectiveMass);
     else
     {
-        mPositionEffectiveMass = glm::mat3(0.0f);
-        mTotalPositionImpulse = glm::vec3(0.0f);
+        mPositionEffectiveMass = Math::Mat3(0.0f);
+        mTotalPositionImpulse = Math::Vec3(0.0f);
     }
 }
 
 void HingeJoint::calculateHingeRotationProperties()
 {
     mA1 = glm::normalize(mBodyA->directionToWorld(mLocalHingeAxisA));
-    glm::vec3 a2 = glm::normalize(mBodyB->directionToWorld(mLocalHingeAxisB));
+    Math::Vec3 a2 = glm::normalize(mBodyB->directionToWorld(mLocalHingeAxisB));
 
     const f32 dot = glm::dot(mA1, a2);
     if (dot <= 1.0e-3f)
     {
-        glm::vec3 perpendicular = a2 - dot * mA1;
+        Math::Vec3 perpendicular = a2 - dot * mA1;
         if (glm::dot(perpendicular, perpendicular) < 1.0e-6f)
             perpendicular = normalizedPerpendicular(mA1);
         else
@@ -158,7 +158,7 @@ void HingeJoint::calculateHingeRotationProperties()
     mB2xA1 = glm::cross(mB2, mA1);
     mC2xA1 = glm::cross(mC2, mA1);
 
-    const glm::mat3 inverseInertiaSum =
+    const Math::Mat3 inverseInertiaSum =
         mBodyA->inverseInertiaTensorWorld() + mBodyB->inverseInertiaTensorWorld();
     glm::mat2 inverseEffectiveMass;
     inverseEffectiveMass[0][0] = glm::dot(mB2xA1, inverseInertiaSum * mB2xA1);
@@ -172,14 +172,14 @@ void HingeJoint::calculateHingeRotationProperties()
     else
     {
         mHingeRotationEffectiveMass = glm::mat2(0.0f);
-        mTotalHingeRotationImpulse = glm::vec2(0.0f);
+        mTotalHingeRotationImpulse = Math::Vec2(0.0f);
     }
 }
 
 void HingeJoint::calculateAxisAndAngle()
 {
     mA1 = glm::normalize(mBodyA->directionToWorld(mLocalHingeAxisA));
-    const glm::quat diff = mBodyB->orientation() * mInverseInitialOrientation *
+    const Math::Quaternion diff = mBodyB->orientation() * mInverseInitialOrientation *
                            glm::conjugate(mBodyA->orientation());
     mTheta = rotationAngleAroundAxis(diff, mA1);
 }
@@ -246,8 +246,8 @@ void HingeJoint::setup(f32 duration)
     }
     else
     {
-        mTotalPositionImpulse = glm::vec3(0.0f);
-        mTotalHingeRotationImpulse = glm::vec2(0.0f);
+        mTotalPositionImpulse = Math::Vec3(0.0f);
+        mTotalHingeRotationImpulse = Math::Vec2(0.0f);
         mTotalLimitImpulse = 0.0f;
         mTotalMotorImpulse = 0.0f;
     }
@@ -255,7 +255,7 @@ void HingeJoint::setup(f32 duration)
     mPreviousDuration = duration;
 }
 
-void HingeJoint::applyVelocityImpulse(const glm::vec3& impulse)
+void HingeJoint::applyVelocityImpulse(const Math::Vec3& impulse)
 {
     if (mBodyA->isDynamic())
     {
@@ -273,7 +273,7 @@ void HingeJoint::applyVelocityImpulse(const glm::vec3& impulse)
     }
 }
 
-void HingeJoint::applyAngularVelocityImpulse(const glm::vec3& impulse)
+void HingeJoint::applyAngularVelocityImpulse(const Math::Vec3& impulse)
 {
     if (mBodyA->isDynamic())
         mBodyA->setAngularVelocity(mBodyA->angularVelocity() -
@@ -307,16 +307,16 @@ void HingeJoint::solveVelocity()
         applyAngularVelocityImpulse(mA1 * (mTotalMotorImpulse - previous));
     }
 
-    const glm::vec3 relativeVelocity =
+    const Math::Vec3 relativeVelocity =
         mBodyB->velocity() + glm::cross(mBodyB->angularVelocity(), mArmB) -
         mBodyA->velocity() - glm::cross(mBodyA->angularVelocity(), mArmA);
-    const glm::vec3 positionImpulse = -(mPositionEffectiveMass * relativeVelocity);
+    const Math::Vec3 positionImpulse = -(mPositionEffectiveMass * relativeVelocity);
     mTotalPositionImpulse += positionImpulse;
     applyVelocityImpulse(positionImpulse);
 
-    const glm::vec3 deltaAngular = mBodyA->angularVelocity() - mBodyB->angularVelocity();
-    const glm::vec2 jv(glm::dot(mB2xA1, deltaAngular), glm::dot(mC2xA1, deltaAngular));
-    const glm::vec2 hingeImpulse = mHingeRotationEffectiveMass * jv;
+    const Math::Vec3 deltaAngular = mBodyA->angularVelocity() - mBodyB->angularVelocity();
+    const Math::Vec2 jv(glm::dot(mB2xA1, deltaAngular), glm::dot(mC2xA1, deltaAngular));
+    const Math::Vec2 hingeImpulse = mHingeRotationEffectiveMass * jv;
     mTotalHingeRotationImpulse += hingeImpulse;
     applyAngularVelocityImpulse(mB2xA1 * hingeImpulse.x + mC2xA1 * hingeImpulse.y);
 
@@ -342,28 +342,28 @@ void HingeJoint::solveVelocity()
 void HingeJoint::solvePosition(f32 baumgarte)
 {
     calculatePositionProperties();
-    const glm::vec3 pointA = mBodyA->position() + mArmA;
-    const glm::vec3 pointB = mBodyB->position() + mArmB;
-    const glm::vec3 positionImpulse = -(mPositionEffectiveMass * (pointB - pointA)) * baumgarte;
+    const Math::Vec3 pointA = mBodyA->position() + mArmA;
+    const Math::Vec3 pointB = mBodyB->position() + mArmB;
+    const Math::Vec3 positionImpulse = -(mPositionEffectiveMass * (pointB - pointA)) * baumgarte;
     mBodyA->applyPositionImpulseAtPoint(-positionImpulse, pointA);
     mBodyB->applyPositionImpulseAtPoint(positionImpulse, pointB);
 
     calculateHingeRotationProperties();
-    const glm::vec2 c(glm::dot(mA1, mB2), glm::dot(mA1, mC2));
-    if (c != glm::vec2(0.0f))
+    const Math::Vec2 c(glm::dot(mA1, mB2), glm::dot(mA1, mC2));
+    if (c != Math::Vec2(0.0f))
     {
-        const glm::vec2 lambda = -baumgarte * (mHingeRotationEffectiveMass * c);
-        const glm::vec3 impulse = mB2xA1 * lambda.x + mC2xA1 * lambda.y;
+        const Math::Vec2 lambda = -baumgarte * (mHingeRotationEffectiveMass * c);
+        const Math::Vec3 impulse = mB2xA1 * lambda.x + mC2xA1 * lambda.y;
         if (mBodyA->isDynamic())
         {
-            const glm::vec3 step = mBodyA->inverseInertiaTensorWorld() * -impulse;
-            const glm::quat spin(0.0f, step);
+            const Math::Vec3 step = mBodyA->inverseInertiaTensorWorld() * -impulse;
+            const Math::Quaternion spin(0.0f, step);
             mBodyA->setOrientation(mBodyA->orientation() + 0.5f * spin * mBodyA->orientation());
         }
         if (mBodyB->isDynamic())
         {
-            const glm::vec3 step = mBodyB->inverseInertiaTensorWorld() * impulse;
-            const glm::quat spin(0.0f, step);
+            const Math::Vec3 step = mBodyB->inverseInertiaTensorWorld() * impulse;
+            const Math::Quaternion spin(0.0f, step);
             mBodyB->setOrientation(mBodyB->orientation() + 0.5f * spin * mBodyB->orientation());
         }
     }
@@ -378,15 +378,15 @@ void HingeJoint::solvePosition(f32 baumgarte)
             const f32 lambda = -mLimitEffectiveMass * baumgarte * error;
             if (mBodyA->isDynamic())
             {
-                const glm::vec3 step = mBodyA->inverseInertiaTensorWorld() * mA1 * -lambda;
-                const glm::quat spin(0.0f, step);
+                const Math::Vec3 step = mBodyA->inverseInertiaTensorWorld() * mA1 * -lambda;
+                const Math::Quaternion spin(0.0f, step);
                 mBodyA->setOrientation(mBodyA->orientation() +
                                        0.5f * spin * mBodyA->orientation());
             }
             if (mBodyB->isDynamic())
             {
-                const glm::vec3 step = mBodyB->inverseInertiaTensorWorld() * mA1 * lambda;
-                const glm::quat spin(0.0f, step);
+                const Math::Vec3 step = mBodyB->inverseInertiaTensorWorld() * mA1 * lambda;
+                const Math::Quaternion spin(0.0f, step);
                 mBodyB->setOrientation(mBodyB->orientation() +
                                        0.5f * spin * mBodyB->orientation());
             }

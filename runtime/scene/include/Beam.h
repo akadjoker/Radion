@@ -28,9 +28,9 @@ class Beam final : public Component
 public:
     static constexpr ComponentType Type = ComponentType::Beam;
 
-    void setPoints(const glm::vec3& start, const glm::vec3& end);
-    const glm::vec3& start() const;
-    const glm::vec3& end() const;
+    void setPoints(const Math::Vec3& start, const Math::Vec3& end);
+    const Math::Vec3& start() const;
+    const Math::Vec3& end() const;
     void setWidth(f32 width);
     f32 width() const;
     // Visible length of the bolt itself - independent of the start/end
@@ -67,8 +67,8 @@ private:
     Beam();
     void onLateUpdate(f32 deltaTime) override;
 
-    glm::vec3 mStart = glm::vec3(0.0f);
-    glm::vec3 mEnd = glm::vec3(0.0f, 0.0f, 1.0f);
+    Math::Vec3 mStart = Math::Vec3(0.0f);
+    Math::Vec3 mEnd = Math::Vec3(0.0f, 0.0f, 1.0f);
     f32 mWidth = 0.05f;
     f32 mSegmentLength = 1.0f;
     Color mColorHead;

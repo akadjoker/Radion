@@ -30,7 +30,7 @@ bool near(f32 a, f32 b, f32 epsilon = 1e-3f)
     return std::abs(a - b) <= epsilon;
 }
 
-bool near(const glm::vec3& a, const glm::vec3& b, f32 epsilon = 1e-3f)
+bool near(const Math::Vec3& a, const Math::Vec3& b, f32 epsilon = 1e-3f)
 {
     return glm::length(a - b) <= epsilon;
 }
@@ -40,14 +40,14 @@ bool isFinite(f32 v)
     return std::isfinite(v);
 }
 
-bool isFinite(const glm::vec3& v)
+bool isFinite(const Math::Vec3& v)
 {
     return isFinite(v.x) && isFinite(v.y) && isFinite(v.z);
 }
 
-bool allVerticesFinite(const std::vector<glm::vec3>& vertices)
+bool allVerticesFinite(const std::vector<Math::Vec3>& vertices)
 {
-    for (const glm::vec3& v : vertices)
+    for (const Math::Vec3& v : vertices)
     {
         if (!isFinite(v))
             return false;
@@ -55,15 +55,15 @@ bool allVerticesFinite(const std::vector<glm::vec3>& vertices)
     return true;
 }
 
-std::vector<glm::vec3> unitCubeCorners(f32 halfExtent = 0.5f)
+std::vector<Math::Vec3> unitCubeCorners(f32 halfExtent = 0.5f)
 {
-    std::vector<glm::vec3> corners;
+    std::vector<Math::Vec3> corners;
     for (int i = 0; i < 8; i++)
     {
         f32 x = (i & 1) ? halfExtent : -halfExtent;
         f32 y = (i & 2) ? halfExtent : -halfExtent;
         f32 z = (i & 4) ? halfExtent : -halfExtent;
-        corners.push_back(glm::vec3(x, y, z));
+        corners.push_back(Math::Vec3(x, y, z));
     }
     return corners;
 }
@@ -72,18 +72,18 @@ bool facePlanar(const ConvexHullComputer& hull, int faceEdgeIndex, f32 epsilon)
 {
     const ConvexHullComputer::Edge* start = &hull.edges[faceEdgeIndex];
     const ConvexHullComputer::Edge* edge = start;
-    glm::vec3 p0 = hull.vertices[edge->getSourceVertex()];
-    glm::vec3 p1 = hull.vertices[edge->getTargetVertex()];
+    Math::Vec3 p0 = hull.vertices[edge->getSourceVertex()];
+    Math::Vec3 p1 = hull.vertices[edge->getTargetVertex()];
     edge = edge->getNextEdgeOfFace();
-    glm::vec3 p2 = hull.vertices[edge->getTargetVertex()];
-    glm::vec3 normal = glm::cross(p1 - p0, p2 - p0);
+    Math::Vec3 p2 = hull.vertices[edge->getTargetVertex()];
+    Math::Vec3 normal = glm::cross(p1 - p0, p2 - p0);
     if (glm::length(normal) < 1e-8f)
         return false;
     normal = glm::normalize(normal);
     f32 d = glm::dot(normal, p0);
     do
     {
-        glm::vec3 p = hull.vertices[edge->getTargetVertex()];
+        Math::Vec3 p = hull.vertices[edge->getTargetVertex()];
         if (!near(glm::dot(normal, p), d, epsilon))
             return false;
         edge = edge->getNextEdgeOfFace();
@@ -91,7 +91,7 @@ bool facePlanar(const ConvexHullComputer& hull, int faceEdgeIndex, f32 epsilon)
     return true;
 }
 
-f32 boxVolume(const glm::vec3& halfExtents)
+f32 boxVolume(const Math::Vec3& halfExtents)
 {
     return 8.0f * halfExtents.x * halfExtents.y * halfExtents.z;
 }
@@ -104,13 +104,13 @@ f32 sumShardVolumes(const std::vector<Shard>& shards)
     return total;
 }
 
-bool allShardVerticesInBounds(const std::vector<Shard>& shards, const glm::vec3& boundsMin, const glm::vec3& boundsMax, f32 epsilon)
+bool allShardVerticesInBounds(const std::vector<Shard>& shards, const Math::Vec3& boundsMin, const Math::Vec3& boundsMax, f32 epsilon)
 {
     for (const Shard& s : shards)
     {
-        for (const glm::vec3& v : s.vertices)
+        for (const Math::Vec3& v : s.vertices)
         {
-            glm::vec3 world = s.centroid + v;
+            Math::Vec3 world = s.centroid + v;
             if (world.x < boundsMin.x - epsilon || world.x > boundsMax.x + epsilon)
                 return false;
             if (world.y < boundsMin.y - epsilon || world.y > boundsMax.y + epsilon)
@@ -124,9 +124,9 @@ bool allShardVerticesInBounds(const std::vector<Shard>& shards, const glm::vec3&
 
 void testCubeHullHasSixFacesTwelveEdgesEightVertices()
 {
-    std::vector<glm::vec3> corners = unitCubeCorners();
+    std::vector<Math::Vec3> corners = unitCubeCorners();
     ConvexHullComputer hull;
-    hull.compute(&corners[0].x, sizeof(glm::vec3), (int)corners.size(), 0.0f, 0.0f);
+    hull.compute(&corners[0].x, sizeof(Math::Vec3), (int)corners.size(), 0.0f, 0.0f);
 
     CHECK(hull.vertices.size() == 8);
     CHECK(hull.faces.size() == 6);
@@ -140,15 +140,15 @@ void testCubeHullHasSixFacesTwelveEdgesEightVertices()
 
 void testHullExcludesInteriorPoints()
 {
-    std::vector<glm::vec3> points = unitCubeCorners();
-    points.push_back(glm::vec3(0.0f, 0.0f, 0.0f));
-    points.push_back(glm::vec3(0.1f, -0.1f, 0.2f));
+    std::vector<Math::Vec3> points = unitCubeCorners();
+    points.push_back(Math::Vec3(0.0f, 0.0f, 0.0f));
+    points.push_back(Math::Vec3(0.1f, -0.1f, 0.2f));
 
     ConvexHullComputer hull;
-    hull.compute(&points[0].x, sizeof(glm::vec3), (int)points.size(), 0.0f, 0.0f);
+    hull.compute(&points[0].x, sizeof(Math::Vec3), (int)points.size(), 0.0f, 0.0f);
 
     CHECK(hull.vertices.size() == 8);
-    for (const glm::vec3& v : hull.vertices)
+    for (const Math::Vec3& v : hull.vertices)
     {
         CHECK(std::abs(v.x) > 0.4f || std::abs(v.y) > 0.4f || std::abs(v.z) > 0.4f);
     }
@@ -156,25 +156,25 @@ void testHullExcludesInteriorPoints()
 
 void testDegenerateCoplanarInputDoesNotCrash()
 {
-    std::vector<glm::vec3> points;
-    points.push_back(glm::vec3(0.0f, 0.0f, 0.0f));
-    points.push_back(glm::vec3(1.0f, 0.0f, 0.0f));
-    points.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
-    points.push_back(glm::vec3(1.0f, 1.0f, 0.0f));
-    points.push_back(glm::vec3(0.5f, 0.5f, 0.0f));
+    std::vector<Math::Vec3> points;
+    points.push_back(Math::Vec3(0.0f, 0.0f, 0.0f));
+    points.push_back(Math::Vec3(1.0f, 0.0f, 0.0f));
+    points.push_back(Math::Vec3(0.0f, 1.0f, 0.0f));
+    points.push_back(Math::Vec3(1.0f, 1.0f, 0.0f));
+    points.push_back(Math::Vec3(0.5f, 0.5f, 0.0f));
 
     ConvexHullComputer hull;
-    hull.compute(&points[0].x, sizeof(glm::vec3), (int)points.size(), 0.0f, 0.0f);
+    hull.compute(&points[0].x, sizeof(Math::Vec3), (int)points.size(), 0.0f, 0.0f);
 
     CHECK(allVerticesFinite(hull.vertices));
 }
 
 void testDegenerateDuplicatePointsDoesNotCrash()
 {
-    std::vector<glm::vec3> points(6, glm::vec3(1.0f, 2.0f, 3.0f));
+    std::vector<Math::Vec3> points(6, Math::Vec3(1.0f, 2.0f, 3.0f));
 
     ConvexHullComputer hull;
-    hull.compute(&points[0].x, sizeof(glm::vec3), (int)points.size(), 0.0f, 0.0f);
+    hull.compute(&points[0].x, sizeof(Math::Vec3), (int)points.size(), 0.0f, 0.0f);
 
     CHECK(allVerticesFinite(hull.vertices));
 }
@@ -182,7 +182,7 @@ void testDegenerateDuplicatePointsDoesNotCrash()
 void testCountZeroYieldsEmptyHull()
 {
     ConvexHullComputer hull;
-    f32 shift = hull.compute(nullptr, sizeof(glm::vec3), 0, 0.0f, 0.0f);
+    f32 shift = hull.compute(nullptr, sizeof(Math::Vec3), 0, 0.0f, 0.0f);
 
     CHECK(shift == 0.0f);
     CHECK(hull.vertices.empty());
@@ -192,9 +192,9 @@ void testCountZeroYieldsEmptyHull()
 
 void testCountOneDoesNotCrash()
 {
-    glm::vec3 point(1.0f, 2.0f, 3.0f);
+    Math::Vec3 point(1.0f, 2.0f, 3.0f);
     ConvexHullComputer hull;
-    hull.compute(&point.x, sizeof(glm::vec3), 1, 0.0f, 0.0f);
+    hull.compute(&point.x, sizeof(Math::Vec3), 1, 0.0f, 0.0f);
 
     CHECK(allVerticesFinite(hull.vertices));
     CHECK(hull.faces.size() <= 1);
@@ -202,9 +202,9 @@ void testCountOneDoesNotCrash()
 
 void testCountTwoSegmentDoesNotCrash()
 {
-    std::vector<glm::vec3> points = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)};
+    std::vector<Math::Vec3> points = {Math::Vec3(0.0f, 0.0f, 0.0f), Math::Vec3(1.0f, 0.0f, 0.0f)};
     ConvexHullComputer hull;
-    hull.compute(&points[0].x, sizeof(glm::vec3), (int)points.size(), 0.0f, 0.0f);
+    hull.compute(&points[0].x, sizeof(Math::Vec3), (int)points.size(), 0.0f, 0.0f);
 
     CHECK(allVerticesFinite(hull.vertices));
     // Two vertices joined by a single edge pair still produce one degenerate
@@ -216,12 +216,12 @@ void testCountTwoSegmentDoesNotCrash()
 
 void testAllPointsCollinearDoesNotCrash()
 {
-    std::vector<glm::vec3> points;
+    std::vector<Math::Vec3> points;
     for (int i = 0; i < 6; i++)
-        points.push_back(glm::vec3((f32)i, 0.0f, 0.0f));
+        points.push_back(Math::Vec3((f32)i, 0.0f, 0.0f));
 
     ConvexHullComputer hull;
-    hull.compute(&points[0].x, sizeof(glm::vec3), (int)points.size(), 0.0f, 0.0f);
+    hull.compute(&points[0].x, sizeof(Math::Vec3), (int)points.size(), 0.0f, 0.0f);
 
     CHECK(allVerticesFinite(hull.vertices));
     CHECK(hull.vertices.size() == 2);
@@ -230,9 +230,9 @@ void testAllPointsCollinearDoesNotCrash()
 
 void testLargeCoordinateMagnitudeStaysSane()
 {
-    std::vector<glm::vec3> corners = unitCubeCorners(1e6f);
+    std::vector<Math::Vec3> corners = unitCubeCorners(1e6f);
     ConvexHullComputer hull;
-    hull.compute(&corners[0].x, sizeof(glm::vec3), (int)corners.size(), 0.0f, 0.0f);
+    hull.compute(&corners[0].x, sizeof(Math::Vec3), (int)corners.size(), 0.0f, 0.0f);
 
     CHECK(allVerticesFinite(hull.vertices));
     CHECK(hull.vertices.size() == 8);
@@ -241,9 +241,9 @@ void testLargeCoordinateMagnitudeStaysSane()
 
 void testSmallCoordinateMagnitudeStaysSane()
 {
-    std::vector<glm::vec3> corners = unitCubeCorners(1e-4f);
+    std::vector<Math::Vec3> corners = unitCubeCorners(1e-4f);
     ConvexHullComputer hull;
-    hull.compute(&corners[0].x, sizeof(glm::vec3), (int)corners.size(), 0.0f, 0.0f);
+    hull.compute(&corners[0].x, sizeof(Math::Vec3), (int)corners.size(), 0.0f, 0.0f);
 
     CHECK(allVerticesFinite(hull.vertices));
     CHECK(hull.vertices.size() == 8);
@@ -252,9 +252,9 @@ void testSmallCoordinateMagnitudeStaysSane()
 
 void testTinyJitterDoesNotFragmentCubeFaces()
 {
-    std::vector<glm::vec3> corners = unitCubeCorners();
+    std::vector<Math::Vec3> corners = unitCubeCorners();
     unsigned int seed = 12345u;
-    for (glm::vec3& c : corners)
+    for (Math::Vec3& c : corners)
     {
         seed = 1664525u * seed + 1013904223u;
         f32 jx = ((f32)(seed & 0xffffu) / 65535.0f - 0.5f) * 2e-6f;
@@ -262,11 +262,11 @@ void testTinyJitterDoesNotFragmentCubeFaces()
         f32 jy = ((f32)(seed & 0xffffu) / 65535.0f - 0.5f) * 2e-6f;
         seed = 1664525u * seed + 1013904223u;
         f32 jz = ((f32)(seed & 0xffffu) / 65535.0f - 0.5f) * 2e-6f;
-        c += glm::vec3(jx, jy, jz);
+        c += Math::Vec3(jx, jy, jz);
     }
 
     ConvexHullComputer hull;
-    hull.compute(&corners[0].x, sizeof(glm::vec3), (int)corners.size(), 0.0f, 0.0f);
+    hull.compute(&corners[0].x, sizeof(Math::Vec3), (int)corners.size(), 0.0f, 0.0f);
 
     // The hull uses exact integer predicates on quantized coordinates (no
     // coplanarity tolerance), so jitter far smaller than the quantization step
@@ -282,26 +282,26 @@ void testTinyJitterDoesNotFragmentCubeFaces()
 
 void testGetVerticesInsidePlanesRecoversBoxCorners()
 {
-    std::vector<glm::vec4> planes;
-    planes.push_back(glm::vec4(1.0f, 0.0f, 0.0f, -0.5f));
-    planes.push_back(glm::vec4(-1.0f, 0.0f, 0.0f, -0.5f));
-    planes.push_back(glm::vec4(0.0f, 1.0f, 0.0f, -0.5f));
-    planes.push_back(glm::vec4(0.0f, -1.0f, 0.0f, -0.5f));
-    planes.push_back(glm::vec4(0.0f, 0.0f, 1.0f, -0.5f));
-    planes.push_back(glm::vec4(0.0f, 0.0f, -1.0f, -0.5f));
+    std::vector<Math::Vec4> planes;
+    planes.push_back(Math::Vec4(1.0f, 0.0f, 0.0f, -0.5f));
+    planes.push_back(Math::Vec4(-1.0f, 0.0f, 0.0f, -0.5f));
+    planes.push_back(Math::Vec4(0.0f, 1.0f, 0.0f, -0.5f));
+    planes.push_back(Math::Vec4(0.0f, -1.0f, 0.0f, -0.5f));
+    planes.push_back(Math::Vec4(0.0f, 0.0f, 1.0f, -0.5f));
+    planes.push_back(Math::Vec4(0.0f, 0.0f, -1.0f, -0.5f));
 
-    std::vector<glm::vec3> vertices;
+    std::vector<Math::Vec3> vertices;
     std::vector<int> planeIndices;
     bool found = VoronoiShatter::getVerticesInsidePlanes(planes, vertices, planeIndices);
 
     CHECK(found);
     CHECK(vertices.size() == 8);
 
-    std::vector<glm::vec3> expected = unitCubeCorners();
-    for (const glm::vec3& e : expected)
+    std::vector<Math::Vec3> expected = unitCubeCorners();
+    for (const Math::Vec3& e : expected)
     {
         bool matched = false;
-        for (const glm::vec3& v : vertices)
+        for (const Math::Vec3& v : vertices)
         {
             if (near(v, e, 1e-3f))
             {
@@ -315,21 +315,21 @@ void testGetVerticesInsidePlanesRecoversBoxCorners()
 
 void testSingleVoronoiPointRecoversWholeBox()
 {
-    std::vector<glm::vec3> boxVerts = unitCubeCorners();
-    std::vector<glm::vec3> points = {glm::vec3(0.0f, 0.0f, 0.0f)};
+    std::vector<Math::Vec3> boxVerts = unitCubeCorners();
+    std::vector<Math::Vec3> points = {Math::Vec3(0.0f, 0.0f, 0.0f)};
     std::vector<Shard> shards;
     VoronoiShatter::shatter(boxVerts, points, shards);
 
     CHECK(shards.size() == 1);
     if (shards.size() == 1)
     {
-        CHECK(near(shards[0].volume, boxVolume(glm::vec3(0.5f)), 1e-2f));
+        CHECK(near(shards[0].volume, boxVolume(Math::Vec3(0.5f)), 1e-2f));
         CHECK(shards[0].vertices.size() == 8);
-        for (const glm::vec3& e : boxVerts)
+        for (const Math::Vec3& e : boxVerts)
         {
-            glm::vec3 world = shards[0].centroid;
+            Math::Vec3 world = shards[0].centroid;
             bool matched = false;
-            for (const glm::vec3& v : shards[0].vertices)
+            for (const Math::Vec3& v : shards[0].vertices)
             {
                 if (near(world + v, e, 1e-2f))
                 {
@@ -344,30 +344,30 @@ void testSingleVoronoiPointRecoversWholeBox()
 
 void testMultipleVoronoiPointsConserveVolume()
 {
-    std::vector<glm::vec3> boxVerts = unitCubeCorners();
-    std::vector<glm::vec3> points = {
-        glm::vec3(-0.3f, -0.3f, -0.3f),
-        glm::vec3(0.3f, -0.3f, -0.3f),
-        glm::vec3(-0.3f, 0.3f, -0.3f),
-        glm::vec3(0.3f, 0.3f, -0.3f),
-        glm::vec3(-0.2f, -0.2f, 0.25f),
-        glm::vec3(0.2f, -0.2f, 0.25f),
-        glm::vec3(-0.2f, 0.2f, 0.25f),
-        glm::vec3(0.2f, 0.2f, 0.25f),
+    std::vector<Math::Vec3> boxVerts = unitCubeCorners();
+    std::vector<Math::Vec3> points = {
+        Math::Vec3(-0.3f, -0.3f, -0.3f),
+        Math::Vec3(0.3f, -0.3f, -0.3f),
+        Math::Vec3(-0.3f, 0.3f, -0.3f),
+        Math::Vec3(0.3f, 0.3f, -0.3f),
+        Math::Vec3(-0.2f, -0.2f, 0.25f),
+        Math::Vec3(0.2f, -0.2f, 0.25f),
+        Math::Vec3(-0.2f, 0.2f, 0.25f),
+        Math::Vec3(0.2f, 0.2f, 0.25f),
     };
 
     std::vector<Shard> shards;
     VoronoiShatter::shatter(boxVerts, points, shards);
 
     CHECK(!shards.empty());
-    CHECK(near(sumShardVolumes(shards), boxVolume(glm::vec3(0.5f)), 5e-2f));
-    CHECK(allShardVerticesInBounds(shards, glm::vec3(-0.5f), glm::vec3(0.5f), 1e-2f));
+    CHECK(near(sumShardVolumes(shards), boxVolume(Math::Vec3(0.5f)), 5e-2f));
+    CHECK(allShardVerticesInBounds(shards, Math::Vec3(-0.5f), Math::Vec3(0.5f), 1e-2f));
 }
 
 void testVoronoiZeroPointsDoesNotCrash()
 {
-    std::vector<glm::vec3> boxVerts = unitCubeCorners();
-    std::vector<glm::vec3> points;
+    std::vector<Math::Vec3> boxVerts = unitCubeCorners();
+    std::vector<Math::Vec3> points;
     std::vector<Shard> shards;
     VoronoiShatter::shatter(boxVerts, points, shards);
 
@@ -376,27 +376,27 @@ void testVoronoiZeroPointsDoesNotCrash()
 
 void testVoronoiSinglePointOutsideBoxStillRecoversWholeBox()
 {
-    std::vector<glm::vec3> boxVerts = unitCubeCorners();
-    std::vector<glm::vec3> points = {glm::vec3(5.0f, 5.0f, 5.0f)};
+    std::vector<Math::Vec3> boxVerts = unitCubeCorners();
+    std::vector<Math::Vec3> points = {Math::Vec3(5.0f, 5.0f, 5.0f)};
     std::vector<Shard> shards;
     VoronoiShatter::shatter(boxVerts, points, shards);
 
     CHECK(shards.size() == 1);
     if (shards.size() == 1)
     {
-        CHECK(near(shards[0].volume, boxVolume(glm::vec3(0.5f)), 1e-2f));
+        CHECK(near(shards[0].volume, boxVolume(Math::Vec3(0.5f)), 1e-2f));
         CHECK(shards[0].vertices.size() == 8);
     }
 }
 
 void testVoronoiNearDuplicatePointsDoNotCrash()
 {
-    std::vector<glm::vec3> boxVerts = unitCubeCorners();
-    std::vector<glm::vec3> points = {
-        glm::vec3(-0.1f, 0.0f, 0.0f),
-        glm::vec3(-0.1f + 1e-6f, 1e-7f, -1e-7f),
-        glm::vec3(0.2f, 0.2f, 0.2f),
-        glm::vec3(-0.3f, -0.2f, 0.1f),
+    std::vector<Math::Vec3> boxVerts = unitCubeCorners();
+    std::vector<Math::Vec3> points = {
+        Math::Vec3(-0.1f, 0.0f, 0.0f),
+        Math::Vec3(-0.1f + 1e-6f, 1e-7f, -1e-7f),
+        Math::Vec3(0.2f, 0.2f, 0.2f),
+        Math::Vec3(-0.3f, -0.2f, 0.1f),
     };
     std::vector<Shard> shards;
     VoronoiShatter::shatter(boxVerts, points, shards);
@@ -421,14 +421,14 @@ void testVoronoiNearDuplicatePointsDoNotCrash()
     }
     if (allFinite)
     {
-        CHECK(near(total, boxVolume(glm::vec3(0.5f)), 5e-2f));
+        CHECK(near(total, boxVolume(Math::Vec3(0.5f)), 5e-2f));
     }
 }
 
 void testVoronoiManyPointsFinishesAndConservesVolume()
 {
-    std::vector<glm::vec3> boxVerts = unitCubeCorners();
-    std::vector<glm::vec3> points;
+    std::vector<Math::Vec3> boxVerts = unitCubeCorners();
+    std::vector<Math::Vec3> points;
     unsigned int seed = 987654321u;
     for (int i = 0; i < 50; i++)
     {
@@ -438,7 +438,7 @@ void testVoronoiManyPointsFinishesAndConservesVolume()
         f32 y = ((f32)(seed & 0xffffu) / 65535.0f - 0.5f);
         seed = 1664525u * seed + 1013904223u;
         f32 z = ((f32)(seed & 0xffffu) / 65535.0f - 0.5f);
-        points.push_back(glm::vec3(x, y, z));
+        points.push_back(Math::Vec3(x, y, z));
     }
 
     std::vector<Shard> shards;
@@ -459,23 +459,23 @@ void testVoronoiManyPointsFinishesAndConservesVolume()
     CHECK(allFinite);
     if (allFinite)
     {
-        CHECK(near(total, boxVolume(glm::vec3(0.5f)), 0.1f));
+        CHECK(near(total, boxVolume(Math::Vec3(0.5f)), 0.1f));
     }
 }
 
 void testVoronoiDegenerateSourceShapeDoesNotCrash()
 {
-    std::vector<glm::vec3> flatBoxVerts;
+    std::vector<Math::Vec3> flatBoxVerts;
     for (int i = 0; i < 8; i++)
     {
         f32 x = (i & 1) ? 0.5f : -0.5f;
         f32 y = (i & 2) ? 0.5f : -0.5f;
-        flatBoxVerts.push_back(glm::vec3(x, y, 0.0f));
+        flatBoxVerts.push_back(Math::Vec3(x, y, 0.0f));
     }
 
-    std::vector<glm::vec3> points = {
-        glm::vec3(-0.2f, -0.2f, 0.0f),
-        glm::vec3(0.2f, 0.2f, 0.0f),
+    std::vector<Math::Vec3> points = {
+        Math::Vec3(-0.2f, -0.2f, 0.0f),
+        Math::Vec3(0.2f, 0.2f, 0.0f),
     };
 
     std::vector<Shard> shards;

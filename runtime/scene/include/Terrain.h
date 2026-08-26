@@ -129,13 +129,13 @@ public:
     // Surface normal at the same coordinates, from the height samples around
     // it. What a caller scattering props reads to reject cliffs, or to sit
     // something flat on the slope.
-    glm::vec3 normalAt(f32 localX, f32 localZ) const;
-    bool raycast(const Ray& worldRay, glm::vec3& worldHit) const;
+    Math::Vec3 normalAt(f32 localX, f32 localZ) const;
+    bool raycast(const Ray& worldRay, Math::Vec3& worldHit) const;
 
-    bool raise(const glm::vec3& worldCenter, f32 radius, f32 amount);
-    bool lower(const glm::vec3& worldCenter, f32 radius, f32 amount);
-    bool smooth(const glm::vec3& worldCenter, f32 radius, f32 strength = 0.5f);
-    bool flatten(const glm::vec3& worldCenter, f32 radius, f32 targetHeight = 0.0f,
+    bool raise(const Math::Vec3& worldCenter, f32 radius, f32 amount);
+    bool lower(const Math::Vec3& worldCenter, f32 radius, f32 amount);
+    bool smooth(const Math::Vec3& worldCenter, f32 radius, f32 strength = 0.5f);
+    bool flatten(const Math::Vec3& worldCenter, f32 radius, f32 targetHeight = 0.0f,
                  f32 strength = 1.0f);
 
     // Deterministic whole-terrain scatter. Grass/Forest keep ownership and
@@ -152,7 +152,7 @@ public:
     const std::string& vegetationMaskFile() const;
     // Centre is in world space, matching the sculpt tools. Strength is the
     // amount added/subtracted from the selected channel, with a soft falloff.
-    bool paintVegetation(const glm::vec3& worldCenter, f32 radius,
+    bool paintVegetation(const Math::Vec3& worldCenter, f32 radius,
                          VegetationChannel channel, f32 strength, bool erase = false);
     void fillVegetation(VegetationChannel channel, f32 density);
     f32 vegetationDensity(f32 localX, f32 localZ, VegetationChannel channel) const;
@@ -166,7 +166,7 @@ public:
     void discardSurfaceSplat();
     bool hasSurfaceSplat() const;
     const std::string& surfaceSplatFile() const;
-    bool paintSurface(const glm::vec3& worldCenter, f32 radius, SurfaceLayer layer,
+    bool paintSurface(const Math::Vec3& worldCenter, f32 radius, SurfaceLayer layer,
                       f32 strength, bool restoreAutomatic = false);
     VegetationSettings& grassGenerationSettings() { return mGrassGeneration; }
     const VegetationSettings& grassGenerationSettings() const { return mGrassGeneration; }
@@ -179,10 +179,10 @@ private:
 
     struct Chunk
     {
-        glm::vec3 position = glm::vec3(0.0f); // this chunk's centre, in the terrain's own local space
+        Math::Vec3 position = Math::Vec3(0.0f); // this chunk's centre, in the terrain's own local space
         MeshHandle mesh;
 
-        glm::vec3 sphereCentre = glm::vec3(0.0f);
+        Math::Vec3 sphereCentre = Math::Vec3(0.0f);
         f32 sphereRadius = 0.0f;
         f32 minimumY = 0.0f;
         f32 maximumY = 0.0f;
@@ -197,22 +197,22 @@ private:
     Terrain();
     void onDestroy() override;
 
-    void prepare(const Frustum& frustum, const glm::vec3& cameraPosition);
-    void submitCamera(RenderList& list, const glm::mat4& transform);
-    void submitShadow(RenderList& list, const glm::mat4& transform);
+    void prepare(const Frustum& frustum, const Math::Vec3& cameraPosition);
+    void submitCamera(RenderList& list, const Math::Mat4& transform);
+    void submitShadow(RenderList& list, const Math::Mat4& transform);
 
-    bool edit(const glm::vec3& worldCenter, f32 radius, f32 amount, bool smoothing);
+    bool edit(const Math::Vec3& worldCenter, f32 radius, f32 amount, bool smoothing);
     void rebuildChunksTouching(u32 minX, u32 minZ, u32 maxX, u32 maxZ);
     bool buildChunk(u32 chunkX, u32 chunkZ);
     void releaseChunk(Chunk& chunk);
-    u32 pickLod(const Chunk& chunk, const glm::vec3& cameraPosition,
-                const glm::mat4& transform) const;
+    u32 pickLod(const Chunk& chunk, const Math::Vec3& cameraPosition,
+                const Math::Mat4& transform) const;
     u32 vertexIndex(u32 x, u32 z) const;
     f32 sampleHeight(s32 x, s32 z) const;
-    glm::vec4 automaticSurfaceWeights(f32 localX, f32 localZ) const;
+    Math::Vec4 automaticSurfaceWeights(f32 localX, f32 localZ) const;
     // The layer thresholds wherever they currently live: params.custom0 in
     // Layers mode, the saved copy while Classic mode is holding custom0.
-    const glm::vec4& layerThresholds() const;
+    const Math::Vec4& layerThresholds() const;
     void uploadSurfaceSplat(bool recreate);
 
     std::vector<f32> mHeights;
@@ -233,8 +233,8 @@ private:
     // params.custom0; setSurfaceMode() copies it here before handing the
     // register over, so sliders edited directly on the material survive a
     // round trip through the other mode.
-    glm::vec4 mLayerParams = glm::vec4(0.16f, 0.72f, 0.08f, 0.32f);
-    glm::vec4 mClassicParams = glm::vec4(64.0f, 0.6f, 0.0f, 0.0f);
+    Math::Vec4 mLayerParams = Math::Vec4(0.16f, 0.72f, 0.08f, 0.32f);
+    Math::Vec4 mClassicParams = Math::Vec4(64.0f, 0.6f, 0.0f, 0.0f);
     std::string mHeightmapFile;
     u64 mRevision = 0;
     VegetationSettings mGrassGeneration;

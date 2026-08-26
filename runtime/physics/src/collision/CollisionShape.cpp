@@ -13,9 +13,9 @@ namespace
 {
 // Corner i takes +halfExtents on axis a when bit a of i is set, which is the
 // same numbering the volume mesher uses for a cell's corners.
-glm::vec3 cornerSign(u32 index)
+Math::Vec3 cornerSign(u32 index)
 {
-    return glm::vec3((index & 1) ? 1.0f : -1.0f, (index & 2) ? 1.0f : -1.0f,
+    return Math::Vec3((index & 1) ? 1.0f : -1.0f, (index & 2) ? 1.0f : -1.0f,
                      (index & 4) ? 1.0f : -1.0f);
 }
 
@@ -25,9 +25,19 @@ glm::vec3 cornerSign(u32 index)
 // volume mesher's quad case had.
 constexpr u8 kFaces[6][4] = {{0, 2, 6, 4}, {1, 5, 7, 3}, {0, 4, 5, 1},
                              {2, 3, 7, 6}, {0, 1, 3, 2}, {4, 6, 7, 5}};
+
+Math::Vec3 toMath(const Math::Vec3& value)
+{
+    return Math::Vec3(value.x, value.y, value.z);
+}
+
+Math::Vec3 toGlm(const Math::Vec3& value)
+{
+    return Math::Vec3(value.x, value.y, value.z);
+}
 } // namespace
 
-void CollisionShape::project(const glm::mat4& transform, const glm::vec3& axis, f32& minimum,
+void CollisionShape::project(const Math::Mat4& transform, const Math::Vec3& axis, f32& minimum,
                              f32& maximum) const
 {
     minimum = glm::dot(axis, support(transform, -axis));
@@ -40,43 +50,43 @@ SphereShape::SphereShape(f32 radius) : mRadius(glm::max(radius, 0.0f))
 {
 }
 
-glm::mat3 SphereShape::inertia(f32 mass) const
+Math::Mat3 SphereShape::inertia(f32 mass) const
 {
     return Inertia::solidSphere(mass, mRadius);
 }
 
-AABB SphereShape::bounds(const glm::mat4& transform) const
+AABB SphereShape::bounds(const Math::Mat4& transform) const
 {
-    const glm::vec3 center(transform[3]);
-    const glm::mat3 rotation(transform);
-    const glm::vec3 extent(
-        mRadius * glm::length(glm::vec3(rotation[0][0], rotation[1][0], rotation[2][0])),
-        mRadius * glm::length(glm::vec3(rotation[0][1], rotation[1][1], rotation[2][1])),
-        mRadius * glm::length(glm::vec3(rotation[0][2], rotation[1][2], rotation[2][2])));
+    const Math::Vec3 center(transform[3]);
+    const Math::Mat3 rotation(transform);
+    const Math::Vec3 extent(
+        mRadius * glm::length(Math::Vec3(rotation[0][0], rotation[1][0], rotation[2][0])),
+        mRadius * glm::length(Math::Vec3(rotation[0][1], rotation[1][1], rotation[2][1])),
+        mRadius * glm::length(Math::Vec3(rotation[0][2], rotation[1][2], rotation[2][2])));
     AABB box;
-    box.min = center - extent;
-    box.max = center + extent;
+    box.min = toMath(center - extent);
+    box.max = toMath(center + extent);
     return box;
 }
 
-glm::vec3 SphereShape::support(const glm::mat4& transform, const glm::vec3& direction) const
+Math::Vec3 SphereShape::support(const Math::Mat4& transform, const Math::Vec3& direction) const
 {
-    const glm::vec3 center(transform[3]);
+    const Math::Vec3 center(transform[3]);
     const f32 length = glm::length(direction);
     if (length < 1e-8f)
         return center;
     return center + (direction / length) * mRadius;
 }
 
-void SphereShape::debugDraw(const glm::mat4& transform, Color color) const
+void SphereShape::debugDraw(const Math::Mat4& transform, Color color) const
 {
-    const glm::vec3 center(transform[3]);
+    const Math::Vec3 center(transform[3]);
     // The BODY's axes, not the world's. Drawn on world axes a sphere looks
     // identical however it is turned, so a rolling one reads as a sliding
     // one - and rolling is exactly what a sphere's debug view is for.
-    const glm::vec3 right = glm::normalize(glm::vec3(transform[0]));
-    const glm::vec3 up = glm::normalize(glm::vec3(transform[1]));
-    const glm::vec3 forward = glm::normalize(glm::vec3(transform[2]));
+    const Math::Vec3 right = glm::normalize(Math::Vec3(transform[0]));
+    const Math::Vec3 up = glm::normalize(Math::Vec3(transform[1]));
+    const Math::Vec3 forward = glm::normalize(Math::Vec3(transform[2]));
     constexpr u32 segments = 24;
     DebugDraw().circle(center, right, up, mRadius, segments, color);
     DebugDraw().circle(center, right, forward, mRadius, segments, color);
@@ -85,20 +95,20 @@ void SphereShape::debugDraw(const glm::mat4& transform, Color color) const
 
 // ---------------------------------------------------------------------- box
 
-BoxShape::BoxShape(const glm::vec3& halfExtents)
-    : mHalfExtents(glm::max(halfExtents, glm::vec3(0.0f)))
+BoxShape::BoxShape(const Math::Vec3& halfExtents)
+    : mHalfExtents(glm::max(halfExtents, Math::Vec3(0.0f)))
 {
 }
 
-glm::mat3 BoxShape::inertia(f32 mass) const
+Math::Mat3 BoxShape::inertia(f32 mass) const
 {
     return Inertia::box(mass, mHalfExtents);
 }
 
-void BoxShape::corners(const glm::mat4& transform, glm::vec3 out[8]) const
+void BoxShape::corners(const Math::Mat4& transform, Math::Vec3 out[8]) const
 {
     for (u32 i = 0; i < 8; ++i)
-        out[i] = glm::vec3(transform * glm::vec4(cornerSign(i) * mHalfExtents, 1.0f));
+        out[i] = Math::Vec3(transform * Math::Vec4(cornerSign(i) * mHalfExtents, 1.0f));
 }
 
 const u8* BoxShape::faceCorners(u32 index)
@@ -106,41 +116,41 @@ const u8* BoxShape::faceCorners(u32 index)
     return kFaces[index % 6];
 }
 
-glm::vec3 BoxShape::faceNormal(const glm::mat4& transform, u32 index)
+Math::Vec3 BoxShape::faceNormal(const Math::Mat4& transform, u32 index)
 {
     const u32 axis = (index % 6) / 2;
     const f32 sign = (index % 2) ? 1.0f : -1.0f;
-    return glm::normalize(glm::vec3(transform[axis]) * sign);
+    return glm::normalize(Math::Vec3(transform[axis]) * sign);
 }
 
-AABB BoxShape::bounds(const glm::mat4& transform) const
+AABB BoxShape::bounds(const Math::Mat4& transform) const
 {
     // The rotated box's AABB, without walking all eight corners: each world
     // axis reaches as far as the sum of the absolute row of the rotation
     // times the half extents.
-    const glm::vec3 center(transform[3]);
-    const glm::mat3 rotation(transform);
-    const glm::vec3 extent(
-        glm::dot(glm::abs(glm::vec3(rotation[0][0], rotation[1][0], rotation[2][0])), mHalfExtents),
-        glm::dot(glm::abs(glm::vec3(rotation[0][1], rotation[1][1], rotation[2][1])), mHalfExtents),
-        glm::dot(glm::abs(glm::vec3(rotation[0][2], rotation[1][2], rotation[2][2])),
+    const Math::Vec3 center(transform[3]);
+    const Math::Mat3 rotation(transform);
+    const Math::Vec3 extent(
+        glm::dot(glm::abs(Math::Vec3(rotation[0][0], rotation[1][0], rotation[2][0])), mHalfExtents),
+        glm::dot(glm::abs(Math::Vec3(rotation[0][1], rotation[1][1], rotation[2][1])), mHalfExtents),
+        glm::dot(glm::abs(Math::Vec3(rotation[0][2], rotation[1][2], rotation[2][2])),
                  mHalfExtents));
     AABB box;
-    box.min = center - extent;
-    box.max = center + extent;
+    box.min = toMath(center - extent);
+    box.max = toMath(center + extent);
     return box;
 }
 
-glm::vec3 BoxShape::support(const glm::mat4& transform, const glm::vec3& direction) const
+Math::Vec3 BoxShape::support(const Math::Mat4& transform, const Math::Vec3& direction) const
 {
     // The furthest corner is the one whose every local axis agrees in sign
     // with the direction - no search over eight, three comparisons.
-    const glm::mat3 rotation(transform);
-    const glm::vec3 local = glm::transpose(rotation) * direction;
-    const glm::vec3 corner(local.x >= 0.0f ? mHalfExtents.x : -mHalfExtents.x,
+    const Math::Mat3 rotation(transform);
+    const Math::Vec3 local = glm::transpose(rotation) * direction;
+    const Math::Vec3 corner(local.x >= 0.0f ? mHalfExtents.x : -mHalfExtents.x,
                            local.y >= 0.0f ? mHalfExtents.y : -mHalfExtents.y,
                            local.z >= 0.0f ? mHalfExtents.z : -mHalfExtents.z);
-    return glm::vec3(transform * glm::vec4(corner, 1.0f));
+    return Math::Vec3(transform * Math::Vec4(corner, 1.0f));
 }
 
 // ------------------------------------------------------------------ capsule
@@ -150,95 +160,95 @@ CapsuleShape::CapsuleShape(f32 radius, f32 halfHeight)
 {
 }
 
-glm::mat3 CapsuleShape::inertia(f32 mass) const
+Math::Mat3 CapsuleShape::inertia(f32 mass) const
 {
     return Inertia::capsuleY(mass, mRadius, mHalfHeight * 2.0f);
 }
 
-void CapsuleShape::segment(const glm::mat4& transform, glm::vec3& lower, glm::vec3& upper) const
+void CapsuleShape::segment(const Math::Mat4& transform, Math::Vec3& lower, Math::Vec3& upper) const
 {
-    const glm::vec3 axis = glm::vec3(transform[1]) * mHalfHeight;
-    const glm::vec3 center(transform[3]);
+    const Math::Vec3 axis = Math::Vec3(transform[1]) * mHalfHeight;
+    const Math::Vec3 center(transform[3]);
     lower = center - axis;
     upper = center + axis;
 }
 
-AABB CapsuleShape::bounds(const glm::mat4& transform) const
+AABB CapsuleShape::bounds(const Math::Mat4& transform) const
 {
-    glm::vec3 lower, upper;
+    Math::Vec3 lower, upper;
     segment(transform, lower, upper);
     AABB box;
-    box.min = glm::min(lower, upper) - glm::vec3(mRadius);
-    box.max = glm::max(lower, upper) + glm::vec3(mRadius);
+    box.min = toMath(glm::min(lower, upper) - Math::Vec3(mRadius));
+    box.max = toMath(glm::max(lower, upper) + Math::Vec3(mRadius));
     return box;
 }
 
-glm::vec3 CapsuleShape::support(const glm::mat4& transform, const glm::vec3& direction) const
+Math::Vec3 CapsuleShape::support(const Math::Mat4& transform, const Math::Vec3& direction) const
 {
-    glm::vec3 lower, upper;
+    Math::Vec3 lower, upper;
     segment(transform, lower, upper);
     // Whichever end is further along the direction, then out by the radius.
-    const glm::vec3 end = glm::dot(direction, upper) >= glm::dot(direction, lower) ? upper : lower;
+    const Math::Vec3 end = glm::dot(direction, upper) >= glm::dot(direction, lower) ? upper : lower;
     const f32 length = glm::length(direction);
     if (length < 1e-8f)
         return end;
     return end + (direction / length) * mRadius;
 }
 
-PlaneShape::PlaneShape(const glm::vec3& normal, f32 constant)
+PlaneShape::PlaneShape(const Math::Vec3& normal, f32 constant)
     : mNormal(glm::dot(normal, normal) > 1.0e-12f ? glm::normalize(normal)
-                                                       : glm::vec3(0.0f, 1.0f, 0.0f)),
+                                                       : Math::Vec3(0.0f, 1.0f, 0.0f)),
       mConstant(constant)
 {
 }
 
-glm::mat3 PlaneShape::inertia(f32) const
+Math::Mat3 PlaneShape::inertia(f32) const
 {
-    return glm::mat3(0.0f);
+    return Math::Mat3(0.0f);
 }
 
-AABB PlaneShape::bounds(const glm::mat4&) const
+AABB PlaneShape::bounds(const Math::Mat4&) const
 {
     AABB box;
-    box.min = glm::vec3(-3.402823466e+38F);
-    box.max = glm::vec3(3.402823466e+38F);
+    box.min = Math::Vec3(-3.402823466e+38F);
+    box.max = Math::Vec3(3.402823466e+38F);
     return box;
 }
 
-glm::vec3 PlaneShape::support(const glm::mat4& transform, const glm::vec3&) const
+Math::Vec3 PlaneShape::support(const Math::Mat4& transform, const Math::Vec3&) const
 {
-    return glm::vec3(transform * glm::vec4(mNormal * mConstant, 1.0f));
+    return Math::Vec3(transform * Math::Vec4(mNormal * mConstant, 1.0f));
 }
 
-void PlaneShape::debugDraw(const glm::mat4& transform, Color color) const
+void PlaneShape::debugDraw(const Math::Mat4& transform, Color color) const
 {
-    glm::vec3 first;
-    glm::vec3 second;
+    Math::Vec3 first;
+    Math::Vec3 second;
     if (std::abs(mNormal.z) > 0.70710678f)
     {
         const f32 inverseLength = 1.0f / std::sqrt(mNormal.y * mNormal.y + mNormal.z * mNormal.z);
-        first = glm::vec3(0.0f, -mNormal.z * inverseLength, mNormal.y * inverseLength);
+        first = Math::Vec3(0.0f, -mNormal.z * inverseLength, mNormal.y * inverseLength);
     }
     else
     {
         const f32 inverseLength = 1.0f / std::sqrt(mNormal.x * mNormal.x + mNormal.y * mNormal.y);
-        first = glm::vec3(-mNormal.y * inverseLength, mNormal.x * inverseLength, 0.0f);
+        first = Math::Vec3(-mNormal.y * inverseLength, mNormal.x * inverseLength, 0.0f);
     }
     second = glm::cross(mNormal, first);
-    const glm::vec3 origin = mNormal * mConstant;
-    DebugDraw().line(glm::vec3(transform * glm::vec4(origin + first * 100.0f, 1.0f)),
-                     glm::vec3(transform * glm::vec4(origin - first * 100.0f, 1.0f)), color);
-    DebugDraw().line(glm::vec3(transform * glm::vec4(origin + second * 100.0f, 1.0f)),
-                     glm::vec3(transform * glm::vec4(origin - second * 100.0f, 1.0f)), color);
+    const Math::Vec3 origin = mNormal * mConstant;
+    DebugDraw().line(Math::Vec3(transform * Math::Vec4(origin + first * 100.0f, 1.0f)),
+                     Math::Vec3(transform * Math::Vec4(origin - first * 100.0f, 1.0f)), color);
+    DebugDraw().line(Math::Vec3(transform * Math::Vec4(origin + second * 100.0f, 1.0f)),
+                     Math::Vec3(transform * Math::Vec4(origin - second * 100.0f, 1.0f)), color);
 }
 
-void CapsuleShape::debugDraw(const glm::mat4& transform, Color color) const
+void CapsuleShape::debugDraw(const Math::Mat4& transform, Color color) const
 {
-    glm::vec3 lower, upper;
+    Math::Vec3 lower, upper;
     segment(transform, lower, upper);
-    const glm::vec3 up = glm::normalize(glm::vec3(transform[1]));
-    const glm::vec3 right = glm::normalize(glm::vec3(transform[0]));
-    const glm::vec3 forward = glm::normalize(glm::vec3(transform[2]));
+    const Math::Vec3 up = glm::normalize(Math::Vec3(transform[1]));
+    const Math::Vec3 right = glm::normalize(Math::Vec3(transform[0]));
+    const Math::Vec3 forward = glm::normalize(Math::Vec3(transform[2]));
     constexpr u32 segments = 20;
 
     DebugDraw().circle(lower, right, forward, mRadius, segments, color);
@@ -259,9 +269,9 @@ void CapsuleShape::debugDraw(const glm::mat4& transform, Color color) const
 
 // ----------------------------------------------------------------- segments
 
-glm::vec3 closestPointOnSegment(const glm::vec3& a, const glm::vec3& b, const glm::vec3& point)
+Math::Vec3 closestPointOnSegment(const Math::Vec3& a, const Math::Vec3& b, const Math::Vec3& point)
 {
-    const glm::vec3 direction = b - a;
+    const Math::Vec3 direction = b - a;
     const f32 lengthSquared = glm::dot(direction, direction);
     if (lengthSquared < 1e-12f)
         return a;
@@ -269,12 +279,12 @@ glm::vec3 closestPointOnSegment(const glm::vec3& a, const glm::vec3& b, const gl
     return a + direction * t;
 }
 
-void closestPointsBetweenSegments(const glm::vec3& p1, const glm::vec3& q1, const glm::vec3& p2,
-                                  const glm::vec3& q2, glm::vec3& c1, glm::vec3& c2)
+void closestPointsBetweenSegments(const Math::Vec3& p1, const Math::Vec3& q1, const Math::Vec3& p2,
+                                  const Math::Vec3& q2, Math::Vec3& c1, Math::Vec3& c2)
 {
-    const glm::vec3 d1 = q1 - p1;
-    const glm::vec3 d2 = q2 - p2;
-    const glm::vec3 r = p1 - p2;
+    const Math::Vec3 d1 = q1 - p1;
+    const Math::Vec3 d2 = q2 - p2;
+    const Math::Vec3 r = p1 - p2;
     const f32 a = glm::dot(d1, d1);
     const f32 e = glm::dot(d2, d2);
     const f32 f = glm::dot(d2, r);
@@ -329,9 +339,9 @@ void closestPointsBetweenSegments(const glm::vec3& p1, const glm::vec3& q1, cons
     c2 = p2 + d2 * t;
 }
 
-void BoxShape::debugDraw(const glm::mat4& transform, Color color) const
+void BoxShape::debugDraw(const Math::Mat4& transform, Color color) const
 {
-    glm::vec3 point[8];
+    Math::Vec3 point[8];
     corners(transform, point);
     static constexpr u8 edges[12][2] = {{0, 1}, {1, 3}, {3, 2}, {2, 0}, {4, 5}, {5, 7},
                                         {7, 6}, {6, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
@@ -339,8 +349,8 @@ void BoxShape::debugDraw(const glm::mat4& transform, Color color) const
         DebugDraw().line(point[edge[0]], point[edge[1]], color);
 }
 
-glm::vec3 closestPointOnTriangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
-                                 const glm::vec3& point, TriangleFeature* feature)
+Math::Vec3 closestPointOnTriangle(const Math::Vec3& a, const Math::Vec3& b, const Math::Vec3& c,
+                                 const Math::Vec3& point, TriangleFeature* feature)
 {
     TriangleFeature landed = TriangleFeature::Face;
     struct Report
@@ -354,9 +364,9 @@ glm::vec3 closestPointOnTriangle(const glm::vec3& a, const glm::vec3& b, const g
         }
     } report{feature, &landed};
 
-    const glm::vec3 ab = b - a;
-    const glm::vec3 ac = c - a;
-    const glm::vec3 ap = point - a;
+    const Math::Vec3 ab = b - a;
+    const Math::Vec3 ac = c - a;
+    const Math::Vec3 ap = point - a;
     const f32 d1 = glm::dot(ab, ap);
     const f32 d2 = glm::dot(ac, ap);
     if (d1 <= 0.0f && d2 <= 0.0f)
@@ -365,7 +375,7 @@ glm::vec3 closestPointOnTriangle(const glm::vec3& a, const glm::vec3& b, const g
         return a;
     }
 
-    const glm::vec3 bp = point - b;
+    const Math::Vec3 bp = point - b;
     const f32 d3 = glm::dot(ab, bp);
     const f32 d4 = glm::dot(ac, bp);
     if (d3 >= 0.0f && d4 <= d3)
@@ -383,7 +393,7 @@ glm::vec3 closestPointOnTriangle(const glm::vec3& a, const glm::vec3& b, const g
         return a + ab * v;
     }
 
-    const glm::vec3 cp = point - c;
+    const Math::Vec3 cp = point - c;
     const f32 d5 = glm::dot(ab, cp);
     const f32 d6 = glm::dot(ac, cp);
     if (d6 >= 0.0f && d5 <= d6)
@@ -417,7 +427,7 @@ glm::vec3 closestPointOnTriangle(const glm::vec3& a, const glm::vec3& b, const g
     return a + ab * (vb * inverse) + ac * (vc * inverse);
 }
 
-TriangleShape::TriangleShape(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
+TriangleShape::TriangleShape(const Math::Vec3& a, const Math::Vec3& b, const Math::Vec3& c,
                              u8 sharedEdges)
     : mSharedEdges(sharedEdges)
 {
@@ -450,31 +460,31 @@ bool TriangleShape::featureIsInternal(TriangleFeature feature) const
     return false;
 }
 
-glm::vec3 TriangleShape::rawNormal() const
+Math::Vec3 TriangleShape::rawNormal() const
 {
     return glm::cross(mVertices[1] - mVertices[0], mVertices[2] - mVertices[0]);
 }
 
-glm::mat3 TriangleShape::inertia(f32) const
+Math::Mat3 TriangleShape::inertia(f32) const
 {
-    return glm::mat3(0.0f);
+    return Math::Mat3(0.0f);
 }
 
-AABB TriangleShape::bounds(const glm::mat4& transform) const
+AABB TriangleShape::bounds(const Math::Mat4& transform) const
 {
     AABB box;
-    for (const glm::vec3& vertex : mVertices)
-        box.expand(glm::vec3(transform * glm::vec4(vertex, 1.0f)));
+    for (const Math::Vec3& vertex : mVertices)
+        box.expand(Math::Vec3(transform * Math::Vec4(vertex, 1.0f)));
     return box;
 }
 
-glm::vec3 TriangleShape::support(const glm::mat4& transform, const glm::vec3& direction) const
+Math::Vec3 TriangleShape::support(const Math::Mat4& transform, const Math::Vec3& direction) const
 {
-    glm::vec3 best = glm::vec3(transform * glm::vec4(mVertices[0], 1.0f));
+    Math::Vec3 best = Math::Vec3(transform * Math::Vec4(mVertices[0], 1.0f));
     f32 bestDot = glm::dot(best, direction);
     for (u32 i = 1; i < 3; ++i)
     {
-        const glm::vec3 world = glm::vec3(transform * glm::vec4(mVertices[i], 1.0f));
+        const Math::Vec3 world = Math::Vec3(transform * Math::Vec4(mVertices[i], 1.0f));
         const f32 dot = glm::dot(world, direction);
         if (dot > bestDot)
         {
@@ -485,17 +495,17 @@ glm::vec3 TriangleShape::support(const glm::mat4& transform, const glm::vec3& di
     return best;
 }
 
-void TriangleShape::debugDraw(const glm::mat4& transform, Color color) const
+void TriangleShape::debugDraw(const Math::Mat4& transform, Color color) const
 {
-    const glm::vec3 a = glm::vec3(transform * glm::vec4(mVertices[0], 1.0f));
-    const glm::vec3 b = glm::vec3(transform * glm::vec4(mVertices[1], 1.0f));
-    const glm::vec3 c = glm::vec3(transform * glm::vec4(mVertices[2], 1.0f));
+    const Math::Vec3 a = Math::Vec3(transform * Math::Vec4(mVertices[0], 1.0f));
+    const Math::Vec3 b = Math::Vec3(transform * Math::Vec4(mVertices[1], 1.0f));
+    const Math::Vec3 c = Math::Vec3(transform * Math::Vec4(mVertices[2], 1.0f));
     DebugDraw().line(a, b, color);
     DebugDraw().line(b, c, color);
     DebugDraw().line(c, a, color);
 }
 
-TrimeshShape::TrimeshShape(const glm::vec3* vertices, u32 vertexCount, const u32* indices,
+TrimeshShape::TrimeshShape(const Math::Vec3* vertices, u32 vertexCount, const u32* indices,
                            u32 indexCount)
 {
     if (vertices && vertexCount > 0)
@@ -574,9 +584,9 @@ void TrimeshShape::buildAdjacency()
         {
             const u32 t0 = edges[i].triangle;
             const u32 t1 = edges[i + 1].triangle;
-            const glm::vec3 normal0 = triangle(t0).rawNormal();
-            const glm::vec3 anchor = mVertices[static_cast<u32>(edges[i].key >> 32)];
-            const glm::vec3 opposite = mVertices[edges[i + 1].opposite];
+            const Math::Vec3 normal0 = triangle(t0).rawNormal();
+            const Math::Vec3 anchor = mVertices[static_cast<u32>(edges[i].key >> 32)];
+            const Math::Vec3 opposite = mVertices[edges[i + 1].opposite];
             const f32 side = glm::dot(normal0, opposite - anchor);
             const f32 tolerance = glm::length(normal0) * 1.0e-4f;
             if (side >= -tolerance)
@@ -589,23 +599,23 @@ void TrimeshShape::buildAdjacency()
     }
 }
 
-glm::mat3 TrimeshShape::inertia(f32) const
+Math::Mat3 TrimeshShape::inertia(f32) const
 {
-    return glm::mat3(0.0f);
+    return Math::Mat3(0.0f);
 }
 
-AABB TrimeshShape::bounds(const glm::mat4& transform) const
+AABB TrimeshShape::bounds(const Math::Mat4& transform) const
 {
     return transformAABB(mBounds, transform);
 }
 
-glm::vec3 TrimeshShape::support(const glm::mat4& transform, const glm::vec3& direction) const
+Math::Vec3 TrimeshShape::support(const Math::Mat4& transform, const Math::Vec3& direction) const
 {
-    glm::vec3 best(0.0f);
+    Math::Vec3 best(0.0f);
     f32 bestDot = -std::numeric_limits<f32>::max();
-    for (const glm::vec3& vertex : mVertices)
+    for (const Math::Vec3& vertex : mVertices)
     {
-        const glm::vec3 world = glm::vec3(transform * glm::vec4(vertex, 1.0f));
+        const Math::Vec3 world = Math::Vec3(transform * Math::Vec4(vertex, 1.0f));
         const f32 dot = glm::dot(world, direction);
         if (dot > bestDot)
         {
@@ -632,11 +642,11 @@ void TrimeshShape::query(const AABB& localBox, std::vector<u32>& out) const
 namespace
 {
 
-bool pointInTriangle(const glm::vec3& p, const glm::vec3& v1, const glm::vec3& v2,
-                     const glm::vec3& v3, const glm::vec3& normal)
+bool pointInTriangle(const Math::Vec3& p, const Math::Vec3& v1, const Math::Vec3& v2,
+                     const Math::Vec3& v3, const Math::Vec3& normal)
 {
-    glm::vec3 e = v2 - v1;
-    glm::vec3 d = v1 - p;
+    Math::Vec3 e = v2 - v1;
+    Math::Vec3 d = v1 - p;
     if (glm::dot(d, glm::cross(e, normal)) < 0.0f)
         return false;
     e = v3 - v2;
@@ -670,8 +680,8 @@ bool solveCollision(f32 a, f32 b, f32 c, f32& t)
 
 // tMax is in/out: the caller's current best, tightened to this plane's hit.
 // A negative tMax means the sphere already overlaps the plane.
-bool sphereIntersectPlane(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
-                          const glm::vec3& planeNormal, const glm::vec3& planePoint, f32& tMax)
+bool sphereIntersectPlane(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
+                          const Math::Vec3& planeNormal, const Math::Vec3& planePoint, f32& tMax)
 {
     const f32 numer = glm::dot(center - planePoint, planeNormal) - radius;
     const f32 denom = glm::dot(velocity, planeNormal);
@@ -693,10 +703,10 @@ bool sphereIntersectPlane(const glm::vec3& center, f32 radius, const glm::vec3& 
     return true;
 }
 
-bool sphereIntersectPoint(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
-                          const glm::vec3& point, f32& tMax, glm::vec3& normal)
+bool sphereIntersectPoint(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
+                          const Math::Vec3& point, f32& tMax, Math::Vec3& normal)
 {
-    const glm::vec3 l = center - point;
+    const Math::Vec3 l = center - point;
     const f32 l2 = glm::dot(l, l);
     const f32 a = glm::dot(velocity, velocity);
     const f32 b = 2.0f * glm::dot(velocity, l);
@@ -725,18 +735,18 @@ bool sphereIntersectPoint(const glm::vec3& center, f32 radius, const glm::vec3& 
     return true;
 }
 
-bool sphereIntersectSegment(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
-                            const glm::vec3& v1, const glm::vec3& v2, f32& tMax, glm::vec3& normal)
+bool sphereIntersectSegment(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
+                            const Math::Vec3& v1, const Math::Vec3& v2, f32& tMax, Math::Vec3& normal)
 {
-    glm::vec3 e = v2 - v1;
-    const glm::vec3 l = center - v1;
+    Math::Vec3 e = v2 - v1;
+    const Math::Vec3 l = center - v1;
     const f32 eLen = glm::length(e);
     if (eLen < 1e-5f)
         return false;
     e /= eLen;
 
-    const glm::vec3 x = glm::cross(l, e);
-    const glm::vec3 y = glm::cross(velocity, e);
+    const Math::Vec3 x = glm::cross(l, e);
+    const Math::Vec3 y = glm::cross(velocity, e);
     const f32 a = glm::dot(y, y);
     const f32 b = 2.0f * glm::dot(x, y);
     const f32 c = glm::dot(x, x) - radius * radius;
@@ -748,7 +758,7 @@ bool sphereIntersectSegment(const glm::vec3& center, f32 radius, const glm::vec3
             return sphereIntersectPoint(center, radius, velocity, v1, tMax, normal);
         if (d > eLen)
             return sphereIntersectPoint(center, radius, velocity, v2, tMax, normal);
-        const glm::vec3 onEdge = v1 + e * d;
+        const Math::Vec3 onEdge = v1 + e * d;
         normal = glm::normalize(center - onEdge);
         const f32 t = glm::length(center - onEdge) - radius;
         if (tMax < t)
@@ -765,7 +775,7 @@ bool sphereIntersectSegment(const glm::vec3& center, f32 radius, const glm::vec3
     if (t > tMax)
         return false;
 
-    const glm::vec3 collCenter = center + velocity * t;
+    const Math::Vec3 collCenter = center + velocity * t;
     const f32 d = glm::dot(collCenter - v1, e);
     if (d < 0.0f)
         return sphereIntersectPoint(center, radius, velocity, v1, tMax, normal);
@@ -777,15 +787,15 @@ bool sphereIntersectSegment(const glm::vec3& center, f32 radius, const glm::vec3
     return true;
 }
 
-bool sphereIntersectTriangle(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
-                             const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2,
-                             const glm::vec3& normal, f32& tMax, glm::vec3& outNormal)
+bool sphereIntersectTriangle(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
+                             const Math::Vec3& v0, const Math::Vec3& v1, const Math::Vec3& v2,
+                             const Math::Vec3& normal, f32& tMax, Math::Vec3& outNormal)
 {
     f32 t = tMax;
     if (!sphereIntersectPlane(center, radius, velocity, normal, v0, t))
         return false;
 
-    const glm::vec3 collCenter = (t < 0.0f) ? center - normal * t : center + velocity * t;
+    const Math::Vec3 collCenter = (t < 0.0f) ? center - normal * t : center + velocity * t;
     if (pointInTriangle(collCenter, v0, v1, v2, normal))
     {
         outNormal = normal;
@@ -802,8 +812,8 @@ bool sphereIntersectTriangle(const glm::vec3& center, f32 radius, const glm::vec
 
 } // namespace
 
-bool TrimeshShape::sweepEllipsoid(const glm::vec3& localCentre, const glm::vec3& radii,
-                                  const glm::vec3& velocity, SweepHit& hit) const
+bool TrimeshShape::sweepEllipsoid(const Math::Vec3& localCentre, const Math::Vec3& radii,
+                                  const Math::Vec3& velocity, SweepHit& hit) const
 {
     if (radii.x <= 0.0f || radii.y <= 0.0f || radii.z <= 0.0f)
         return false;
@@ -812,7 +822,7 @@ bool TrimeshShape::sweepEllipsoid(const glm::vec3& localCentre, const glm::vec3&
     // the largest half-extent. The tree throws away the rest without ever
     // touching a triangle.
     const f32 largest = glm::max(radii.x, glm::max(radii.y, radii.z));
-    const glm::vec3 pad(largest + 0.01f);
+    const Math::Vec3 pad(largest + 0.01f);
     AABB swept;
     swept.expand(localCentre - pad);
     swept.expand(localCentre + pad);
@@ -827,9 +837,9 @@ bool TrimeshShape::sweepEllipsoid(const glm::vec3& localCentre, const glm::vec3&
     // Scaled into ellipsoid space the test becomes a unit sphere, which is
     // the only shape the swept intersections above know how to handle. The
     // normal scales by radii on the way back, not by 1/radii.
-    const glm::vec3 inverseRadii(1.0f / radii.x, 1.0f / radii.y, 1.0f / radii.z);
-    const glm::vec3 eCentre = localCentre * inverseRadii;
-    const glm::vec3 eVelocity = velocity * inverseRadii;
+    const Math::Vec3 inverseRadii(1.0f / radii.x, 1.0f / radii.y, 1.0f / radii.z);
+    const Math::Vec3 eCentre = localCentre * inverseRadii;
+    const Math::Vec3 eVelocity = velocity * inverseRadii;
 
     // The running best starts at 1.0, not infinity: a hit beyond the end of
     // the swept segment (t > 1) is not a contact for this query, and the
@@ -842,25 +852,25 @@ bool TrimeshShape::sweepEllipsoid(const glm::vec3& localCentre, const glm::vec3&
     for (u32 index : candidates)
     {
         const u32 base = index * 3;
-        const glm::vec3& v0 = mVertices[mIndices[base]];
-        const glm::vec3& v1 = mVertices[mIndices[base + 1]];
-        const glm::vec3& v2 = mVertices[mIndices[base + 2]];
-        const glm::vec3 raw = glm::cross(v1 - v0, v2 - v0);
+        const Math::Vec3& v0 = mVertices[mIndices[base]];
+        const Math::Vec3& v1 = mVertices[mIndices[base + 1]];
+        const Math::Vec3& v2 = mVertices[mIndices[base + 2]];
+        const Math::Vec3 raw = glm::cross(v1 - v0, v2 - v0);
         if (glm::length(raw) < 1.0e-12f)
             continue;
 
-        const glm::vec3 e0 = v0 * inverseRadii;
-        const glm::vec3 e1 = v1 * inverseRadii;
-        const glm::vec3 e2 = v2 * inverseRadii;
+        const Math::Vec3 e0 = v0 * inverseRadii;
+        const Math::Vec3 e1 = v1 * inverseRadii;
+        const Math::Vec3 e2 = v2 * inverseRadii;
         // One-sided, from the winding. Orienting the normal towards the
         // sweeper instead was tried and is much worse: an ellipsoid sitting
         // slightly inside a surface then flips its contact normal according
         // to which side the centre landed on, and the character is thrown one
         // way on one frame and the other way on the next.
-        const glm::vec3 eNormal = glm::normalize(glm::normalize(raw) * radii);
+        const Math::Vec3 eNormal = glm::normalize(glm::normalize(raw) * radii);
 
         f32 t = best;
-        glm::vec3 eHitNormal(0.0f);
+        Math::Vec3 eHitNormal(0.0f);
         if (!sphereIntersectTriangle(eCentre, 1.0f, eVelocity, e0, e1, e2, eNormal, t, eHitNormal))
             continue;
         best = t;
@@ -872,16 +882,16 @@ bool TrimeshShape::sweepEllipsoid(const glm::vec3& localCentre, const glm::vec3&
     return found;
 }
 
-bool TrimeshShape::sweepSphere(const glm::vec3& localCentre, f32 radius, const glm::vec3& velocity,
+bool TrimeshShape::sweepSphere(const Math::Vec3& localCentre, f32 radius, const Math::Vec3& velocity,
                                SweepHit& hit) const
 {
-    return sweepEllipsoid(localCentre, glm::vec3(radius), velocity, hit);
+    return sweepEllipsoid(localCentre, Math::Vec3(radius), velocity, hit);
 }
 
-glm::vec3 TrimeshShape::slideCamera(const glm::vec3& from, const glm::vec3& to, f32 radius,
+Math::Vec3 TrimeshShape::slideCamera(const Math::Vec3& from, const Math::Vec3& to, f32 radius,
                                     f32 margin) const
 {
-    const glm::vec3 delta = to - from;
+    const Math::Vec3 delta = to - from;
     if (glm::dot(delta, delta) < 1.0e-6f)
         return to;
 
@@ -894,7 +904,7 @@ glm::vec3 TrimeshShape::slideCamera(const glm::vec3& from, const glm::vec3& to, 
     if (sweepSphere(from, radius, delta, hit))
     {
         const f32 t = glm::clamp(hit.t, 0.0f, 1.0f);
-        glm::vec3 position = from + delta * t;
+        Math::Vec3 position = from + delta * t;
         if (margin > 0.0f)
             position += hit.normal * margin;
         return position;
@@ -914,9 +924,9 @@ bool TrimeshShape::raycast(const Ray& localRay, f32 maxDistance, RayHit& hit) co
     for (u32 index : candidates)
     {
         const u32 base = index * 3;
-        const glm::vec3& v0 = mVertices[mIndices[base]];
-        const glm::vec3& v1 = mVertices[mIndices[base + 1]];
-        const glm::vec3& v2 = mVertices[mIndices[base + 2]];
+        const Math::Vec3& v0 = mVertices[mIndices[base]];
+        const Math::Vec3& v1 = mVertices[mIndices[base + 1]];
+        const Math::Vec3& v2 = mVertices[mIndices[base + 2]];
         f32 distance = 0.0f;
         // The tree hands back whatever boxes the ray crossed, in no
         // particular order, so every candidate has to be tested and the
@@ -926,21 +936,21 @@ bool TrimeshShape::raycast(const Ray& localRay, f32 maxDistance, RayHit& hit) co
         nearest = distance;
         hit.triangle = index;
         hit.distance = distance;
-        hit.point = localRay.at(distance);
-        const glm::vec3 raw = glm::cross(v1 - v0, v2 - v0);
+        hit.point = toGlm(localRay.at(distance));
+        const Math::Vec3 raw = glm::cross(v1 - v0, v2 - v0);
         const f32 length = glm::length(raw);
-        hit.normal = length > 1.0e-8f ? raw / length : glm::vec3(0.0f, 1.0f, 0.0f);
+        hit.normal = length > 1.0e-8f ? raw / length : Math::Vec3(0.0f, 1.0f, 0.0f);
         found = true;
     }
     return found;
 }
 
-void TrimeshShape::overlapSphere(const glm::vec3& localCentre, f32 radius,
+void TrimeshShape::overlapSphere(const Math::Vec3& localCentre, f32 radius,
                                  std::vector<u32>& out) const
 {
     out.clear();
     Sphere sphere;
-    sphere.center = localCentre;
+    sphere.center = Math::Vec3(localCentre.x, localCentre.y, localCentre.z);
     sphere.radius = radius;
 
     static thread_local std::vector<u32> candidates;
@@ -949,10 +959,10 @@ void TrimeshShape::overlapSphere(const glm::vec3& localCentre, f32 radius,
     for (u32 index : candidates)
     {
         const u32 base = index * 3;
-        const glm::vec3 closest =
+        const Math::Vec3 closest =
             closestPointOnTriangle(mVertices[mIndices[base]], mVertices[mIndices[base + 1]],
                                    mVertices[mIndices[base + 2]], localCentre);
-        const glm::vec3 delta = closest - localCentre;
+        const Math::Vec3 delta = closest - localCentre;
         if (glm::dot(delta, delta) <= radiusSquared)
             out.push_back(index);
     }
@@ -1008,32 +1018,32 @@ void TrimeshShape::windingErrors(std::vector<u32>& out) const
     out.erase(std::unique(out.begin(), out.end()), out.end());
 }
 
-void TrimeshShape::debugDrawFaceNormals(const glm::mat4& transform, f32 length, Color color,
+void TrimeshShape::debugDrawFaceNormals(const Math::Mat4& transform, f32 length, Color color,
                                         Color flippedColor) const
 {
     std::vector<u32> flipped;
     windingErrors(flipped);
 
-    const glm::mat3 rotation(transform);
+    const Math::Mat3 rotation(transform);
     const u32 count = triangleCount();
     for (u32 i = 0; i < count; ++i)
     {
         const u32 base = i * 3;
-        const glm::vec3& v0 = mVertices[mIndices[base]];
-        const glm::vec3& v1 = mVertices[mIndices[base + 1]];
-        const glm::vec3& v2 = mVertices[mIndices[base + 2]];
-        const glm::vec3 raw = glm::cross(v1 - v0, v2 - v0);
+        const Math::Vec3& v0 = mVertices[mIndices[base]];
+        const Math::Vec3& v1 = mVertices[mIndices[base + 1]];
+        const Math::Vec3& v2 = mVertices[mIndices[base + 2]];
+        const Math::Vec3 raw = glm::cross(v1 - v0, v2 - v0);
         if (glm::length(raw) < 1.0e-12f)
             continue;
 
-        const glm::vec3 centre = glm::vec3(transform * glm::vec4((v0 + v1 + v2) / 3.0f, 1.0f));
-        const glm::vec3 normal = glm::normalize(rotation * glm::normalize(raw));
+        const Math::Vec3 centre = Math::Vec3(transform * Math::Vec4((v0 + v1 + v2) / 3.0f, 1.0f));
+        const Math::Vec3 normal = glm::normalize(rotation * glm::normalize(raw));
         const bool bad = std::binary_search(flipped.begin(), flipped.end(), i);
         DebugDraw().line(centre, centre + normal * length, bad ? flippedColor : color);
     }
 }
 
-void TrimeshShape::debugDraw(const glm::mat4& transform, Color color) const
+void TrimeshShape::debugDraw(const Math::Mat4& transform, Color color) const
 {
     const u32 count = triangleCount();
     for (u32 i = 0; i < count; ++i)
@@ -1042,7 +1052,7 @@ void TrimeshShape::debugDraw(const glm::mat4& transform, Color color) const
 
 // ------------------------------------------------------------- convex hull
 
-ConvexHullShape::ConvexHullShape(const glm::vec3* vertices, u32 vertexCount, const Edge* edges,
+ConvexHullShape::ConvexHullShape(const Math::Vec3* vertices, u32 vertexCount, const Edge* edges,
                                  u32 edgeCount, const int* faces, u32 faceCount)
 {
     if (vertices && vertexCount > 0)
@@ -1058,29 +1068,29 @@ ConvexHullShape::ConvexHullShape(const Radion::Geometry::Shard& shard)
 {
 }
 
-glm::mat3 ConvexHullShape::inertia(f32 mass) const
+Math::Mat3 ConvexHullShape::inertia(f32 mass) const
 {
     return Inertia::convexHull(mass, mVertices.data(), static_cast<u32>(mVertices.size()),
                                mEdges.data(), static_cast<u32>(mEdges.size()), mFaces.data(),
                                static_cast<u32>(mFaces.size()));
 }
 
-AABB ConvexHullShape::bounds(const glm::mat4& transform) const
+AABB ConvexHullShape::bounds(const Math::Mat4& transform) const
 {
     AABB box;
-    for (const glm::vec3& vertex : mVertices)
-        box.expand(glm::vec3(transform * glm::vec4(vertex, 1.0f)));
+    for (const Math::Vec3& vertex : mVertices)
+        box.expand(Math::Vec3(transform * Math::Vec4(vertex, 1.0f)));
     return box;
 }
 
-glm::vec3 ConvexHullShape::support(const glm::mat4& transform, const glm::vec3& direction) const
+Math::Vec3 ConvexHullShape::support(const Math::Mat4& transform, const Math::Vec3& direction) const
 {
-    const glm::mat3 rotation(transform);
-    const glm::vec3 localDirection = glm::transpose(rotation) * direction;
+    const Math::Mat3 rotation(transform);
+    const Math::Vec3 localDirection = glm::transpose(rotation) * direction;
 
-    glm::vec3 bestLocal(0.0f);
+    Math::Vec3 bestLocal(0.0f);
     f32 bestDot = -std::numeric_limits<f32>::max();
-    for (const glm::vec3& vertex : mVertices)
+    for (const Math::Vec3& vertex : mVertices)
     {
         const f32 dot = glm::dot(vertex, localDirection);
         if (dot > bestDot)
@@ -1089,10 +1099,10 @@ glm::vec3 ConvexHullShape::support(const glm::mat4& transform, const glm::vec3& 
             bestLocal = vertex;
         }
     }
-    return glm::vec3(transform * glm::vec4(bestLocal, 1.0f));
+    return Math::Vec3(transform * Math::Vec4(bestLocal, 1.0f));
 }
 
-void ConvexHullShape::debugDraw(const glm::mat4& transform, Color color) const
+void ConvexHullShape::debugDraw(const Math::Mat4& transform, Color color) const
 {
     // Every edge is stored twice, once each direction - drawn only from the
     // half whose own index is the smaller of the pair, so each edge of the
@@ -1103,10 +1113,10 @@ void ConvexHullShape::debugDraw(const glm::mat4& transform, Color color) const
         const usize reverseIndex = static_cast<usize>(edge.getReverseEdge() - mEdges.data());
         if (reverseIndex <= i)
             continue;
-        const glm::vec3 a =
-            glm::vec3(transform * glm::vec4(mVertices[edge.getSourceVertex()], 1.0f));
-        const glm::vec3 b =
-            glm::vec3(transform * glm::vec4(mVertices[edge.getTargetVertex()], 1.0f));
+        const Math::Vec3 a =
+            Math::Vec3(transform * Math::Vec4(mVertices[edge.getSourceVertex()], 1.0f));
+        const Math::Vec3 b =
+            Math::Vec3(transform * Math::Vec4(mVertices[edge.getTargetVertex()], 1.0f));
         DebugDraw().line(a, b, color);
     }
 }

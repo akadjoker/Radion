@@ -16,7 +16,7 @@ constexpr const char* kWaterRefractionDebugTargetName = "water.debug.scene_copy"
 // Bound at BindingWater.
 struct WaterBlock
 {
-    glm::vec4 timeNearFar; // x = time, y = near, z = far, w unused
+    Math::Vec4 timeNearFar; // x = time, y = near, z = far, w unused
 };
 
 class WaterPass final : public RenderTechnique

@@ -25,7 +25,7 @@ public:
     // depth, because six of these tiles share one straight 2D texture and the
     // shader that samples them (SamplePointShadowAtlas in lit.frag) needs a
     // value it can compare without knowing which face produced it.
-    void executePoint(const FrameContext& frame, const glm::vec3& lightPosition, f32 range,
+    void executePoint(const FrameContext& frame, const Math::Vec3& lightPosition, f32 range,
                       f32 bias);
 
     // Same draw as execute(), plus a depth bias applied through
@@ -45,7 +45,7 @@ public:
 private:
     struct GPUInstance
     {
-        glm::mat4 model;
+        Math::Mat4 model;
         u32 paletteOffset;
         u32 padding[3];
     };
@@ -110,7 +110,7 @@ private:
     u32 mPaletteCapacity = 0;
     u32 mIndirectCapacity = 0;
     std::vector<GPUInstance> mInstances;
-    std::vector<glm::mat4> mPalettes;
+    std::vector<Math::Mat4> mPalettes;
     std::vector<PipelineEntry> mPipelines;
     std::vector<PipelineEntry> mPointPipelines;
     // Grown, never shrunk: mGroupCount says how many of mGroups the call in

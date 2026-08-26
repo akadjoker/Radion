@@ -90,13 +90,13 @@ public:
     // Scatters `count` trees inside a disc, in the owner's local space, flat
     // on the centre's own y plane. Following terrain height is the caller's
     // job - plant() takes whatever position it is given.
-    u32 paint(const glm::vec3& centre, f32 radius, u32 count);
-    bool plant(const glm::vec3& position, u32 species, f32 scale = 1.0f, f32 yawDegrees = 0.0f);
+    u32 paint(const Math::Vec3& centre, f32 radius, u32 count);
+    bool plant(const Math::Vec3& position, u32 species, f32 scale = 1.0f, f32 yawDegrees = 0.0f);
     void clear();
 
     u32 count() const;
     u32 instanceCount() const;
-    glm::vec3 instancePosition(u32 index) const;
+    Math::Vec3 instancePosition(u32 index) const;
     f32 instanceScale(u32 index) const;
     f32 instanceYaw(u32 index) const;
     u32 instanceSpecies(u32 index) const;
@@ -143,7 +143,7 @@ private:
 
     struct Instance
     {
-        glm::vec3 position = glm::vec3(0.0f);
+        Math::Vec3 position = Math::Vec3(0.0f);
         f32 scale = 1.0f;
         f32 yaw = 0.0f;
         u32 species = 0;
@@ -155,10 +155,10 @@ private:
     // Drops what is beyond the draw distance and hands the rest to the list,
     // which does the frustum test itself. Grouped by species so the sort has
     // less to move.
-    void submit(RenderList& list, const glm::mat4& transform, const glm::vec3& cameraPosition);
-    void submitCamera(const glm::mat4& transform, const glm::vec3& cameraPosition);
-    void submitShadow(RenderList& list, const glm::mat4& transform,
-                      const glm::vec3& cameraPosition);
+    void submit(RenderList& list, const Math::Mat4& transform, const Math::Vec3& cameraPosition);
+    void submitCamera(const Math::Mat4& transform, const Math::Vec3& cameraPosition);
+    void submitShadow(RenderList& list, const Math::Mat4& transform,
+                      const Math::Vec3& cameraPosition);
 
     f32 random();
     bool buildSpecies(Species& species, const TreeParams& params, f32 height);

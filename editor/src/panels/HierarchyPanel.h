@@ -47,7 +47,7 @@ private:
         bool open = false;
         PrimitiveKind kind = PrimitiveKind::Cube;
         GameObject* parent = nullptr;
-        glm::vec3 dimensions{1.0f};
+        Math::Vec3 dimensions{1.0f};
         f32 uvTiles = 16.0f;
         int segmentsA = 0;
         int segmentsB = 0;

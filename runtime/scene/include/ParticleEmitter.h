@@ -16,18 +16,18 @@ namespace Radion
 
 struct Particle
 {
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::vec3 velocity = glm::vec3(0.0f);
-    glm::vec3 acceleration = glm::vec3(0.0f);
+    Math::Vec3 position = Math::Vec3(0.0f);
+    Math::Vec3 velocity = Math::Vec3(0.0f);
+    Math::Vec3 acceleration = Math::Vec3(0.0f);
     Color color;
     Color colorStart;
     Color colorEnd;
-    glm::vec2 size = glm::vec2(1.0f);
-    glm::vec2 sizeStart = glm::vec2(1.0f);
-    glm::vec2 sizeEnd = glm::vec2(1.0f);
+    Math::Vec2 size = Math::Vec2(1.0f);
+    Math::Vec2 sizeStart = Math::Vec2(1.0f);
+    Math::Vec2 sizeEnd = Math::Vec2(1.0f);
     f32 rotation = 0.0f;
     f32 rotationSpeed = 0.0f;
-    glm::vec4 texRect = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    Math::Vec4 texRect = Math::Vec4(0.0f, 0.0f, 1.0f, 1.0f);
     f32 lifetime = 1.0f;
     f32 timeAlive = 0.0f;
     bool active = false;
@@ -48,11 +48,11 @@ public:
 class GravityAffector final : public ParticleAffector
 {
 public:
-    explicit GravityAffector(const glm::vec3& gravity) : gravity(gravity)
+    explicit GravityAffector(const Math::Vec3& gravity) : gravity(gravity)
     {
     }
     void apply(Particle& particle, f32 deltaTime) override;
-    glm::vec3 gravity;
+    Math::Vec3 gravity;
 };
 
 class DragAffector final : public ParticleAffector
@@ -70,12 +70,12 @@ public:
 class VortexAffector final : public ParticleAffector
 {
 public:
-    VortexAffector(const glm::vec3& center, f32 strength, f32 radius)
+    VortexAffector(const Math::Vec3& center, f32 strength, f32 radius)
         : center(center), strength(strength), radius(radius)
     {
     }
     void apply(Particle& particle, f32 deltaTime) override;
-    glm::vec3 center;
+    Math::Vec3 center;
     f32 strength;
     f32 radius;
 };
@@ -85,12 +85,12 @@ public:
 class AttractorAffector final : public ParticleAffector
 {
 public:
-    AttractorAffector(const glm::vec3& position, f32 strength, f32 radius, bool repulse = false)
+    AttractorAffector(const Math::Vec3& position, f32 strength, f32 radius, bool repulse = false)
         : position(position), strength(strength), radius(radius), repulse(repulse)
     {
     }
     void apply(Particle& particle, f32 deltaTime) override;
-    glm::vec3 position;
+    Math::Vec3 position;
     f32 strength;
     f32 radius;
     bool repulse;
@@ -128,13 +128,13 @@ public:
 class SizeOverLifetimeAffector final : public ParticleAffector
 {
 public:
-    SizeOverLifetimeAffector(const glm::vec2& start, const glm::vec2& end)
+    SizeOverLifetimeAffector(const Math::Vec2& start, const Math::Vec2& end)
         : startSize(start), endSize(end)
     {
     }
     void apply(Particle& particle, f32 deltaTime) override;
-    glm::vec2 startSize;
-    glm::vec2 endSize;
+    Math::Vec2 startSize;
+    Math::Vec2 endSize;
 };
 
 enum class ParticleEmitterShape : u8
@@ -190,7 +190,7 @@ public:
 
     void setShapePoint();
     void setShapeSphere(f32 radius);
-    void setShapeBox(const glm::vec3& size);
+    void setShapeBox(const Math::Vec3& size);
     // coneAngleDegrees is stored and returned by shapeConeAngle() for the
     // Inspector, same as the system this was ported from, but nothing reads
     // it back yet - a Cone spawns on the same flat disk a Circle does; the
@@ -202,14 +202,14 @@ public:
     f32 shapeRadius() const;
     f32 shapeInnerRadius() const;
     f32 shapeConeAngle() const; // degrees
-    const glm::vec3& shapeBoxSize() const;
+    const Math::Vec3& shapeBoxSize() const;
 
-    void setEmissionOffset(const glm::vec3& offset);
-    const glm::vec3& emissionOffset() const;
+    void setEmissionOffset(const Math::Vec3& offset);
+    const Math::Vec3& emissionOffset() const;
     // Local-space base spray direction, rotated by the owner's own
     // orientation at spawn time, same as everything else here.
-    void setEmissionDirection(const glm::vec3& direction);
-    const glm::vec3& emissionDirection() const;
+    void setEmissionDirection(const Math::Vec3& direction);
+    const Math::Vec3& emissionDirection() const;
     void setSpreadAngle(f32 degrees);
     f32 spreadAngle() const;
 
@@ -219,9 +219,9 @@ public:
     void setSpeed(f32 speedMin, f32 speedMax);
     f32 speedMin() const;
     f32 speedMax() const;
-    void setSize(const glm::vec2& sizeStart, const glm::vec2& sizeEnd);
-    const glm::vec2& sizeStart() const;
-    const glm::vec2& sizeEnd() const;
+    void setSize(const Math::Vec2& sizeStart, const Math::Vec2& sizeEnd);
+    const Math::Vec2& sizeStart() const;
+    const Math::Vec2& sizeEnd() const;
     void setColor(Color colorStart, Color colorEnd);
     Color colorStart() const;
     Color colorEnd() const;
@@ -229,8 +229,8 @@ public:
     f32 rotationSpeedMin() const;
     f32 rotationSpeedMax() const;
 
-    void setGravity(const glm::vec3& gravity);
-    const glm::vec3& gravity() const;
+    void setGravity(const Math::Vec3& gravity);
+    const Math::Vec3& gravity() const;
     void setDrag(f32 drag);
     f32 drag() const;
     // <= 0 runs forever. Otherwise the emitter restarts (loop) or stops
@@ -303,13 +303,13 @@ private:
     void emitPulseMode(f32 deltaTime);
     Particle* freeParticle();
     void initParticle(Particle& particle);
-    glm::vec3 calcEmissionPosition() const;
-    glm::vec3 calcEmissionVelocity() const;
+    Math::Vec3 calcEmissionPosition() const;
+    Math::Vec3 calcEmissionVelocity() const;
     void updateParticles(f32 deltaTime);
     void applyAffectors(f32 deltaTime);
     void submit();
     f32 rnd(f32 a, f32 b) const;
-    glm::vec3 randomUnitVector() const;
+    Math::Vec3 randomUnitVector() const;
 
     std::vector<Particle> mParticles;
     std::vector<ParticleAffector*> mAffectors;
@@ -318,8 +318,8 @@ private:
     ParticleEmitterShape mShape = ParticleEmitterShape::Point;
     bool mPlaying = false;
     bool mPaused = false;
-    glm::vec3 mEmissionOffset = glm::vec3(0.0f);
-    glm::vec3 mEmissionDirection = glm::vec3(0.0f, 1.0f, 0.0f);
+    Math::Vec3 mEmissionOffset = Math::Vec3(0.0f);
+    Math::Vec3 mEmissionDirection = Math::Vec3(0.0f, 1.0f, 0.0f);
     f32 mEmissionRate = 10.0f;
     f32 mBurstInterval = 1.0f;
     u32 mBurstCount = 10;
@@ -327,19 +327,19 @@ private:
     f32 mPulseRate = 1.0f;
     u32 mParticlesPerPulse = 5;
 
-    std::vector<glm::vec4> mAtlasFrames;
+    std::vector<Math::Vec4> mAtlasFrames;
     u32 mAtlasCols = 1, mAtlasRows = 1;
     bool mUseAtlas = false;
 
     f32 mRadius = 1.0f, mInnerRadius = 0.5f, mConeAngle = 0.785f; // radians
-    glm::vec3 mBoxSize = glm::vec3(1.0f);
+    Math::Vec3 mBoxSize = Math::Vec3(1.0f);
     f32 mLifetimeMin = 1.0f, mLifetimeMax = 3.0f;
     f32 mSpeedMin = 1.0f, mSpeedMax = 5.0f;
-    glm::vec2 mSizeStart = glm::vec2(0.5f), mSizeEnd = glm::vec2(0.1f);
+    Math::Vec2 mSizeStart = Math::Vec2(0.5f), mSizeEnd = Math::Vec2(0.1f);
     Color mColorStart;
     Color mColorEnd;
     f32 mRotationSpeedMin = 0.0f, mRotationSpeedMax = 0.0f, mSpreadAngle = 0.0f; // radians
-    glm::vec3 mGravity = glm::vec3(0.0f);
+    Math::Vec3 mGravity = Math::Vec3(0.0f);
     f32 mDrag = 0.0f;
     f32 mDuration = -1.0f;
     bool mLoop = true;
@@ -349,7 +349,7 @@ private:
     // spawned this frame can be smeared back along the distance traveled
     // since then instead of every particle in it landing on the exact same
     // point - see emitContinuous()'s comment.
-    glm::vec3 mLastEmitPosition = glm::vec3(0.0f);
+    Math::Vec3 mLastEmitPosition = Math::Vec3(0.0f);
     bool mHasLastEmitPosition = false;
 
     TextureHandle mTexture;

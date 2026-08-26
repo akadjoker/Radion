@@ -1,12 +1,8 @@
 #ifndef RADION_MATH_H
 #define RADION_MATH_H
 
-#define GLM_FORCE_RADIANS
 #include <cmath>
-#include <glm/glm.hpp>
-#include <glm/gtc/constants.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include <mathc.h>
 
 namespace Radion
 {
@@ -199,7 +195,7 @@ inline float Lerp(float a, float b, float t)
     return a + (b - a) * t;
 }
 
-inline glm::vec3 Lerp(const glm::vec3& a, const glm::vec3& b, float t)
+inline Math::Vec3 Lerp(const Math::Vec3& a, const Math::Vec3& b, float t)
 {
     return a + (b - a) * t;
 }
@@ -244,7 +240,7 @@ template <typename T> struct Rectangle
         height = bottom - y;
     }
 
-    void merge(const glm::vec<2, T>& point)
+    template <typename Point> void merge(const Point& point)
     {
         T right = x + width;
         T bottom = y + height;
@@ -310,31 +306,47 @@ typedef Size<float> FloatSize;
 // merging an empty box with anything is a no-op.
 struct AABB
 {
-    glm::vec3 min = glm::vec3(3.402823466e+38F);
-    glm::vec3 max = glm::vec3(-3.402823466e+38F);
+    Math::Vec3 min = Math::Vec3(3.402823466e+38F);
+    Math::Vec3 max = Math::Vec3(-3.402823466e+38F);
 
     bool empty() const;
-    glm::vec3 center() const;
-    glm::vec3 extents() const;
+    Math::Vec3 center() const;
+    Math::Vec3 extents() const;
     float radius() const;
 
-    void expand(const glm::vec3& point);
+    void expand(const Math::Vec3& point);
+    // Transitional boundary for subsystems that have not reached their mathc
+    // migration yet. The value is copied explicitly; no GLM type leaks into
+    // the core API.
+    template <typename Point> void expand(const Point& point)
+    {
+        expand(Math::Vec3(point.x, point.y, point.z));
+    }
     void merge(const AABB& other);
 
-    bool contains(const glm::vec3& point) const;
+    bool contains(const Math::Vec3& point) const;
     bool intersects(const AABB& other) const;
 };
 
 // The transformed box is the box of the transformed box, not of the transformed
 // corners one by one: each axis takes the sum of the absolute contributions.
-AABB transformAABB(const AABB& box, const glm::mat4& matrix);
+AABB transformAABB(const AABB& box, const Math::Mat4& matrix);
+
+template <typename Matrix> AABB transformAABB(const AABB& box, const Matrix& matrix)
+{
+    return transformAABB(
+        box, Math::Mat4(Math::Vec4(matrix[0][0], matrix[0][1], matrix[0][2], matrix[0][3]),
+                         Math::Vec4(matrix[1][0], matrix[1][1], matrix[1][2], matrix[1][3]),
+                         Math::Vec4(matrix[2][0], matrix[2][1], matrix[2][2], matrix[2][3]),
+                         Math::Vec4(matrix[3][0], matrix[3][1], matrix[3][2], matrix[3][3])));
+}
 
 struct Sphere
 {
-    glm::vec3 center = glm::vec3(0.0f);
+    Math::Vec3 center = Math::Vec3(0.0f);
     float radius = 0.0f;
 
-    bool contains(const glm::vec3& point) const;
+    bool contains(const Math::Vec3& point) const;
     bool intersects(const Sphere& other) const;
     bool intersects(const AABB& box) const;
 };
@@ -344,31 +356,51 @@ Sphere sphereOfAABB(const AABB& box);
 // Points are inside when dot(normal, point) + d >= 0.
 struct Plane
 {
-    glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    Math::Vec3 normal = Math::Vec3(0.0f, 1.0f, 0.0f);
     float d = 0.0f;
 
-    float distance(const glm::vec3& point) const;
+    float distance(const Math::Vec3& point) const;
+    template <typename Point> float distance(const Point& point) const
+    {
+        return distance(Math::Vec3(point.x, point.y, point.z));
+    }
     void normalize();
 };
 
 struct Ray
 {
-    glm::vec3 origin = glm::vec3(0.0f);
-    glm::vec3 direction = glm::vec3(0.0f, 0.0f, -1.0f);
+    Math::Vec3 origin = Math::Vec3(0.0f);
+    Math::Vec3 direction = Math::Vec3(0.0f, 0.0f, -1.0f);
 
-    glm::vec3 at(float t) const;
+    Math::Vec3 at(float t) const;
 
     // Every hit test writes the distance along the ray into t and ignores
     // intersections behind the origin.
     bool intersects(const AABB& box, float& t) const;
     bool intersects(const Sphere& sphere, float& t) const;
     bool intersects(const Plane& plane, float& t) const;
-    bool intersects(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, float& t) const;
+    bool intersects(const Math::Vec3& v0, const Math::Vec3& v1, const Math::Vec3& v2, float& t) const;
+    template <typename Point> bool intersects(const Point& v0, const Point& v1, const Point& v2, float& t) const
+    {
+        return intersects(Math::Vec3(v0.x, v0.y, v0.z), Math::Vec3(v1.x, v1.y, v1.z),
+                          Math::Vec3(v2.x, v2.y, v2.z), t);
+    }
 };
 
 // Builds a ray from a pixel. Pass viewProjection already combined.
 Ray rayFromScreen(float screenX, float screenY, float viewportWidth, float viewportHeight,
-                  const glm::mat4& inverseViewProjection);
+                  const Math::Mat4& inverseViewProjection);
+
+template <typename Matrix>
+Ray rayFromScreen(float screenX, float screenY, float viewportWidth, float viewportHeight,
+                  const Matrix& inverseViewProjection)
+{
+    return rayFromScreen(screenX, screenY, viewportWidth, viewportHeight,
+                         Math::Mat4(Math::Vec4(inverseViewProjection[0][0], inverseViewProjection[0][1], inverseViewProjection[0][2], inverseViewProjection[0][3]),
+                                    Math::Vec4(inverseViewProjection[1][0], inverseViewProjection[1][1], inverseViewProjection[1][2], inverseViewProjection[1][3]),
+                                    Math::Vec4(inverseViewProjection[2][0], inverseViewProjection[2][1], inverseViewProjection[2][2], inverseViewProjection[2][3]),
+                                    Math::Vec4(inverseViewProjection[3][0], inverseViewProjection[3][1], inverseViewProjection[3][2], inverseViewProjection[3][3])));
+}
 
 enum class Containment
 {
@@ -396,12 +428,19 @@ public:
 
     // Planes come straight out of the combined view-projection matrix, so any
     // projection works without knowing how it was built.
-    void update(const glm::mat4& viewProjection);
+    void update(const Math::Mat4& viewProjection);
+    template <typename Matrix> void update(const Matrix& viewProjection)
+    {
+        update(Math::Mat4(Math::Vec4(viewProjection[0][0], viewProjection[0][1], viewProjection[0][2], viewProjection[0][3]),
+                          Math::Vec4(viewProjection[1][0], viewProjection[1][1], viewProjection[1][2], viewProjection[1][3]),
+                          Math::Vec4(viewProjection[2][0], viewProjection[2][1], viewProjection[2][2], viewProjection[2][3]),
+                          Math::Vec4(viewProjection[3][0], viewProjection[3][1], viewProjection[3][2], viewProjection[3][3])));
+    }
 
-    bool contains(const glm::vec3& point) const;
+    bool contains(const Math::Vec3& point) const;
     bool intersects(const Sphere& sphere) const;
     bool intersects(const AABB& box) const;
-    bool intersects(const glm::vec3& min, const glm::vec3& max) const;
+    bool intersects(const Math::Vec3& min, const Math::Vec3& max) const;
 
     // Tells fully-inside from partly-inside, so a tree node that is entirely
     // inside can stop testing its children.

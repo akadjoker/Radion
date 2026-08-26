@@ -49,9 +49,9 @@ bool RibbonTrail::setBladePoints(GameObject* const* objects, u32 count)
     return true;
 }
 
-glm::vec3 RibbonTrail::centreOf(const Sample& value) const
+Math::Vec3 RibbonTrail::centreOf(const Sample& value) const
 {
-    glm::vec3 sum(0.0f);
+    Math::Vec3 sum(0.0f);
     for (u32 i = 0; i < mBladeCount; ++i)
         sum += value.points[i];
     return mBladeCount ? sum / static_cast<f32>(mBladeCount) : sum;
@@ -175,7 +175,7 @@ void RibbonTrail::onLateUpdate(f32 deltaTime)
 
     if (mEmitting && bladeAlive)
     {
-        glm::vec3 current[MaxBladePoints];
+        Math::Vec3 current[MaxBladePoints];
         for (u32 i = 0; i < mBladeCount; ++i)
         {
             current[i] = mBlade[i]->globalPosition();
@@ -202,7 +202,7 @@ void RibbonTrail::onLateUpdate(f32 deltaTime)
             for (u32 step = 1; step <= steps; ++step)
             {
                 const f32 amount = glm::min((mMinDistance * step) / travel, 1.0f);
-                glm::vec3 stepped[MaxBladePoints];
+                Math::Vec3 stepped[MaxBladePoints];
                 f32 advanced = 0.0f;
                 for (u32 i = 0; i < mBladeCount; ++i)
                 {
@@ -235,7 +235,7 @@ void RibbonTrail::onLateUpdate(f32 deltaTime)
              mDepthTest});
 }
 
-void RibbonTrail::push(const glm::vec3* points, f32 distance)
+void RibbonTrail::push(const Math::Vec3* points, f32 distance)
 {
     if (mCount == MaxSamples)
     {
@@ -321,12 +321,12 @@ void RibbonTrail::appendSection(const Sample& a, const Sample& b, f32 firstDista
     {
         const f32 u0 = static_cast<f32>(i) / spanU;
         const f32 u1 = static_cast<f32>(i + 1) / spanU;
-        mVertices.push_back({a.points[i], glm::vec2(u0, vA), colorA});
-        mVertices.push_back({a.points[i + 1], glm::vec2(u1, vA), colorA});
-        mVertices.push_back({b.points[i], glm::vec2(u0, vB), colorB});
-        mVertices.push_back({b.points[i + 1], glm::vec2(u1, vB), colorB});
-        mVertices.push_back({b.points[i], glm::vec2(u0, vB), colorB});
-        mVertices.push_back({a.points[i + 1], glm::vec2(u1, vA), colorA});
+        mVertices.push_back({a.points[i], Math::Vec2(u0, vA), colorA});
+        mVertices.push_back({a.points[i + 1], Math::Vec2(u1, vA), colorA});
+        mVertices.push_back({b.points[i], Math::Vec2(u0, vB), colorB});
+        mVertices.push_back({b.points[i + 1], Math::Vec2(u1, vB), colorB});
+        mVertices.push_back({b.points[i], Math::Vec2(u0, vB), colorB});
+        mVertices.push_back({a.points[i + 1], Math::Vec2(u1, vA), colorA});
     }
 }
 
@@ -346,24 +346,24 @@ RibbonTrail::Sample RibbonTrail::interpolate(const Sample& before, const Sample&
                                              f32 amount) const
 {
     auto limitedTangent =
-        [](const glm::vec3& previous, const glm::vec3& point, const glm::vec3& next)
+        [](const Math::Vec3& previous, const Math::Vec3& point, const Math::Vec3& next)
     {
-        const glm::vec3 incoming = point - previous;
-        const glm::vec3 outgoing = next - point;
+        const Math::Vec3 incoming = point - previous;
+        const Math::Vec3 outgoing = next - point;
         const f32 incomingLength = glm::length(incoming);
         const f32 outgoingLength = glm::length(outgoing);
         if (incomingLength < 0.0001f || outgoingLength < 0.0001f ||
             glm::dot(incoming, outgoing) <= 0.0f)
-            return glm::vec3(0.0f);
-        const glm::vec3 direction = incoming / incomingLength + outgoing / outgoingLength;
+            return Math::Vec3(0.0f);
+        const Math::Vec3 direction = incoming / incomingLength + outgoing / outgoingLength;
         const f32 directionLength = glm::length(direction);
         if (directionLength < 0.0001f)
-            return glm::vec3(0.0f);
+            return Math::Vec3(0.0f);
         return direction / directionLength * glm::min(incomingLength, outgoingLength);
     };
 
-    auto hermite = [](const glm::vec3& fromPoint, const glm::vec3& fromTangent,
-                      const glm::vec3& toPoint, const glm::vec3& toTangent, f32 t)
+    auto hermite = [](const Math::Vec3& fromPoint, const Math::Vec3& fromTangent,
+                      const Math::Vec3& toPoint, const Math::Vec3& toTangent, f32 t)
     {
         const f32 t2 = t * t;
         const f32 t3 = t2 * t;
@@ -372,13 +372,13 @@ RibbonTrail::Sample RibbonTrail::interpolate(const Sample& before, const Sample&
                (t3 - t2) * toTangent;
     };
 
-    const glm::vec3 beforeCenter = centreOf(before);
-    const glm::vec3 fromCenter = centreOf(from);
-    const glm::vec3 toCenter = centreOf(to);
-    const glm::vec3 afterCenter = centreOf(after);
-    const glm::vec3 fromTangent = limitedTangent(beforeCenter, fromCenter, toCenter);
-    const glm::vec3 toTangent = limitedTangent(fromCenter, toCenter, afterCenter);
-    const glm::vec3 center = hermite(fromCenter, fromTangent, toCenter, toTangent, amount);
+    const Math::Vec3 beforeCenter = centreOf(before);
+    const Math::Vec3 fromCenter = centreOf(from);
+    const Math::Vec3 toCenter = centreOf(to);
+    const Math::Vec3 afterCenter = centreOf(after);
+    const Math::Vec3 fromTangent = limitedTangent(beforeCenter, fromCenter, toCenter);
+    const Math::Vec3 toTangent = limitedTangent(fromCenter, toCenter, afterCenter);
+    const Math::Vec3 center = hermite(fromCenter, fromTangent, toCenter, toTangent, amount);
 
     // ONE curve, through the centre, with every blade point carried along as
     // an offset from it. Giving each point its own spline lets two of them
@@ -397,8 +397,8 @@ RibbonTrail::Sample RibbonTrail::interpolate(const Sample& before, const Sample&
     Sample result;
     for (u32 i = 0; i < mBladeCount; ++i)
     {
-        const glm::vec3 fromOffset = from.points[i] - fromCenter;
-        const glm::vec3 toOffset = to.points[i] - toCenter;
+        const Math::Vec3 fromOffset = from.points[i] - fromCenter;
+        const Math::Vec3 toOffset = to.points[i] - toCenter;
         result.points[i] = center + glm::mix(fromOffset, toOffset, blend);
     }
     result.age = glm::mix(from.age, to.age, amount);

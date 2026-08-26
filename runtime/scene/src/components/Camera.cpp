@@ -82,14 +82,14 @@ f32 Camera::farPlane() const
     return mFarPlane;
 }
 
-glm::mat4 Camera::viewMatrix() const
+Math::Mat4 Camera::viewMatrix() const
 {
-    const glm::quat inverseRotation = glm::inverse(owner()->globalRotation());
+    const Math::Quaternion inverseRotation = glm::inverse(owner()->globalRotation());
     return glm::mat4_cast(inverseRotation) *
-           glm::translate(glm::mat4(1.0f), -owner()->globalPosition());
+           glm::translate(Math::Mat4(1.0f), -owner()->globalPosition());
 }
 
-glm::mat4 Camera::projectionMatrix() const
+Math::Mat4 Camera::projectionMatrix() const
 {
     if (mProjection == CameraProjection::Perspective)
         return glm::perspective(glm::radians(mFieldOfView), mAspect, mNearPlane, mFarPlane);
@@ -99,7 +99,7 @@ glm::mat4 Camera::projectionMatrix() const
     return glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, mNearPlane, mFarPlane);
 }
 
-glm::mat4 Camera::viewProjectionMatrix() const
+Math::Mat4 Camera::viewProjectionMatrix() const
 {
     return projectionMatrix() * viewMatrix();
 }

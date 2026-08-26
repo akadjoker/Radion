@@ -24,7 +24,7 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-AABB boxAt(const glm::vec3& center, const glm::vec3& half)
+AABB boxAt(const Math::Vec3& center, const Math::Vec3& half)
 {
     AABB box;
     box.min = center - half;
@@ -102,32 +102,32 @@ std::vector<AABB> makeItems(Layout layout, u32 count, u32 seed)
     items.reserve(count);
     for (u32 i = 0; i < count; ++i)
     {
-        glm::vec3 center;
+        Math::Vec3 center;
         f32 size = 1.0f;
         switch (layout)
         {
         case Layout::Spread:
-            center = glm::vec3(unit(rng), unit(rng) * 0.2f, unit(rng)) * 200.0f;
+            center = Math::Vec3(unit(rng), unit(rng) * 0.2f, unit(rng)) * 200.0f;
             size = 1.0f + std::abs(unit(rng));
             break;
         case Layout::Clustered:
-            center = glm::vec3(unit(rng), unit(rng), unit(rng)) * 4.0f;
+            center = Math::Vec3(unit(rng), unit(rng), unit(rng)) * 4.0f;
             size = 0.5f;
             break;
         case Layout::Mixed:
             if ((i % 4) == 0)
             {
-                center = glm::vec3(unit(rng), unit(rng) * 0.2f, unit(rng)) * 200.0f;
+                center = Math::Vec3(unit(rng), unit(rng) * 0.2f, unit(rng)) * 200.0f;
                 size = 2.0f + std::abs(unit(rng)) * 8.0f;
             }
             else
             {
-                center = glm::vec3(unit(rng), unit(rng), unit(rng)) * 6.0f;
+                center = Math::Vec3(unit(rng), unit(rng), unit(rng)) * 6.0f;
                 size = 0.5f;
             }
             break;
         }
-        items.push_back(boxAt(center, glm::vec3(size)));
+        items.push_back(boxAt(center, Math::Vec3(size)));
     }
     return items;
 }
@@ -147,17 +147,17 @@ void testEmptyAndSingle()
 
     // Nothing in it must answer nothing, not crash and not return garbage.
     CHECK(!tree.valid());
-    tree.queryCandidates(boxAt(glm::vec3(0.0f), glm::vec3(1.0f)), out);
+    tree.queryCandidates(boxAt(Math::Vec3(0.0f), Math::Vec3(1.0f)), out);
     CHECK(out.empty());
     CHECK(!tree.refit(nullptr, 0));
 
-    const AABB one = boxAt(glm::vec3(5.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+    const AABB one = boxAt(Math::Vec3(5.0f, 0.0f, 0.0f), Math::Vec3(1.0f));
     tree.build(&one, 1);
     CHECK(tree.valid());
     CHECK(tree.itemCount() == 1);
-    tree.queryCandidates(boxAt(glm::vec3(5.0f, 0.0f, 0.0f), glm::vec3(0.5f)), out);
+    tree.queryCandidates(boxAt(Math::Vec3(5.0f, 0.0f, 0.0f), Math::Vec3(0.5f)), out);
     CHECK(out.size() == 1 && out[0] == 0);
-    tree.queryCandidates(boxAt(glm::vec3(50.0f, 0.0f, 0.0f), glm::vec3(0.5f)), out);
+    tree.queryCandidates(boxAt(Math::Vec3(50.0f, 0.0f, 0.0f), Math::Vec3(0.5f)), out);
     CHECK(out.empty());
 }
 
@@ -178,8 +178,8 @@ void testMatchesBruteForce()
         std::vector<u32> out;
         for (u32 trial = 0; trial < 200; ++trial)
         {
-            const glm::vec3 center(unit(rng) * 200.0f, unit(rng) * 20.0f, unit(rng) * 200.0f);
-            const AABB query = boxAt(center, glm::vec3(1.0f + std::abs(unit(rng)) * 20.0f));
+            const Math::Vec3 center(unit(rng) * 200.0f, unit(rng) * 20.0f, unit(rng) * 200.0f);
+            const AABB query = boxAt(center, Math::Vec3(1.0f + std::abs(unit(rng)) * 20.0f));
             tree.queryCandidates(query, out);
             const std::vector<u32> answer = bruteForce(items, query);
             // Nothing real may be missing from the candidates, and filtering
@@ -214,10 +214,10 @@ void testFrustumMatchesBruteForce()
     std::uniform_real_distribution<f32> unit(-1.0f, 1.0f);
     for (u32 trial = 0; trial < 40; ++trial)
     {
-        const glm::vec3 eye(unit(rng) * 250.0f, 20.0f + std::abs(unit(rng)) * 40.0f,
+        const Math::Vec3 eye(unit(rng) * 250.0f, 20.0f + std::abs(unit(rng)) * 40.0f,
                             unit(rng) * 250.0f);
-        const glm::mat4 view = glm::lookAt(eye, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        const glm::mat4 projection = glm::perspective(glm::radians(60.0f), 16.0f / 9.0f, 0.5f,
+        const Math::Mat4 view = glm::lookAt(eye, Math::Vec3(0.0f), Math::Vec3(0.0f, 1.0f, 0.0f));
+        const Math::Mat4 projection = glm::perspective(glm::radians(60.0f), 16.0f / 9.0f, 0.5f,
                                                       600.0f);
         Frustum frustum;
         frustum.update(projection * view);
@@ -249,7 +249,7 @@ void testRefitKeepsAnswersRight()
     std::uniform_real_distribution<f32> unit(-1.0f, 1.0f);
     for (AABB& item : items)
     {
-        const glm::vec3 shift(unit(rng) * 3.0f, unit(rng) * 3.0f, unit(rng) * 3.0f);
+        const Math::Vec3 shift(unit(rng) * 3.0f, unit(rng) * 3.0f, unit(rng) * 3.0f);
         item.min += shift;
         item.max += shift;
     }
@@ -260,9 +260,9 @@ void testRefitKeepsAnswersRight()
     std::vector<u32> out;
     for (u32 trial = 0; trial < 100; ++trial)
     {
-        const AABB query = boxAt(glm::vec3(unit(rng) * 200.0f, unit(rng) * 20.0f,
+        const AABB query = boxAt(Math::Vec3(unit(rng) * 200.0f, unit(rng) * 20.0f,
                                            unit(rng) * 200.0f),
-                                 glm::vec3(5.0f));
+                                 Math::Vec3(5.0f));
         tree.queryCandidates(query, out);
         const std::vector<u32> answer = bruteForce(items, query);
         if (!containsAll(out, answer) || !sameSet(filtered(tree, out, query), answer))
@@ -282,7 +282,7 @@ void testDegenerateInputs()
 {
     // Every box in the same place: the centres never separate, so a split
     // that only trusts the midpoint would recurse forever on the same set.
-    std::vector<AABB> stacked(64, boxAt(glm::vec3(1.0f), glm::vec3(0.5f)));
+    std::vector<AABB> stacked(64, boxAt(Math::Vec3(1.0f), Math::Vec3(0.5f)));
     BoundsTree tree;
     tree.build(stacked.data(), static_cast<u32>(stacked.size()));
     CHECK(tree.valid());
@@ -290,19 +290,19 @@ void testDegenerateInputs()
     CHECK(tree.depth() < 48);
 
     std::vector<u32> out;
-    tree.queryCandidates(boxAt(glm::vec3(1.0f), glm::vec3(0.1f)), out);
+    tree.queryCandidates(boxAt(Math::Vec3(1.0f), Math::Vec3(0.1f)), out);
     CHECK(out.size() == stacked.size());
 
     // Boxes of zero size are points, and still have to be found.
     std::vector<AABB> points;
     for (u32 i = 0; i < 100; ++i)
     {
-        const glm::vec3 at(static_cast<f32>(i), 0.0f, 0.0f);
-        points.push_back(boxAt(at, glm::vec3(0.0f)));
+        const Math::Vec3 at(static_cast<f32>(i), 0.0f, 0.0f);
+        points.push_back(boxAt(at, Math::Vec3(0.0f)));
     }
     BoundsTree pointTree;
     pointTree.build(points.data(), static_cast<u32>(points.size()));
-    pointTree.queryCandidates(boxAt(glm::vec3(50.0f, 0.0f, 0.0f), glm::vec3(0.01f)), out);
+    pointTree.queryCandidates(boxAt(Math::Vec3(50.0f, 0.0f, 0.0f), Math::Vec3(0.01f)), out);
     CHECK(out.size() == 1 && out[0] == 50);
 }
 
@@ -323,7 +323,7 @@ void testQualityRisesAsThingsMove()
     {
         for (AABB& item : items)
         {
-            const glm::vec3 shift(unit(rng) * 8.0f, unit(rng) * 8.0f, unit(rng) * 8.0f);
+            const Math::Vec3 shift(unit(rng) * 8.0f, unit(rng) * 8.0f, unit(rng) * 8.0f);
             item.min += shift;
             item.max += shift;
         }
@@ -370,9 +370,9 @@ void benchmark()
         std::uniform_real_distribution<f32> unit(-1.0f, 1.0f);
         std::vector<AABB> queries;
         for (u32 i = 0; i < 1000; ++i)
-            queries.push_back(boxAt(glm::vec3(unit(rng) * 200.0f, unit(rng) * 20.0f,
+            queries.push_back(boxAt(Math::Vec3(unit(rng) * 200.0f, unit(rng) * 20.0f,
                                               unit(rng) * 200.0f),
-                                    glm::vec3(10.0f)));
+                                    Math::Vec3(10.0f)));
 
         // Timed with the caller's own filtering included, because that is
         // what a real query costs - measuring only the traversal would flatter

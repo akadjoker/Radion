@@ -49,7 +49,7 @@ Material defaultPrimitiveMaterial()
 {
     Material material;
     material.flags |= MaterialLit;
-    material.params.baseColor = glm::vec4(0.7f, 0.7f, 0.7f, 1.0f);
+    material.params.baseColor = Math::Vec4(0.7f, 0.7f, 0.7f, 1.0f);
     material.params.surface.x = 0.7f; // roughness
     material.params.surface.y = 0.0f; // metal
     material.paramsDirty = true;
@@ -94,7 +94,7 @@ void createMirrorObject(EditorApplication& app, GameObject* parent)
         renderer->setMesh(mesh);
         Material material;
         material.flags |= MaterialLit | MaterialMirror;
-        material.params.baseColor = glm::vec4(0.9f, 0.9f, 0.9f, 1.0f);
+        material.params.baseColor = Math::Vec4(0.9f, 0.9f, 0.9f, 1.0f);
         material.params.surface.x = 0.15f; // roughness
         material.params.surface.y = 0.0f;  // metal - the mirror mix is its own path, not this
         material.params.custom0.x = 1.0f;  // mirror strength, see lit.frag's HAS_MIRROR block
@@ -127,7 +127,7 @@ void createReflectionProbeObject(EditorApplication& app, GameObject* parent)
         ReflectionProbe* probeComponent = object->addComponent<ReflectionProbe>();
         probeComponent->create(128);
         EnvironmentProbe& env = probeComponent->probe();
-        env.extents = glm::vec3(0.0f);
+        env.extents = Math::Vec3(0.0f);
         env.influenceRadius = 5.0f;
         env.content = EnvironmentProbe::Content::SkyAndWorld;
         env.refresh = EnvironmentProbe::Refresh::Automatic;
@@ -864,7 +864,7 @@ void HierarchyPanel::queuePendingPrimitive(PrimitiveKind kind, GameObject* paren
     mPendingPrimitive.open = true;
     mPendingPrimitive.kind = kind;
     mPendingPrimitive.parent = parent;
-    mPendingPrimitive.dimensions = glm::vec3(1.0f);
+    mPendingPrimitive.dimensions = Math::Vec3(1.0f);
     mPendingPrimitive.uvTiles = 1.0f;
     mPendingPrimitive.segmentsA = 0;
     mPendingPrimitive.segmentsB = 0;

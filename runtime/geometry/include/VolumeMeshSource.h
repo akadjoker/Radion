@@ -48,7 +48,7 @@ public:
     void clear();
     bool valid() const;
 
-    f32 sampleDensity(const glm::vec3& position) const override;
+    f32 sampleDensity(const Math::Vec3& position) const override;
 
     // The mesh's own box, which is what a meshing pass wants for its bounds -
     // grown a little, or the surface sits exactly on the edge of the grid.
@@ -60,12 +60,12 @@ public:
     u32 triangleCount() const;
 
 private:
-    f32 unsignedDistance(const glm::vec3& position) const;
-    bool isInside(const glm::vec3& position) const;
+    f32 unsignedDistance(const Math::Vec3& position) const;
+    bool isInside(const Math::Vec3& position) const;
 
     // Three corners per triangle, flattened: the tree indexes triangles, and
     // an index buffer here would cost a second indirection per candidate.
-    std::vector<glm::vec3> mCorners;
+    std::vector<Math::Vec3> mCorners;
     BoundsTree mTree;
     AABB mBounds;
     f32 mDiagonal = 0.0f;

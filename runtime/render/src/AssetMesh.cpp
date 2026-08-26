@@ -55,7 +55,7 @@ bool validateMeshData(const MeshData& data, std::string& error)
 
     for (usize i = 0; i < data.positions.size(); ++i)
     {
-        const glm::vec3& p = data.positions[i];
+        const Math::Vec3& p = data.positions[i];
         if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
         {
             error = "non-finite position at vertex " + std::to_string(i);
@@ -75,7 +75,8 @@ void computeSplitGrid(const AABB& bounds, u32 triangleCount, u32 targetTriangles
                       int& gz)
 {
     const f32 minExtent = 1e-4f;
-    const glm::vec3 extents = bounds.extents();
+    const Math::Vec3 mathExtents = bounds.extents();
+    const Math::Vec3 extents(mathExtents.x, mathExtents.y, mathExtents.z);
     const bool flatX = extents.x < minExtent;
     const bool flatY = extents.y < minExtent;
     const bool flatZ = extents.z < minExtent;
@@ -119,7 +120,8 @@ bool splitSubMeshGrid(MeshData& mesh, const SubMesh& submesh, u32 targetTriangle
     if (gx <= 1 && gy <= 1 && gz <= 1)
         return false;
 
-    const glm::vec3 extents = bounds.extents();
+    const Math::Vec3 mathExtents = bounds.extents();
+    const Math::Vec3 extents(mathExtents.x, mathExtents.y, mathExtents.z);
     const f32 invEx = extents.x > 1e-4f ? 1.0f / extents.x : 0.0f;
     const f32 invEy = extents.y > 1e-4f ? 1.0f / extents.y : 0.0f;
     const f32 invEz = extents.z > 1e-4f ? 1.0f / extents.z : 0.0f;
@@ -145,7 +147,7 @@ bool splitSubMeshGrid(MeshData& mesh, const SubMesh& submesh, u32 targetTriangle
             i2 >= mesh.positions.size())
             continue;
 
-        const glm::vec3 centroid =
+        const Math::Vec3 centroid =
             (mesh.positions[i0] + mesh.positions[i1] + mesh.positions[i2]) / 3.0f;
 
         const int cx =
@@ -222,22 +224,22 @@ bool splitSubMeshGrid(MeshData& mesh, const SubMesh& submesh, u32 targetTriangle
 // so d(position)/d(theta) always points this way regardless of which ring or
 // how far out it is. Computed inline, per vertex, alongside the normal - no
 // separate pass over the mesh once it already exists.
-glm::vec4 revolveTangent(f32 theta)
+Math::Vec4 revolveTangent(f32 theta)
 {
-    return glm::vec4(-std::sin(theta), 0.0f, std::cos(theta), 1.0f);
+    return Math::Vec4(-std::sin(theta), 0.0f, std::cos(theta), 1.0f);
 }
 
-glm::vec3 faceNormal(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
+Math::Vec3 faceNormal(const Math::Vec3& v0, const Math::Vec3& v1, const Math::Vec3& v2)
 {
-    const glm::vec3 normal = glm::cross(v1 - v0, v2 - v0);
+    const Math::Vec3 normal = glm::cross(v1 - v0, v2 - v0);
     const float length = glm::length(normal);
-    return length > 0.0f ? normal / length : glm::vec3(0.0f);
+    return length > 0.0f ? normal / length : Math::Vec3(0.0f);
 }
 
 // The interior angle at each of the three vertices, from the law of cosines.
 // Weighting by angle stops a corner shared by many small triangles from
 // dragging the smooth normal towards them.
-glm::vec3 angleWeights(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
+Math::Vec3 angleWeights(const Math::Vec3& v0, const Math::Vec3& v1, const Math::Vec3& v2)
 {
     const float a = glm::dot(v1 - v2, v1 - v2);
     const float b = glm::dot(v0 - v2, v0 - v2);
@@ -248,9 +250,9 @@ glm::vec3 angleWeights(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3
     const float cSqrt = std::sqrt(c);
 
     if (aSqrt <= 0.0f || bSqrt <= 0.0f || cSqrt <= 0.0f)
-        return glm::vec3(1.0f);
+        return Math::Vec3(1.0f);
 
-    return glm::vec3(std::acos(glm::clamp((b + c - a) / (2.0f * bSqrt * cSqrt), -1.0f, 1.0f)),
+    return Math::Vec3(std::acos(glm::clamp((b + c - a) / (2.0f * bSqrt * cSqrt), -1.0f, 1.0f)),
                      std::acos(glm::clamp((-b + c + a) / (2.0f * aSqrt * cSqrt), -1.0f, 1.0f)),
                      std::acos(glm::clamp((b - c + a) / (2.0f * bSqrt * aSqrt), -1.0f, 1.0f)));
 }
@@ -259,15 +261,15 @@ glm::vec3 angleWeights(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3
 
 // One quad's worth of shared vertices per face, so each face keeps its own
 // flat normal and uv island - a cube needs hard edges, not smooth ones.
-void appendCubeFace(MeshData& data, const glm::vec3& normal, const glm::vec3& v0,
-                    const glm::vec3& v1, const glm::vec3& v2, const glm::vec3& v3)
+void appendCubeFace(MeshData& data, const Math::Vec3& normal, const Math::Vec3& v0,
+                    const Math::Vec3& v1, const Math::Vec3& v2, const Math::Vec3& v3)
 {
     const u32 base = static_cast<u32>(data.positions.size());
-    const glm::vec3 corners[4] = {v0, v1, v2, v3};
-    const glm::vec2 uvs[4] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
+    const Math::Vec3 corners[4] = {v0, v1, v2, v3};
+    const Math::Vec2 uvs[4] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
     // uv[0] -> uv[1] is exactly one step in U with none in V, so that edge
     // already IS the tangent direction - nothing to derive.
-    const glm::vec4 tangent(glm::normalize(v1 - v0), 1.0f);
+    const Math::Vec4 tangent(glm::normalize(v1 - v0), 1.0f);
     for (u32 i = 0; i < 4; ++i)
     {
         data.positions.push_back(corners[i]);
@@ -279,9 +281,9 @@ void appendCubeFace(MeshData& data, const glm::vec3& normal, const glm::vec3& v0
     data.indices.insert(data.indices.end(), quad, quad + 6);
 }
 
-void buildBox(MeshData& data, const glm::vec3& size)
+void buildBox(MeshData& data, const Math::Vec3& size)
 {
-    const glm::vec3 h = size * 0.5f;
+    const Math::Vec3 h = size * 0.5f;
     appendCubeFace(data, {0, 0, 1}, {-h.x, -h.y, h.z}, {h.x, -h.y, h.z}, {h.x, h.y, h.z},
                    {-h.x, h.y, h.z}); // +Z
     appendCubeFace(data, {0, 0, -1}, {h.x, -h.y, -h.z}, {-h.x, -h.y, -h.z}, {-h.x, h.y, -h.z},
@@ -309,17 +311,17 @@ void buildPlane(MeshData& data, f32 width, f32 depth, u32 segX, u32 segZ, f32 uv
     data.uvs.resize(data.positions.size());
     // Flat and axis-aligned: U always runs along world +X, so the tangent is
     // the same constant for every vertex - no per-vertex derivative needed.
-    data.tangents.assign(data.positions.size(), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    data.tangents.assign(data.positions.size(), Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f));
     for (u32 j = 0; j < nz; ++j)
     {
         for (u32 i = 0; i < nx; ++i)
         {
             const usize v = static_cast<usize>(j) * nx + i;
             data.positions[v] =
-                glm::vec3(x0 + static_cast<f32>(i) * dx, 0.0f, z0 + static_cast<f32>(j) * dz);
-            data.normals[v] = glm::vec3(0.0f, 1.0f, 0.0f);
+                Math::Vec3(x0 + static_cast<f32>(i) * dx, 0.0f, z0 + static_cast<f32>(j) * dz);
+            data.normals[v] = Math::Vec3(0.0f, 1.0f, 0.0f);
             data.uvs[v] =
-                glm::vec2(static_cast<f32>(i) / segX, static_cast<f32>(j) / segZ) * uvTiles;
+                Math::Vec2(static_cast<f32>(i) / segX, static_cast<f32>(j) / segZ) * uvTiles;
         }
     }
     for (u32 j = 0; j < segZ; ++j)
@@ -346,11 +348,11 @@ void buildSphere(MeshData& data, f32 radius, u32 rings, u32 slices)
         {
             const f32 u = static_cast<f32>(s) / slices;
             const f32 theta = u * 2.0f * pi;
-            const glm::vec3 n(std::sin(phi) * std::cos(theta), std::cos(phi),
+            const Math::Vec3 n(std::sin(phi) * std::cos(theta), std::cos(phi),
                               std::sin(phi) * std::sin(theta));
             data.positions.push_back(n * radius);
             data.normals.push_back(n);
-            data.uvs.push_back(glm::vec2(u, v));
+            data.uvs.push_back(Math::Vec2(u, v));
             data.tangents.push_back(revolveTangent(theta));
         }
     }
@@ -380,10 +382,10 @@ void buildTube(MeshData& data, f32 radius, f32 height, u32 slices, f32 topScale)
             const f32 u = static_cast<f32>(s) / slices;
             const f32 theta = u * 2.0f * pi;
             const f32 cx = std::cos(theta), cz = std::sin(theta);
-            const glm::vec3 n = glm::normalize(glm::vec3(cx, slope, cz));
-            data.positions.push_back(glm::vec3(cx * r, y, cz * r));
+            const Math::Vec3 n = glm::normalize(Math::Vec3(cx, slope, cz));
+            data.positions.push_back(Math::Vec3(cx * r, y, cz * r));
             data.normals.push_back(n);
-            data.uvs.push_back(glm::vec2(u, static_cast<f32>(cap)));
+            data.uvs.push_back(Math::Vec2(u, static_cast<f32>(cap)));
             data.tangents.push_back(revolveTangent(theta));
         }
     }
@@ -403,17 +405,17 @@ void buildTube(MeshData& data, f32 radius, f32 height, u32 slices, f32 topScale)
         const f32 y = cap ? height : 0.0f;
         const f32 ny = cap ? 1.0f : -1.0f;
         const u32 center = static_cast<u32>(data.positions.size());
-        data.positions.push_back(glm::vec3(0.0f, y, 0.0f));
-        data.normals.push_back(glm::vec3(0.0f, ny, 0.0f));
-        data.uvs.push_back(glm::vec2(0.5f, 0.5f));
-        data.tangents.push_back(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+        data.positions.push_back(Math::Vec3(0.0f, y, 0.0f));
+        data.normals.push_back(Math::Vec3(0.0f, ny, 0.0f));
+        data.uvs.push_back(Math::Vec2(0.5f, 0.5f));
+        data.tangents.push_back(Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f));
         for (u32 s = 0; s <= slices; ++s)
         {
             const f32 theta = static_cast<f32>(s) / slices * 2.0f * pi;
-            data.positions.push_back(glm::vec3(std::cos(theta) * r, y, std::sin(theta) * r));
-            data.normals.push_back(glm::vec3(0.0f, ny, 0.0f));
+            data.positions.push_back(Math::Vec3(std::cos(theta) * r, y, std::sin(theta) * r));
+            data.normals.push_back(Math::Vec3(0.0f, ny, 0.0f));
             data.uvs.push_back(
-                glm::vec2(std::cos(theta) * 0.5f + 0.5f, std::sin(theta) * 0.5f + 0.5f));
+                Math::Vec2(std::cos(theta) * 0.5f + 0.5f, std::sin(theta) * 0.5f + 0.5f));
             data.tangents.push_back(revolveTangent(theta));
         }
         for (u32 s = 0; s < slices; ++s)
@@ -453,10 +455,10 @@ void buildCapsule(MeshData& data, f32 radius, f32 height, u32 rings, u32 slices)
             const f32 u = static_cast<f32>(s) / slices;
             const f32 theta = u * 2.0f * pi;
             const f32 cx = std::cos(theta), cz = std::sin(theta);
-            const glm::vec3 n = glm::normalize(glm::vec3(cx * nRingScale, ny, cz * nRingScale));
-            data.positions.push_back(glm::vec3(cx * ringRadius, y, cz * ringRadius));
+            const Math::Vec3 n = glm::normalize(Math::Vec3(cx * nRingScale, ny, cz * nRingScale));
+            data.positions.push_back(Math::Vec3(cx * ringRadius, y, cz * ringRadius));
             data.normals.push_back(n);
-            data.uvs.push_back(glm::vec2(u, v));
+            data.uvs.push_back(Math::Vec2(u, v));
             data.tangents.push_back(revolveTangent(theta));
         }
         ++row;
@@ -503,15 +505,15 @@ void buildTorus(MeshData& data, f32 majorRadius, f32 minorRadius, u32 majorSegme
         const f32 u = static_cast<f32>(i) / majorSegments;
         const f32 theta = u * 2.0f * pi;
         const f32 rx = std::cos(theta), rz = std::sin(theta);
-        const glm::vec3 center(rx * majorRadius, 0.0f, rz * majorRadius);
+        const Math::Vec3 center(rx * majorRadius, 0.0f, rz * majorRadius);
         for (u32 j = 0; j <= minorSegments; ++j)
         {
             const f32 v = static_cast<f32>(j) / minorSegments;
             const f32 phi = v * 2.0f * pi;
-            const glm::vec3 n(rx * std::cos(phi), std::sin(phi), rz * std::cos(phi));
+            const Math::Vec3 n(rx * std::cos(phi), std::sin(phi), rz * std::cos(phi));
             data.positions.push_back(center + n * minorRadius);
             data.normals.push_back(n);
-            data.uvs.push_back(glm::vec2(u, v));
+            data.uvs.push_back(Math::Vec2(u, v));
             data.tangents.push_back(revolveTangent(theta));
         }
     }
@@ -569,11 +571,11 @@ void buildHillsPlane(MeshData& data, f32 width, f32 depth, u32 segX, u32 segZ,
         {
             const usize v = static_cast<usize>(j) * nx + i;
             const f32 wx = x0 + static_cast<f32>(i) * dx, wz = z0 + static_cast<f32>(j) * dz;
-            data.positions[v] = glm::vec3(
+            data.positions[v] = Math::Vec3(
                 wx, sampleHeightmap(heightmap, (wx - x0) / width, (wz - z0) / depth, heightScale),
                 wz);
             data.uvs[v] =
-                glm::vec2(static_cast<f32>(i) / segX, static_cast<f32>(j) / segZ) * uvTiles;
+                Math::Vec2(static_cast<f32>(i) / segX, static_cast<f32>(j) / segZ) * uvTiles;
         }
     }
     // Central-difference normals - cheap here since segX/segZ is small
@@ -585,7 +587,7 @@ void buildHillsPlane(MeshData& data, f32 width, f32 depth, u32 segX, u32 segZ,
         for (u32 i = 0; i < nx; ++i)
         {
             const usize v = static_cast<usize>(j) * nx + i;
-            const glm::vec3& p = data.positions[v];
+            const Math::Vec3& p = data.positions[v];
             const f32 hl = sampleHeightmap(heightmap, (p.x - dx - x0) / width, (p.z - z0) / depth,
                                            heightScale);
             const f32 hr = sampleHeightmap(heightmap, (p.x + dx - x0) / width, (p.z - z0) / depth,
@@ -595,8 +597,8 @@ void buildHillsPlane(MeshData& data, f32 width, f32 depth, u32 segX, u32 segZ,
             const f32 hu = sampleHeightmap(heightmap, (p.x - x0) / width, (p.z + dz - z0) / depth,
                                            heightScale);
             data.normals[v] =
-                glm::normalize(glm::vec3(hl - hr, 2.0f * ((dx + dz) * 0.5f), hd - hu));
-            data.tangents[v] = glm::vec4(glm::normalize(glm::vec3(2.0f * dx, hr - hl, 0.0f)), 1.0f);
+                glm::normalize(Math::Vec3(hl - hr, 2.0f * ((dx + dz) * 0.5f), hd - hu));
+            data.tangents[v] = Math::Vec4(glm::normalize(Math::Vec3(2.0f * dx, hr - hl, 0.0f)), 1.0f);
         }
     }
     for (u32 j = 0; j < segZ; ++j)
@@ -622,18 +624,18 @@ void buildHeightfield(MeshData& data, const f32* heights, u32 w, u32 h, f32 cell
         for (u32 i = 0; i < w; ++i)
         {
             const usize v = static_cast<usize>(j) * w + i;
-            data.positions[v] = glm::vec3(static_cast<f32>(i) * cellSize, heights[v],
+            data.positions[v] = Math::Vec3(static_cast<f32>(i) * cellSize, heights[v],
                                           static_cast<f32>(j) * cellSize);
             data.uvs[v] =
-                glm::vec2(static_cast<f32>(i) / (w - 1), static_cast<f32>(j) / (h - 1)) * uvTiles;
+                Math::Vec2(static_cast<f32>(i) / (w - 1), static_cast<f32>(j) / (h - 1)) * uvTiles;
 
             const f32 hl = heights[j * w + (i > 0 ? i - 1 : i)];
             const f32 hr = heights[j * w + (i < w - 1 ? i + 1 : i)];
             const f32 hd = heights[(j > 0 ? j - 1 : j) * w + i];
             const f32 hu = heights[(j < h - 1 ? j + 1 : j) * w + i];
-            data.normals[v] = glm::normalize(glm::vec3(hl - hr, 2.0f * cellSize, hd - hu));
+            data.normals[v] = glm::normalize(Math::Vec3(hl - hr, 2.0f * cellSize, hd - hu));
             data.tangents[v] =
-                glm::vec4(glm::normalize(glm::vec3(2.0f * cellSize, hr - hl, 0.0f)), 1.0f);
+                Math::Vec4(glm::normalize(Math::Vec3(2.0f * cellSize, hr - hl, 0.0f)), 1.0f);
         }
     }
     for (u32 j = 0; j < h - 1; ++j)
@@ -678,9 +680,9 @@ usize MeshData::triangleCount() const
 
 usize MeshData::memoryBytes() const
 {
-    return positions.size() * sizeof(glm::vec3) + normals.size() * sizeof(glm::vec3) +
-           tangents.size() * sizeof(glm::vec4) + uvs.size() * sizeof(glm::vec2) +
-           uvs2.size() * sizeof(glm::vec2) + colors.size() * sizeof(u32) +
+    return positions.size() * sizeof(Math::Vec3) + normals.size() * sizeof(Math::Vec3) +
+           tangents.size() * sizeof(Math::Vec4) + uvs.size() * sizeof(Math::Vec2) +
+           uvs2.size() * sizeof(Math::Vec2) + colors.size() * sizeof(u32) +
            skin.size() * sizeof(MeshSkinVertex) + indices.size() * sizeof(u32) +
            submeshes.size() * sizeof(SubMesh);
 }
@@ -770,7 +772,7 @@ MeshDesc MeshDesc::fromFile(const std::string& file)
     return desc;
 }
 
-MeshDesc MeshDesc::box(const glm::vec3& size)
+MeshDesc MeshDesc::box(const Math::Vec3& size)
 {
     return makeDesc(MeshSource::Box, {size.x, size.y, size.z});
 }
@@ -1056,7 +1058,7 @@ bool AssetManager::buildMeshData(const MeshDesc& desc, MeshData& data)
     case MeshSource::File:
         return importMeshFileData(desc.file, data);
     case MeshSource::Box:
-        buildBox(data, glm::vec3(p[0], p[1], p[2]));
+        buildBox(data, Math::Vec3(p[0], p[1], p[2]));
         break;
     case MeshSource::Plane:
         buildPlane(data, p[0], p[1], static_cast<u32>(p[2]), static_cast<u32>(p[3]), p[4]);
@@ -1392,7 +1394,7 @@ MeshHandle AssetManager::createDynamicMesh(const MeshData& data)
 }
 
 bool AssetManager::updateMeshVertices(MeshHandle handle, u32 firstVertex, u32 vertexCount,
-                                      const glm::vec3* positions, const MeshAttribs* attribs)
+                                      const Math::Vec3* positions, const MeshAttribs* attribs)
 {
     Mesh* mesh = getMesh(handle);
     if (!mesh || !positions || !attribs || vertexCount == 0 ||
@@ -1400,8 +1402,8 @@ bool AssetManager::updateMeshVertices(MeshHandle handle, u32 firstVertex, u32 ve
         return false;
 
     GPU& gpu = GPU::getSingleton();
-    gpu.updateBuffer(mesh->positionBuffer, static_cast<u64>(firstVertex) * sizeof(glm::vec3),
-                     static_cast<u64>(vertexCount) * sizeof(glm::vec3), positions);
+    gpu.updateBuffer(mesh->positionBuffer, static_cast<u64>(firstVertex) * sizeof(Math::Vec3),
+                     static_cast<u64>(vertexCount) * sizeof(Math::Vec3), positions);
     gpu.updateBuffer(mesh->attribBuffer, static_cast<u64>(firstVertex) * sizeof(MeshAttribs),
                      static_cast<u64>(vertexCount) * sizeof(MeshAttribs), attribs);
     return true;
@@ -1417,11 +1419,11 @@ bool AssetManager::updateMeshVertices(MeshHandle handle, const MeshData& data)
     for (usize i = 0; i < count; ++i)
     {
         MeshAttribs& attrib = attribs[i];
-        attrib.normal = i < data.normals.size() ? data.normals[i] : glm::vec3(0.0f, 1.0f, 0.0f);
+        attrib.normal = i < data.normals.size() ? data.normals[i] : Math::Vec3(0.0f, 1.0f, 0.0f);
         attrib.tangent =
-            i < data.tangents.size() ? data.tangents[i] : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        attrib.uv = i < data.uvs.size() ? data.uvs[i] : glm::vec2(0.0f);
-        attrib.uv2 = i < data.uvs2.size() ? data.uvs2[i] : glm::vec2(0.0f);
+            i < data.tangents.size() ? data.tangents[i] : Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        attrib.uv = i < data.uvs.size() ? data.uvs[i] : Math::Vec2(0.0f);
+        attrib.uv2 = i < data.uvs2.size() ? data.uvs2[i] : Math::Vec2(0.0f);
         attrib.color = i < data.colors.size() ? data.colors[i] : 0xFFFFFFFFu;
     }
 
@@ -1525,7 +1527,7 @@ bool AssetManager::exportMesh(MeshHandle handle, const std::string& filename,
 
     MeshData data;
     data.positions.resize(vertexCount);
-    if (!gpu.readBuffer(mesh->positionBuffer, 0, static_cast<u64>(vertexCount) * sizeof(glm::vec3),
+    if (!gpu.readBuffer(mesh->positionBuffer, 0, static_cast<u64>(vertexCount) * sizeof(Math::Vec3),
                         data.positions.data()))
         return false;
 
@@ -1616,7 +1618,7 @@ void AssetManager::computeNormals(MeshData& mesh) const
     if (mesh.positions.empty() || mesh.indices.size() < 3)
         return;
 
-    mesh.normals.assign(mesh.positions.size(), glm::vec3(0.0f));
+    mesh.normals.assign(mesh.positions.size(), Math::Vec3(0.0f));
     const usize triangles = mesh.indices.size() / 3;
     for (usize t = 0; t < triangles; ++t)
     {
@@ -1630,17 +1632,17 @@ void AssetManager::computeNormals(MeshData& mesh) const
         // area, so accumulating it raw weights each face by its size. A long
         // thin triangle then counts for what it is instead of as much as the
         // big one beside it.
-        const glm::vec3 face = glm::cross(mesh.positions[i1] - mesh.positions[i0],
+        const Math::Vec3 face = glm::cross(mesh.positions[i1] - mesh.positions[i0],
                                           mesh.positions[i2] - mesh.positions[i0]);
         mesh.normals[i0] += face;
         mesh.normals[i1] += face;
         mesh.normals[i2] += face;
     }
 
-    for (glm::vec3& normal : mesh.normals)
+    for (Math::Vec3& normal : mesh.normals)
     {
         const f32 length = glm::length(normal);
-        normal = length > 1.0e-8f ? normal / length : glm::vec3(0.0f, 1.0f, 0.0f);
+        normal = length > 1.0e-8f ? normal / length : Math::Vec3(0.0f, 1.0f, 0.0f);
     }
 }
 
@@ -1651,8 +1653,8 @@ void AssetManager::computeTangents(MeshData& mesh) const
         mesh.uvs.size() != count)
         return;
 
-    std::vector<glm::vec3> tangent(count, glm::vec3(0.0f));
-    std::vector<glm::vec3> bitangent(count, glm::vec3(0.0f));
+    std::vector<Math::Vec3> tangent(count, Math::Vec3(0.0f));
+    std::vector<Math::Vec3> bitangent(count, Math::Vec3(0.0f));
 
     const usize triangles = mesh.indices.size() / 3;
     for (usize t = 0; t < triangles; ++t)
@@ -1663,10 +1665,10 @@ void AssetManager::computeTangents(MeshData& mesh) const
         if (i0 >= count || i1 >= count || i2 >= count)
             continue;
 
-        const glm::vec3 e1 = mesh.positions[i1] - mesh.positions[i0];
-        const glm::vec3 e2 = mesh.positions[i2] - mesh.positions[i0];
-        const glm::vec2 d1 = mesh.uvs[i1] - mesh.uvs[i0];
-        const glm::vec2 d2 = mesh.uvs[i2] - mesh.uvs[i0];
+        const Math::Vec3 e1 = mesh.positions[i1] - mesh.positions[i0];
+        const Math::Vec3 e2 = mesh.positions[i2] - mesh.positions[i0];
+        const Math::Vec2 d1 = mesh.uvs[i1] - mesh.uvs[i0];
+        const Math::Vec2 d2 = mesh.uvs[i2] - mesh.uvs[i0];
 
         // Degenerate in UV space - two vertices share a texture coordinate,
         // which happens on seams and on untextured filler geometry. There is
@@ -1677,8 +1679,8 @@ void AssetManager::computeTangents(MeshData& mesh) const
             continue;
         const f32 inverse = 1.0f / determinant;
 
-        const glm::vec3 faceTangent = (e1 * d2.y - e2 * d1.y) * inverse;
-        const glm::vec3 faceBitangent = (e2 * d1.x - e1 * d2.x) * inverse;
+        const Math::Vec3 faceTangent = (e1 * d2.y - e2 * d1.y) * inverse;
+        const Math::Vec3 faceBitangent = (e2 * d1.x - e1 * d2.x) * inverse;
         for (const u32 index : {i0, i1, i2})
         {
             tangent[index] += faceTangent;
@@ -1686,17 +1688,17 @@ void AssetManager::computeTangents(MeshData& mesh) const
         }
     }
 
-    mesh.tangents.assign(count, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    mesh.tangents.assign(count, Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f));
     for (usize i = 0; i < count; ++i)
     {
-        const glm::vec3& normal = mesh.normals[i];
-        glm::vec3 t = tangent[i] - normal * glm::dot(normal, tangent[i]);
+        const Math::Vec3& normal = mesh.normals[i];
+        Math::Vec3 t = tangent[i] - normal * glm::dot(normal, tangent[i]);
         if (glm::dot(t, t) < 1.0e-16f)
         {
             // Any vector perpendicular to the normal will do where the UVs
             // gave nothing - the shader needs a basis, not a correct one.
-            const glm::vec3 axis =
-                std::abs(normal.x) < 0.9f ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+            const Math::Vec3 axis =
+                std::abs(normal.x) < 0.9f ? Math::Vec3(1.0f, 0.0f, 0.0f) : Math::Vec3(0.0f, 1.0f, 0.0f);
             t = glm::normalize(glm::cross(normal, axis));
         }
         else
@@ -1706,7 +1708,7 @@ void AssetManager::computeTangents(MeshData& mesh) const
         // w carries the handedness, which is what tells the shader whether to
         // flip the bitangent - a mirrored UV island lights inside out without.
         const f32 handedness = glm::dot(glm::cross(normal, t), bitangent[i]) < 0.0f ? -1.0f : 1.0f;
-        mesh.tangents[i] = glm::vec4(t, handedness);
+        mesh.tangents[i] = Math::Vec4(t, handedness);
     }
 }
 
@@ -1859,7 +1861,7 @@ void AssetManager::recalculateNormals(MeshData& mesh, bool smooth, bool angleWei
     if (mesh.positions.empty() || mesh.indices.size() < 3)
         return;
 
-    mesh.normals.assign(mesh.positions.size(), glm::vec3(0.0f));
+    mesh.normals.assign(mesh.positions.size(), Math::Vec3(0.0f));
 
     for (usize i = 0; i + 2 < mesh.indices.size(); i += 3)
     {
@@ -1870,10 +1872,10 @@ void AssetManager::recalculateNormals(MeshData& mesh, bool smooth, bool angleWei
             i2 >= mesh.positions.size())
             continue;
 
-        const glm::vec3& v0 = mesh.positions[i0];
-        const glm::vec3& v1 = mesh.positions[i1];
-        const glm::vec3& v2 = mesh.positions[i2];
-        const glm::vec3 normal = faceNormal(v0, v1, v2);
+        const Math::Vec3& v0 = mesh.positions[i0];
+        const Math::Vec3& v1 = mesh.positions[i1];
+        const Math::Vec3& v2 = mesh.positions[i2];
+        const Math::Vec3 normal = faceNormal(v0, v1, v2);
 
         if (!smooth)
         {
@@ -1883,7 +1885,7 @@ void AssetManager::recalculateNormals(MeshData& mesh, bool smooth, bool angleWei
             continue;
         }
 
-        const glm::vec3 weight = angleWeighted ? angleWeights(v0, v1, v2) : glm::vec3(1.0f);
+        const Math::Vec3 weight = angleWeighted ? angleWeights(v0, v1, v2) : Math::Vec3(1.0f);
         mesh.normals[i0] += normal * weight.x;
         mesh.normals[i1] += normal * weight.y;
         mesh.normals[i2] += normal * weight.z;
@@ -1895,7 +1897,7 @@ void AssetManager::recalculateNormals(MeshData& mesh, bool smooth, bool angleWei
     for (usize i = 0; i < mesh.normals.size(); ++i)
     {
         const float length = glm::length(mesh.normals[i]);
-        mesh.normals[i] = length > 0.0f ? mesh.normals[i] / length : glm::vec3(0.0f, 1.0f, 0.0f);
+        mesh.normals[i] = length > 0.0f ? mesh.normals[i] / length : Math::Vec3(0.0f, 1.0f, 0.0f);
     }
 }
 
@@ -1909,8 +1911,8 @@ void AssetManager::recalculateTangents(MeshData& mesh) const
     if (mesh.normals.size() != mesh.positions.size())
         recalculateNormals(mesh, true);
 
-    std::vector<glm::vec3> tangentAccum(mesh.positions.size(), glm::vec3(0.0f));
-    std::vector<glm::vec3> bitangentAccum(mesh.positions.size(), glm::vec3(0.0f));
+    std::vector<Math::Vec3> tangentAccum(mesh.positions.size(), Math::Vec3(0.0f));
+    std::vector<Math::Vec3> bitangentAccum(mesh.positions.size(), Math::Vec3(0.0f));
 
     for (usize i = 0; i + 2 < mesh.indices.size(); i += 3)
     {
@@ -1921,10 +1923,10 @@ void AssetManager::recalculateTangents(MeshData& mesh) const
             i2 >= mesh.positions.size())
             continue;
 
-        const glm::vec3 edge1 = mesh.positions[i1] - mesh.positions[i0];
-        const glm::vec3 edge2 = mesh.positions[i2] - mesh.positions[i0];
-        const glm::vec2 deltaUV1 = mesh.uvs[i1] - mesh.uvs[i0];
-        const glm::vec2 deltaUV2 = mesh.uvs[i2] - mesh.uvs[i0];
+        const Math::Vec3 edge1 = mesh.positions[i1] - mesh.positions[i0];
+        const Math::Vec3 edge2 = mesh.positions[i2] - mesh.positions[i0];
+        const Math::Vec2 deltaUV1 = mesh.uvs[i1] - mesh.uvs[i0];
+        const Math::Vec2 deltaUV2 = mesh.uvs[i2] - mesh.uvs[i0];
 
         // Degenerate uvs give a zero determinant; skipping leaves the vertex to
         // whatever its other triangles say instead of poisoning it with NaN.
@@ -1933,8 +1935,8 @@ void AssetManager::recalculateTangents(MeshData& mesh) const
             continue;
 
         const float r = 1.0f / determinant;
-        const glm::vec3 tangent = (edge1 * deltaUV2.y - edge2 * deltaUV1.y) * r;
-        const glm::vec3 bitangent = (edge2 * deltaUV1.x - edge1 * deltaUV2.x) * r;
+        const Math::Vec3 tangent = (edge1 * deltaUV2.y - edge2 * deltaUV1.y) * r;
+        const Math::Vec3 bitangent = (edge2 * deltaUV1.x - edge1 * deltaUV2.x) * r;
 
         tangentAccum[i0] += tangent;
         tangentAccum[i1] += tangent;
@@ -1947,21 +1949,21 @@ void AssetManager::recalculateTangents(MeshData& mesh) const
     mesh.tangents.resize(mesh.positions.size());
     for (usize i = 0; i < mesh.positions.size(); ++i)
     {
-        const glm::vec3& normal = mesh.normals[i];
-        glm::vec3 tangent = tangentAccum[i];
+        const Math::Vec3& normal = mesh.normals[i];
+        Math::Vec3 tangent = tangentAccum[i];
 
         // Gram-Schmidt: drop whatever part of the tangent leans along the
         // normal, so the frame stays on the surface.
         tangent -= normal * glm::dot(normal, tangent);
         const float length = glm::length(tangent);
-        tangent = length > 0.0f ? tangent / length : glm::vec3(1.0f, 0.0f, 0.0f);
+        tangent = length > 0.0f ? tangent / length : Math::Vec3(1.0f, 0.0f, 0.0f);
 
         // w tells the shader which way to cross for the bitangent, which is
         // what keeps mirrored uv islands from lighting inverted.
         const float handedness =
             glm::dot(glm::cross(normal, tangent), bitangentAccum[i]) < 0.0f ? -1.0f : 1.0f;
 
-        mesh.tangents[i] = glm::vec4(tangent, handedness);
+        mesh.tangents[i] = Math::Vec4(tangent, handedness);
     }
 }
 
@@ -2013,7 +2015,7 @@ void AssetManager::makePlanarUV(MeshData& mesh, f32 resolution) const
             continue;
         }
 
-        const glm::vec3 normal = glm::abs(faceNormal(
+        const Math::Vec3 normal = glm::abs(faceNormal(
             mesh.positions[index[0]], mesh.positions[index[1]], mesh.positions[index[2]]));
         const u8 axis = (normal.x > normal.y && normal.x > normal.z) ? 0
                        : (normal.y > normal.x && normal.y > normal.z) ? 1
@@ -2049,11 +2051,11 @@ void AssetManager::makePlanarUV(MeshData& mesh, f32 resolution) const
                 }
             }
 
-            const glm::vec3& position = mesh.positions[vertexIndex];
+            const Math::Vec3& position = mesh.positions[vertexIndex];
             mesh.uvs.resize(mesh.positions.size());
-            mesh.uvs[vertexIndex] = axis == 0   ? glm::vec2(position.y, position.z) * resolution
-                                    : axis == 1 ? glm::vec2(position.x, position.z) * resolution
-                                                : glm::vec2(position.x, position.y) * resolution;
+            mesh.uvs[vertexIndex] = axis == 0   ? Math::Vec2(position.y, position.z) * resolution
+                                    : axis == 1 ? Math::Vec2(position.x, position.z) * resolution
+                                                : Math::Vec2(position.x, position.y) * resolution;
             remapped[i + o] = vertexIndex;
         }
     }
@@ -2067,23 +2069,23 @@ void AssetManager::makePlanarUV(MeshData& mesh, f32 resolution) const
 }
 
 void AssetManager::makePlanarUV(MeshData& mesh, f32 resolutionS, f32 resolutionT, u8 axis,
-                                const glm::vec3& offset) const
+                                const Math::Vec3& offset) const
 {
     mesh.uvs.resize(mesh.positions.size());
 
     for (usize i = 0; i < mesh.positions.size(); ++i)
     {
-        const glm::vec3 position = mesh.positions[i] + offset;
+        const Math::Vec3 position = mesh.positions[i] + offset;
 
         if (axis == 0)
             mesh.uvs[i] =
-                glm::vec2(0.5f + position.z * resolutionS, 0.5f - position.y * resolutionT);
+                Math::Vec2(0.5f + position.z * resolutionS, 0.5f - position.y * resolutionT);
         else if (axis == 1)
             mesh.uvs[i] =
-                glm::vec2(0.5f + position.x * resolutionS, 1.0f - position.z * resolutionT);
+                Math::Vec2(0.5f + position.x * resolutionS, 1.0f - position.z * resolutionT);
         else
             mesh.uvs[i] =
-                glm::vec2(0.5f + position.x * resolutionS, 0.5f - position.y * resolutionT);
+                Math::Vec2(0.5f + position.x * resolutionS, 0.5f - position.y * resolutionT);
     }
 }
 
@@ -2094,19 +2096,19 @@ void AssetManager::makeCylindricalUV(MeshData& mesh, f32 resolutionU, f32 resolu
 
     f32 minY = mesh.positions[0].y;
     f32 maxY = mesh.positions[0].y;
-    for (const glm::vec3& p : mesh.positions)
+    for (const Math::Vec3& p : mesh.positions)
     {
         minY = glm::min(minY, p.y);
         maxY = glm::max(maxY, p.y);
     }
     const f32 heightRange = glm::max(maxY - minY, 1e-6f);
 
-    const auto rawU = [&](const glm::vec3& p) -> f32
+    const auto rawU = [&](const Math::Vec3& p) -> f32
     {
         const f32 theta = std::atan2(p.x, p.z);
         return (theta / (2.0f * glm::pi<f32>()) + 0.5f) * resolutionU;
     };
-    const auto rawV = [&](const glm::vec3& p) -> f32
+    const auto rawV = [&](const Math::Vec3& p) -> f32
     { return ((p.y - minY) / heightRange) * resolutionV; };
 
     // Same problem makePlanarUV() has at a hard edge, here at the seam where
@@ -2172,7 +2174,7 @@ void AssetManager::makeCylindricalUV(MeshData& mesh, f32 resolutionU, f32 resolu
             }
 
             mesh.uvs.resize(mesh.positions.size());
-            mesh.uvs[vertexIndex] = glm::vec2(u[o], rawV(mesh.positions[original]));
+            mesh.uvs[vertexIndex] = Math::Vec2(u[o], rawV(mesh.positions[original]));
             remapped[i + o] = vertexIndex;
         }
     }
@@ -2186,21 +2188,21 @@ void AssetManager::makeSphericalUV(MeshData& mesh, f32 resolutionU, f32 resoluti
     if (mesh.positions.empty())
         return;
 
-    glm::vec3 center(0.0f);
-    for (const glm::vec3& p : mesh.positions)
+    Math::Vec3 center(0.0f);
+    for (const Math::Vec3& p : mesh.positions)
         center += p;
     center /= static_cast<f32>(mesh.positions.size());
 
     f32 maxRadius = 1e-6f;
-    for (const glm::vec3& p : mesh.positions)
+    for (const Math::Vec3& p : mesh.positions)
         maxRadius = glm::max(maxRadius, glm::length(p - center));
 
-    const auto rawU = [&](const glm::vec3& p) -> f32
+    const auto rawU = [&](const Math::Vec3& p) -> f32
     {
         const f32 theta = std::atan2(p.x - center.x, p.z - center.z);
         return (theta / (2.0f * glm::pi<f32>()) + 0.5f) * resolutionU;
     };
-    const auto rawV = [&](const glm::vec3& p) -> f32
+    const auto rawV = [&](const Math::Vec3& p) -> f32
     {
         const f32 y = glm::clamp((p.y - center.y) / maxRadius, -1.0f, 1.0f);
         return (std::acos(y) / glm::pi<f32>()) * resolutionV;
@@ -2209,9 +2211,9 @@ void AssetManager::makeSphericalUV(MeshData& mesh, f32 resolutionU, f32 resoluti
     // anything - every triangle fanning around a pole gets its own
     // duplicate below instead of trying to share one longitude that does
     // not exist for a point sitting exactly on it.
-    const auto isPole = [&](const glm::vec3& p) -> bool
+    const auto isPole = [&](const Math::Vec3& p) -> bool
     {
-        const f32 horizontal = glm::length(glm::vec2(p.x - center.x, p.z - center.z));
+        const f32 horizontal = glm::length(Math::Vec2(p.x - center.x, p.z - center.z));
         return horizontal < maxRadius * 0.001f;
     };
 
@@ -2306,7 +2308,7 @@ void AssetManager::makeSphericalUV(MeshData& mesh, f32 resolutionU, f32 resoluti
             }
 
             mesh.uvs.resize(mesh.positions.size());
-            mesh.uvs[vertexIndex] = glm::vec2(u[o], rawV(mesh.positions[original]));
+            mesh.uvs[vertexIndex] = Math::Vec2(u[o], rawV(mesh.positions[original]));
             remapped[i + o] = vertexIndex;
         }
     }
@@ -2317,7 +2319,7 @@ void AssetManager::makeSphericalUV(MeshData& mesh, f32 resolutionU, f32 resoluti
 
 // --------------------------------------------------------------- transforms
 
-void AssetManager::translate(MeshData& mesh, const glm::vec3& delta) const
+void AssetManager::translate(MeshData& mesh, const Math::Vec3& delta) const
 {
     for (usize i = 0; i < mesh.positions.size(); ++i)
         mesh.positions[i] += delta;
@@ -2326,7 +2328,7 @@ void AssetManager::translate(MeshData& mesh, const glm::vec3& delta) const
     computeSubMeshBounds(mesh);
 }
 
-void AssetManager::scale(MeshData& mesh, const glm::vec3& factor) const
+void AssetManager::scale(MeshData& mesh, const Math::Vec3& factor) const
 {
     for (usize i = 0; i < mesh.positions.size(); ++i)
         mesh.positions[i] *= factor;
@@ -2342,30 +2344,30 @@ void AssetManager::scale(MeshData& mesh, const glm::vec3& factor) const
     computeSubMeshBounds(mesh);
 }
 
-void AssetManager::transform(MeshData& mesh, const glm::mat4& matrix) const
+void AssetManager::transform(MeshData& mesh, const Math::Mat4& matrix) const
 {
-    const glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(matrix)));
+    const Math::Mat3 normalMatrix = glm::transpose(glm::inverse(Math::Mat3(matrix)));
 
     for (usize i = 0; i < mesh.positions.size(); ++i)
-        mesh.positions[i] = glm::vec3(matrix * glm::vec4(mesh.positions[i], 1.0f));
+        mesh.positions[i] = Math::Vec3(matrix * Math::Vec4(mesh.positions[i], 1.0f));
 
     for (usize i = 0; i < mesh.normals.size(); ++i)
         mesh.normals[i] = glm::normalize(normalMatrix * mesh.normals[i]);
 
     for (usize i = 0; i < mesh.tangents.size(); ++i)
     {
-        const glm::vec3 tangent = glm::normalize(normalMatrix * glm::vec3(mesh.tangents[i]));
-        mesh.tangents[i] = glm::vec4(tangent, mesh.tangents[i].w);
+        const Math::Vec3 tangent = glm::normalize(normalMatrix * Math::Vec3(mesh.tangents[i]));
+        mesh.tangents[i] = Math::Vec4(tangent, mesh.tangents[i].w);
     }
 
-    if (glm::determinant(glm::mat3(matrix)) < 0.0f)
+    if (glm::determinant(Math::Mat3(matrix)) < 0.0f)
         flipWinding(mesh);
 
     computeBounds(mesh);
     computeSubMeshBounds(mesh);
 }
 
-void AssetManager::transformVertices(MeshData& mesh, const glm::mat4& matrix,
+void AssetManager::transformVertices(MeshData& mesh, const Math::Mat4& matrix,
                                      const std::vector<u32>& vertexIndices) const
 {
     const usize vertexCount = mesh.positions.size();
@@ -2390,12 +2392,12 @@ void AssetManager::transformVertices(MeshData& mesh, const glm::mat4& matrix,
 
     // Accumulated in double: a median over hundreds of thousands of vertices
     // far from the origin loses enough in float to visibly shift the pivot.
-    transformVerticesAbout(mesh, matrix, glm::vec3(sum / static_cast<double>(counted)),
+    transformVerticesAbout(mesh, matrix, Math::Vec3(sum / static_cast<double>(counted)),
                            vertexIndices);
 }
 
-void AssetManager::transformVerticesAbout(MeshData& mesh, const glm::mat4& matrix,
-                                          const glm::vec3& pivot,
+void AssetManager::transformVerticesAbout(MeshData& mesh, const Math::Mat4& matrix,
+                                          const Math::Vec3& pivot,
                                           const std::vector<u32>& vertexIndices) const
 {
     const usize vertexCount = mesh.positions.size();
@@ -2405,9 +2407,9 @@ void AssetManager::transformVerticesAbout(MeshData& mesh, const glm::mat4& matri
     const bool wholeMesh = vertexIndices.empty();
     const usize affected = wholeMesh ? vertexCount : vertexIndices.size();
 
-    const glm::mat4 aboutPivot =
-        glm::translate(glm::mat4(1.0f), pivot) * matrix * glm::translate(glm::mat4(1.0f), -pivot);
-    const glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(aboutPivot)));
+    const Math::Mat4 aboutPivot =
+        glm::translate(Math::Mat4(1.0f), pivot) * matrix * glm::translate(Math::Mat4(1.0f), -pivot);
+    const Math::Mat3 normalMatrix = glm::transpose(glm::inverse(Math::Mat3(aboutPivot)));
 
     const bool hasNormals = !mesh.normals.empty();
     const bool hasTangents = !mesh.tangents.empty();
@@ -2418,22 +2420,22 @@ void AssetManager::transformVerticesAbout(MeshData& mesh, const glm::mat4& matri
         if (index >= vertexCount)
             continue;
 
-        mesh.positions[index] = glm::vec3(aboutPivot * glm::vec4(mesh.positions[index], 1.0f));
+        mesh.positions[index] = Math::Vec3(aboutPivot * Math::Vec4(mesh.positions[index], 1.0f));
 
         if (hasNormals && index < mesh.normals.size())
             mesh.normals[index] = glm::normalize(normalMatrix * mesh.normals[index]);
 
         if (hasTangents && index < mesh.tangents.size())
         {
-            const glm::vec3 tangent = glm::normalize(normalMatrix * glm::vec3(mesh.tangents[index]));
-            mesh.tangents[index] = glm::vec4(tangent, mesh.tangents[index].w);
+            const Math::Vec3 tangent = glm::normalize(normalMatrix * Math::Vec3(mesh.tangents[index]));
+            mesh.tangents[index] = Math::Vec4(tangent, mesh.tangents[index].w);
         }
     }
 
     // Winding is a property of a triangle, not of a vertex: flipping the
     // whole mesh because part of it was mirrored would turn the untouched
     // faces inside out too. Only the whole-mesh case can say anything.
-    if (wholeMesh && glm::determinant(glm::mat3(matrix)) < 0.0f)
+    if (wholeMesh && glm::determinant(Math::Mat3(matrix)) < 0.0f)
         flipWinding(mesh);
 
     computeBounds(mesh);
@@ -2446,7 +2448,8 @@ void AssetManager::center(MeshData& mesh) const
     if (mesh.bounds.empty())
         return;
 
-    translate(mesh, -mesh.bounds.center());
+    const Math::Vec3 center = mesh.bounds.center();
+    translate(mesh, Math::Vec3(-center.x, -center.y, -center.z));
 }
 
 void AssetManager::centerOnGround(MeshData& mesh) const
@@ -2455,8 +2458,9 @@ void AssetManager::centerOnGround(MeshData& mesh) const
     if (mesh.bounds.empty())
         return;
 
-    const glm::vec3 center = mesh.bounds.center();
-    translate(mesh, glm::vec3(-center.x, -mesh.bounds.min.y, -center.z));
+    const Math::Vec3 mathCenter = mesh.bounds.center();
+    const Math::Vec3 center(mathCenter.x, mathCenter.y, mathCenter.z);
+    translate(mesh, Math::Vec3(-center.x, -mesh.bounds.min.y, -center.z));
 }
 
 void AssetManager::flipWinding(MeshData& mesh) const
@@ -2495,57 +2499,57 @@ void AssetManager::flipWinding(MeshData& mesh, u32 submeshIndex) const
 // across them.
 namespace
 {
-void appendVertices(MeshData& out, const MeshData& source, const glm::mat4& transform,
+void appendVertices(MeshData& out, const MeshData& source, const Math::Mat4& transform,
                     bool applyTransform)
 {
     const usize base = out.positions.size();
     const usize count = source.positions.size();
     // A normal is not transformed by the same matrix as a position: a
     // non-uniform scale would leave it off the surface.
-    const glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(transform)));
+    const Math::Mat3 normalMatrix = glm::transpose(glm::inverse(Math::Mat3(transform)));
 
     out.positions.reserve(base + count);
     for (usize i = 0; i < count; ++i)
         out.positions.push_back(applyTransform
-                                    ? glm::vec3(transform * glm::vec4(source.positions[i], 1.0f))
+                                    ? Math::Vec3(transform * Math::Vec4(source.positions[i], 1.0f))
                                     : source.positions[i]);
 
     if (!out.normals.empty() || !source.normals.empty())
     {
-        out.normals.resize(base, glm::vec3(0.0f, 1.0f, 0.0f));
+        out.normals.resize(base, Math::Vec3(0.0f, 1.0f, 0.0f));
         for (usize i = 0; i < count; ++i)
         {
-            const glm::vec3 normal =
-                i < source.normals.size() ? source.normals[i] : glm::vec3(0.0f, 1.0f, 0.0f);
+            const Math::Vec3 normal =
+                i < source.normals.size() ? source.normals[i] : Math::Vec3(0.0f, 1.0f, 0.0f);
             out.normals.push_back(applyTransform ? glm::normalize(normalMatrix * normal) : normal);
         }
     }
     if (!out.tangents.empty() || !source.tangents.empty())
     {
-        out.tangents.resize(base, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+        out.tangents.resize(base, Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f));
         for (usize i = 0; i < count; ++i)
         {
-            const glm::vec4 tangent =
-                i < source.tangents.size() ? source.tangents[i] : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+            const Math::Vec4 tangent =
+                i < source.tangents.size() ? source.tangents[i] : Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f);
             // w carries handedness, not a coordinate - it never goes through
             // the matrix.
-            out.tangents.push_back(applyTransform ? glm::vec4(glm::normalize(glm::mat3(transform) *
-                                                                             glm::vec3(tangent)),
+            out.tangents.push_back(applyTransform ? Math::Vec4(glm::normalize(Math::Mat3(transform) *
+                                                                             Math::Vec3(tangent)),
                                                               tangent.w)
                                                   : tangent);
         }
     }
     if (!out.uvs.empty() || !source.uvs.empty())
     {
-        out.uvs.resize(base, glm::vec2(0.0f));
+        out.uvs.resize(base, Math::Vec2(0.0f));
         for (usize i = 0; i < count; ++i)
-            out.uvs.push_back(i < source.uvs.size() ? source.uvs[i] : glm::vec2(0.0f));
+            out.uvs.push_back(i < source.uvs.size() ? source.uvs[i] : Math::Vec2(0.0f));
     }
     if (!out.uvs2.empty() || !source.uvs2.empty())
     {
-        out.uvs2.resize(base, glm::vec2(0.0f));
+        out.uvs2.resize(base, Math::Vec2(0.0f));
         for (usize i = 0; i < count; ++i)
-            out.uvs2.push_back(i < source.uvs2.size() ? source.uvs2[i] : glm::vec2(0.0f));
+            out.uvs2.push_back(i < source.uvs2.size() ? source.uvs2[i] : Math::Vec2(0.0f));
     }
     if (!out.colors.empty() || !source.colors.empty())
     {
@@ -3054,15 +3058,15 @@ usize gatherVertexStreams(const MeshData& mesh, meshopt_Stream* streams)
 {
     const usize vertexCount = mesh.positions.size();
     usize count = 0;
-    streams[count++] = {mesh.positions.data(), sizeof(glm::vec3), sizeof(glm::vec3)};
+    streams[count++] = {mesh.positions.data(), sizeof(Math::Vec3), sizeof(Math::Vec3)};
     if (mesh.normals.size() == vertexCount)
-        streams[count++] = {mesh.normals.data(), sizeof(glm::vec3), sizeof(glm::vec3)};
+        streams[count++] = {mesh.normals.data(), sizeof(Math::Vec3), sizeof(Math::Vec3)};
     if (mesh.tangents.size() == vertexCount)
-        streams[count++] = {mesh.tangents.data(), sizeof(glm::vec4), sizeof(glm::vec4)};
+        streams[count++] = {mesh.tangents.data(), sizeof(Math::Vec4), sizeof(Math::Vec4)};
     if (mesh.uvs.size() == vertexCount)
-        streams[count++] = {mesh.uvs.data(), sizeof(glm::vec2), sizeof(glm::vec2)};
+        streams[count++] = {mesh.uvs.data(), sizeof(Math::Vec2), sizeof(Math::Vec2)};
     if (mesh.uvs2.size() == vertexCount)
-        streams[count++] = {mesh.uvs2.data(), sizeof(glm::vec2), sizeof(glm::vec2)};
+        streams[count++] = {mesh.uvs2.data(), sizeof(Math::Vec2), sizeof(Math::Vec2)};
     if (mesh.colors.size() == vertexCount)
         streams[count++] = {mesh.colors.data(), sizeof(u32), sizeof(u32)};
     if (mesh.skin.size() == vertexCount)
@@ -3136,7 +3140,7 @@ u64 weldCellKey(const glm::ivec3& cell)
     return (x << 42) | (y << 21) | z;
 }
 
-glm::ivec3 weldCellOf(const glm::vec3& position, f32 cellSize)
+glm::ivec3 weldCellOf(const Math::Vec3& position, f32 cellSize)
 {
     return glm::ivec3(glm::floor(position / cellSize));
 }
@@ -3187,7 +3191,7 @@ u32 AssetManager::weldVertices(MeshData& mesh, f32 distance, const std::vector<u
     }
 
     std::vector<u32> groupSize(vertexCount, 0);
-    std::vector<glm::vec3> groupSum(vertexCount, glm::vec3(0.0f));
+    std::vector<Math::Vec3> groupSum(vertexCount, Math::Vec3(0.0f));
     u32 mergedCount = 0;
     for (u32 i = 0; i < vertexCount; ++i)
     {
@@ -3300,7 +3304,7 @@ void AssetManager::smoothVertices(MeshData& mesh, f32 strength, u32 iterations,
         neighbors[i2].push_back(i1);
     }
 
-    std::vector<glm::vec3> next(vertexCount);
+    std::vector<Math::Vec3> next(vertexCount);
     for (u32 pass = 0; pass < iterations; ++pass)
     {
         next = mesh.positions;
@@ -3308,7 +3312,7 @@ void AssetManager::smoothVertices(MeshData& mesh, f32 strength, u32 iterations,
         {
             if (!eligible[v] || neighbors[v].empty())
                 continue;
-            glm::vec3 average(0.0f);
+            Math::Vec3 average(0.0f);
             for (u32 n : neighbors[v])
                 average += mesh.positions[n];
             average /= static_cast<f32>(neighbors[v].size());
@@ -3357,7 +3361,7 @@ void AssetManager::optimizeOverdraw(MeshData& mesh, f32 threshold) const
     {
         scratch = mesh.indices;
         meshopt_optimizeOverdraw(mesh.indices.data(), scratch.data(), scratch.size(), positions,
-                                 vertexCount, sizeof(glm::vec3), threshold);
+                                 vertexCount, sizeof(Math::Vec3), threshold);
         return;
     }
     for (const SubMesh& submesh : mesh.submeshes)
@@ -3367,7 +3371,7 @@ void AssetManager::optimizeOverdraw(MeshData& mesh, f32 threshold) const
         scratch.assign(mesh.indices.begin() + submesh.indexOffset,
                        mesh.indices.begin() + submesh.indexOffset + submesh.indexCount);
         meshopt_optimizeOverdraw(mesh.indices.data() + submesh.indexOffset, scratch.data(),
-                                 submesh.indexCount, positions, vertexCount, sizeof(glm::vec3),
+                                 submesh.indexCount, positions, vertexCount, sizeof(Math::Vec3),
                                  threshold);
     }
 }
@@ -3524,7 +3528,7 @@ bool AssetManager::extrudeFaces(MeshData& mesh, const std::vector<u32>& faceIndi
     if (selectedCount == 0)
         return false;
 
-    std::vector<glm::vec3> offset(vertexCount, glm::vec3(0.0f));
+    std::vector<Math::Vec3> offset(vertexCount, Math::Vec3(0.0f));
     std::vector<bool> used(vertexCount, false);
     std::unordered_map<u64, u32> edgeUse;
     edgeUse.reserve(selectedCount * 3);
@@ -3546,7 +3550,7 @@ bool AssetManager::extrudeFaces(MeshData& mesh, const std::vector<u32>& faceIndi
 
         // Not normalized: the cross product's length is twice the triangle's
         // area, so a big face pulls a shared vertex more than a sliver does.
-        const glm::vec3 faceNormal = glm::cross(mesh.positions[i1] - mesh.positions[i0],
+        const Math::Vec3 faceNormal = glm::cross(mesh.positions[i1] - mesh.positions[i0],
                                                 mesh.positions[i2] - mesh.positions[i0]);
         offset[i0] += faceNormal;
         offset[i1] += faceNormal;
@@ -3578,8 +3582,8 @@ bool AssetManager::extrudeFaces(MeshData& mesh, const std::vector<u32>& faceIndi
         duplicate[v] = static_cast<u32>(mesh.positions.size());
 
         const f32 length = glm::length(offset[v]);
-        const glm::vec3 direction = length > 1e-8f ? offset[v] / length : glm::vec3(0.0f);
-        const glm::vec3 raised = mesh.positions[v] + direction * distance;
+        const Math::Vec3 direction = length > 1e-8f ? offset[v] / length : Math::Vec3(0.0f);
+        const Math::Vec3 raised = mesh.positions[v] + direction * distance;
 
         mesh.positions.push_back(raised);
         if (hasNormals)
@@ -3691,8 +3695,8 @@ void collectMarked(const std::vector<bool>& marked, std::vector<u32>& out)
 } // namespace
 
 bool AssetManager::transformFaceUVs(MeshData& mesh, const std::vector<u32>& faceIndices,
-                                    const glm::vec2& scale, f32 rotationDegrees,
-                                    const glm::vec2& offset) const
+                                    const Math::Vec2& scale, f32 rotationDegrees,
+                                    const Math::Vec2& offset) const
 {
     const usize vertexCount = mesh.positions.size();
     const usize faceCount = mesh.indices.size() / 3;
@@ -3783,8 +3787,8 @@ bool AssetManager::transformFaceUVs(MeshData& mesh, const std::vector<u32>& face
         }
     }
 
-    glm::vec2 minUV(std::numeric_limits<f32>::max());
-    glm::vec2 maxUV(-std::numeric_limits<f32>::max());
+    Math::Vec2 minUV(std::numeric_limits<f32>::max());
+    Math::Vec2 maxUV(-std::numeric_limits<f32>::max());
     bool any = false;
     for (usize v = 0; v < affected.size(); ++v)
     {
@@ -3797,7 +3801,7 @@ bool AssetManager::transformFaceUVs(MeshData& mesh, const std::vector<u32>& face
     if (!any)
         return false;
 
-    const glm::vec2 center = (minUV + maxUV) * 0.5f;
+    const Math::Vec2 center = (minUV + maxUV) * 0.5f;
     const f32 radians = glm::radians(rotationDegrees);
     const f32 cosine = glm::cos(radians);
     const f32 sine = glm::sin(radians);
@@ -3807,8 +3811,8 @@ bool AssetManager::transformFaceUVs(MeshData& mesh, const std::vector<u32>& face
         if (!affected[v])
             continue;
 
-        const glm::vec2 local = (mesh.uvs[v] - center) * scale;
-        mesh.uvs[v] = center + glm::vec2(local.x * cosine - local.y * sine,
+        const Math::Vec2 local = (mesh.uvs[v] - center) * scale;
+        mesh.uvs[v] = center + Math::Vec2(local.x * cosine - local.y * sine,
                                          local.x * sine + local.y * cosine) +
                       offset;
     }
@@ -3895,7 +3899,7 @@ void AssetManager::analyzeMesh(const MeshData& mesh, Diagnostics& out) const
         // exactly zero catches the slivers too - three points on a line have
         // no normal to give, and a zero normal averaged into its vertices
         // takes the shading of everything around it with it.
-        const glm::vec3 cross = glm::cross(mesh.positions[i1] - mesh.positions[i0],
+        const Math::Vec3 cross = glm::cross(mesh.positions[i1] - mesh.positions[i0],
                                            mesh.positions[i2] - mesh.positions[i0]);
         if (glm::length(cross) <= 1e-12f)
         {
@@ -3925,7 +3929,7 @@ void AssetManager::analyzeMesh(const MeshData& mesh, Diagnostics& out) const
     positionUse.reserve(vertexCount);
     for (usize v = 0; v < vertexCount; ++v)
     {
-        const glm::vec3& p = mesh.positions[v];
+        const Math::Vec3& p = mesh.positions[v];
         u32 bits[3];
         std::memcpy(bits, &p, sizeof(bits));
         // FNV-1a over the three float bit patterns: exact matches only, which
@@ -4233,7 +4237,7 @@ bool AssetManager::simplifyMesh(MeshData& mesh, f32 targetRatio, f32 targetError
         f32 error = 0.0f;
         const usize newCount =
             meshopt_simplify(result.data(), mesh.indices.data(), mesh.indices.size(), positions,
-                             vertexCount, sizeof(glm::vec3), target, targetError, options, &error);
+                             vertexCount, sizeof(Math::Vec3), target, targetError, options, &error);
         result.resize(newCount);
         mesh.indices = std::move(result);
         worstError = error;
@@ -4258,7 +4262,7 @@ bool AssetManager::simplifyMesh(MeshData& mesh, f32 targetRatio, f32 targetError
             const usize newCount = meshopt_simplify(scratch.data(),
                                                     mesh.indices.data() + submesh.indexOffset,
                                                     submesh.indexCount, positions, vertexCount,
-                                                    sizeof(glm::vec3), target, targetError,
+                                                    sizeof(Math::Vec3), target, targetError,
                                                     options, &error);
             submesh.indexOffset = static_cast<u32>(newIndices.size());
             submesh.indexCount = static_cast<u32>(newCount);
@@ -4328,7 +4332,7 @@ bool AssetManager::raycast(const CollisionMesh& mesh, const Ray& ray, f32& t, u3
 // recipe, so a mesh built through any of these already knows what it is and
 // nothing here has to record anything afterwards.
 
-MeshHandle AssetManager::createBox(const glm::vec3& size)
+MeshHandle AssetManager::createBox(const Math::Vec3& size)
 {
     return createMesh(MeshDesc::box(size));
 }
@@ -4432,10 +4436,10 @@ bool AssetManager::upload(const MeshData& data, Mesh& out, Residency residency) 
     const usize count = data.positions.size();
 
     BufferDesc positionDesc;
-    positionDesc.size = count * sizeof(glm::vec3);
+    positionDesc.size = count * sizeof(Math::Vec3);
     positionDesc.usage = BufferVertex | BufferStorage;
     positionDesc.residency = residency;
-    positionDesc.stride = sizeof(glm::vec3);
+    positionDesc.stride = sizeof(Math::Vec3);
     positionDesc.data = data.positions.data();
     positionDesc.debugName = "mesh.positions";
     out.positionBuffer = gpu.createBuffer(positionDesc);
@@ -4444,11 +4448,11 @@ bool AssetManager::upload(const MeshData& data, Mesh& out, Residency residency) 
     for (usize i = 0; i < count; ++i)
     {
         MeshAttribs& attrib = attribs[i];
-        attrib.normal = i < data.normals.size() ? data.normals[i] : glm::vec3(0.0f, 1.0f, 0.0f);
+        attrib.normal = i < data.normals.size() ? data.normals[i] : Math::Vec3(0.0f, 1.0f, 0.0f);
         attrib.tangent =
-            i < data.tangents.size() ? data.tangents[i] : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-        attrib.uv = i < data.uvs.size() ? data.uvs[i] : glm::vec2(0.0f);
-        attrib.uv2 = i < data.uvs2.size() ? data.uvs2[i] : glm::vec2(0.0f);
+            i < data.tangents.size() ? data.tangents[i] : Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        attrib.uv = i < data.uvs.size() ? data.uvs[i] : Math::Vec2(0.0f);
+        attrib.uv2 = i < data.uvs2.size() ? data.uvs2[i] : Math::Vec2(0.0f);
         attrib.color = i < data.colors.size() ? data.colors[i] : 0xFFFFFFFFu;
     }
 
@@ -4497,7 +4501,7 @@ bool AssetManager::upload(const MeshData& data, Mesh& out, Residency residency) 
 
     out.depthLayout = VertexLayout();
     out.depthLayout.streamCount = 1;
-    out.depthLayout.streams[StreamPosition].stride = sizeof(glm::vec3);
+    out.depthLayout.streams[StreamPosition].stride = sizeof(Math::Vec3);
     out.depthLayout.attribCount = 1;
     out.depthLayout.attribs[0] = {0, StreamPosition, 0, AttribFormat::Float3};
 
@@ -4543,7 +4547,7 @@ bool AssetManager::upload(const MeshData& data, Mesh& out, Residency residency) 
     {
         Material material;
         material.flags |= MaterialLit;
-        material.params.baseColor = glm::vec4(0.7f, 0.7f, 0.7f, 1.0f);
+        material.params.baseColor = Math::Vec4(0.7f, 0.7f, 0.7f, 1.0f);
         material.params.surface.x = 0.7f;
         material.params.surface.y = 0.0f;
         material.paramsDirty = true;

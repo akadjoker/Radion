@@ -46,7 +46,7 @@ public:
 
     bool begin(u32 width, u32 height, FrameContext& frame, u32 temporalIndex = 0,
                bool resetTemporalHistory = false);
-    TextureHandle computeSSAO(const glm::mat4& projection);
+    TextureHandle computeSSAO(const Math::Mat4& projection);
     void resolve(const Rect& destination, u32 windowWidth, u32 windowHeight);
 
     // Same chain as resolve(), but the final tone-map/gamma draw lands in an
@@ -100,7 +100,7 @@ public:
     // defined in PostProcess.cpp's fragment source - see the comments there
     // before passing a new one.
     void draw(TextureHandle source, TextureHandle secondary, TargetHandle destination,
-             const Viewport& viewport, u32 mode, const glm::vec4& options);
+             const Viewport& viewport, u32 mode, const Math::Vec4& options);
 
     f32 exposure = 1.0f;
     ToneMapMode toneMap = ToneMapMode::ACES;
@@ -166,8 +166,8 @@ private:
     BufferHandle mTAAUniform;
     SamplerHandle mSampler;
     std::vector<PostLayer> mLayers;
-    glm::mat4 mProjection = glm::mat4(1.0f);
-    glm::mat4 mInverseProjection = glm::mat4(1.0f);
+    Math::Mat4 mProjection = Math::Mat4(1.0f);
+    Math::Mat4 mInverseProjection = Math::Mat4(1.0f);
     u32 mTemporalIndex = 0;
     bool mTemporalAAAllowed = true;
     u32 mTAARead[3] = {};

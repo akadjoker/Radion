@@ -7,8 +7,8 @@
 namespace Radion
 {
 
-void PathTrack::addKeyframe(f32 time, const glm::vec3& position, const glm::quat& rotation,
-                            const glm::vec3& scale)
+void PathTrack::addKeyframe(f32 time, const Math::Vec3& position, const Math::Quaternion& rotation,
+                            const Math::Vec3& scale)
 {
     mKeyframes.push_back({time, position, rotation, scale});
 }
@@ -61,10 +61,10 @@ PathPose PathTrack::evaluate(f32 time) const
     // Position: Catmull-Rom through the closed loop, using the point before
     // `a` and the one after `b`, wrapping around the keyframe list either
     // way - the same shape a patrol or a camera flythrough closes with.
-    const glm::vec3& p0 = mKeyframes[(segment + count - 1) % count].position;
-    const glm::vec3& p1 = a.position;
-    const glm::vec3& p2 = b.position;
-    const glm::vec3& p3 = mKeyframes[(segment + 2) % count].position;
+    const Math::Vec3& p0 = mKeyframes[(segment + count - 1) % count].position;
+    const Math::Vec3& p1 = a.position;
+    const Math::Vec3& p2 = b.position;
+    const Math::Vec3& p3 = mKeyframes[(segment + 2) % count].position;
 
     const f32 t2 = localT * localT;
     const f32 t3 = t2 * localT;

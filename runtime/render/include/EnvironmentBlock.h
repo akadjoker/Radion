@@ -19,23 +19,23 @@ struct FrameContext;
 // than in each shader.
 struct EnvironmentBlock
 {
-    glm::vec4 sunDirection = glm::vec4(0.0f, -1.0f, 0.0f, 0.0f);
+    Math::Vec4 sunDirection = Math::Vec4(0.0f, -1.0f, 0.0f, 0.0f);
 
     // Sun colour after the atmosphere has taken its cut - so it reddens at
     // dusk and goes to nothing at night, which is the sky's whole point. Not
     // multiplied by sunIntensity: that is an HDR value and this pipeline still
     // writes straight to the back buffer (see ENGINE.md 7.1).
-    glm::vec4 sunColor = glm::vec4(1.0f);
+    Math::Vec4 sunColor = Math::Vec4(1.0f);
 
     // w carries uLightmapIntensity (lit.frag): a multiplier on the lightmap
     // sample, default 1.0 to match the alpha this vec4 already defaulted to
     // before that use existed.
-    glm::vec4 ambient = glm::vec4(0.12f, 0.16f, 0.24f, 1.0f);
+    Math::Vec4 ambient = Math::Vec4(0.12f, 0.16f, 0.24f, 1.0f);
 
     // The environment probe, for image-based reflections. w carries the mip
     // count because the shader picks a level from roughness and the chain
     // length is what maps one onto the other.
-    glm::vec4 probePositionAndMips = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    Math::Vec4 probePositionAndMips = Math::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
     // Half-extents of the probe's box. ALL ZERO means an infinitely distant
     // probe: the shader then samples the reflection direction straight,
@@ -43,14 +43,14 @@ struct EnvironmentBlock
     // separate shader paths (EnvironmentReflection_Global and _Local), and
     // this is the one flag that chooses between them. w is a plain multiplier
     // on the reflection, for turning it down without moving anything.
-    glm::vec4 probeExtentsAndIntensity = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    Math::Vec4 probeExtentsAndIntensity = Math::Vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
     // x = frame time in seconds, for an animated detail sequence to pick its
     // frame from. y carries uLightmapShadowLift (lit.frag): scales uAmbient
     // as a flat lift added to the lightmap sample before it hits albedo, so
     // a dark bake can be raised without touching the bake itself. zw unused,
     // kept for std140 alignment.
-    glm::vec4 timeAndUnused = glm::vec4(0.0f);
+    Math::Vec4 timeAndUnused = Math::Vec4(0.0f);
 };
 
 // Reads the sky, or leaves the defaults when there is none or it is off.

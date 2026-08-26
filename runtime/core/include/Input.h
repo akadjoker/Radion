@@ -201,15 +201,15 @@ public:
     static bool isMouseReleased(MouseButton button);
     static bool isMouseUp(MouseButton button);
 
-    static glm::vec2 getMousePosition();
-    static glm::vec2 getMouseDelta();
+    static Math::Vec2 getMousePosition();
+    static Math::Vec2 getMouseDelta();
     static int getMouseX();
     static int getMouseY();
     static void setMousePosition(int x, int y);
     static void setMouseOffset(int offsetX, int offsetY);
     static void setMouseScale(float scaleX, float scaleY);
 
-    static glm::vec2 getMouseWheelMove();
+    static Math::Vec2 getMouseWheelMove();
     static float getMouseWheelMoveV();
 
     static void setMouseCursor(MouseCursor cursor);
@@ -237,9 +237,9 @@ public:
     // Multi-touch (SDL_FINGER* events). Positions are normalized [0,1] over
     // the touch surface (SDL's native coordinate space) - Input has no
     // window size of its own to convert to pixels, so that's on the caller
-    // (e.g. getTouchPosition(i) * glm::vec2(window.getWidth(), window.getHeight())).
+    // (e.g. getTouchPosition(i) * Math::Vec2(window.getWidth(), window.getHeight())).
     static int getTouchPointCount();
-    static glm::vec2 getTouchPosition(int index);
+    static Math::Vec2 getTouchPosition(int index);
     static long long getTouchPointId(int index);
 
     // Resets all state; call once at startup.
@@ -261,11 +261,11 @@ private:
     // Mouse state
     static bool currentMouseState[MAX_MOUSE_BUTTONS];
     static bool previousMouseState[MAX_MOUSE_BUTTONS];
-    static glm::vec2 mousePosition;
-    static glm::vec2 mousePreviousPosition;
-    static glm::vec2 mouseOffset;
-    static glm::vec2 mouseScale;
-    static glm::vec2 mouseWheel;
+    static Math::Vec2 mousePosition;
+    static Math::Vec2 mousePreviousPosition;
+    static Math::Vec2 mouseOffset;
+    static Math::Vec2 mouseScale;
+    static Math::Vec2 mouseWheel;
     static SDL_Cursor* mouseCursor;
     static MouseCursor currentCursor;
 
@@ -286,7 +286,7 @@ private:
 
     // Touch state
     static constexpr int MAX_TOUCH_POINTS = 8;
-    static glm::vec2 touchPosition[MAX_TOUCH_POINTS];
+    static Math::Vec2 touchPosition[MAX_TOUCH_POINTS];
     static SDL_FingerID touchId[MAX_TOUCH_POINTS];
     static int touchPointCount;
 };

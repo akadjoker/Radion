@@ -6,8 +6,8 @@
 // first animation stack.
 //
 // ofbx triangulates the polygon data for us. Matrices coming from ofbx are
-// column-major double[16] (same memory layout as glm::mat4), so they are copied
-// component by component into glm::mat4. FBX's texture V origin is at the
+// column-major double[16] (same memory layout as Math::Mat4), so they are copied
+// component by component into Math::Mat4. FBX's texture V origin is at the
 // bottom of the image, same as OBJ, so UVs are flipped to match the engine's
 // top-left convention.
 
@@ -163,23 +163,23 @@ u32 hashName(const std::string& name)
 }
 
 // ofbx stores matrices as column-major double[16]. Copy them straight into a
-// glm::mat4 (also column-major) without any transpose.
-glm::mat4 toMat4(const ofbx::Matrix& m)
+// Math::Mat4 (also column-major) without any transpose.
+Math::Mat4 toMat4(const ofbx::Matrix& m)
 {
-    glm::mat4 out;
+    Math::Mat4 out;
     for (int i = 0; i < 16; ++i)
         glm::value_ptr(out)[i] = static_cast<f32>(m.m[i]);
     return out;
 }
 
-glm::vec3 toVec3(const ofbx::Vec3& v)
+Math::Vec3 toVec3(const ofbx::Vec3& v)
 {
-    return glm::vec3(static_cast<f32>(v.x), static_cast<f32>(v.y), static_cast<f32>(v.z));
+    return Math::Vec3(static_cast<f32>(v.x), static_cast<f32>(v.y), static_cast<f32>(v.z));
 }
 
-glm::vec2 toVec2(const ofbx::Vec2& v)
+Math::Vec2 toVec2(const ofbx::Vec2& v)
 {
-    return glm::vec2(static_cast<f32>(v.x), static_cast<f32>(v.y));
+    return Math::Vec2(static_cast<f32>(v.x), static_cast<f32>(v.y));
 }
 
 f32 sampleScalarChannel(const std::vector<f32>& times, const std::vector<f32>& values, f32 time,
@@ -484,7 +484,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
         out.nameHash = hashName(out.name);
 
         const ofbx::Color diffuse = material->getDiffuseColor();
-        out.params.baseColor = glm::vec4(static_cast<f32>(diffuse.r), static_cast<f32>(diffuse.g),
+        out.params.baseColor = Math::Vec4(static_cast<f32>(diffuse.r), static_cast<f32>(diffuse.g),
                                          static_cast<f32>(diffuse.b), 1.0f);
 
         const ofbx::Texture* albedo = material->getTexture(ofbx::Texture::DIFFUSE);
@@ -541,7 +541,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
         const bool skinned = skin && skin->getClusterCount() > 0;
         // Start with the mesh node transform; attachments may replace it
         // with a transform relative to their bone below.
-        glm::mat4 nodeXform = toMat4(fbxMesh->getGlobalTransform());
+        Math::Mat4 nodeXform = toMat4(fbxMesh->getGlobalTransform());
         s32 attachmentBone = -1;
         if (!skinned && hasSkin)
         {
@@ -598,9 +598,9 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
         // Bake static meshes with their node transform. Skinned vertices stay
         // in the common mesh-local bind space used by the skin palette.
         if (skinned)
-            nodeXform = glm::mat4(1.0f);
-        const glm::mat4 geomXform = toMat4(fbxMesh->getGeometricMatrix());
-        glm::mat4 finalXform = nodeXform * geomXform;
+            nodeXform = Math::Mat4(1.0f);
+        const Math::Mat4 geomXform = toMat4(fbxMesh->getGeometricMatrix());
+        Math::Mat4 finalXform = nodeXform * geomXform;
         bool finiteTransform = true;
         for (int m = 0; m < 16; ++m)
             finiteTransform = finiteTransform && std::isfinite(glm::value_ptr(finalXform)[m]);
@@ -608,10 +608,10 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
         {
             Log::error("FbxImporter: '%s' has an invalid mesh transform; using identity",
                        filename.c_str());
-            finalXform = glm::mat4(1.0f);
+            finalXform = Math::Mat4(1.0f);
         }
-        const glm::mat3 normalMatrix =
-            skinned ? glm::mat3(1.0f) : glm::mat3(glm::transpose(glm::inverse(finalXform)));
+        const Math::Mat3 normalMatrix =
+            skinned ? Math::Mat3(1.0f) : Math::Mat3(glm::transpose(glm::inverse(finalXform)));
 
         const u32 vertexBase = static_cast<u32>(mesh.positions.size());
         const u32 firstIndex = static_cast<u32>(mesh.indices.size());
@@ -657,20 +657,20 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
 
         for (int vi = 0; vi < vertexCount; ++vi)
         {
-            glm::vec3 p = toVec3(srcPositions[vi]);
+            Math::Vec3 p = toVec3(srcPositions[vi]);
             if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
             {
                 Log::error("FbxImporter: '%s' contains a non-finite vertex at %d; clamping",
                            filename.c_str(), vi);
-                p = glm::vec3(0.0f);
+                p = Math::Vec3(0.0f);
             }
-            glm::vec3 outputPosition = glm::vec3(finalXform * glm::vec4(p, 1.0f));
+            Math::Vec3 outputPosition = Math::Vec3(finalXform * Math::Vec4(p, 1.0f));
             if (!std::isfinite(outputPosition.x) || !std::isfinite(outputPosition.y) ||
                 !std::isfinite(outputPosition.z))
                 outputPosition = p;
             mesh.positions[vertexBase + vi] = outputPosition;
 
-            glm::vec3 n(0.0f, 1.0f, 0.0f);
+            Math::Vec3 n(0.0f, 1.0f, 0.0f);
             if (srcNormals)
             {
                 n = toVec3(srcNormals[vi]);
@@ -679,16 +679,16 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
             }
             mesh.normals[vertexBase + vi] = n;
 
-            glm::vec4 tangent(1.0f, 0.0f, 0.0f, 1.0f);
+            Math::Vec4 tangent(1.0f, 0.0f, 0.0f, 1.0f);
             if (srcTangents)
             {
                 const ofbx::Vec3 t = srcTangents[vi];
-                tangent = glm::vec4(static_cast<f32>(t.x), static_cast<f32>(t.y),
+                tangent = Math::Vec4(static_cast<f32>(t.x), static_cast<f32>(t.y),
                                     static_cast<f32>(t.z), 1.0f);
             }
             mesh.tangents[vertexBase + vi] = tangent;
 
-            glm::vec2 uv(0.0f, 0.0f);
+            Math::Vec2 uv(0.0f, 0.0f);
             if (srcUvs)
             {
                 uv = toVec2(srcUvs[vi]);
@@ -707,7 +707,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
                     if (sum <= 1e-8f)
                     {
                         skinVertex.joints[0] = 0;
-                        skinVertex.weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+                        skinVertex.weights = Math::Vec4(1.0f, 0.0f, 0.0f, 0.0f);
                     }
                     else
                     {
@@ -720,14 +720,14 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
                         skinVertex.joints[2] = static_cast<u8>(b2);
                         skinVertex.joints[3] = static_cast<u8>(b3);
                         skinVertex.weights =
-                            glm::vec4(slots.weights[0] / sum, slots.weights[1] / sum,
+                            Math::Vec4(slots.weights[0] / sum, slots.weights[1] / sum,
                                       slots.weights[2] / sum, slots.weights[3] / sum);
                     }
                 }
                 else
                 {
                     skinVertex.joints[0] = static_cast<u8>(attachmentBone >= 0 ? attachmentBone : 0);
-                    skinVertex.weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+                    skinVertex.weights = Math::Vec4(1.0f, 0.0f, 0.0f, 0.0f);
                 }
                 mesh.skin[vertexBase + vi] = skinVertex;
             }
@@ -792,7 +792,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
             material.flags |= MaterialSkinned;
 
     mesh.bounds = AABB();
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::Vec3& position : mesh.positions)
         mesh.bounds.expand(position);
     for (SubMesh& submesh : mesh.submeshes)
     {
@@ -836,8 +836,8 @@ bool loadFbxSkeleton(const std::string& filename, FileSystem& files, Skeleton& s
     }
 
     // Gather inverse bind matrices from the clusters that link back to each limb.
-    std::unordered_map<u64, glm::mat4> inverseBindByBoneId;
-    std::unordered_map<u64, glm::mat4> bindGlobalByBoneId;
+    std::unordered_map<u64, Math::Mat4> inverseBindByBoneId;
+    std::unordered_map<u64, Math::Mat4> bindGlobalByBoneId;
     for (int mi = 0; mi < scene->getMeshCount(); ++mi)
     {
         const ofbx::Mesh* mesh = scene->getMesh(mi);
@@ -868,11 +868,11 @@ bool loadFbxSkeleton(const std::string& filename, FileSystem& files, Skeleton& s
                 ? boneMap.indexById[parent->id]
                 : -1;
 
-        glm::mat4 bindGlobal = toMat4(obj->getGlobalTransform());
+        Math::Mat4 bindGlobal = toMat4(obj->getGlobalTransform());
         auto bindGlobalIt = bindGlobalByBoneId.find(obj->id);
         if (bindGlobalIt != bindGlobalByBoneId.end())
             bindGlobal = bindGlobalIt->second;
-        glm::mat4 parentBindGlobal(1.0f);
+        Math::Mat4 parentBindGlobal(1.0f);
         if (parent && boneMap.indexById.find(parent->id) != boneMap.indexById.end())
         {
             auto parentBind = bindGlobalByBoneId.find(parent->id);
@@ -880,11 +880,11 @@ bool loadFbxSkeleton(const std::string& filename, FileSystem& files, Skeleton& s
                                    ? parentBind->second
                                    : toMat4(parent->getGlobalTransform());
         }
-        const glm::mat4 bindLocal =
+        const Math::Mat4 bindLocal =
             parentIndex >= 0 ? glm::inverse(parentBindGlobal) * bindGlobal : bindGlobal;
 
         auto it = inverseBindByBoneId.find(obj->id);
-        const glm::mat4 inverseBind = it != inverseBindByBoneId.end()
+        const Math::Mat4 inverseBind = it != inverseBindByBoneId.end()
                                           ? it->second
                                           : glm::inverse(toMat4(obj->getGlobalTransform()));
 
@@ -1143,7 +1143,7 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
     // animation frame). Reconstruct the authored bind the same way
     // loadFbxSkeleton() does, so authoredBindGlobal == skeletonBindGlobal for
     // a consistent file and the delta maps bind -> animated correctly.
-    std::unordered_map<u64, glm::mat4> clusterBindGlobal;
+    std::unordered_map<u64, Math::Mat4> clusterBindGlobal;
     for (int mi = 0; mi < scene->getMeshCount(); ++mi)
     {
         const ofbx::Mesh* mesh = scene->getMesh(mi);
@@ -1161,7 +1161,7 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
     }
 
     // Local (parent-relative) bind transform of every animation bone.
-    std::vector<glm::mat4> authoredBindLocal(animBoneCount, glm::mat4(1.0f));
+    std::vector<Math::Mat4> authoredBindLocal(animBoneCount, Math::Mat4(1.0f));
     for (usize a = 0; a < animBoneCount; ++a)
     {
         const ofbx::Object* object = boneMap.bones[a];
@@ -1233,14 +1233,14 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
                                                static_cast<f32>(defaultS.z))
                          : defaultS.z};
 
-            const glm::mat4 authoredLocal = toMat4(object->evalLocal(translation, rotation, scale));
-            const glm::mat4 deltaLocal = glm::inverse(authoredBindLocal[a]) * authoredLocal;
-            const glm::mat4 correctedLocal =
+            const Math::Mat4 authoredLocal = toMat4(object->evalLocal(translation, rotation, scale));
+            const Math::Mat4 deltaLocal = glm::inverse(authoredBindLocal[a]) * authoredLocal;
+            const Math::Mat4 correctedLocal =
                 skeleton.bone(static_cast<u32>(s)).bindLocal * deltaLocal;
 
-            glm::vec3 outScale, outTranslation, skew;
-            glm::vec4 perspective;
-            glm::quat outRotation;
+            Math::Vec3 outScale, outTranslation, skew;
+            Math::Vec4 perspective;
+            Math::Quaternion outRotation;
             if (!glm::decompose(correctedLocal, outScale, outRotation, outTranslation, skew,
                                 perspective))
                 continue;
@@ -1273,14 +1273,14 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
             BoneTrack& rootTrack = tracks[skelRoot];
             if (!rootTrack.positions.empty())
             {
-                glm::vec3 lowestPosition = rootTrack.positions.front();
-                for (const glm::vec3& position : rootTrack.positions)
+                Math::Vec3 lowestPosition = rootTrack.positions.front();
+                for (const Math::Vec3& position : rootTrack.positions)
                     if (position.y < lowestPosition.y)
                         lowestPosition = position;
-                const glm::vec3 bindPosition =
-                    glm::vec3(skeleton.bone(static_cast<u32>(skelRoot)).bindLocal[3]);
+                const Math::Vec3 bindPosition =
+                    Math::Vec3(skeleton.bone(static_cast<u32>(skelRoot)).bindLocal[3]);
                 const f32 verticalOffset = lowestPosition.y - bindPosition.y;
-                for (glm::vec3& position : rootTrack.positions)
+                for (Math::Vec3& position : rootTrack.positions)
                 {
                     position.x = bindPosition.x;
                     position.z = bindPosition.z;

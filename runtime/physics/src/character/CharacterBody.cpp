@@ -24,10 +24,10 @@ void CharacterBody::setSlopeLimit(f32 degrees)
     mSlopeLimitCosine = std::cos(glm::radians(mSlopeLimitDegrees));
 }
 
-glm::mat4 CharacterBody::transform() const
+Math::Mat4 CharacterBody::transform() const
 {
-    glm::mat4 result(1.0f);
-    result[3] = glm::vec4(mPosition, 1.0f);
+    Math::Mat4 result(1.0f);
+    result[3] = Math::Vec4(mPosition, 1.0f);
     return result;
 }
 
@@ -39,17 +39,17 @@ void CharacterBody::jump(f32 speed)
     mGrounded = false;
 }
 
-void CharacterBody::teleport(const glm::vec3& position)
+void CharacterBody::teleport(const Math::Vec3& position)
 {
     mPosition = position;
     mVerticalSpeed = 0.0f;
-    mVelocity = glm::vec3(0.0f);
+    mVelocity = Math::Vec3(0.0f);
     mGrounded = false;
     mOnWall = false;
     mOnCeiling = false;
     mGroundNormal = mUpDirection;
-    mWallNormal = glm::vec3(0.0f);
-    mCeilingNormal = glm::vec3(0.0f);
+    mWallNormal = Math::Vec3(0.0f);
+    mCeilingNormal = Math::Vec3(0.0f);
 }
 
 f32 CharacterBody::slopeAngle() const
@@ -59,34 +59,34 @@ f32 CharacterBody::slopeAngle() const
     return glm::degrees(std::acos(glm::clamp(glm::dot(mGroundNormal, mUpDirection), -1.0f, 1.0f)));
 }
 
-glm::vec3 CharacterBody::radii() const
+Math::Vec3 CharacterBody::radii() const
 {
     const f32 half = mHeight * 0.5f + mRadius;
-    return glm::vec3(mRadius, half, mRadius);
+    return Math::Vec3(mRadius, half, mRadius);
 }
 
-CharacterBody::Slide CharacterBody::slide(const glm::vec3& startCentre,
-                                          const glm::vec3& displacement, const TrimeshShape& mesh,
-                                          const glm::mat4& meshTransform) const
+CharacterBody::Slide CharacterBody::slide(const Math::Vec3& startCentre,
+                                          const Math::Vec3& displacement, const TrimeshShape& mesh,
+                                          const Math::Mat4& meshTransform) const
 {
     Slide out;
     out.centre = startCentre;
     out.velocity = displacement;
 
-    const glm::mat3 rotation(meshTransform);
-    const glm::mat3 inverseRotation = glm::transpose(rotation);
-    const glm::vec3 meshOrigin(meshTransform[3]);
-    const glm::vec3 extents = radii();
-    const glm::vec3 up = mUpDirection;
+    const Math::Mat3 rotation(meshTransform);
+    const Math::Mat3 inverseRotation = glm::transpose(rotation);
+    const Math::Vec3 meshOrigin(meshTransform[3]);
+    const Math::Vec3 extents = radii();
+    const Math::Vec3 up = mUpDirection;
 
     // World-space bookkeeping only; projecting the destination with the
     // ellipsoid-space normal leaves a residual whose vertical component gets
     // amplified on the way back and launches the character off walls.
-    glm::vec3 center = startCentre;
-    glm::vec3 velocity = displacement;
-    glm::vec3 outputVelocity = displacement;
-    glm::vec3 endpoint = startCentre + displacement;
-    const glm::vec3 inputHorizontal = displacement - up * glm::dot(displacement, up);
+    Math::Vec3 center = startCentre;
+    Math::Vec3 velocity = displacement;
+    Math::Vec3 outputVelocity = displacement;
+    Math::Vec3 endpoint = startCentre + displacement;
+    const Math::Vec3 inputHorizontal = displacement - up * glm::dot(displacement, up);
 
     bool resolvedOverlap = false;
     u32 iteration = 0;
@@ -104,7 +104,7 @@ CharacterBody::Slide CharacterBody::slide(const glm::vec3& startCentre,
         }
 
         out.collided = true;
-        const glm::vec3 n = glm::normalize(rotation * hit.normal);
+        const Math::Vec3 n = glm::normalize(rotation * hit.normal);
         const f32 upDot = glm::dot(n, up);
 
         // Floor within the slope limit, ceiling when facing along -up, wall
@@ -162,7 +162,7 @@ CharacterBody::Slide CharacterBody::slide(const glm::vec3& startCentre,
         if (mFloorStopOnSlope && out.grounded && glm::length(outputVelocity) > 1e-5f &&
             glm::length(glm::normalize(outputVelocity) + up) < 0.02f)
         {
-            outputVelocity = glm::vec3(0.0f);
+            outputVelocity = Math::Vec3(0.0f);
             endpoint = center;
             break;
         }
@@ -172,7 +172,7 @@ CharacterBody::Slide CharacterBody::slide(const glm::vec3& startCentre,
         if (mWallMinSlideAngleDegrees > 0.0f && out.onWall && out.grounded &&
             glm::length(inputHorizontal) > 1e-6f)
         {
-            const glm::vec3 wallHorizontal = out.wallNormal - up * glm::dot(out.wallNormal, up);
+            const Math::Vec3 wallHorizontal = out.wallNormal - up * glm::dot(out.wallNormal, up);
             if (glm::length(wallHorizontal) > 1e-6f)
             {
                 const f32 angle = std::acos(glm::clamp(
@@ -180,7 +180,7 @@ CharacterBody::Slide CharacterBody::slide(const glm::vec3& startCentre,
                     -1.0f, 1.0f));
                 if (angle < mWallMinSlideAngleDegrees)
                 {
-                    const glm::vec3 horizontal = outputVelocity - up * glm::dot(outputVelocity, up);
+                    const Math::Vec3 horizontal = outputVelocity - up * glm::dot(outputVelocity, up);
                     outputVelocity -= horizontal;
                 }
             }
@@ -197,20 +197,20 @@ CharacterBody::Slide CharacterBody::slide(const glm::vec3& startCentre,
     return out;
 }
 
-bool CharacterBody::stepUp(const glm::vec3& startCentre, const glm::vec3& horizontal,
-                           const TrimeshShape& mesh, const glm::mat4& meshTransform,
+bool CharacterBody::stepUp(const Math::Vec3& startCentre, const Math::Vec3& horizontal,
+                           const TrimeshShape& mesh, const Math::Mat4& meshTransform,
                            Slide& out) const
 {
     if (mStepOffset <= 0.0f || glm::dot(horizontal, horizontal) < kEpsilon)
         return false;
 
-    const glm::mat3 rotation(meshTransform);
-    const glm::mat3 inverseRotation = glm::transpose(rotation);
-    const glm::vec3 meshOrigin(meshTransform[3]);
-    const glm::vec3 extents = radii();
+    const Math::Mat3 rotation(meshTransform);
+    const Math::Mat3 inverseRotation = glm::transpose(rotation);
+    const Math::Vec3 meshOrigin(meshTransform[3]);
+    const Math::Vec3 extents = radii();
 
     // Anything overhead means there is no room to climb.
-    const glm::vec3 up = mUpDirection * mStepOffset;
+    const Math::Vec3 up = mUpDirection * mStepOffset;
     TrimeshShape::SweepHit upHit;
     if (mesh.sweepEllipsoid(inverseRotation * (startCentre - meshOrigin), extents,
                             inverseRotation * up, upHit))
@@ -223,13 +223,13 @@ bool CharacterBody::stepUp(const glm::vec3& startCentre, const glm::vec3& horizo
         return false;
 
     // Nothing underneath is a gap, not a step.
-    const glm::vec3 down = mUpDirection * -(mStepOffset + mSkinWidth);
+    const Math::Vec3 down = mUpDirection * -(mStepOffset + mSkinWidth);
     TrimeshShape::SweepHit downHit;
     if (!mesh.sweepEllipsoid(inverseRotation * (across.centre - meshOrigin), extents,
                              inverseRotation * down, downHit))
         return false;
 
-    const glm::vec3 normal = glm::normalize(rotation * downHit.normal);
+    const Math::Vec3 normal = glm::normalize(rotation * downHit.normal);
     if (glm::dot(normal, mUpDirection) < mSlopeLimitCosine)
         return false;
 
@@ -241,23 +241,23 @@ bool CharacterBody::stepUp(const glm::vec3& startCentre, const glm::vec3& horizo
     return true;
 }
 
-bool CharacterBody::snapToGround(const TrimeshShape& mesh, const glm::mat4& meshTransform)
+bool CharacterBody::snapToGround(const TrimeshShape& mesh, const Math::Mat4& meshTransform)
 {
     if (mGroundSnapDistance <= 0.0f)
         return false;
 
-    const glm::mat3 rotation(meshTransform);
-    const glm::mat3 inverseRotation = glm::transpose(rotation);
-    const glm::vec3 meshOrigin(meshTransform[3]);
-    const glm::vec3 extents = radii();
-    const glm::vec3 down = mUpDirection * -mGroundSnapDistance;
+    const Math::Mat3 rotation(meshTransform);
+    const Math::Mat3 inverseRotation = glm::transpose(rotation);
+    const Math::Vec3 meshOrigin(meshTransform[3]);
+    const Math::Vec3 extents = radii();
+    const Math::Vec3 down = mUpDirection * -mGroundSnapDistance;
 
     TrimeshShape::SweepHit hit;
     if (!mesh.sweepEllipsoid(inverseRotation * (mPosition - meshOrigin), extents,
                              inverseRotation * down, hit))
         return false;
 
-    const glm::vec3 normal = glm::normalize(rotation * hit.normal);
+    const Math::Vec3 normal = glm::normalize(rotation * hit.normal);
     if (glm::dot(normal, mUpDirection) < mSlopeLimitCosine)
         return false;
 
@@ -272,17 +272,17 @@ bool CharacterBody::snapToGround(const TrimeshShape& mesh, const glm::mat4& mesh
     return true;
 }
 
-bool CharacterBody::isNearGround(const TrimeshShape& mesh, const glm::mat4& meshTransform,
+bool CharacterBody::isNearGround(const TrimeshShape& mesh, const Math::Mat4& meshTransform,
                                  f32 maxDistance) const
 {
     if (maxDistance <= 0.0f)
         return false;
 
-    const glm::mat3 rotation(meshTransform);
-    const glm::mat3 inverseRotation = glm::transpose(rotation);
-    const glm::vec3 meshOrigin(meshTransform[3]);
-    const glm::vec3 extents = radii();
-    const glm::vec3 down = mUpDirection * -maxDistance;
+    const Math::Mat3 rotation(meshTransform);
+    const Math::Mat3 inverseRotation = glm::transpose(rotation);
+    const Math::Vec3 meshOrigin(meshTransform[3]);
+    const Math::Vec3 extents = radii();
+    const Math::Vec3 down = mUpDirection * -maxDistance;
 
     TrimeshShape::SweepHit hit;
     if (!mesh.sweepEllipsoid(inverseRotation * (mPosition - meshOrigin), extents,
@@ -291,26 +291,26 @@ bool CharacterBody::isNearGround(const TrimeshShape& mesh, const glm::mat4& mesh
     if (hit.t < 0.0f || hit.t > 1.0f)
         return false;
 
-    const glm::vec3 normal = glm::normalize(rotation * hit.normal);
+    const Math::Vec3 normal = glm::normalize(rotation * hit.normal);
     return glm::dot(normal, mUpDirection) >= mSlopeLimitCosine;
 }
 
-CharacterBody::MoveResult CharacterBody::move(const glm::vec3& displacement,
+CharacterBody::MoveResult CharacterBody::move(const Math::Vec3& displacement,
                                               const TrimeshShape& mesh,
-                                              const glm::mat4& meshTransform)
+                                              const Math::Mat4& meshTransform)
 {
     MoveResult result;
-    const glm::vec3 start = mPosition;
-    const glm::vec3 up = mUpDirection;
-    const glm::vec3 horizontal = displacement - up * glm::dot(displacement, up);
+    const Math::Vec3 start = mPosition;
+    const Math::Vec3 up = mUpDirection;
+    const Math::Vec3 horizontal = displacement - up * glm::dot(displacement, up);
 
     Slide primary = slide(start, displacement, mesh, meshTransform);
 
     // Climb only when the horizontal move was actually stopped: a platform
     // seam is an edge, an edge contact reads steep even on level floor, and
     // firing the climb there is a hop at every junction.
-    const glm::vec3 achieved = primary.centre - start;
-    const glm::vec3 achievedHorizontal = achieved - up * glm::dot(achieved, up);
+    const Math::Vec3 achieved = primary.centre - start;
+    const Math::Vec3 achievedHorizontal = achieved - up * glm::dot(achieved, up);
     const f32 wanted = glm::dot(horizontal, horizontal);
     const bool reallyBlocked =
         wanted > kEpsilon && glm::dot(achievedHorizontal, horizontal) < wanted * 0.5f;
@@ -326,8 +326,8 @@ CharacterBody::MoveResult CharacterBody::move(const glm::vec3& displacement,
     mGroundNormal = primary.grounded ? primary.groundNormal : up;
     mOnWall = primary.onWall;
     mOnCeiling = primary.onCeiling;
-    mWallNormal = primary.onWall ? primary.wallNormal : glm::vec3(0.0f);
-    mCeilingNormal = primary.onCeiling ? primary.ceilingNormal : glm::vec3(0.0f);
+    mWallNormal = primary.onWall ? primary.wallNormal : Math::Vec3(0.0f);
+    mCeilingNormal = primary.onCeiling ? primary.ceilingNormal : Math::Vec3(0.0f);
 
     result.collided = primary.collided;
     result.grounded = primary.grounded;
@@ -341,13 +341,13 @@ CharacterBody::MoveResult CharacterBody::move(const glm::vec3& displacement,
     return result;
 }
 
-bool CharacterBody::applyFloorSnap(const TrimeshShape& mesh, const glm::mat4& meshTransform)
+bool CharacterBody::applyFloorSnap(const TrimeshShape& mesh, const Math::Mat4& meshTransform)
 {
     return snapToGround(mesh, meshTransform);
 }
 
 CharacterBody::MoveResult CharacterBody::moveAndSlide(f32 deltaTime, const TrimeshShape& mesh,
-                                                      const glm::mat4& meshTransform)
+                                                      const Math::Mat4& meshTransform)
 {
     MoveResult result;
     if (!(deltaTime > 0.0f))
@@ -355,8 +355,8 @@ CharacterBody::MoveResult CharacterBody::moveAndSlide(f32 deltaTime, const Trime
 
     // The caller owns velocity, gravity and jump included; this displaces by
     // velocity*dt and slides.
-    const glm::vec3 start = mPosition;
-    const glm::vec3 up = mUpDirection;
+    const Math::Vec3 start = mPosition;
+    const Math::Vec3 up = mUpDirection;
     const bool wasGrounded = mGrounded;
     const bool velFacingUp = glm::dot(mVelocity, up) > 0.0f;
 
@@ -379,14 +379,14 @@ CharacterBody::MoveResult CharacterBody::moveAndSlide(f32 deltaTime, const Trime
 }
 
 CharacterBody::MoveResult CharacterBody::update(f32 deltaTime, const TrimeshShape& mesh,
-                                                const glm::mat4& meshTransform)
+                                                const Math::Mat4& meshTransform)
 {
     MoveResult result;
     if (!(deltaTime > 0.0f))
         return result;
 
-    const glm::vec3 start = mPosition;
-    const glm::vec3 up = mUpDirection;
+    const Math::Vec3 start = mPosition;
+    const Math::Vec3 up = mUpDirection;
 
     // Planted while grounded, so standing still does not accumulate downward
     // speed frame after frame.

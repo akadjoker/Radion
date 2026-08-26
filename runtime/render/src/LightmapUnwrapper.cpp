@@ -80,16 +80,16 @@ bool LightmapUnwrapper::unwrap(const MeshData& input, MeshData& output,
     xatlas::MeshDecl decl;
     decl.vertexCount = static_cast<u32>(input.positions.size());
     decl.vertexPositionData = input.positions.data();
-    decl.vertexPositionStride = sizeof(glm::vec3);
+    decl.vertexPositionStride = sizeof(Math::Vec3);
     if (hasNormals)
     {
         decl.vertexNormalData = input.normals.data();
-        decl.vertexNormalStride = sizeof(glm::vec3);
+        decl.vertexNormalStride = sizeof(Math::Vec3);
     }
     if (hasUvs)
     {
         decl.vertexUvData = input.uvs.data();
-        decl.vertexUvStride = sizeof(glm::vec2);
+        decl.vertexUvStride = sizeof(Math::Vec2);
     }
     decl.indexCount = static_cast<u32>(input.indices.size());
     decl.indexData = input.indices.data();
@@ -208,7 +208,7 @@ bool LightmapUnwrapper::unwrap(const MeshData& input, MeshData& output,
 
         output.indices[i] = index;
         output.positions[index] = input.positions[vertex.xref];
-        output.uvs2[index] = glm::vec2(vertex.uv[0] / width, vertex.uv[1] / height);
+        output.uvs2[index] = Math::Vec2(vertex.uv[0] / width, vertex.uv[1] / height);
         if (!output.normals.empty())
             output.normals[index] = input.normals[vertex.xref];
         if (!output.uvs.empty())

@@ -30,7 +30,7 @@ public:
         friend class ConvexHullComputer;
     };
 
-    std::vector<glm::vec3> vertices;
+    std::vector<Math::Vec3> vertices;
     std::vector<Edge> edges;
     std::vector<int> faces;
 

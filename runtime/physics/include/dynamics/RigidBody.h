@@ -34,17 +34,17 @@ struct Inertia
 {
     // `halfExtents` are half the box's size on each axis, matching how every
     // AABB in the engine is described.
-    static glm::mat3 box(f32 mass, const glm::vec3& halfExtents);
-    static glm::mat3 solidSphere(f32 mass, f32 radius);
-    static glm::mat3 hollowSphere(f32 mass, f32 radius);
+    static Math::Mat3 box(f32 mass, const Math::Vec3& halfExtents);
+    static Math::Mat3 solidSphere(f32 mass, f32 radius);
+    static Math::Mat3 hollowSphere(f32 mass, f32 radius);
     // Along +Y, which is the engine's up and the axis a capsule stands on.
-    static glm::mat3 cylinderY(f32 mass, f32 radius, f32 height);
-    static glm::mat3 capsuleY(f32 mass, f32 radius, f32 cylinderHeight);
+    static Math::Mat3 cylinderY(f32 mass, f32 radius, f32 height);
+    static Math::Mat3 capsuleY(f32 mass, f32 radius, f32 cylinderHeight);
     // Any convex polyhedron, from its own half-edge mesh - the ONLY one of
     // these that measures the tensor off actual geometry instead of a
     // closed form. `faces` holds one edge index per face, walked with
     // getNextEdgeOfFace() the way ConvexHullComputer itself expects.
-    static glm::mat3 convexHull(f32 mass, const glm::vec3* vertices, u32 vertexCount,
+    static Math::Mat3 convexHull(f32 mass, const Math::Vec3* vertices, u32 vertexCount,
                                 const Radion::Geometry::ConvexHullComputer::Edge* edges,
                                 u32 edgeCount, const int* faces, u32 faceCount);
 };
@@ -90,14 +90,14 @@ public:
 
     // In BODY space. calculateDerivedData() rotates it into world space; the
     // world-space one is what the solver divides a torque by.
-    void setInertiaTensor(const glm::mat3& inertiaTensor);
-    glm::mat3 inertiaTensor() const;
-    void setInverseInertiaTensor(const glm::mat3& inverseInertiaTensor);
-    const glm::mat3& inverseInertiaTensor() const
+    void setInertiaTensor(const Math::Mat3& inertiaTensor);
+    Math::Mat3 inertiaTensor() const;
+    void setInverseInertiaTensor(const Math::Mat3& inverseInertiaTensor);
+    const Math::Mat3& inverseInertiaTensor() const
     {
         return mInverseInertiaTensor;
     }
-    const glm::mat3& inverseInertiaTensorWorld() const
+    const Math::Mat3& inverseInertiaTensorWorld() const
     {
         return mInverseInertiaTensorWorld;
     }
@@ -116,24 +116,24 @@ public:
         return mAngularDamping;
     }
 
-    void setPosition(const glm::vec3& position);
-    const glm::vec3& position() const
+    void setPosition(const Math::Vec3& position);
+    const Math::Vec3& position() const
     {
         return mPosition;
     }
-    void setOrientation(const glm::quat& orientation);
-    const glm::quat& orientation() const
+    void setOrientation(const Math::Quaternion& orientation);
+    const Math::Quaternion& orientation() const
     {
         return mOrientation;
     }
 
-    void setVelocity(const glm::vec3& velocity);
-    const glm::vec3& velocity() const
+    void setVelocity(const Math::Vec3& velocity);
+    const Math::Vec3& velocity() const
     {
         return mVelocity;
     }
-    void setAngularVelocity(const glm::vec3& angularVelocity);
-    const glm::vec3& angularVelocity() const
+    void setAngularVelocity(const Math::Vec3& angularVelocity);
+    const Math::Vec3& angularVelocity() const
     {
         return mAngularVelocity;
     }
@@ -141,47 +141,47 @@ public:
     // Constant acceleration that ignores mass - gravity, and only gravity.
     // Kept apart from the force accumulator because a force has to be scaled
     // by inverse mass, and gravity accelerates everything equally.
-    void setAcceleration(const glm::vec3& acceleration);
-    const glm::vec3& acceleration() const
+    void setAcceleration(const Math::Vec3& acceleration);
+    const Math::Vec3& acceleration() const
     {
         return mAcceleration;
     }
     // Acceleration the last step actually ran with, gravity included. Contact
     // resolution needs it to tell a resting body from a colliding one.
-    const glm::vec3& lastFrameAcceleration() const
+    const Math::Vec3& lastFrameAcceleration() const
     {
         return mLastFrameAcceleration;
     }
 
-    const glm::mat4& transform() const
+    const Math::Mat4& transform() const
     {
         return mTransform;
     }
-    glm::vec3 pointToWorld(const glm::vec3& local) const;
-    glm::vec3 pointToLocal(const glm::vec3& world) const;
-    glm::vec3 directionToWorld(const glm::vec3& local) const;
-    glm::vec3 directionToLocal(const glm::vec3& world) const;
+    Math::Vec3 pointToWorld(const Math::Vec3& local) const;
+    Math::Vec3 pointToLocal(const Math::Vec3& world) const;
+    Math::Vec3 directionToWorld(const Math::Vec3& local) const;
+    Math::Vec3 directionToLocal(const Math::Vec3& world) const;
     // World-space velocity of a point attached to the body - v + w x r. What
     // a contact point is actually moving at, and the reason a spinning body
     // scrapes rather than slides.
-    glm::vec3 velocityAtPoint(const glm::vec3& worldPoint) const;
+    Math::Vec3 velocityAtPoint(const Math::Vec3& worldPoint) const;
 
     // Forces accumulate over a step and are cleared by integrate().
-    void addForce(const glm::vec3& force);
-    void addForceAtPoint(const glm::vec3& force, const glm::vec3& worldPoint);
-    void addForceAtBodyPoint(const glm::vec3& force, const glm::vec3& localPoint);
-    void addTorque(const glm::vec3& torque);
+    void addForce(const Math::Vec3& force);
+    void addForceAtPoint(const Math::Vec3& force, const Math::Vec3& worldPoint);
+    void addForceAtBodyPoint(const Math::Vec3& force, const Math::Vec3& localPoint);
+    void addTorque(const Math::Vec3& torque);
     void clearAccumulators();
 
     // Impulses change velocity immediately instead of over a step. Contacts
     // and constraints are resolved this way; a force cannot be, because the
     // correction has to hold at the end of the step it was computed for.
-    void applyLinearImpulse(const glm::vec3& impulse);
-    void applyAngularImpulse(const glm::vec3& impulse);
-    void applyImpulseAtPoint(const glm::vec3& impulse, const glm::vec3& worldPoint);
+    void applyLinearImpulse(const Math::Vec3& impulse);
+    void applyAngularImpulse(const Math::Vec3& impulse);
+    void applyImpulseAtPoint(const Math::Vec3& impulse, const Math::Vec3& worldPoint);
     // Split-impulse position correction: changes pose without adding kinetic
     // energy. Contacts and joints use this to remove drift.
-    void applyPositionImpulseAtPoint(const glm::vec3& impulse, const glm::vec3& worldPoint);
+    void applyPositionImpulseAtPoint(const Math::Vec3& impulse, const Math::Vec3& worldPoint);
 
     // A sleeping body is skipped by integrate() entirely. Waking is what any
     // force or impulse arriving does; falling asleep is decided by integrate()
@@ -236,30 +236,30 @@ private:
     BodyType mBodyType = BodyType::Dynamic;
 
     f32 mInverseMass = 1.0f;
-    glm::mat3 mInverseInertiaTensor{1.0f};
-    glm::mat3 mInverseInertiaTensorWorld{1.0f};
+    Math::Mat3 mInverseInertiaTensor{1.0f};
+    Math::Mat3 mInverseInertiaTensorWorld{1.0f};
 
     f32 mLinearDamping = 0.99f;
     f32 mAngularDamping = 0.99f;
 
-    glm::vec3 mPosition{0.0f};
-    glm::quat mOrientation{1.0f, 0.0f, 0.0f, 0.0f};
-    glm::vec3 mVelocity{0.0f};
-    glm::vec3 mAngularVelocity{0.0f};
+    Math::Vec3 mPosition{0.0f};
+    Math::Quaternion mOrientation{1.0f, 0.0f, 0.0f, 0.0f};
+    Math::Vec3 mVelocity{0.0f};
+    Math::Vec3 mAngularVelocity{0.0f};
 
-    glm::vec3 mAcceleration{0.0f};
-    glm::vec3 mLastFrameAcceleration{0.0f};
+    Math::Vec3 mAcceleration{0.0f};
+    Math::Vec3 mLastFrameAcceleration{0.0f};
 
-    glm::vec3 mForceAccumulator{0.0f};
-    glm::vec3 mTorqueAccumulator{0.0f};
+    Math::Vec3 mForceAccumulator{0.0f};
+    Math::Vec3 mTorqueAccumulator{0.0f};
 
-    glm::mat4 mTransform{1.0f};
+    Math::Mat4 mTransform{1.0f};
 
     // Mass and inertia as the caller set them, kept through a change to
     // Static or Kinematic so switching back to Dynamic restores the body
     // instead of leaving it with the infinite mass those two forced on it.
     f32 mDynamicInverseMass = 1.0f;
-    glm::mat3 mDynamicInverseInertiaTensor{1.0f};
+    Math::Mat3 mDynamicInverseInertiaTensor{1.0f};
 
     bool mAwake = true;
     bool mCanSleep = true;

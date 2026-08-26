@@ -10,11 +10,11 @@ namespace Radion::Physics
 class HingeJoint final : public Joint
 {
 public:
-    HingeJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
-               const glm::vec3& worldHingeAxis);
-    HingeJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localHingeAxisA,
-               const glm::vec3& localNormalAxisA, RigidBody& b, const glm::vec3& localAnchorB,
-               const glm::vec3& localHingeAxisB, const glm::vec3& localNormalAxisB);
+    HingeJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor,
+               const Math::Vec3& worldHingeAxis);
+    HingeJoint(RigidBody& a, const Math::Vec3& localAnchorA, const Math::Vec3& localHingeAxisA,
+               const Math::Vec3& localNormalAxisA, RigidBody& b, const Math::Vec3& localAnchorB,
+               const Math::Vec3& localHingeAxisB, const Math::Vec3& localNormalAxisB);
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -36,31 +36,31 @@ private:
     void calculateMotorProperties();
     f32 smallestAngleToLimit() const;
     bool minLimitClosest() const;
-    void applyVelocityImpulse(const glm::vec3& impulse);
-    void applyAngularVelocityImpulse(const glm::vec3& impulse);
+    void applyVelocityImpulse(const Math::Vec3& impulse);
+    void applyAngularVelocityImpulse(const Math::Vec3& impulse);
 
     RigidBody* mBodyA;
     RigidBody* mBodyB;
-    glm::vec3 mLocalAnchorA;
-    glm::vec3 mLocalAnchorB;
-    glm::vec3 mLocalHingeAxisA;
-    glm::vec3 mLocalHingeAxisB;
-    glm::vec3 mLocalNormalAxisA;
-    glm::vec3 mLocalNormalAxisB;
-    glm::quat mInverseInitialOrientation;
+    Math::Vec3 mLocalAnchorA;
+    Math::Vec3 mLocalAnchorB;
+    Math::Vec3 mLocalHingeAxisA;
+    Math::Vec3 mLocalHingeAxisB;
+    Math::Vec3 mLocalNormalAxisA;
+    Math::Vec3 mLocalNormalAxisB;
+    Math::Quaternion mInverseInitialOrientation;
 
-    glm::vec3 mArmA{0.0f};
-    glm::vec3 mArmB{0.0f};
-    glm::mat3 mPositionEffectiveMass{0.0f};
-    glm::vec3 mTotalPositionImpulse{0.0f};
+    Math::Vec3 mArmA{0.0f};
+    Math::Vec3 mArmB{0.0f};
+    Math::Mat3 mPositionEffectiveMass{0.0f};
+    Math::Vec3 mTotalPositionImpulse{0.0f};
 
-    glm::vec3 mA1{0.0f, 1.0f, 0.0f};
-    glm::vec3 mB2{1.0f, 0.0f, 0.0f};
-    glm::vec3 mC2{0.0f, 0.0f, 1.0f};
-    glm::vec3 mB2xA1{0.0f};
-    glm::vec3 mC2xA1{0.0f};
+    Math::Vec3 mA1{0.0f, 1.0f, 0.0f};
+    Math::Vec3 mB2{1.0f, 0.0f, 0.0f};
+    Math::Vec3 mC2{0.0f, 0.0f, 1.0f};
+    Math::Vec3 mB2xA1{0.0f};
+    Math::Vec3 mC2xA1{0.0f};
     glm::mat2 mHingeRotationEffectiveMass{0.0f};
-    glm::vec2 mTotalHingeRotationImpulse{0.0f};
+    Math::Vec2 mTotalHingeRotationImpulse{0.0f};
 
     f32 mTheta = 0.0f;
     f32 mLimitsMin = -glm::pi<f32>();

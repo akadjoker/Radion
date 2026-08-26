@@ -55,14 +55,14 @@ private:
     struct Point
     {
         GameObject* object = nullptr;
-        glm::vec3 previous = glm::vec3(0.0f);
+        Math::Vec3 previous = Math::Vec3(0.0f);
         f32 width = 6.0f;
     };
 
     struct PathSample
     {
-        glm::vec3 position = glm::vec3(0.0f);
-        glm::vec3 tangent = glm::vec3(0.0f, 0.0f, -1.0f);
+        Math::Vec3 position = Math::Vec3(0.0f);
+        Math::Vec3 tangent = Math::Vec3(0.0f, 0.0f, -1.0f);
         f32 width = 6.0f;
         f32 distance = 0.0f;
     };

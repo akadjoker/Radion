@@ -20,7 +20,7 @@ WaypointID nextWaypointId()
 }
 } // namespace
 
-Waypoint::Waypoint(const glm::vec3& position, const glm::quat& orientation, float radius)
+Waypoint::Waypoint(const Math::Vec3& position, const Math::Quaternion& orientation, float radius)
     : mId(nextWaypointId()), mPosition(position), mOrientation(orientation), mRadius(radius)
 {
 }

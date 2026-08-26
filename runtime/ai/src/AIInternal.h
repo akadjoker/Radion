@@ -12,28 +12,28 @@
 namespace Radion::AI::detail
 {
 
-inline glm::vec3 safeNormalize(const glm::vec3& v)
+inline Math::Vec3 safeNormalize(const Math::Vec3& v)
 {
     float len = glm::length(v);
     if (len <= 0.0f)
-        return glm::vec3(0.0f);
+        return Math::Vec3(0.0f);
     return v / len;
 }
 
 // Component of v parallel to a unit basis vector.
-inline glm::vec3 parallelComponent(const glm::vec3& v, const glm::vec3& unitBasis)
+inline Math::Vec3 parallelComponent(const Math::Vec3& v, const Math::Vec3& unitBasis)
 {
     return unitBasis * glm::dot(v, unitBasis);
 }
 
 // Component of v perpendicular to a unit basis vector.
-inline glm::vec3 perpendicularComponent(const glm::vec3& v, const glm::vec3& unitBasis)
+inline Math::Vec3 perpendicularComponent(const Math::Vec3& v, const Math::Vec3& unitBasis)
 {
     return v - parallelComponent(v, unitBasis);
 }
 
 // Clamps the length of v to maxLength.
-inline glm::vec3 truncateLength(const glm::vec3& v, float maxLength)
+inline Math::Vec3 truncateLength(const Math::Vec3& v, float maxLength)
 {
     float maxLengthSquared = maxLength * maxLength;
     float vecLengthSquared = glm::dot(v, v);

@@ -20,16 +20,16 @@ constexpr f32 kGravity = 9.81f;
 // through heightAt()/normalAt() into position, normal, clip-space and depth
 // for the whole surface. Falls back to (1,0) rather than the caller's
 // previous direction: this is a pure function, with nothing to remember.
-glm::vec2 safeDirection(const glm::vec2& direction)
+Math::Vec2 safeDirection(const Math::Vec2& direction)
 {
     const f32 lengthSq = glm::dot(direction, direction);
     if (!std::isfinite(lengthSq) || lengthSq < 1e-8f)
-        return glm::vec2(1.0f, 0.0f);
+        return Math::Vec2(1.0f, 0.0f);
     return direction * (1.0f / std::sqrt(lengthSq));
 }
 
 // Must match kPhaseOffset in ocean.vert exactly - see the comment there.
-const glm::vec2 kPhaseOffset[kOceanMaxWaves] = {
+const Math::Vec2 kPhaseOffset[kOceanMaxWaves] = {
     {0.0f, 0.0f}, {311.7f, 172.3f}, {-198.4f, 402.1f},
     {87.6f, -266.9f}, {-355.2f, -114.8f}, {224.1f, 333.6f},
 };
@@ -39,12 +39,12 @@ Ocean::Ocean() : Component(Type)
 {
     // Wavelengths coprime on purpose: multiples of one another realign
     // periodically and the repeat becomes visible on the surface.
-    mWaves[0] = {glm::vec2(1.00f, 0.15f), 61.0f, 1.35f};
-    mWaves[1] = {glm::vec2(0.70f, -0.70f), 37.0f, 0.75f};
-    mWaves[2] = {glm::vec2(-0.35f, 0.94f), 23.0f, 0.40f};
-    mWaves[3] = {glm::vec2(0.90f, 0.44f), 13.0f, 0.18f};
-    mWaves[4] = {glm::vec2(-0.80f, -0.60f), 7.0f, 0.09f};
-    mWaves[5] = {glm::vec2(0.20f, 0.98f), 4.0f, 0.05f};
+    mWaves[0] = {Math::Vec2(1.00f, 0.15f), 61.0f, 1.35f};
+    mWaves[1] = {Math::Vec2(0.70f, -0.70f), 37.0f, 0.75f};
+    mWaves[2] = {Math::Vec2(-0.35f, 0.94f), 23.0f, 0.40f};
+    mWaves[3] = {Math::Vec2(0.90f, 0.44f), 13.0f, 0.18f};
+    mWaves[4] = {Math::Vec2(-0.80f, -0.60f), 7.0f, 0.09f};
+    mWaves[5] = {Math::Vec2(0.20f, 0.98f), 4.0f, 0.05f};
 }
 
 void Ocean::onDestroy()
@@ -97,7 +97,7 @@ OceanQuality Ocean::quality() const
     return mQuality;
 }
 
-void Ocean::setWave(u32 index, const glm::vec2& direction, f32 wavelength, f32 amplitude)
+void Ocean::setWave(u32 index, const Math::Vec2& direction, f32 wavelength, f32 amplitude)
 {
     if (index >= kOceanMaxWaves)
         return;
@@ -162,19 +162,19 @@ f32 Ocean::level() const
     return mLevel;
 }
 
-void Ocean::setShallowColor(const glm::vec3& color)
+void Ocean::setShallowColor(const Math::Vec3& color)
 {
     mShallowColor = color;
 }
 
-const glm::vec3& Ocean::shallowColor() const { return mShallowColor; }
+const Math::Vec3& Ocean::shallowColor() const { return mShallowColor; }
 
-void Ocean::setDeepColor(const glm::vec3& color)
+void Ocean::setDeepColor(const Math::Vec3& color)
 {
     mDeepColor = color;
 }
 
-const glm::vec3& Ocean::deepColor() const { return mDeepColor; }
+const Math::Vec3& Ocean::deepColor() const { return mDeepColor; }
 
 void Ocean::setAbsorptionDistance(f32 distance)
 {
@@ -367,12 +367,12 @@ void Ocean::setColorStrength(f32 amount)
 
 f32 Ocean::colorStrength() const { return mColorStrength; }
 
-void Ocean::setUnderwaterColor(const glm::vec3& color)
+void Ocean::setUnderwaterColor(const Math::Vec3& color)
 {
     mUnderwaterColor = color;
 }
 
-const glm::vec3& Ocean::underwaterColor() const { return mUnderwaterColor; }
+const Math::Vec3& Ocean::underwaterColor() const { return mUnderwaterColor; }
 
 void Ocean::setDebugMode(s32 mode)
 {
@@ -391,13 +391,13 @@ f32 Ocean::heightAt(f32 x, f32 z, f32 time) const
     for (u32 i = 0; i < mWaveCount && i < kOceanMaxWaves; ++i)
     {
         const OceanWave& wave = mWaves[i];
-        const glm::vec2 D = safeDirection(wave.direction);
+        const Math::Vec2 D = safeDirection(wave.direction);
         const f32 wavelength = glm::max(0.001f, wave.wavelength);
         const f32 A = wave.amplitude;
 
         const f32 k = 6.28318530718f / wavelength;
         const f32 w = std::sqrt(kGravity * k);
-        const glm::vec2& offset = kPhaseOffset[i];
+        const Math::Vec2& offset = kPhaseOffset[i];
         const f32 phase = k * (D.x * (x + offset.x) + D.y * (z + offset.y)) - w * t;
         y += A * mWaveScale * std::sin(phase);
     }
@@ -406,16 +406,16 @@ f32 Ocean::heightAt(f32 x, f32 z, f32 time) const
 
 // Same tangent/binormal accumulation as the vertex shader, evaluated at one
 // point instead of a whole grid.
-glm::vec3 Ocean::normalAt(f32 x, f32 z, f32 time) const
+Math::Vec3 Ocean::normalAt(f32 x, f32 z, f32 time) const
 {
     const f32 t = time * mTimeScale;
-    glm::vec3 tangent(1.0f, 0.0f, 0.0f);
-    glm::vec3 binormal(0.0f, 0.0f, 1.0f);
+    Math::Vec3 tangent(1.0f, 0.0f, 0.0f);
+    Math::Vec3 binormal(0.0f, 0.0f, 1.0f);
 
     for (u32 i = 0; i < mWaveCount && i < kOceanMaxWaves; ++i)
     {
         const OceanWave& wave = mWaves[i];
-        const glm::vec2 D = safeDirection(wave.direction);
+        const Math::Vec2 D = safeDirection(wave.direction);
         const f32 wavelength = glm::max(0.001f, wave.wavelength);
         const f32 A = wave.amplitude;
 
@@ -423,19 +423,19 @@ glm::vec3 Ocean::normalAt(f32 x, f32 z, f32 time) const
         const f32 w = std::sqrt(kGravity * k);
         const f32 Q = mSteepness / (k * A * static_cast<f32>(mWaveCount) + 1e-5f);
 
-        const glm::vec2& offset = kPhaseOffset[i];
+        const Math::Vec2& offset = kPhaseOffset[i];
         const f32 phase = k * (D.x * (x + offset.x) + D.y * (z + offset.y)) - w * t;
         const f32 s = std::sin(phase);
         const f32 c = std::cos(phase);
         const f32 QA = Q * A;
 
-        tangent += glm::vec3(-D.x * D.x * QA * k * s, D.x * A * k * c, -D.x * D.y * QA * k * s);
-        binormal += glm::vec3(-D.x * D.y * QA * k * s, D.y * A * k * c, -D.y * D.y * QA * k * s);
+        tangent += Math::Vec3(-D.x * D.x * QA * k * s, D.x * A * k * c, -D.x * D.y * QA * k * s);
+        binormal += Math::Vec3(-D.x * D.y * QA * k * s, D.y * A * k * c, -D.y * D.y * QA * k * s);
     }
     return glm::normalize(glm::cross(binormal, tangent));
 }
 
-void Ocean::submit(const glm::mat4& transform)
+void Ocean::submit(const Math::Mat4& transform)
 {
     if (!mMesh.valid() || mWaveCount == 0)
         return;
@@ -446,7 +446,7 @@ void Ocean::submit(const glm::mat4& transform)
     // one place both sides can agree on it. heightAt() adds it on the CPU, the
     // vertex shader gets it through uModel, and the reflection reads the plane
     // straight off model[3].y - three readers, one number.
-    command.model = glm::translate(transform, glm::vec3(0.0f, mLevel, 0.0f));
+    command.model = glm::translate(transform, Math::Vec3(0.0f, mLevel, 0.0f));
     command.quality = mQuality;
 
     // Only the waves the grid can actually carry. The displacement happens per

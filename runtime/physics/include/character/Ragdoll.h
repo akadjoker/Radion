@@ -100,8 +100,8 @@ public:
     // wrists, ankles) exactly where the animation left them relative to
     // whichever simulated bone they hang off. Adds every body/joint to
     // `world`, which must outlive the ragdoll until deactivate().
-    void activate(PhysicsWorld& world, const std::vector<glm::mat4>& globalPose,
-                 const std::vector<LocalPose>& localPose, const glm::mat4& ownerWorld);
+    void activate(PhysicsWorld& world, const std::vector<Math::Mat4>& globalPose,
+                 const std::vector<LocalPose>& localPose, const Math::Mat4& ownerWorld);
 
     // Removes every body and joint this ragdoll added to its world. Safe to
     // call when not active.
@@ -138,7 +138,7 @@ private:
         RagdollPart parentPart = RagdollPart::Count; // Count: parented to the owner root
         std::vector<s32> parentChain; // non-simulated bones between parentPart and this one,
                                       // nearest-to-this-bone first (build() order, see .cpp)
-        glm::mat4 parentChainLocal{1.0f}; // parentChain composed against the live pose, set by activate()
+        Math::Mat4 parentChainLocal{1.0f}; // parentChain composed against the live pose, set by activate()
 
         enum class ShapeKind : u8
         {
@@ -147,13 +147,13 @@ private:
             Sphere
         } shapeKind = ShapeKind::Capsule;
         CapsuleShape capsule{0.08f, 0.10f};
-        BoxShape box{glm::vec3(0.15f)};
+        BoxShape box{Math::Vec3(0.15f)};
         SphereShape sphere{0.10f};
         f32 mass = 1.0f;
 
         RigidBody rigidBody;
         u32 bodyId = 0xFFFFFFFFu;
-        glm::mat4 attachmentLocal{1.0f}; // bone, expressed in the body's own local frame
+        Math::Mat4 attachmentLocal{1.0f}; // bone, expressed in the body's own local frame
     };
 
     void resolveHierarchy(const Skeleton& skeleton);
@@ -170,7 +170,7 @@ private:
     std::deque<PointJoint> mPointJoints;
     std::deque<HingeJoint> mHingeJoints;
     PhysicsWorld* mWorld = nullptr;
-    glm::mat4 mOwnerWorld{1.0f};
+    Math::Mat4 mOwnerWorld{1.0f};
     CollisionFilter mFilter{1u, 0xFFFFFFFFu};
     bool mValid = false;
     bool mActive = false;

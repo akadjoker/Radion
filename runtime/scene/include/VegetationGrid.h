@@ -23,8 +23,8 @@ public:
 
     struct Cell
     {
-        glm::vec3 position = glm::vec3(0.0f);           // local space
-        glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f); // local space
+        Math::Vec3 position = Math::Vec3(0.0f);           // local space
+        Math::Vec3 normal = Math::Vec3(0.0f, 1.0f, 0.0f); // local space
         Occupant occupant = Occupant::None;
         u32 species = 0;
         f32 scale = 1.0f;
@@ -34,29 +34,29 @@ public:
     VegetationGrid();
 
     // Square grid covering [-worldSize/2, worldSize/2] in local X and Z.
-    bool create(u32 gridSize, f32 worldSize, const glm::mat4& localToWorld = glm::mat4(1.0f));
+    bool create(u32 gridSize, f32 worldSize, const Math::Mat4& localToWorld = Math::Mat4(1.0f));
 
     // Rectangular grid covering [-worldSizeX/2, worldSizeX/2] in X and
     // [-worldSizeZ/2, worldSizeZ/2] in Z.
     bool create(u32 width, u32 depth, f32 worldSizeX, f32 worldSizeZ,
-                const glm::mat4& localToWorld = glm::mat4(1.0f));
+                const Math::Mat4& localToWorld = Math::Mat4(1.0f));
 
     void clear();
 
     // Change the local-to-world transform used for painting and terrain sampling.
-    void setTransform(const glm::mat4& localToWorld);
-    const glm::mat4& transform() const;
+    void setTransform(const Math::Mat4& localToWorld);
+    const Math::Mat4& transform() const;
 
     // Paint using world coordinates. The point is transformed to local space,
     // mapped to a cell, and the occupancy rules are applied.
-    bool paintGrass(const glm::vec3& worldPos, f32 scale = 1.0f);
-    bool paintTree(const glm::vec3& worldPos, u32 species, f32 scale = 1.0f, f32 yawDegrees = 0.0f);
+    bool paintGrass(const Math::Vec3& worldPos, f32 scale = 1.0f);
+    bool paintTree(const Math::Vec3& worldPos, u32 species, f32 scale = 1.0f, f32 yawDegrees = 0.0f);
 
     // Paint by cell index. Fails if out of bounds.
     bool paintGrassAt(u32 x, u32 z, f32 scale = 1.0f);
     bool paintTreeAt(u32 x, u32 z, u32 species, f32 scale = 1.0f, f32 yawDegrees = 0.0f);
 
-    bool erase(const glm::vec3& worldPos);
+    bool erase(const Math::Vec3& worldPos);
     bool eraseAt(u32 x, u32 z);
 
     u32 width() const;
@@ -77,13 +77,13 @@ private:
     f32 mWorldSizeZ = 1.0f;
     f32 mCellSizeX = 1.0f;
     f32 mCellSizeZ = 1.0f;
-    glm::mat4 mLocalToWorld = glm::mat4(1.0f);
-    glm::mat4 mWorldToLocal = glm::mat4(1.0f);
+    Math::Mat4 mLocalToWorld = Math::Mat4(1.0f);
+    Math::Mat4 mWorldToLocal = Math::Mat4(1.0f);
 
-    bool worldToCell(const glm::vec3& world, s32& x, s32& z) const;
+    bool worldToCell(const Math::Vec3& world, s32& x, s32& z) const;
     Cell* cellAt(u32 x, u32 z);
     const Cell* cellAt(u32 x, u32 z) const;
-    glm::vec3 cellLocalPosition(u32 x, u32 z) const;
+    Math::Vec3 cellLocalPosition(u32 x, u32 z) const;
     void updateInverseTransform();
 };
 
