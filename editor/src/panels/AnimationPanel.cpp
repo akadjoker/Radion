@@ -134,7 +134,7 @@ void AnimationPanel::drawPlayback(Animator& animator)
     float time = layer->wrappedTime();
     ImGui::Text("%s  %.2f / %.2fs", layer->current().c_str(), static_cast<double>(time),
                static_cast<double>(layer->duration()));
-    if (ImGui::SliderFloat("Scrub", &time, 0.0f, glm::max(layer->duration(), 0.001f)))
+    if (ImGui::SliderFloat("Scrub", &time, 0.0f, Math::max(layer->duration(), 0.001f)))
     {
         layer->seek(time);
         // Dragging without Pause on would just have the next frame march
@@ -154,9 +154,9 @@ void AnimationPanel::drawPlayback(Animator& animator)
     const int frameCount = static_cast<int>(std::lround(layer->duration() * mFps));
     int frame = static_cast<int>(std::lround(time * mFps));
     ImGui::SetNextItemWidth(120.0f);
-    if (ImGui::DragInt("Frame", &frame, 1.0f, 0, glm::max(frameCount, 0)))
+    if (ImGui::DragInt("Frame", &frame, 1.0f, 0, Math::max(frameCount, 0)))
     {
-        layer->seek(static_cast<f32>(frame) / glm::max(mFps, 0.0001f));
+        layer->seek(static_cast<f32>(frame) / Math::max(mFps, 0.0001f));
         layer->setPaused(true);
     }
 }
@@ -224,10 +224,10 @@ void AnimationPanel::drawBonesAndChains(Animator& animator, const Skeleton& skel
     {
         IKChain chain;
         chain.tipBone = target.bone;
-        glm::vec3 modelPosition;
+        Math::vec3 modelPosition;
         if (animator.boneGlobalPosition(target.bone, modelPosition) && animator.owner())
             chain.target =
-                glm::vec3(animator.owner()->globalTransform() * glm::vec4(modelPosition, 1.0f));
+                Math::vec3(animator.owner()->globalTransform() * Math::vec4(modelPosition, 1.0f));
         target.ikChain = static_cast<s32>(animator.addIKChain(chain));
         target.bone = -1;
     }

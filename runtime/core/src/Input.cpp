@@ -19,11 +19,11 @@ KeyCode ConvertSDLScancode(SDL_Scancode scancode);
 
 bool Input::currentMouseState[Input::MAX_MOUSE_BUTTONS];
 bool Input::previousMouseState[Input::MAX_MOUSE_BUTTONS];
-glm::vec2 Input::mousePosition;
-glm::vec2 Input::mousePreviousPosition;
-glm::vec2 Input::mouseOffset;
-glm::vec2 Input::mouseScale(1.0f, 1.0f);
-glm::vec2 Input::mouseWheel;
+Math::vec2 Input::mousePosition;
+Math::vec2 Input::mousePreviousPosition;
+Math::vec2 Input::mouseOffset;
+Math::vec2 Input::mouseScale(1.0f, 1.0f);
+Math::vec2 Input::mouseWheel;
 SDL_Cursor* Input::mouseCursor = nullptr;
 MouseCursor Input::currentCursor = DEFAULT;
 
@@ -40,11 +40,11 @@ bool Input::previousGamepadButtonState[Input::MAX_GAMEPADS][Input::MAX_GAMEPAD_B
 float Input::gamepadAxisState[Input::MAX_GAMEPADS][Input::MAX_GAMEPAD_AXIS];
 int Input::lastButtonPressed = -1;
 
-glm::vec2 Input::touchPosition[Input::MAX_TOUCH_POINTS];
+Math::vec2 Input::touchPosition[Input::MAX_TOUCH_POINTS];
 SDL_FingerID Input::touchId[Input::MAX_TOUCH_POINTS];
 int Input::touchPointCount = 0;
 
-static glm::vec2 sMouseDeltaAccum;
+static Math::vec2 sMouseDeltaAccum;
 
 // ------------------------------------------------------------------------
 // Lifecycle
@@ -64,10 +64,10 @@ void Input::init()
 
     keyPressedQueueCount = 0;
     charPressedQueueCount = 0;
-    mouseWheel = glm::vec2();
-    mouseOffset = glm::vec2();
-    mouseScale = glm::vec2(1.0f, 1.0f);
-    sMouseDeltaAccum = glm::vec2();
+    mouseWheel = Math::vec2();
+    mouseOffset = Math::vec2();
+    mouseScale = Math::vec2(1.0f, 1.0f);
+    sMouseDeltaAccum = Math::vec2();
 
     int numJoysticks = SDL_NumJoysticks();
     for (int i = 0; i < numJoysticks && i < MAX_GAMEPADS; ++i)
@@ -89,8 +89,8 @@ void Input::update()
                 sizeof(currentGamepadButtonState));
 
     mousePreviousPosition = mousePosition;
-    mouseWheel = glm::vec2();
-    sMouseDeltaAccum = glm::vec2();
+    mouseWheel = Math::vec2();
+    sMouseDeltaAccum = Math::vec2();
     keyPressedQueueCount = 0;
     charPressedQueueCount = 0;
 
@@ -127,7 +127,7 @@ void Input::onMouseUp(const SDL_MouseButtonEvent& event)
 
 void Input::onMouseMove(const SDL_MouseMotionEvent& event)
 {
-    mousePosition = glm::vec2(static_cast<float>(event.x), static_cast<float>(event.y));
+    mousePosition = Math::vec2(static_cast<float>(event.x), static_cast<float>(event.y));
     sMouseDeltaAccum.x += static_cast<float>(event.xrel);
     sMouseDeltaAccum.y += static_cast<float>(event.yrel);
 }
@@ -167,7 +167,7 @@ void Input::onTouchDown(const SDL_TouchFingerEvent& event)
     if (touchPointCount >= MAX_TOUCH_POINTS)
         return;
     touchId[touchPointCount] = event.fingerId;
-    touchPosition[touchPointCount] = glm::vec2(event.x, event.y);
+    touchPosition[touchPointCount] = Math::vec2(event.x, event.y);
     ++touchPointCount;
 }
 
@@ -192,7 +192,7 @@ void Input::onTouchMove(const SDL_TouchFingerEvent& event)
     {
         if (touchId[i] != event.fingerId)
             continue;
-        touchPosition[i] = glm::vec2(event.x, event.y);
+        touchPosition[i] = Math::vec2(event.x, event.y);
         break;
     }
 }
@@ -206,10 +206,10 @@ int Input::getTouchPointCount()
     return touchPointCount;
 }
 
-glm::vec2 Input::getTouchPosition(int index)
+Math::vec2 Input::getTouchPosition(int index)
 {
     if (index < 0 || index >= touchPointCount)
-        return glm::vec2();
+        return Math::vec2();
     return touchPosition[index];
 }
 
@@ -244,15 +244,15 @@ bool Input::isMouseUp(MouseButton button)
     return !currentMouseState[button];
 }
 
-glm::vec2 Input::getMousePosition()
+Math::vec2 Input::getMousePosition()
 {
-    return glm::vec2((mousePosition.x - mouseOffset.x) * mouseScale.x,
+    return Math::vec2((mousePosition.x - mouseOffset.x) * mouseScale.x,
                      (mousePosition.y - mouseOffset.y) * mouseScale.y);
 }
 
-glm::vec2 Input::getMouseDelta()
+Math::vec2 Input::getMouseDelta()
 {
-    return glm::vec2(sMouseDeltaAccum.x * mouseScale.x, sMouseDeltaAccum.y * mouseScale.y);
+    return Math::vec2(sMouseDeltaAccum.x * mouseScale.x, sMouseDeltaAccum.y * mouseScale.y);
 }
 
 int Input::getMouseX()
@@ -268,20 +268,20 @@ int Input::getMouseY()
 void Input::setMousePosition(int x, int y)
 {
     SDL_WarpMouseInWindow(SDL_GetMouseFocus(), x, y);
-    mousePosition = glm::vec2(static_cast<float>(x), static_cast<float>(y));
+    mousePosition = Math::vec2(static_cast<float>(x), static_cast<float>(y));
 }
 
 void Input::setMouseOffset(int offsetX, int offsetY)
 {
-    mouseOffset = glm::vec2(static_cast<float>(offsetX), static_cast<float>(offsetY));
+    mouseOffset = Math::vec2(static_cast<float>(offsetX), static_cast<float>(offsetY));
 }
 
 void Input::setMouseScale(float scaleX, float scaleY)
 {
-    mouseScale = glm::vec2(scaleX, scaleY);
+    mouseScale = Math::vec2(scaleX, scaleY);
 }
 
-glm::vec2 Input::getMouseWheelMove()
+Math::vec2 Input::getMouseWheelMove()
 {
     return mouseWheel;
 }

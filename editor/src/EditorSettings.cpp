@@ -53,11 +53,11 @@ bool EditorSettings::load(const std::string& filename)
     if (dockLayout != root.end() && dockLayout->is_number_integer())
         dockLayoutVersion = dockLayout->get<int>();
 
-    const auto readVec3 = [](const nlohmann::json& json, const char* key, glm::vec3& out)
+    const auto readVec3 = [](const nlohmann::json& json, const char* key, Math::vec3& out)
     {
         const auto field = json.find(key);
         if (field != json.end() && field->is_array() && field->size() == 3)
-            out = glm::vec3((*field)[0].get<f32>(), (*field)[1].get<f32>(), (*field)[2].get<f32>());
+            out = Math::vec3((*field)[0].get<f32>(), (*field)[1].get<f32>(), (*field)[2].get<f32>());
     };
     const auto readFloat = [](const nlohmann::json& json, const char* key, f32& out)
     {
@@ -76,10 +76,10 @@ bool EditorSettings::load(const std::string& filename)
     readFloat(root, "cameraMaxView", cameraMaxView);
     readFloat(root, "cameraNearPlane", cameraNearPlane);
     readFloat(root, "cameraFarPlane", cameraFarPlane);
-    cameraMinView = glm::clamp(cameraMinView, 0.001f, 10000.0f);
-    cameraMaxView = glm::max(cameraMaxView, cameraMinView);
-    cameraNearPlane = glm::clamp(cameraNearPlane, 0.001f, 10000.0f);
-    cameraFarPlane = glm::max(cameraFarPlane, cameraNearPlane + 0.001f);
+    cameraMinView = Math::clamp(cameraMinView, 0.001f, 10000.0f);
+    cameraMaxView = Math::max(cameraMaxView, cameraMinView);
+    cameraNearPlane = Math::clamp(cameraNearPlane, 0.001f, 10000.0f);
+    cameraFarPlane = Math::max(cameraFarPlane, cameraNearPlane + 0.001f);
     const auto perspective = root.find("cameraPerspective");
     if (perspective != root.end() && perspective->is_boolean())
         cameraPerspective = perspective->get<bool>();
@@ -114,7 +114,7 @@ bool EditorSettings::load(const std::string& filename)
     readBool(root, "previewPlanarReflections", previewPlanarReflections);
     readBool(root, "previewOcclusionCulling", previewOcclusionCulling);
     readFloat(root, "previewNavigationScale", previewNavigationScale);
-    previewNavigationScale = glm::clamp(previewNavigationScale, 0.25f, 1.0f);
+    previewNavigationScale = Math::clamp(previewNavigationScale, 0.25f, 1.0f);
     const auto assetsDirectoryField = root.find("assetsDirectory");
     if (assetsDirectoryField != root.end() && assetsDirectoryField->is_string())
         assetsDirectory = assetsDirectoryField->get<std::string>();

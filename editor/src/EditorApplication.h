@@ -13,7 +13,7 @@
 #include "Types.h"
 
 #include <filesystem>
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <string>
 #include <vector>
 
@@ -119,8 +119,8 @@ public:
     struct PickedSurface
     {
         bool valid = false;
-        glm::vec3 position = glm::vec3(0.0f);
-        glm::vec3 normal = glm::vec3(0.0f);
+        Math::vec3 position = Math::vec3(0.0f);
+        Math::vec3 normal = Math::vec3(0.0f);
         u64 object = 0;
         s32 submesh = -1;
         s32 materialSlot = -1;
@@ -205,11 +205,11 @@ public:
 
     void markDirty();
     void openScriptEditor(const std::string& path);
-    const glm::vec3& cursor3D() const
+    const Math::vec3& cursor3D() const
     {
         return mCursor3D;
     }
-    void setCursor3D(const glm::vec3& position)
+    void setCursor3D(const Math::vec3& position)
     {
         mCursor3D = position;
     }
@@ -503,7 +503,7 @@ private:
     std::string mSettingsFile;
     f32 mSettingsSaveTimer = 0.0f;
     std::string mRenderSettingsSnapshot;
-    glm::vec3 mCursor3D = glm::vec3(0.0f);
+    Math::vec3 mCursor3D = Math::vec3(0.0f);
     // An undo step is the scene's JSON plus, when the step was a submesh
     // deletion, that mesh's submesh table as it stood before. The table is
     // all that has to be kept: removeSubmesh() only erases the SubMesh

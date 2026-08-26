@@ -7,36 +7,36 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion::AI::detail
 {
 
-inline glm::vec3 safeNormalize(const glm::vec3& v)
+inline Math::vec3 safeNormalize(const Math::vec3& v)
 {
-    float len = glm::length(v);
+    float len = Math::length(v);
     if (len <= 0.0f)
-        return glm::vec3(0.0f);
+        return Math::vec3(0.0f);
     return v / len;
 }
 
 // Component of v parallel to a unit basis vector.
-inline glm::vec3 parallelComponent(const glm::vec3& v, const glm::vec3& unitBasis)
+inline Math::vec3 parallelComponent(const Math::vec3& v, const Math::vec3& unitBasis)
 {
-    return unitBasis * glm::dot(v, unitBasis);
+    return unitBasis * Math::dot(v, unitBasis);
 }
 
 // Component of v perpendicular to a unit basis vector.
-inline glm::vec3 perpendicularComponent(const glm::vec3& v, const glm::vec3& unitBasis)
+inline Math::vec3 perpendicularComponent(const Math::vec3& v, const Math::vec3& unitBasis)
 {
     return v - parallelComponent(v, unitBasis);
 }
 
 // Clamps the length of v to maxLength.
-inline glm::vec3 truncateLength(const glm::vec3& v, float maxLength)
+inline Math::vec3 truncateLength(const Math::vec3& v, float maxLength)
 {
     float maxLengthSquared = maxLength * maxLength;
-    float vecLengthSquared = glm::dot(v, v);
+    float vecLengthSquared = Math::dot(v, v);
     if (vecLengthSquared <= maxLengthSquared)
         return v;
     return v * (maxLength / std::sqrt(vecLengthSquared));

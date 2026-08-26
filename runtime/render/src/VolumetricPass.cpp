@@ -18,50 +18,50 @@ namespace
 // Matches VolumetricSettings in every volumetric_*.comp/.frag shader.
 struct alignas(16) VolumetricSettingsBlock
 {
-    glm::mat4 inverseViewProjection = glm::mat4(1.0f);
-    glm::vec4 cameraPosAndMaxDistance = glm::vec4(0.0f);
-    glm::vec4 destSizeAndSamples = glm::vec4(0.0f); // x,y size, z samples, w scattering
+    Math::mat4 inverseViewProjection = Math::mat4(1.0f);
+    Math::vec4 cameraPosAndMaxDistance = Math::vec4(0.0f);
+    Math::vec4 destSizeAndSamples = Math::vec4(0.0f); // x,y size, z samples, w scattering
 };
 
 struct alignas(16) VolumetricSunBlock
 {
-    glm::vec4 sunColorAndDensity = glm::vec4(0.0f);
-    glm::vec4 debugFallback = glm::vec4(0.0f);
+    Math::vec4 sunColorAndDensity = Math::vec4(0.0f);
+    Math::vec4 debugFallback = Math::vec4(0.0f);
 };
 
 struct alignas(16) VolumetricSpotBlock
 {
-    glm::vec4 densityAndCount = glm::vec4(0.0f); // x density, y entity count
+    Math::vec4 densityAndCount = Math::vec4(0.0f); // x density, y entity count
 };
 
 struct alignas(16) VolumetricAddBlock
 {
-    glm::vec4 destSizeAndStrength = glm::vec4(0.0f);
+    Math::vec4 destSizeAndStrength = Math::vec4(0.0f);
 };
 
 struct alignas(16) VolumetricProxyBlock
 {
-    glm::mat4 viewProjection = glm::mat4(1.0f);
-    glm::vec4 lightPosAndScale = glm::vec4(0.0f);
+    Math::mat4 viewProjection = Math::mat4(1.0f);
+    Math::vec4 lightPosAndScale = Math::vec4(0.0f);
 };
 
 struct alignas(16) VolumetricPointBlock
 {
-    glm::vec4 positionAndRange = glm::vec4(0.0f);
-    glm::vec4 colorAndDensity = glm::vec4(0.0f);
-    glm::vec4 shadowAtlasMulAdd = glm::vec4(0.0f);
-    glm::vec4 hasShadow = glm::vec4(0.0f);
+    Math::vec4 positionAndRange = Math::vec4(0.0f);
+    Math::vec4 colorAndDensity = Math::vec4(0.0f);
+    Math::vec4 shadowAtlasMulAdd = Math::vec4(0.0f);
+    Math::vec4 hasShadow = Math::vec4(0.0f);
 };
 
 struct alignas(16) VolumetricRectBlock
 {
-    glm::vec4 positionAndRange = glm::vec4(0.0f);
-    glm::vec4 colorAndDensity = glm::vec4(0.0f);
-    glm::vec4 rightAndWidth = glm::vec4(0.0f);
-    glm::vec4 upAndHeight = glm::vec4(0.0f);
-    glm::mat4 shadowVP = glm::mat4(1.0f);
-    glm::vec4 shadowAtlasMulAdd = glm::vec4(0.0f);
-    glm::vec4 hasShadowAndTwoSided = glm::vec4(0.0f);
+    Math::vec4 positionAndRange = Math::vec4(0.0f);
+    Math::vec4 colorAndDensity = Math::vec4(0.0f);
+    Math::vec4 rightAndWidth = Math::vec4(0.0f);
+    Math::vec4 upAndHeight = Math::vec4(0.0f);
+    Math::mat4 shadowVP = Math::mat4(1.0f);
+    Math::vec4 shadowAtlasMulAdd = Math::vec4(0.0f);
+    Math::vec4 hasShadowAndTwoSided = Math::vec4(0.0f);
 };
 
 } // namespace
@@ -95,7 +95,7 @@ bool VolumetricPass::setup()
 
     AssetManager& assets = Assets();
     mSphereProxy = assets.createSphere(1.0f, 12, 16);
-    mCubeProxy = assets.createBox(glm::vec3(2.0f));
+    mCubeProxy = assets.createBox(Math::vec3(2.0f));
 
     // Pipelines load their shaders lazily in ensurePipelines(), same reason
     // DepthPass/Lighting defer theirs: setup() runs before a demo has added
@@ -197,8 +197,8 @@ void VolumetricPass::execute(FrameContext& frame, PostProcessStack& post, Lighti
     if (!ensurePipelines())
         return;
 
-    const u32 halfWidth = glm::max(1u, post.sceneWidth() / 2);
-    const u32 halfHeight = glm::max(1u, post.sceneHeight() / 2);
+    const u32 halfWidth = Math::max(1u, post.sceneWidth() / 2);
+    const u32 halfHeight = Math::max(1u, post.sceneHeight() / 2);
     if (!resize(halfWidth, halfHeight))
     {
         Log::warning("VolumetricPass: could not (re)size the half-resolution "
@@ -209,9 +209,9 @@ void VolumetricPass::execute(FrameContext& frame, PostProcessStack& post, Lighti
     GPU& gpu = GPU::getSingleton();
 
     VolumetricSettingsBlock settings;
-    settings.inverseViewProjection = glm::inverse(frame.viewProjection);
-    settings.cameraPosAndMaxDistance = glm::vec4(frame.cameraPosition, maxDistance);
-    settings.destSizeAndSamples = glm::vec4(static_cast<f32>(halfWidth),
+    settings.inverseViewProjection = Math::inverse(frame.viewProjection);
+    settings.cameraPosAndMaxDistance = Math::vec4(frame.cameraPosition, maxDistance);
+    settings.destSizeAndSamples = Math::vec4(static_cast<f32>(halfWidth),
                                             static_cast<f32>(halfHeight),
                                             static_cast<f32>(samples), scattering);
     gpu.updateBuffer(mSettingsBlock, 0, sizeof(settings), &settings);
@@ -245,8 +245,8 @@ void VolumetricPass::runSun(const FrameContext& frame, PostProcessStack& post)
 
     VolumetricSunBlock sun;
     const EnvironmentBlock environment = environmentForFrame(frame);
-    sun.sunColorAndDensity = glm::vec4(glm::vec3(environment.sunColor), sunDensity);
-    sun.debugFallback = glm::vec4(debugFallback ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+    sun.sunColorAndDensity = Math::vec4(Math::vec3(environment.sunColor), sunDensity);
+    sun.debugFallback = Math::vec4(debugFallback ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
     gpu.updateBuffer(mSunBlock, 0, sizeof(sun), &sun);
 
     gpu.bindTexture(0, post.sceneDepth());
@@ -282,7 +282,7 @@ void VolumetricPass::runSpot(const FrameContext& frame, PostProcessStack& post, 
     gpu.setTarget(mAccumB.target, clear);
 
     VolumetricSpotBlock spot;
-    spot.densityAndCount = glm::vec4(spotDensity, static_cast<f32>(lighting.entityCount()), 0.0f,
+    spot.densityAndCount = Math::vec4(spotDensity, static_cast<f32>(lighting.entityCount()), 0.0f,
                                      0.0f);
     gpu.updateBuffer(mSpotBlock, 0, sizeof(spot), &spot);
 
@@ -301,7 +301,7 @@ void VolumetricPass::runSpot(const FrameContext& frame, PostProcessStack& post, 
     // Add spot's buffer onto the sun's - same shader as the final composite,
     // just at half resolution and between two half-resolution textures.
     VolumetricAddBlock add;
-    add.destSizeAndStrength = glm::vec4(static_cast<f32>(mAccumA.width),
+    add.destSizeAndStrength = Math::vec4(static_cast<f32>(mAccumA.width),
                                         static_cast<f32>(mAccumA.height), spotStrength, 0.0f);
     gpu.updateBuffer(mAddBlock, 0, sizeof(add), &add);
     gpu.bindTexture(0, mAccumB.color, mSampler);
@@ -336,19 +336,19 @@ void VolumetricPass::runRects(const FrameContext& frame, PostProcessStack& post,
         if (light.type != RenderLightType::Rectangle) continue;
         if ((light.flags & RenderLightVolumetric) == 0) continue;
 
-        proxy.lightPosAndScale = glm::vec4(light.position, light.range);
+        proxy.lightPosAndScale = Math::vec4(light.position, light.range);
         gpu.updateBuffer(mProxyBlock, 0, sizeof(proxy), &proxy);
 
-        rect.positionAndRange = glm::vec4(light.position, light.range);
-        rect.colorAndDensity = glm::vec4(light.color, rectDensity * rectStrength);
-        rect.rightAndWidth = glm::vec4(light.rectangleRight, light.rectangleWidth);
-        rect.upAndHeight = glm::vec4(light.rectangleUp, light.rectangleHeight);
+        rect.positionAndRange = Math::vec4(light.position, light.range);
+        rect.colorAndDensity = Math::vec4(light.color, rectDensity * rectStrength);
+        rect.rightAndWidth = Math::vec4(light.rectangleRight, light.rectangleWidth);
+        rect.upAndHeight = Math::vec4(light.rectangleUp, light.rectangleHeight);
         const bool hasShadow = light.matrixIndex >= 0 && light.shadowFade > 0.0f &&
                                static_cast<usize>(light.matrixIndex) < lighting.matrices().size();
         rect.shadowVP = hasShadow ? lighting.matrices()[static_cast<usize>(light.matrixIndex)]
-                                  : glm::mat4(1.0f);
+                                  : Math::mat4(1.0f);
         rect.shadowAtlasMulAdd = light.shadowAtlasMulAdd;
-        rect.hasShadowAndTwoSided = glm::vec4(hasShadow ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+        rect.hasShadowAndTwoSided = Math::vec4(hasShadow ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
         gpu.updateBuffer(mRectBlock, 0, sizeof(rect), &rect);
 
         gpu.bindUniform(0, mProxyBlock);
@@ -401,14 +401,14 @@ void VolumetricPass::runPoints(const FrameContext& frame, PostProcessStack& post
         // edge is not clipped by the proxy itself at grazing angles; the cube
         // already covers ~1.9x the sphere's volume and needs none.
         const f32 scale = light.range * (pointProxyIsCube ? 1.0f : 1.05f);
-        proxy.lightPosAndScale = glm::vec4(light.position, scale);
+        proxy.lightPosAndScale = Math::vec4(light.position, scale);
         gpu.updateBuffer(mProxyBlock, 0, sizeof(proxy), &proxy);
 
-        point.positionAndRange = glm::vec4(light.position, light.range);
-        point.colorAndDensity = glm::vec4(light.color, pointDensity * pointStrength);
+        point.positionAndRange = Math::vec4(light.position, light.range);
+        point.colorAndDensity = Math::vec4(light.color, pointDensity * pointStrength);
         point.shadowAtlasMulAdd = light.shadowAtlasMulAdd;
         const bool hasShadow = light.matrixIndex >= 0 && light.shadowFade > 0.0f;
-        point.hasShadow = glm::vec4(hasShadow ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+        point.hasShadow = Math::vec4(hasShadow ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
         gpu.updateBuffer(mPointBlock, 0, sizeof(point), &point);
 
         gpu.bindUniform(0, mProxyBlock);
@@ -440,12 +440,12 @@ void VolumetricPass::resolve(const FrameContext& frame, PostProcessStack& post)
     {
         const Viewport half{0.0f, 0.0f, static_cast<f32>(mAccumA.width),
                             static_cast<f32>(mAccumA.height)};
-        post.draw(mAccumA.color, TextureHandle(), mAccumB.target, half, 4, glm::vec4(0.0f));
-        post.draw(mAccumB.color, TextureHandle(), mAccumA.target, half, 5, glm::vec4(0.0f));
+        post.draw(mAccumA.color, TextureHandle(), mAccumB.target, half, 4, Math::vec4(0.0f));
+        post.draw(mAccumB.color, TextureHandle(), mAccumA.target, half, 5, Math::vec4(0.0f));
     }
 
     VolumetricAddBlock add;
-    add.destSizeAndStrength = glm::vec4(static_cast<f32>(post.sceneWidth()),
+    add.destSizeAndStrength = Math::vec4(static_cast<f32>(post.sceneWidth()),
                                         static_cast<f32>(post.sceneHeight()), strength, 0.0f);
     gpu.updateBuffer(mAddBlock, 0, sizeof(add), &add);
     gpu.bindTexture(0, mAccumA.color, mSampler);

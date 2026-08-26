@@ -10,7 +10,7 @@ namespace Radion::Volume
 // Positive density is inside the solid; the gradient points outwards.
 struct Sample
 {
-    glm::vec3 gradient{0.0f};
+    Math::vec3 gradient{0.0f};
     f32 density = 0.0f;
 };
 
@@ -18,8 +18,8 @@ class Source
 {
 public:
     virtual ~Source() = default;
-    virtual f32 sampleDensity(const glm::vec3& position) const = 0;
-    virtual Sample sample(const glm::vec3& position) const;
+    virtual f32 sampleDensity(const Math::vec3& position) const = 0;
+    virtual Sample sample(const Math::vec3& position) const;
 };
 
 } // namespace Radion::Volume

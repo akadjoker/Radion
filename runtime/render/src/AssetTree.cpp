@@ -20,26 +20,26 @@ namespace
 {
 
 // Rodrigues rotation of `vec` about `axis`.
-glm::vec3 rotateAxisAngle(const glm::vec3& vec, const glm::vec3& axis, f32 angle)
+Math::vec3 rotateAxisAngle(const Math::vec3& vec, const Math::vec3& axis, f32 angle)
 {
     const f32 cosine = std::cos(angle);
     const f32 sine = std::sin(angle);
-    return vec * cosine + glm::cross(axis, vec) * sine +
-           axis * (glm::dot(axis, vec) * (1.0f - cosine));
+    return vec * cosine + Math::cross(axis, vec) * sine +
+           axis * (Math::dot(axis, vec) * (1.0f - cosine));
 }
 
 // Scales only the component of `vector` that lies along `direction`; a scale of
 // zero leaves the perpendicular part alone and drops the rest.
-glm::vec3 scaleInDirection(const glm::vec3& vector, const glm::vec3& direction, f32 scale)
+Math::vec3 scaleInDirection(const Math::vec3& vector, const Math::vec3& direction, f32 scale)
 {
-    const f32 magnitude = glm::dot(vector, direction);
+    const f32 magnitude = Math::dot(vector, direction);
     return vector + direction * (magnitude * scale - magnitude);
 }
 
-glm::vec3 normalizeSafe(const glm::vec3& v)
+Math::vec3 normalizeSafe(const Math::vec3& v)
 {
-    const f32 length = glm::length(v);
-    return length > 1e-20f ? v / length : glm::vec3(0.0f);
+    const f32 length = Math::length(v);
+    return length > 1e-20f ? v / length : Math::vec3(0.0f);
 }
 
 // Positive modulo. Ring indices step backwards past zero, and a negative index
@@ -58,7 +58,7 @@ f32 treeRandom(f64 a)
 
 struct Branch
 {
-    glm::vec3 head = glm::vec3(0.0f);
+    Math::vec3 head = Math::vec3(0.0f);
     Branch* parent = nullptr;
     Branch* child0 = nullptr;
     Branch* child1 = nullptr;
@@ -84,7 +84,7 @@ public:
     // Fills `out` with the bark in submesh 0 and the twig cards in submesh 1.
     void build(MeshData& out, const AssetManager& assets)
     {
-        Branch* root = addBranch(glm::vec3(0.0f, mParams.trunkLength, 0.0f), nullptr);
+        Branch* root = addBranch(Math::vec3(0.0f, mParams.trunkLength, 0.0f), nullptr);
         root->length = mParams.initialBranchLength;
 
         splitBranch(root, static_cast<s32>(mParams.levels), static_cast<s32>(mParams.trunkSteps), 1,
@@ -135,17 +135,17 @@ private:
     // a vector would invalidate them on every push.
     std::deque<Branch> mBranches;
 
-    std::vector<glm::vec3> mPositions;
-    std::vector<glm::vec3> mNormals;
-    std::vector<glm::vec2> mUVs;
+    std::vector<Math::vec3> mPositions;
+    std::vector<Math::vec3> mNormals;
+    std::vector<Math::vec2> mUVs;
     std::vector<u32> mIndices;
 
-    std::vector<glm::vec3> mTwigPositions;
-    std::vector<glm::vec3> mTwigNormals;
-    std::vector<glm::vec2> mTwigUVs;
+    std::vector<Math::vec3> mTwigPositions;
+    std::vector<Math::vec3> mTwigNormals;
+    std::vector<Math::vec2> mTwigUVs;
     std::vector<u32> mTwigIndices;
 
-    Branch* addBranch(const glm::vec3& head, Branch* parent)
+    Branch* addBranch(const Math::vec3& head, Branch* parent)
     {
         mBranches.emplace_back();
         Branch* branch = &mBranches.back();
@@ -163,10 +163,10 @@ private:
 
     // Reflects `vec` about `norm`, scaled by branchFactor: how the second child
     // is pushed away from the first.
-    glm::vec3 mirrorBranch(const glm::vec3& vec, const glm::vec3& norm) const
+    Math::vec3 mirrorBranch(const Math::vec3& vec, const Math::vec3& norm) const
     {
-        const glm::vec3 projected = glm::cross(norm, glm::cross(vec, norm));
-        return vec - projected * (mParams.branchFactor * glm::dot(projected, vec));
+        const Math::vec3 projected = Math::cross(norm, Math::cross(vec, norm));
+        return vec - projected * (mParams.branchFactor * Math::dot(projected, vec));
     }
 
     // ---------------------------------------------------------- branch tree
@@ -176,29 +176,29 @@ private:
         const s32 levels = static_cast<s32>(mParams.levels);
         const s32 reverseLevel = levels - level;
 
-        glm::vec3 origin(0.0f);
+        Math::vec3 origin(0.0f);
         if (branch->parent)
             origin = branch->parent->head;
         else
             branch->trunk = true;
 
-        const glm::vec3 head = branch->head;
-        const glm::vec3 direction = normalizeSafe(head - origin);
+        const Math::vec3 head = branch->head;
+        const Math::vec3 direction = normalizeSafe(head - origin);
 
-        const glm::vec3 normal =
-            glm::cross(direction, glm::vec3(direction.z, direction.x, direction.y));
-        const glm::vec3 tangent = glm::cross(direction, normal);
+        const Math::vec3 normal =
+            Math::cross(direction, Math::vec3(direction.z, direction.x, direction.y));
+        const Math::vec3 tangent = Math::cross(direction, normal);
 
         const f32 r =
             treeRandom(static_cast<f64>(reverseLevel * 10 + l1 * 5 + l2 + mParams.seed));
 
-        glm::vec3 adjust = normal * r + tangent * (1.0f - r);
+        Math::vec3 adjust = normal * r + tangent * (1.0f - r);
         if (r > 0.5f)
             adjust = -adjust;
 
         const f32 clump = (mParams.clumpMax - mParams.clumpMin) * r + mParams.clumpMin;
-        glm::vec3 first = normalizeSafe(adjust * (1.0f - clump) + direction * clump);
-        glm::vec3 second = mirrorBranch(first, direction);
+        Math::vec3 first = normalizeSafe(adjust * (1.0f - clump) + direction * clump);
+        Math::vec3 second = mirrorBranch(first, direction);
 
         if (r > 0.5f)
             std::swap(first, second);
@@ -208,13 +208,13 @@ private:
         if (steps > 0)
         {
             const f32 angle = static_cast<f32>(steps) / static_cast<f32>(mParams.trunkSteps) *
-                              2.0f * glm::pi<f32>() * mParams.twistRate;
-            second = normalizeSafe(glm::vec3(std::sin(angle), r, std::cos(angle)));
+                              2.0f * Math::pi<f32>() * mParams.twistRate;
+            second = normalizeSafe(Math::vec3(std::sin(angle), r, std::cos(angle)));
         }
 
         const f32 grow = static_cast<f32>(level * level) / static_cast<f32>(levels * levels) *
                          mParams.growAmount;
-        const glm::vec3 bend(static_cast<f32>(reverseLevel) * mParams.sweepAmount,
+        const Math::vec3 bend(static_cast<f32>(reverseLevel) * mParams.sweepAmount,
                              static_cast<f32>(reverseLevel) * mParams.dropAmount + grow, 0.0f);
         first = normalizeSafe(first + bend);
         second = normalizeSafe(second + bend);
@@ -236,7 +236,7 @@ private:
         {
             // The trunk keeps climbing rather than forking for real.
             const f32 kink = (r - 0.5f) * 2.0f * mParams.trunkKink;
-            child0->head = branch->head + glm::vec3(kink, mParams.climbRate, kink);
+            child0->head = branch->head + Math::vec3(kink, mParams.climbRate, kink);
             child0->trunk = true;
             child0->length = branch->length * mParams.taperRate;
             splitBranch(child0, level, steps - 1, l1 + 1, l2);
@@ -260,15 +260,15 @@ private:
             radius = branch->length;
 
         const s32 segments = static_cast<s32>(mParams.segments);
-        const f32 segmentAngle = 2.0f * glm::pi<f32>() / static_cast<f32>(segments);
+        const f32 segmentAngle = 2.0f * Math::pi<f32>() / static_cast<f32>(segments);
 
         if (!branch->parent)
         {
             // The base of the trunk: the one ring that is not born of a fork.
-            const glm::vec3 axis(0.0f, 1.0f, 0.0f);
+            const Math::vec3 axis(0.0f, 1.0f, 0.0f);
             for (s32 i = 0; i < segments; ++i)
             {
-                const glm::vec3 vec = rotateAxisAngle(glm::vec3(-1.0f, 0.0f, 0.0f), axis,
+                const Math::vec3 vec = rotateAxisAngle(Math::vec3(-1.0f, 0.0f, 0.0f), axis,
                                                       -segmentAngle * static_cast<f32>(i));
                 branch->rootRing.push_back(static_cast<u32>(mPositions.size()));
                 mPositions.push_back(vec * (radius / mParams.radiusFalloffRate));
@@ -283,17 +283,17 @@ private:
             return;
         }
 
-        const glm::vec3 axis =
+        const Math::vec3 axis =
             branch->parent ? normalizeSafe(branch->head - branch->parent->head)
                            : normalizeSafe(branch->head);
 
-        const glm::vec3 axis1 = normalizeSafe(branch->head - branch->child0->head);
-        const glm::vec3 axis2 = normalizeSafe(branch->head - branch->child1->head);
-        const glm::vec3 tangent = normalizeSafe(glm::cross(axis1, axis2));
+        const Math::vec3 axis1 = normalizeSafe(branch->head - branch->child0->head);
+        const Math::vec3 axis2 = normalizeSafe(branch->head - branch->child1->head);
+        const Math::vec3 tangent = normalizeSafe(Math::cross(axis1, axis2));
 
-        const glm::vec3 axis3 = normalizeSafe(glm::cross(tangent, normalizeSafe(-axis1 - axis2)));
-        const glm::vec3 centre =
-            branch->head + glm::vec3(axis2.x, 0.0f, axis2.z) * (-mParams.maxRadius * 0.5f);
+        const Math::vec3 axis3 = normalizeSafe(Math::cross(tangent, normalizeSafe(-axis1 - axis2)));
+        const Math::vec3 centre =
+            branch->head + Math::vec3(axis2.x, 0.0f, axis2.z) * (-mParams.maxRadius * 0.5f);
 
         branch->ringed = true;
 
@@ -309,12 +309,12 @@ private:
         mPositions.push_back(centre + tangent * (radius * scale));
 
         u32 start = static_cast<u32>(mPositions.size()) - 1;
-        const glm::vec3 d1 = rotateAxisAngle(tangent, axis2, glm::half_pi<f32>());
-        const glm::vec3 d2 = normalizeSafe(glm::cross(tangent, axis));
-        const f32 stretch = 1.0f / glm::dot(d1, d2);
+        const Math::vec3 d1 = rotateAxisAngle(tangent, axis2, Math::half_pi<f32>());
+        const Math::vec3 d2 = normalizeSafe(Math::cross(tangent, axis));
+        const f32 stretch = 1.0f / Math::dot(d1, d2);
         for (s32 i = 1; i < segments / 2; ++i)
         {
-            glm::vec3 vec = rotateAxisAngle(tangent, axis2, segmentAngle * static_cast<f32>(i));
+            Math::vec3 vec = rotateAxisAngle(tangent, axis2, segmentAngle * static_cast<f32>(i));
             branch->ring0.push_back(start + static_cast<u32>(i));
             branch->ring2.push_back(start + static_cast<u32>(i));
             vec = scaleInDirection(vec, d2, stretch);
@@ -328,7 +328,7 @@ private:
 
         for (s32 i = segments / 2 + 1; i < segments; ++i)
         {
-            const glm::vec3 vec =
+            const Math::vec3 vec =
                 rotateAxisAngle(tangent, axis1, segmentAngle * static_cast<f32>(i));
             branch->ring0.push_back(static_cast<u32>(mPositions.size()));
             branch->ring1.push_back(static_cast<u32>(mPositions.size()));
@@ -341,7 +341,7 @@ private:
         start = static_cast<u32>(mPositions.size()) - 1;
         for (s32 i = 1; i < segments / 2; ++i)
         {
-            const glm::vec3 vec =
+            const Math::vec3 vec =
                 rotateAxisAngle(tangent, axis3, segmentAngle * static_cast<f32>(i));
             branch->ring1.push_back(start + static_cast<u32>(i));
             branch->ring2.push_back(start + static_cast<u32>(segments / 2 - i));
@@ -369,14 +369,14 @@ private:
         if (!parent || !parent->child0 || !parent->child1)
             return;
 
-        const glm::vec3 tangent = normalizeSafe(glm::cross(parent->child0->head - parent->head,
+        const Math::vec3 tangent = normalizeSafe(Math::cross(parent->child0->head - parent->head,
                                                            parent->child1->head - parent->head));
-        const glm::vec3 binormal = normalizeSafe(branch->head - parent->head);
+        const Math::vec3 binormal = normalizeSafe(branch->head - parent->head);
 
         const f32 scale = mParams.twigScale;
         const f32 length = branch->length;
 
-        const glm::vec3 corners[4] = {
+        const Math::vec3 corners[4] = {
             branch->head + tangent * scale + binormal * (scale * 2.0f - length),
             branch->head - tangent * scale + binormal * (scale * 2.0f - length),
             branch->head - tangent * scale - binormal * length,
@@ -396,14 +396,14 @@ private:
         addTriangle(mTwigIndices, base + 6, base + 5, base + 4);
         addTriangle(mTwigIndices, base + 6, base + 4, base + 7);
 
-        const glm::vec3 front = normalizeSafe(
-            glm::cross(corners[0] - corners[2], corners[1] - corners[2]));
+        const Math::vec3 front = normalizeSafe(
+            Math::cross(corners[0] - corners[2], corners[1] - corners[2]));
         for (u32 i = 0; i < 4; ++i)
             mTwigNormals.push_back(front);
         for (u32 i = 0; i < 4; ++i)
             mTwigNormals.push_back(-front);
 
-        const glm::vec2 uvs[4] = {{0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}};
+        const Math::vec2 uvs[4] = {{0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}};
         for (u32 pass = 0; pass < 2; ++pass)
             for (u32 i = 0; i < 4; ++i)
                 mTwigUVs.push_back(uvs[i]);
@@ -417,19 +417,19 @@ private:
 
         if (!branch->parent)
         {
-            mUVs.assign(mPositions.size(), glm::vec2(0.0f));
+            mUVs.assign(mPositions.size(), Math::vec2(0.0f));
 
             // Which segment of the root ring lines up with segment 0 of the
             // first fork. Without it the bark texture twists at the base.
-            const glm::vec3 tangent = normalizeSafe(glm::cross(branch->child0->head - branch->head,
+            const Math::vec3 tangent = normalizeSafe(Math::cross(branch->child0->head - branch->head,
                                                                branch->child1->head - branch->head));
-            const glm::vec3 reference(-1.0f, 0.0f, 0.0f);
-            f32 angle = std::acos(glm::clamp(glm::dot(tangent, reference), -1.0f, 1.0f));
-            if (glm::dot(glm::cross(reference, tangent), normalizeSafe(branch->head)) > 0.0f)
-                angle = 2.0f * glm::pi<f32>() - angle;
+            const Math::vec3 reference(-1.0f, 0.0f, 0.0f);
+            f32 angle = std::acos(Math::clamp(Math::dot(tangent, reference), -1.0f, 1.0f));
+            if (Math::dot(Math::cross(reference, tangent), normalizeSafe(branch->head)) > 0.0f)
+                angle = 2.0f * Math::pi<f32>() - angle;
 
             const s32 offset = static_cast<s32>(
-                std::lround(angle / (2.0 * glm::pi<f64>()) * static_cast<f64>(segments)));
+                std::lround(angle / (2.0 * Math::pi<f64>()) * static_cast<f64>(segments)));
 
             for (s32 i = 0; i < segments; ++i)
             {
@@ -442,11 +442,11 @@ private:
                 addTriangle(mIndices, d, b, c);
 
                 const f32 u = std::fabs(static_cast<f32>(i) / static_cast<f32>(segments) - 0.5f) * 2.0f;
-                mUVs[c] = glm::vec2(u, 0.0f);
+                mUVs[c] = Math::vec2(u, 0.0f);
 
-                const f32 v = glm::length(mPositions[a] - mPositions[c]) * mParams.vMultiplier;
-                mUVs[a] = glm::vec2(u, v);
-                mUVs[branch->ring2[static_cast<usize>(i)]] = glm::vec2(u, v);
+                const f32 v = Math::length(mPositions[a] - mPositions[c]) * mParams.vMultiplier;
+                mUVs[a] = Math::vec2(u, v);
+                mUVs[branch->ring2[static_cast<usize>(i)]] = Math::vec2(u, v);
             }
         }
 
@@ -486,16 +486,16 @@ private:
     {
         const s32 segments = static_cast<s32>(mParams.segments);
 
-        glm::vec3 side = normalizeSafe(mPositions[ring[0]] - branch->head);
+        Math::vec3 side = normalizeSafe(mPositions[ring[0]] - branch->head);
         side = scaleInDirection(side, normalizeSafe(child->head - branch->head), 0.0f);
 
         s32 best = segments;
-        f32 bestMatch = glm::dot(normalizeSafe(mPositions[child->ring0[0]] - child->head), side);
+        f32 bestMatch = Math::dot(normalizeSafe(mPositions[child->ring0[0]] - child->head), side);
         for (s32 i = 1; i < segments; ++i)
         {
-            const glm::vec3 d =
+            const Math::vec3 d =
                 normalizeSafe(mPositions[child->ring0[static_cast<usize>(i)]] - child->head);
-            const f32 match = glm::dot(d, side);
+            const f32 match = Math::dot(d, side);
             if (match > bestMatch)
             {
                 bestMatch = match;
@@ -528,9 +528,9 @@ private:
             addTriangle(mIndices, d, b, c);
         }
 
-        const f32 length = glm::length(mPositions[a] - mPositions[c]) * uvScale;
-        const glm::vec2 previous = mUVs[ring[static_cast<usize>(wrap(i + offset - 1, segments))]];
-        const glm::vec2 uv(previous.x, previous.y + length * mParams.vMultiplier);
+        const f32 length = Math::length(mPositions[a] - mPositions[c]) * uvScale;
+        const Math::vec2 previous = mUVs[ring[static_cast<usize>(wrap(i + offset - 1, segments))]];
+        const Math::vec2 uv(previous.x, previous.y + length * mParams.vMultiplier);
         mUVs[a] = uv;
         mUVs[child->ring2[static_cast<usize>(i)]] = uv;
     }
@@ -549,8 +549,8 @@ private:
             const u32 b = ring[static_cast<usize>(i)];
             addTriangle(mIndices, tip, a, b);
 
-            const f32 length = glm::length(mPositions[tip] - mPositions[b]);
-            mUVs[tip] = glm::vec2(
+            const f32 length = Math::length(mPositions[tip] - mPositions[b]);
+            mUVs[tip] = Math::vec2(
                 std::fabs(static_cast<f32>(i) / static_cast<f32>(segments) - uvCentre) * 2.0f,
                 length * mParams.vMultiplier);
         }
@@ -560,24 +560,24 @@ private:
     // averages the faces around it.
     void averageNormals()
     {
-        mNormals.assign(mPositions.size(), glm::vec3(0.0f));
+        mNormals.assign(mPositions.size(), Math::vec3(0.0f));
 
         for (usize i = 0; i + 2 < mIndices.size(); i += 3)
         {
             const u32 a = mIndices[i];
             const u32 b = mIndices[i + 1];
             const u32 c = mIndices[i + 2];
-            const glm::vec3 normal = normalizeSafe(
-                glm::cross(mPositions[b] - mPositions[c], mPositions[b] - mPositions[a]));
+            const Math::vec3 normal = normalizeSafe(
+                Math::cross(mPositions[b] - mPositions[c], mPositions[b] - mPositions[a]));
             mNormals[a] += normal;
             mNormals[b] += normal;
             mNormals[c] += normal;
         }
 
-        for (glm::vec3& normal : mNormals)
+        for (Math::vec3& normal : mNormals)
         {
-            const f32 length = glm::length(normal);
-            normal = length > 1e-8f ? normal / length : glm::vec3(0.0f, 1.0f, 0.0f);
+            const f32 length = Math::length(normal);
+            normal = length > 1e-8f ? normal / length : Math::vec3(0.0f, 1.0f, 0.0f);
         }
     }
 };

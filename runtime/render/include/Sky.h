@@ -26,9 +26,9 @@ struct SkySettings
     f32 sunElevation = 65.0f;
     f32 northOffset = 0.0f;
     f32 maximumElevation = 65.0f;
-    glm::vec3 sunDirection = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec3 sunTransmittance = glm::vec3(1.0f);
-    glm::vec3 ambient = glm::vec3(0.12f, 0.16f, 0.24f);
+    Math::vec3 sunDirection = Math::vec3(0.0f, 1.0f, 0.0f);
+    Math::vec3 sunTransmittance = Math::vec3(1.0f);
+    Math::vec3 ambient = Math::vec3(0.12f, 0.16f, 0.24f);
     f32 ambientStrength = 1.0f;
     f32 intensity = 1.0f;
 
@@ -65,8 +65,8 @@ struct SkySettings
     f32 cloudCoverage = 0.5f;
     f32 cloudDensity = 0.5f;
     f32 cloudSpeed = 1.0f;
-    glm::vec2 cloudDirection = glm::vec2(1.0f, 0.0f);
-    glm::vec3 cloudColor = glm::vec3(1.0f, 1.0f, 1.0f);
+    Math::vec2 cloudDirection = Math::vec2(1.0f, 0.0f);
+    Math::vec3 cloudColor = Math::vec3(1.0f, 1.0f, 1.0f);
 
     void updateSun();
 };

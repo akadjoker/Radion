@@ -6,7 +6,7 @@
 #include "Mesh.h" // MeshHandle
 #include "MeshPreview.h"
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <string>
 #include <vector>
 
@@ -38,7 +38,7 @@ private:
 
     struct PrimitiveSettings
     {
-        glm::vec3 dimensions = glm::vec3(1.0f);
+        Math::vec3 dimensions = Math::vec3(1.0f);
         f32 uvTiles = 1.0f;
         int segmentsA = 0;
         int segmentsB = 0;

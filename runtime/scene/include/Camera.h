@@ -29,9 +29,9 @@ public:
     f32 nearPlane() const;
     f32 farPlane() const;
 
-    glm::mat4 viewMatrix() const;
-    glm::mat4 projectionMatrix() const;
-    glm::mat4 viewProjectionMatrix() const;
+    Math::mat4 viewMatrix() const;
+    Math::mat4 projectionMatrix() const;
+    Math::mat4 viewProjectionMatrix() const;
 
     // Builds a world-space picking ray from window mouse coordinates. The
     // viewport is supplied by the render pass, so split-screen and editor

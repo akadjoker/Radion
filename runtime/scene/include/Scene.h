@@ -179,8 +179,8 @@ public:
     // culling only, no occlusion verdicts or bookkeeping touched.
     // previewOcclusion lets a bystander apply the game camera's verdicts
     // read-only.
-    bool buildRenderList(RenderList& list, const glm::mat4& viewProjection,
-                         const glm::vec3& cameraPosition, u32 filter = 0,
+    bool buildRenderList(RenderList& list, const Math::mat4& viewProjection,
+                         const Math::vec3& cameraPosition, u32 filter = 0,
                          bool occlusionView = true, bool previewOcclusion = false);
 
     // Rebuilds the static spatial index (SceneBVH) from every current
@@ -302,8 +302,8 @@ public:
     // target and before the Forward pass reads buildRenderList()'s result -
     // next frame's buildRenderList() is what actually acts on what gets
     // measured here. A no-op when setOcclusionQueryEnabled() is off.
-    void updateOcclusionQueries(TargetHandle depthTarget, const glm::mat4& viewProjection,
-                                const glm::vec3& cameraPosition);
+    void updateOcclusionQueries(TargetHandle depthTarget, const Math::mat4& viewProjection,
+                                const Math::vec3& cameraPosition);
 
     // One box per entry buildRenderList() saw this frame (mStaticHits, same
     // scratch updateOcclusionQueries() reads) - green if visible (including
@@ -324,8 +324,8 @@ public:
     // the pixel has no geometry (sky or background).
     static bool pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f32 mouseX,
                             f32 mouseY, u32 windowWidth, u32 windowHeight,
-                            const glm::mat4& inverseProjection, const glm::mat4& inverseView,
-                            glm::vec3& outPosition, glm::vec3& outNormal);
+                            const Math::mat4& inverseProjection, const Math::mat4& inverseView,
+                            Math::vec3& outPosition, Math::vec3& outNormal);
 
     // Nearest GameObject whose MeshRenderer's world AABB the ray crosses, or
     // nullptr - inactive objects and hidden ones (isVisibleInHierarchy()
@@ -343,7 +343,7 @@ public:
     // would get wrong (the box is hit, but from an angle no triangle there
     // actually faces). Ties (nested/overlapping boxes) go to the smallest
     // volume, the tighter fit around the point.
-    GameObject* pickObjectAtPoint(const glm::vec3& point) const;
+    GameObject* pickObjectAtPoint(const Math::vec3& point) const;
 
     // Same idea as pickObjectAtPoint(), one level down - which of `object`'s
     // own MeshRenderer submeshes (by SubMesh::bounds, its own coarse AABB,
@@ -358,7 +358,7 @@ public:
     // submeshes can share one materialSlot, so the slot alone cannot say
     // which box was actually hit - what a caller wanting to outline exactly
     // the piece under the cursor needs.
-    static s32 pickSubmeshAtPoint(const GameObject& object, const glm::vec3& point,
+    static s32 pickSubmeshAtPoint(const GameObject& object, const Math::vec3& point,
                                   s32* outSubmesh = nullptr);
 
     // Set by the editor host once, right after it creates this Scene - never
@@ -405,7 +405,7 @@ private:
     // position is taken for setCamera(): the sort key it would feed only
     // orders a depth-only pass for early-Z, which does not affect
     // correctness, and a directional light has no position to give it.
-    bool buildShadowList(RenderList& list, const glm::mat4& viewProjection, u32 filter,
+    bool buildShadowList(RenderList& list, const Math::mat4& viewProjection, u32 filter,
                          const Sphere* cullSphere = nullptr, MeshHandle exclude = MeshHandle(),
                          u64 excludeObjectId = 0, bool reflectionCapture = false,
                          const std::vector<Plane>* casterPlanes = nullptr,
@@ -437,7 +437,7 @@ public:
     // scene, and the number that suits one does not suit another.
     void setOcclusionStagger(u32 frames)
     {
-        mOcclusionStagger = glm::max(frames, 1u);
+        mOcclusionStagger = Math::max(frames, 1u);
     }
     u32 occlusionStagger() const
     {

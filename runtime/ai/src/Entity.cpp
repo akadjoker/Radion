@@ -41,7 +41,7 @@ Entity::Entity(World& world, const Settings& settings)
 
 void Entity::setSpeed(float newSpeed)
 {
-    float spd = glm::length(mVelocity);
+    float spd = Math::length(mVelocity);
     if (spd > 0.0f)
         mVelocity *= newSpeed / spd;
     else
@@ -50,7 +50,7 @@ void Entity::setSpeed(float newSpeed)
 
 void Entity::alignWithVelocity()
 {
-    float spd = glm::length(mVelocity);
+    float spd = Math::length(mVelocity);
     // A direction from a near-zero velocity is numerical noise. Updating the
     // orientation from it makes formation goals rotate while the squad is at
     // rest, which in turn makes the debug path visibly oscillate.
@@ -59,45 +59,45 @@ void Entity::alignWithVelocity()
 
     // Standard right-handed orthonormal regeneration:
     // forward = velocity, side = normalize(cross(up, forward)), up = cross(forward, side).
-    glm::vec3 newForward = mVelocity / spd;
-    glm::vec3 oldUp = up();
-    glm::vec3 sideReference = oldUp;
+    Math::vec3 newForward = mVelocity / spd;
+    Math::vec3 oldUp = up();
+    Math::vec3 sideReference = oldUp;
     // A forward vector parallel to up has no valid cross product.  Keep the
     // previous side (projected onto the plane perpendicular to forward) so a
     // vertical/near-vertical velocity cannot poison the quaternion with NaNs.
-    glm::vec3 newSide = glm::cross(sideReference, newForward);
-    if (glm::dot(newSide, newSide) <= 1e-8f)
+    Math::vec3 newSide = Math::cross(sideReference, newForward);
+    if (Math::dot(newSide, newSide) <= 1e-8f)
         newSide = side();
-    newSide -= newForward * glm::dot(newSide, newForward);
-    if (glm::dot(newSide, newSide) <= 1e-8f)
-        newSide = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), newForward);
-    newSide = glm::normalize(newSide);
-    glm::vec3 newUp = glm::cross(newForward, newSide);
+    newSide -= newForward * Math::dot(newSide, newForward);
+    if (Math::dot(newSide, newSide) <= 1e-8f)
+        newSide = Math::cross(Math::vec3(0.0f, 1.0f, 0.0f), newForward);
+    newSide = Math::normalize(newSide);
+    Math::vec3 newUp = Math::cross(newForward, newSide);
 
-    mOrientation = glm::quat_cast(glm::mat3(newSide, newUp, newForward));
+    mOrientation = Math::quat_cast(Math::mat3(newSide, newUp, newForward));
 }
 
-glm::vec3 Entity::localizeDirection(const glm::vec3& globalDirection) const
+Math::vec3 Entity::localizeDirection(const Math::vec3& globalDirection) const
 {
-    const glm::mat3 basis(side(), up(), forward());
-    return glm::transpose(basis) * globalDirection;
+    const Math::mat3 basis(side(), up(), forward());
+    return Math::transpose(basis) * globalDirection;
 }
 
-glm::vec3 Entity::localizePosition(const glm::vec3& globalPosition) const
+Math::vec3 Entity::localizePosition(const Math::vec3& globalPosition) const
 {
-    const glm::mat3 basis(side(), up(), forward());
-    return glm::transpose(basis) * (globalPosition - mPosition);
+    const Math::mat3 basis(side(), up(), forward());
+    return Math::transpose(basis) * (globalPosition - mPosition);
 }
 
-glm::vec3 Entity::globalizePosition(const glm::vec3& localPosition) const
+Math::vec3 Entity::globalizePosition(const Math::vec3& localPosition) const
 {
-    const glm::mat3 basis(side(), up(), forward());
+    const Math::mat3 basis(side(), up(), forward());
     return mPosition + (basis * localPosition);
 }
 
-glm::vec3 Entity::globalizeDirection(const glm::vec3& localDirection) const
+Math::vec3 Entity::globalizeDirection(const Math::vec3& localDirection) const
 {
-    const glm::mat3 basis(side(), up(), forward());
+    const Math::mat3 basis(side(), up(), forward());
     return basis * localDirection;
 }
 
@@ -111,8 +111,8 @@ void Entity::iterate(float timeDelta)
     // still needs to look up to hide/pose its GameObject.
     if (!alive())
     {
-        mVelocity = glm::vec3(0.0f);
-        mDesiredMoveVector = glm::vec3(0.0f);
+        mVelocity = Math::vec3(0.0f);
+        mDesiredMoveVector = Math::vec3(0.0f);
         return;
     }
 
@@ -127,7 +127,7 @@ void Entity::iterate(float timeDelta)
     // Behaviors contribute to a per-frame steering accumulator.  Keeping the
     // previous value makes acceleration compound forever and is especially
     // visible as oscillating turns in formations.
-    mDesiredMoveVector = glm::vec3(0.0f);
+    mDesiredMoveVector = Math::vec3(0.0f);
 
     // Refresh sense data.
     mVisibleGroupMembers.clear();
@@ -140,9 +140,9 @@ void Entity::iterate(float timeDelta)
         behavior->iterate(timeDelta, *this);
 
     // Clamp the desired move to the maximum velocity change (acceleration).
-    float velChange = glm::length(mDesiredMoveVector);
+    float velChange = Math::length(mDesiredMoveVector);
     if (velChange > mMaxVelocityChange && velChange > 0.0f)
-        mDesiredMoveVector = glm::normalize(mDesiredMoveVector) * mMaxVelocityChange;
+        mDesiredMoveVector = Math::normalize(mDesiredMoveVector) * mMaxVelocityChange;
 
     // Apply the change.
     mVelocity += mDesiredMoveVector;
@@ -153,16 +153,16 @@ void Entity::iterate(float timeDelta)
     mVelocity.z *= mMoveZScalar;
 
     // Clamp the actual velocity to max speed.
-    float speed = glm::length(mVelocity);
+    float speed = Math::length(mVelocity);
     if (speed > mMaxSpeed && speed > 0.0f)
-        mVelocity = glm::normalize(mVelocity) * mMaxSpeed;
+        mVelocity = Math::normalize(mVelocity) * mMaxSpeed;
 
     // Snap tiny residual velocities to rest. Without this dead zone an agent
     // that has reached a formation slot keeps moving by sub-pixel amounts;
     // those changes are especially visible when a debug path is aligned with
     // the camera.
-    if (glm::length(mVelocity) < 0.1f)
-        mVelocity = glm::vec3(0.0f);
+    if (Math::length(mVelocity) < 0.1f)
+        mVelocity = Math::vec3(0.0f);
 }
 
 void Entity::updateGroupVisibility()
@@ -201,8 +201,8 @@ void Entity::updateEnemyVisibility()
 
 bool Entity::visibilityTest(const Entity& other, float& dist) const
 {
-    glm::vec3 distVec = other.position() - position();
-    dist = glm::length(distVec);
+    Math::vec3 distVec = other.position() - position();
+    dist = Math::length(distVec);
     return dist < mSenseRange;
 }
 

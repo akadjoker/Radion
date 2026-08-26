@@ -140,12 +140,12 @@ bool near(f32 a, f32 b, f32 epsilon = 0.0001f)
     return std::abs(a - b) <= epsilon;
 }
 
-bool near(const glm::vec3& a, const glm::vec3& b, f32 epsilon = 0.0001f)
+bool near(const Math::vec3& a, const Math::vec3& b, f32 epsilon = 0.0001f)
 {
-    return glm::length(a - b) <= epsilon;
+    return Math::length(a - b) <= epsilon;
 }
 
-bool near(const glm::mat4& a, const glm::mat4& b, f32 epsilon = 0.0001f)
+bool near(const Math::mat4& a, const Math::mat4& b, f32 epsilon = 0.0001f)
 {
     for (u32 column = 0; column < 4; ++column)
         for (u32 row = 0; row < 4; ++row)
@@ -158,10 +158,10 @@ bool near(const glm::mat4& a, const glm::mat4& b, f32 epsilon = 0.0001f)
 // one more - a straight two-link chain whose tip starts at (0,2,0).
 void buildIKTestSkeleton(Skeleton& skeleton)
 {
-    const glm::mat4 step = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    CHECK(skeleton.addBone("root", -1, glm::mat4(1.0f), glm::mat4(1.0f)));
-    CHECK(skeleton.addBone("mid", 0, step, glm::inverse(step)));
-    CHECK(skeleton.addBone("tip", 1, step, glm::inverse(step)));
+    const Math::mat4 step = Math::translate(Math::mat4(1.0f), Math::vec3(0.0f, 1.0f, 0.0f));
+    CHECK(skeleton.addBone("root", -1, Math::mat4(1.0f), Math::mat4(1.0f)));
+    CHECK(skeleton.addBone("mid", 0, step, Math::inverse(step)));
+    CHECK(skeleton.addBone("tip", 1, step, Math::inverse(step)));
     CHECK(skeleton.finalize());
 }
 
@@ -171,13 +171,13 @@ void testInverseKinematics()
     buildIKTestSkeleton(skeleton);
 
     std::vector<LocalPose> localPose;
-    std::vector<glm::mat4> globalPose;
-    std::vector<glm::mat4> palette;
+    std::vector<Math::mat4> globalPose;
+    std::vector<Math::mat4> palette;
     skeleton.bindPose(localPose);
     skeleton.evaluate(localPose, globalPose, palette);
 
     // The starting pose is what the chain reaching assumes: tip two units up.
-    CHECK(near(glm::vec3(globalPose[2][3]), glm::vec3(0.0f, 2.0f, 0.0f)));
+    CHECK(near(Math::vec3(globalPose[2][3]), Math::vec3(0.0f, 2.0f, 0.0f)));
 
     // A target the chain can physically reach: same distance from the root as
     // the chain is long, just in another direction. Unconstrained CCD should
@@ -186,21 +186,21 @@ void testInverseKinematics()
     chain.tipBone = 2;
     chain.length = 2;
     chain.iterations = 32;
-    chain.target = glm::vec3(2.0f, 0.0f, 0.0f);
-    IKSolver::solve(skeleton, chain, glm::mat4(1.0f), localPose, globalPose);
+    chain.target = Math::vec3(2.0f, 0.0f, 0.0f);
+    IKSolver::solve(skeleton, chain, Math::mat4(1.0f), localPose, globalPose);
 
-    const glm::vec3 tip = glm::vec3(globalPose[2][3]);
+    const Math::vec3 tip = Math::vec3(globalPose[2][3]);
     CHECK(std::isfinite(tip.x) && std::isfinite(tip.y) && std::isfinite(tip.z));
     // Loose on purpose: CCD converges towards the target, it does not land on
     // it exactly in a finite number of passes.
-    CHECK(glm::distance(tip, chain.target) < 0.05f);
+    CHECK(Math::distance(tip, chain.target) < 0.05f);
 
     // The solver has to hand back a localPose and a globalPose that still
     // agree with each other - the palette is rebuilt from localPose, so a
     // globalPose that drifted from it would skin against a pose nothing else
     // ever sees.
-    std::vector<glm::mat4> reEvaluated;
-    std::vector<glm::mat4> rePalette;
+    std::vector<Math::mat4> reEvaluated;
+    std::vector<Math::mat4> rePalette;
     skeleton.evaluate(localPose, reEvaluated, rePalette);
     for (u32 i = 0; i < skeleton.boneCount(); ++i)
         CHECK(near(reEvaluated[i], globalPose[i], 0.001f));
@@ -209,21 +209,21 @@ void testInverseKinematics()
     // stretch as far as it goes.
     skeleton.bindPose(localPose);
     skeleton.evaluate(localPose, globalPose, palette);
-    chain.target = glm::vec3(50.0f, 0.0f, 0.0f);
-    IKSolver::solve(skeleton, chain, glm::mat4(1.0f), localPose, globalPose);
-    const glm::vec3 stretched = glm::vec3(globalPose[2][3]);
+    chain.target = Math::vec3(50.0f, 0.0f, 0.0f);
+    IKSolver::solve(skeleton, chain, Math::mat4(1.0f), localPose, globalPose);
+    const Math::vec3 stretched = Math::vec3(globalPose[2][3]);
     CHECK(std::isfinite(stretched.x) && std::isfinite(stretched.y) && std::isfinite(stretched.z));
-    CHECK(near(glm::length(stretched), 2.0f, 0.01f)); // still two units of bone
+    CHECK(near(Math::length(stretched), 2.0f, 0.01f)); // still two units of bone
 
     // A target exactly on the joint has no direction to rotate along: it must
     // bail rather than normalise a zero vector.
     skeleton.bindPose(localPose);
     skeleton.evaluate(localPose, globalPose, palette);
-    chain.target = glm::vec3(0.0f, 1.0f, 0.0f); // the mid joint itself
-    IKSolver::solve(skeleton, chain, glm::mat4(1.0f), localPose, globalPose);
+    chain.target = Math::vec3(0.0f, 1.0f, 0.0f); // the mid joint itself
+    IKSolver::solve(skeleton, chain, Math::mat4(1.0f), localPose, globalPose);
     for (u32 i = 0; i < skeleton.boneCount(); ++i)
     {
-        const glm::vec3 bone = glm::vec3(globalPose[i][3]);
+        const Math::vec3 bone = Math::vec3(globalPose[i][3]);
         CHECK(std::isfinite(bone.x) && std::isfinite(bone.y) && std::isfinite(bone.z));
     }
 
@@ -232,15 +232,15 @@ void testInverseKinematics()
     // the reference's own per-axis formula is what decides how far it gets.
     skeleton.bindPose(localPose);
     skeleton.evaluate(localPose, globalPose, palette);
-    chain.target = glm::vec3(1.5f, 0.5f, 0.0f);
+    chain.target = Math::vec3(1.5f, 0.5f, 0.0f);
     chain.constraints[0] = IKConstraint::knee();
     chain.constraints[1] = IKConstraint::thigh();
-    IKSolver::solve(skeleton, chain, glm::mat4(1.0f), localPose, globalPose);
+    IKSolver::solve(skeleton, chain, Math::mat4(1.0f), localPose, globalPose);
     for (u32 i = 0; i < skeleton.boneCount(); ++i)
     {
-        const glm::vec3 bone = glm::vec3(globalPose[i][3]);
+        const Math::vec3 bone = Math::vec3(globalPose[i][3]);
         CHECK(std::isfinite(bone.x) && std::isfinite(bone.y) && std::isfinite(bone.z));
-        CHECK(glm::length(bone) < 3.0f); // no joint flew off
+        CHECK(Math::length(bone) < 3.0f); // no joint flew off
     }
 
     // inverted() is the reference's knee_bending < 0 case: min and max swap,
@@ -258,7 +258,7 @@ void testInverseKinematics()
     skeleton.evaluate(localPose, globalPose, palette);
     IKChain empty;
     empty.tipBone = -1;
-    IKSolver::solve(skeleton, empty, glm::mat4(1.0f), localPose, globalPose);
+    IKSolver::solve(skeleton, empty, Math::mat4(1.0f), localPose, globalPose);
     for (u32 i = 0; i < skeleton.boneCount(); ++i)
         CHECK(near(localPose[i].position, untouched[i].position));
 }
@@ -266,19 +266,19 @@ void testInverseKinematics()
 void testAnimatedPlayers()
 {
     Skeleton skeleton;
-    const glm::mat4 rootBind =
-        glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, -2.0f, 5.0f)) *
-        glm::mat4_cast(glm::angleAxis(glm::radians(37.0f), glm::normalize(glm::vec3(1, 2, 3)))) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(2.0f, 3.0f, 0.5f));
-    CHECK(skeleton.addBone("root", -1, rootBind, glm::inverse(rootBind)));
-    CHECK(skeleton.addBone("hand", 0, glm::translate(glm::mat4(1.0f), glm::vec3(0, 1, 0)),
-                           glm::translate(glm::mat4(1.0f), glm::vec3(0, -1, 0))));
+    const Math::mat4 rootBind =
+        Math::translate(Math::mat4(1.0f), Math::vec3(3.0f, -2.0f, 5.0f)) *
+        Math::mat4_cast(Math::angleAxis(Math::radians(37.0f), Math::normalize(Math::vec3(1, 2, 3)))) *
+        Math::scale(Math::mat4(1.0f), Math::vec3(2.0f, 3.0f, 0.5f));
+    CHECK(skeleton.addBone("root", -1, rootBind, Math::inverse(rootBind)));
+    CHECK(skeleton.addBone("hand", 0, Math::translate(Math::mat4(1.0f), Math::vec3(0, 1, 0)),
+                           Math::translate(Math::mat4(1.0f), Math::vec3(0, -1, 0))));
     CHECK(skeleton.finalize());
     std::vector<LocalPose> bindPose;
     skeleton.bindPose(bindPose);
-    const glm::mat4 recomposed = glm::translate(glm::mat4(1.0f), bindPose[0].position) *
-                                 glm::mat4_cast(bindPose[0].rotation) *
-                                 glm::scale(glm::mat4(1.0f), bindPose[0].scale);
+    const Math::mat4 recomposed = Math::translate(Math::mat4(1.0f), bindPose[0].position) *
+                                 Math::mat4_cast(bindPose[0].rotation) *
+                                 Math::scale(Math::mat4(1.0f), bindPose[0].scale);
     CHECK(near(recomposed, rootBind));
 
     AnimationClip clip;
@@ -287,9 +287,9 @@ void testAnimatedPlayers()
     BoneTrack track;
     track.bone = 0;
     track.times = {0.0f, 2.0f};
-    track.positions = {glm::vec3(0.0f), glm::vec3(2.0f, 0.0f, 0.0f)};
-    track.rotations = {glm::quat(1, 0, 0, 0), glm::quat(1, 0, 0, 0)};
-    track.scales = {glm::vec3(1.0f), glm::vec3(1.0f)};
+    track.positions = {Math::vec3(0.0f), Math::vec3(2.0f, 0.0f, 0.0f)};
+    track.rotations = {Math::quat(1, 0, 0, 0), Math::quat(1, 0, 0, 0)};
+    track.scales = {Math::vec3(1.0f), Math::vec3(1.0f)};
     clip.tracks().push_back(track);
     const std::vector<AnimationClip> clips = {clip};
     const AnimationSetHandle animationSet = Animations().create(skeleton, clips);
@@ -502,7 +502,7 @@ void testSceneSerializerFailedLoadLeavesSceneIntact()
 {
     Scene scene;
     GameObject* marker = scene.createGameObject("marker");
-    marker->setPosition(glm::vec3(1.0f, 2.0f, 3.0f));
+    marker->setPosition(Math::vec3(1.0f, 2.0f, 3.0f));
     scene.update(0.016f);
 
     SceneSerializer serializer;
@@ -514,7 +514,7 @@ void testSceneSerializerFailedLoadLeavesSceneIntact()
     // exactly what it was.
     CHECK(scene.gameObjectCount() == 1);
     CHECK(scene.findGameObject(marker->id()) == marker);
-    CHECK(near(marker->position(), glm::vec3(1.0f, 2.0f, 3.0f)));
+    CHECK(near(marker->position(), Math::vec3(1.0f, 2.0f, 3.0f)));
 
     nlohmann::json badVersion;
     badVersion["format"] = "radion-scene";
@@ -531,16 +531,16 @@ void testSceneSerializerHierarchyRoundTrip()
 {
     Scene scene;
     GameObject* grandparent = scene.createGameObject("grandparent");
-    grandparent->setPosition(glm::vec3(1.0f, 2.0f, 3.0f));
+    grandparent->setPosition(Math::vec3(1.0f, 2.0f, 3.0f));
     grandparent->setTag("root-actor");
     grandparent->setStatic(true);
 
     GameObject* parent = scene.createGameObject("parent", grandparent);
-    parent->setRotation(glm::angleAxis(glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    parent->setRotation(Math::angleAxis(Math::radians(45.0f), Math::vec3(0.0f, 1.0f, 0.0f)));
     parent->setVisible(false);
 
     GameObject* childA = scene.createGameObject("childA", parent);
-    childA->setScale(glm::vec3(2.0f, 1.0f, 0.5f));
+    childA->setScale(Math::vec3(2.0f, 1.0f, 0.5f));
     GameObject* childB = scene.createGameObject("childB", parent);
     childB->setActive(false);
 
@@ -774,7 +774,7 @@ void testSceneSerializerEditorCreatedMarkersRoundTrip()
     hair->setFollowers(3);
     hair->setLengthRange(0.21f, 0.64f);
     hair->setWidth(0.006f);
-    hair->setColor(glm::vec3(0.18f, 0.07f, 0.02f));
+    hair->setColor(Math::vec3(0.18f, 0.07f, 0.02f));
     hair->setSpecularStrength(0.17f);
     hair->setSpecularTint(0.8f);
     hair->setTransmission(0.22f);
@@ -808,7 +808,7 @@ void testSceneSerializerEditorCreatedMarkersRoundTrip()
         CHECK(near(loadedHair->minimumLength(), 0.21f));
         CHECK(near(loadedHair->maximumLength(), 0.64f));
         CHECK(near(loadedHair->width(), 0.006f));
-        CHECK(near(loadedHair->color(), glm::vec3(0.18f, 0.07f, 0.02f)));
+        CHECK(near(loadedHair->color(), Math::vec3(0.18f, 0.07f, 0.02f)));
         CHECK(near(loadedHair->specularStrength(), 0.17f));
         CHECK(near(loadedHair->specularTint(), 0.8f));
         CHECK(near(loadedHair->transmission(), 0.22f));
@@ -961,7 +961,7 @@ void testSceneSerializerLightRoundTrip()
     Scene scene;
     GameObject* spotObject = scene.createGameObject("spot");
     SpotLight* spot = spotObject->addComponent<SpotLight>();
-    spot->setColor(glm::vec3(1.0f, 0.5f, 0.25f));
+    spot->setColor(Math::vec3(1.0f, 0.5f, 0.25f));
     spot->setIntensity(3.0f);
     spot->setCastShadows(true);
     spot->setVolumetric(true);
@@ -970,7 +970,7 @@ void testSceneSerializerLightRoundTrip()
 
     GameObject* sunObject = scene.createGameObject("sun");
     DirectionalLight* sun = sunObject->addComponent<DirectionalLight>();
-    sun->setColor(glm::vec3(1.0f));
+    sun->setColor(Math::vec3(1.0f));
     sun->setIntensity(2.0f);
 
     scene.update(0.016f);
@@ -988,7 +988,7 @@ void testSceneSerializerLightRoundTrip()
     CHECK(reSpot != nullptr);
     if (reSpot)
     {
-        CHECK(near(reSpot->color(), glm::vec3(1.0f, 0.5f, 0.25f)));
+        CHECK(near(reSpot->color(), Math::vec3(1.0f, 0.5f, 0.25f)));
         CHECK(near(reSpot->intensity(), 3.0f));
         CHECK(reSpot->castsShadows());
         CHECK(reSpot->volumetric());
@@ -1116,29 +1116,29 @@ void testTransforms()
     GameObject* child = scene.createGameObject("child", parent);
     scene.update(0.0f);
 
-    parent->setPosition(glm::vec3(10.0f, 0.0f, 0.0f));
-    parent->setScale(glm::vec3(2.0f));
+    parent->setPosition(Math::vec3(10.0f, 0.0f, 0.0f));
+    parent->setScale(Math::vec3(2.0f));
     parent->yaw(90.0f);
-    child->setPosition(glm::vec3(0.0f, 0.0f, -1.0f));
+    child->setPosition(Math::vec3(0.0f, 0.0f, -1.0f));
 
-    CHECK(near(child->globalPosition(), glm::vec3(8.0f, 0.0f, 0.0f)));
-    CHECK(near(child->globalScale(), glm::vec3(2.0f)));
-    CHECK(near(child->forward(), glm::vec3(-1.0f, 0.0f, 0.0f)));
+    CHECK(near(child->globalPosition(), Math::vec3(8.0f, 0.0f, 0.0f)));
+    CHECK(near(child->globalScale(), Math::vec3(2.0f)));
+    CHECK(near(child->forward(), Math::vec3(-1.0f, 0.0f, 0.0f)));
 
-    child->setGlobalPosition(glm::vec3(10.0f, 2.0f, 0.0f));
-    CHECK(near(child->globalPosition(), glm::vec3(10.0f, 2.0f, 0.0f)));
+    child->setGlobalPosition(Math::vec3(10.0f, 2.0f, 0.0f));
+    CHECK(near(child->globalPosition(), Math::vec3(10.0f, 2.0f, 0.0f)));
     CHECK(near(parent->distanceTo(*child), 2.0f));
-    CHECK(near(parent->directionTo(*child), glm::vec3(0.0f, 1.0f, 0.0f)));
+    CHECK(near(parent->directionTo(*child), Math::vec3(0.0f, 1.0f, 0.0f)));
 
-    child->lookAt(glm::vec3(10.0f, 2.0f, -10.0f));
-    CHECK(near(child->forward(), glm::vec3(0.0f, 0.0f, -1.0f)));
+    child->lookAt(Math::vec3(10.0f, 2.0f, -10.0f));
+    CHECK(near(child->forward(), Math::vec3(0.0f, 0.0f, -1.0f)));
 
-    const glm::vec3 oldPosition = child->position();
-    child->setPosition(glm::vec3(std::numeric_limits<f32>::quiet_NaN()));
+    const Math::vec3 oldPosition = child->position();
+    child->setPosition(Math::vec3(std::numeric_limits<f32>::quiet_NaN()));
     CHECK(near(child->position(), oldPosition));
-    const glm::quat oldRotation = child->rotation();
-    child->setRotation(glm::quat(0.0f, 0.0f, 0.0f, 0.0f));
-    CHECK(near(glm::dot(child->rotation(), oldRotation), 1.0f));
+    const Math::quat oldRotation = child->rotation();
+    child->setRotation(Math::quat(0.0f, 0.0f, 0.0f, 0.0f));
+    CHECK(near(Math::dot(child->rotation(), oldRotation), 1.0f));
 }
 
 void testSceneQueues()
@@ -1193,7 +1193,7 @@ void testLights()
     GameObject* object = scene.createGameObject("light");
     SpotLight* light = object->addComponent<SpotLight>();
 
-    light->setColor(glm::vec3(2.0f, -1.0f, 0.5f));
+    light->setColor(Math::vec3(2.0f, -1.0f, 0.5f));
     light->setIntensity(4.0f);
     light->setRange(25.0f);
     light->setAngles(20.0f, 35.0f);
@@ -1204,7 +1204,7 @@ void testLights()
     scene.update(0.0f);
     CHECK(scene.lightCount() == 1);
     CHECK(light->lightType() == LightType::Spot);
-    CHECK(near(light->color(), glm::vec3(2.0f, 0.0f, 0.5f)));
+    CHECK(near(light->color(), Math::vec3(2.0f, 0.0f, 0.5f)));
     CHECK(near(light->intensity(), 4.0f));
     CHECK(near(light->range(), 25.0f));
     CHECK(near(light->innerAngle(), 20.0f));
@@ -1252,10 +1252,10 @@ void testShadowLayout()
     CHECK(cascades.settings.filterTaps == 8);
     ShadowCamera camera;
     camera.view =
-        glm::lookAt(glm::vec3(0.0f, 3.0f, 8.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        Math::lookAt(Math::vec3(0.0f, 3.0f, 8.0f), Math::vec3(0.0f), Math::vec3(0.0f, 1.0f, 0.0f));
     camera.nearPlane = 0.1f;
     CascadeShadowData data;
-    CHECK(cascades.update(camera, glm::vec3(-0.4f, -1.0f, -0.2f), data));
+    CHECK(cascades.update(camera, Math::vec3(-0.4f, -1.0f, -0.2f), data));
     CHECK(data.count == 4);
     CHECK(data.splits[0] > camera.nearPlane);
     for (u32 cascade = 1; cascade < data.count; ++cascade)
@@ -1273,15 +1273,15 @@ void testShadowLayout()
     // caster depth precision, so compare projected coordinates rather than
     // requiring the complete matrices to be bit-identical.
     ShadowCamera shifted = camera;
-    const glm::vec3 delta(0.00001f, 0.0f, 0.0f);
-    shifted.view = glm::lookAt(glm::vec3(0.0f, 3.0f, 8.0f) + delta, glm::vec3(0.0f) + delta,
-                               glm::vec3(0.0f, 1.0f, 0.0f));
+    const Math::vec3 delta(0.00001f, 0.0f, 0.0f);
+    shifted.view = Math::lookAt(Math::vec3(0.0f, 3.0f, 8.0f) + delta, Math::vec3(0.0f) + delta,
+                               Math::vec3(0.0f, 1.0f, 0.0f));
     CascadeShadowData shiftedData;
-    CHECK(cascades.update(shifted, glm::vec3(-0.4f, -1.0f, -0.2f), shiftedData));
+    CHECK(cascades.update(shifted, Math::vec3(-0.4f, -1.0f, -0.2f), shiftedData));
     for (u32 cascade = 0; cascade < data.count; ++cascade)
     {
-        const glm::vec4 before = data.viewProjection[cascade] * glm::vec4(0, 0, 0, 1);
-        const glm::vec4 after = shiftedData.viewProjection[cascade] * glm::vec4(0, 0, 0, 1);
+        const Math::vec4 before = data.viewProjection[cascade] * Math::vec4(0, 0, 0, 1);
+        const Math::vec4 after = shiftedData.viewProjection[cascade] * Math::vec4(0, 0, 0, 1);
         CHECK(near(before.x / before.w, after.x / after.w, 0.000001f));
         CHECK(near(before.y / before.w, after.y / after.w, 0.000001f));
     }
@@ -1291,16 +1291,16 @@ void testShadowLayout()
     lights[0].flags = RenderLightCastShadow;
     lights[1].type = RenderLightType::Point;
     lights[1].flags = RenderLightCastShadow;
-    lights[1].position = glm::vec3(0.0f, 0.0f, 5.0f);
+    lights[1].position = Math::vec3(0.0f, 0.0f, 5.0f);
     lights[1].range = 10.0f;
     lights[2].type = RenderLightType::Spot;
     lights[2].flags = RenderLightCastShadow | RenderLightVolumetric;
-    lights[2].position = glm::vec3(0.0f, 0.0f, 20.0f);
+    lights[2].position = Math::vec3(0.0f, 0.0f, 20.0f);
     lights[2].range = 5.0f;
 
     ShadowAtlasLayout atlas;
     atlas.settings.size = 4096;
-    atlas.update(glm::vec3(0.0f), lights);
+    atlas.update(Math::vec3(0.0f), lights);
     CHECK(atlas.tiles().size() == 2);
     CHECK(atlas.tiles()[0].lightIndex == 1);
     CHECK(atlas.tiles()[0].faceCount == 6);
@@ -1353,25 +1353,25 @@ void testActionRunner()
     Scene scene;
     GameObject* object = scene.createGameObject("action");
     ActionRunner* actions = object->addComponent<ActionRunner>();
-    actions->moveTo(glm::vec3(10.0f, 0.0f, 0.0f), 1.0f)
+    actions->moveTo(Math::vec3(10.0f, 0.0f, 0.0f), 1.0f)
         .wait(0.5f)
-        .moveBy(glm::vec3(0.0f, 2.0f, 0.0f), 0.5f)
+        .moveBy(Math::vec3(0.0f, 2.0f, 0.0f), 0.5f)
         .dispose();
 
     scene.update(0.5f);
-    CHECK(near(object->position(), glm::vec3(5.0f, 0.0f, 0.0f)));
+    CHECK(near(object->position(), Math::vec3(5.0f, 0.0f, 0.0f)));
     scene.update(0.75f);
-    CHECK(near(object->position(), glm::vec3(10.0f, 0.0f, 0.0f)));
+    CHECK(near(object->position(), Math::vec3(10.0f, 0.0f, 0.0f)));
     scene.update(0.5f);
-    CHECK(near(object->position(), glm::vec3(10.0f, 1.0f, 0.0f)));
+    CHECK(near(object->position(), Math::vec3(10.0f, 1.0f, 0.0f)));
     scene.update(0.5f);
     CHECK(scene.gameObjectCount() == 0);
 
     GameObject* bolt = scene.createGameObject("bolt");
     ActionRunner* flight = bolt->addComponent<ActionRunner>();
-    flight->projectile({glm::vec3(1.0f, 2.0f, 3.0f), glm::vec3(0.0f, 0.0f, -2.0f)}, 10.0f, 2.0f);
+    flight->projectile({Math::vec3(1.0f, 2.0f, 3.0f), Math::vec3(0.0f, 0.0f, -2.0f)}, 10.0f, 2.0f);
     scene.update(1.0f);
-    CHECK(near(bolt->position(), glm::vec3(1.0f, 2.0f, -7.0f)));
+    CHECK(near(bolt->position(), Math::vec3(1.0f, 2.0f, -7.0f)));
     scene.update(1.0f);
     CHECK(scene.gameObjectCount() == 0);
 }
@@ -1383,7 +1383,7 @@ void testRibbonTrail()
     GameObject* effect = scene.createGameObject("trail");
     GameObject* base = scene.createGameObject("base", effect);
     GameObject* tip = scene.createGameObject("tip", effect);
-    tip->setPosition(glm::vec3(0.0f, 0.0f, 1.0f));
+    tip->setPosition(Math::vec3(0.0f, 0.0f, 1.0f));
     RibbonTrail* trail = effect->addComponent<RibbonTrail>();
     CHECK(trail->setBlade(base, tip));
     trail->setMinDistance(0.1f);
@@ -1392,7 +1392,7 @@ void testRibbonTrail()
     scene.update(0.0f);
     CHECK(trail->sampleCount() == 1);
 
-    tip->setPosition(glm::vec3(0.0f, 1.0f, 1.0f));
+    tip->setPosition(Math::vec3(0.0f, 1.0f, 1.0f));
     scene.update(0.0f);
     CHECK(trail->sampleCount() > 2);
     CHECK(!TrailDraws().commands().empty());
@@ -1438,9 +1438,9 @@ void testRoadSplineRoundTrip()
     GameObject* a = scene.createGameObject("a", roadObject);
     GameObject* b = scene.createGameObject("b", roadObject);
     GameObject* c = scene.createGameObject("c", roadObject);
-    a->setGlobalPosition(glm::vec3(-4.0f, 1.0f, 2.0f));
-    b->setGlobalPosition(glm::vec3(3.0f, 2.0f, -5.0f));
-    c->setGlobalPosition(glm::vec3(9.0f, 0.5f, -8.0f));
+    a->setGlobalPosition(Math::vec3(-4.0f, 1.0f, 2.0f));
+    b->setGlobalPosition(Math::vec3(3.0f, 2.0f, -5.0f));
+    c->setGlobalPosition(Math::vec3(9.0f, 0.5f, -8.0f));
     CHECK(road->addPoint(a, 4.0f));
     CHECK(road->addPoint(b, 7.5f));
     CHECK(road->addPoint(c, 3.0f));
@@ -1454,9 +1454,9 @@ void testRoadSplineRoundTrip()
     road->setPointWidth(0, 99.0f);
     CHECK(road->loadSpline(path, scene));
     CHECK(road->pointCount() == 3);
-    CHECK(near(road->point(0)->globalPosition(), glm::vec3(-4.0f, 1.0f, 2.0f)));
-    CHECK(near(road->point(1)->globalPosition(), glm::vec3(3.0f, 2.0f, -5.0f)));
-    CHECK(near(road->point(2)->globalPosition(), glm::vec3(9.0f, 0.5f, -8.0f)));
+    CHECK(near(road->point(0)->globalPosition(), Math::vec3(-4.0f, 1.0f, 2.0f)));
+    CHECK(near(road->point(1)->globalPosition(), Math::vec3(3.0f, 2.0f, -5.0f)));
+    CHECK(near(road->point(2)->globalPosition(), Math::vec3(9.0f, 0.5f, -8.0f)));
     CHECK(near(road->pointWidth(0), 4.0f));
     CHECK(near(road->pointWidth(1), 7.5f));
     CHECK(near(road->pointWidth(2), 3.0f));
@@ -1472,13 +1472,13 @@ void testCameraAndRay()
     scene.update(0.0f);
 
     camera->setPerspective(60.0f, 2.0f, 0.1f, 100.0f);
-    cameraObject->setPosition(glm::vec3(0.0f, 0.0f, 5.0f));
-    cameraObject->lookAt(glm::vec3(0.0f));
+    cameraObject->setPosition(Math::vec3(0.0f, 0.0f, 5.0f));
+    cameraObject->lookAt(Math::vec3(0.0f));
 
     const FloatRect viewport(100.0f, 50.0f, 800.0f, 400.0f);
     const Ray center = camera->rayFromMouse(500.0f, 250.0f, viewport);
     CHECK(near(center.direction, cameraObject->forward()));
-    CHECK(near(glm::length(center.direction), 1.0f));
+    CHECK(near(Math::length(center.direction), 1.0f));
     CHECK(center.origin.z < cameraObject->globalPosition().z);
 
     camera->setOrthographic(10.0f, 2.0f, 0.1f, 100.0f);
@@ -1520,8 +1520,8 @@ void testDestroyBranch()
 void testRenderListRejectsInvalidPipelines()
 {
     Mesh mesh;
-    mesh.bounds.expand(glm::vec3(-0.5f));
-    mesh.bounds.expand(glm::vec3(0.5f));
+    mesh.bounds.expand(Math::vec3(-0.5f));
+    mesh.bounds.expand(Math::vec3(0.5f));
 
     SubMesh submesh;
     submesh.bounds = mesh.bounds;
@@ -1533,36 +1533,36 @@ void testRenderListRejectsInvalidPipelines()
     meshHandle.generation = 1;
 
     RenderList list;
-    list.setCamera(glm::mat4(1.0f), glm::vec3(0.0f));
-    CHECK(list.submit(meshHandle, mesh, glm::mat4(1.0f)) == 0);
+    list.setCamera(Math::mat4(1.0f), Math::vec3(0.0f));
+    CHECK(list.submit(meshHandle, mesh, Math::mat4(1.0f)) == 0);
     CHECK(list.stats().packets == 0);
 
     mesh.materials[0].pipeline.index = 3;
     mesh.materials[0].pipeline.generation = 1;
-    CHECK(list.submit(meshHandle, mesh, glm::mat4(1.0f)) == 1);
+    CHECK(list.submit(meshHandle, mesh, Math::mat4(1.0f)) == 1);
     CHECK(list.packets(RenderCategory::Opaque).size() == 1);
     CHECK(list.instance(0).pipeline == mesh.materials[0].pipeline);
 
     const PipelineHandle firstPipeline = mesh.materials[0].pipeline;
     mesh.materials[0].pipeline.index = 4;
-    CHECK(list.submit(meshHandle, mesh, glm::mat4(1.0f)) == 1);
+    CHECK(list.submit(meshHandle, mesh, Math::mat4(1.0f)) == 1);
     CHECK(list.instance(0).pipeline == firstPipeline);
     CHECK(list.instance(1).pipeline == mesh.materials[0].pipeline);
 
     list.clear();
     mesh.materials[0].flags |= MaterialAlphaTest;
-    CHECK(list.submit(meshHandle, mesh, glm::mat4(1.0f)) == 1);
+    CHECK(list.submit(meshHandle, mesh, Math::mat4(1.0f)) == 1);
     CHECK(list.packets(RenderCategory::AlphaTest).size() == 1);
 
     list.clear();
     mesh.materials[0].flags &= ~MaterialAlphaTest;
     mesh.materials[0].blend = BlendMode::Alpha;
-    CHECK(list.submit(meshHandle, mesh, glm::mat4(1.0f)) == 1);
+    CHECK(list.submit(meshHandle, mesh, Math::mat4(1.0f)) == 1);
     CHECK(list.packets(RenderCategory::Transparent).size() == 1);
 
     list.clear();
     mesh.materials[0].flags |= MaterialRefraction;
-    CHECK(list.submit(meshHandle, mesh, glm::mat4(1.0f)) == 1);
+    CHECK(list.submit(meshHandle, mesh, Math::mat4(1.0f)) == 1);
     CHECK(list.packets(RenderCategory::Refraction).size() == 1);
 }
 
@@ -1629,37 +1629,37 @@ void testDebugDrawGeometry()
     debug.clear();
 
     AABB bounds;
-    bounds.expand(glm::vec3(-1.0f));
-    bounds.expand(glm::vec3(1.0f));
+    bounds.expand(Math::vec3(-1.0f));
+    bounds.expand(Math::vec3(1.0f));
     debug.box(bounds);
     CHECK(debug.lines().size() == 12);
 
-    debug.axis(glm::mat4(1.0f));
+    debug.axis(Math::mat4(1.0f));
     CHECK(debug.lines().size() == 15);
 
-    debug.line(glm::vec3(0.0f), glm::vec3(1.0f), Color::Cyan, false);
+    debug.line(Math::vec3(0.0f), Math::vec3(1.0f), Color::Cyan, false);
     CHECK(!debug.lines().back().depthTest);
     debug.clear();
     debug.box(bounds);
 
     debug.grid(0.0f, 2, 1.0f);
     CHECK(debug.lines().size() == 22);
-    debug.triangle(glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+    debug.triangle(Math::vec3(0.0f), Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f),
                    Color::White, true);
     CHECK(debug.triangles().size() == 1);
-    debug.pickedTriangle(glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-                         glm::vec3(0.25f, 0.25f, 0.0f));
+    debug.pickedTriangle(Math::vec3(0.0f), Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f),
+                         Math::vec3(0.25f, 0.25f, 0.0f));
     CHECK(debug.triangles().size() == 2);
     CHECK(debug.lines().size() == 26);
     MeshHandle mesh;
     mesh.index = 1;
     mesh.generation = 1;
-    debug.meshVectors(mesh, glm::mat4(1.0f), 0.25f, DebugVectorsNormal | DebugVectorsTangent);
+    debug.meshVectors(mesh, Math::mat4(1.0f), 0.25f, DebugVectorsNormal | DebugVectorsTangent);
     CHECK(debug.meshVectorCommands().size() == 1);
-    debug.outline(mesh, glm::mat4(1.0f), Color::Orange, 3.0f);
+    debug.outline(mesh, Math::mat4(1.0f), Color::Orange, 3.0f);
     CHECK(debug.outlineCommands().size() == 1);
-    debug.outline(MeshHandle(), glm::mat4(1.0f));
-    debug.outline(mesh, glm::mat4(1.0f), Color::Orange, 0.0f);
+    debug.outline(MeshHandle(), Math::mat4(1.0f));
+    debug.outline(mesh, Math::mat4(1.0f), Color::Orange, 0.0f);
     CHECK(debug.outlineCommands().size() == 1);
     CHECK(!debug.empty());
     debug.clear();
@@ -1706,8 +1706,8 @@ void testProceduralTrees()
             finite = finite && std::isfinite(tree.positions[i].x) &&
                      std::isfinite(tree.positions[i].y) && std::isfinite(tree.positions[i].z) &&
                      std::isfinite(tree.uvs[i].x) && std::isfinite(tree.uvs[i].y) &&
-                     near(glm::length(tree.normals[i]), 1.0f, 1e-3f) &&
-                     near(glm::length(glm::vec3(tree.tangents[i])), 1.0f, 1e-3f);
+                     near(Math::length(tree.normals[i]), 1.0f, 1e-3f) &&
+                     near(Math::length(Math::vec3(tree.tangents[i])), 1.0f, 1e-3f);
         }
         CHECK(finite);
 
@@ -1780,8 +1780,8 @@ void testForestWithoutSpecies()
     CHECK(forest->speciesCount() == 0);
     CHECK(forest->count() == 0);
     CHECK(forest->visibleCount() == 0);
-    CHECK(!forest->plant(glm::vec3(0.0f), 0));
-    CHECK(forest->paint(glm::vec3(0.0f), 10.0f, 100) == 0);
+    CHECK(!forest->plant(Math::vec3(0.0f), 0));
+    CHECK(forest->paint(Math::vec3(0.0f), 10.0f, 100) == 0);
     CHECK(!forest->rebuildSpecies(0, TreeParams(), 10.0f));
     CHECK(!forest->speciesMesh(0).valid());
 
@@ -1794,7 +1794,7 @@ void testForestWithoutSpecies()
     // negative scales further down.
     forest->setScaleRange(2.0f, 1.0f);
     forest->setSeed(99u);
-    CHECK(forest->paint(glm::vec3(0.0f), 10.0f, 10) == 0);
+    CHECK(forest->paint(Math::vec3(0.0f), 10.0f, 10) == 0);
 
     CHECK(scene.destroy(object));
     scene.update(0.0f);
@@ -1804,7 +1804,7 @@ void testParticleEffect()
 {
     Scene scene;
     GameObject* object = scene.createGameObject("effect");
-    object->setGlobalPosition(glm::vec3(1.0f, 2.0f, 3.0f));
+    object->setGlobalPosition(Math::vec3(1.0f, 2.0f, 3.0f));
     ParticleEffect* effect = object->addComponent<ParticleEffect>();
     CHECK(effect != nullptr);
     CHECK(object->getComponent<ParticleEffect>() == effect);
@@ -1849,7 +1849,7 @@ void testParticleEffect()
 
     // Continuous effect: should not auto-destroy while playing.
     GameObject* persistent = scene.createGameObject("smoke");
-    persistent->setGlobalPosition(glm::vec3(0.0f));
+    persistent->setGlobalPosition(Math::vec3(0.0f));
     ParticleEffect* smoke = persistent->addComponent<ParticleEffect>();
     smoke->setMode(ParticleEffectMode::Continuous);
     smoke->setEmitter(ParticleEffect::presetSmoke());
@@ -1860,7 +1860,7 @@ void testParticleEffect()
 
     // Pool: one-shot spawned through the pool stays active, then gets reclaimed.
     ParticleSystem::Emitter burst = ParticleEffect::presetExplosion();
-    ParticleEffect* spawned = ParticleEffectPool::getSingleton().spawn(burst, 32, glm::vec3(0.0f));
+    ParticleEffect* spawned = ParticleEffectPool::getSingleton().spawn(burst, 32, Math::vec3(0.0f));
     CHECK(spawned != nullptr);
     CHECK(spawned->isPlaying());
     CHECK(ParticleEffectPool::getSingleton().activeCount() >= 1);
@@ -1917,14 +1917,14 @@ void testMaterialSaveParserRoundTrip()
                      MaterialMirror | MaterialParallax | MaterialMetallicRoughnessMap;
     material.blend = BlendMode::PremultipliedAlpha;
     material.cull = CullMode::Front;
-    material.params.baseColor = glm::vec4(0.11f, 0.22f, 0.33f, 0.44f);
-    material.params.emissive = glm::vec4(1.1f, 2.2f, 3.3f, 4.4f);
-    material.params.surface = glm::vec4(0.12f, 0.34f, 0.56f, 0.78f);
-    material.params.uvTransform = glm::vec4(2.0f, 3.0f, 0.25f, -0.5f);
-    material.params.uvAnim = glm::vec4(0.1f, -0.2f, 0.3f, 0.4f);
-    material.params.sequence = glm::vec4(7.0f, 24.0f, 1.0f, 0.5f);
-    material.params.custom0 = glm::vec4(0.21f, 0.52f, 0.013f, 1.75f);
-    material.params.custom1 = glm::vec4(9000.0f, 0.047f, 0.63f, 8.5f);
+    material.params.baseColor = Math::vec4(0.11f, 0.22f, 0.33f, 0.44f);
+    material.params.emissive = Math::vec4(1.1f, 2.2f, 3.3f, 4.4f);
+    material.params.surface = Math::vec4(0.12f, 0.34f, 0.56f, 0.78f);
+    material.params.uvTransform = Math::vec4(2.0f, 3.0f, 0.25f, -0.5f);
+    material.params.uvAnim = Math::vec4(0.1f, -0.2f, 0.3f, 0.4f);
+    material.params.sequence = Math::vec4(7.0f, 24.0f, 1.0f, 0.5f);
+    material.params.custom0 = Math::vec4(0.21f, 0.52f, 0.013f, 1.75f);
+    material.params.custom1 = Math::vec4(9000.0f, 0.047f, 0.63f, 8.5f);
     const MaterialSlot editableSlots[] = {SlotAlbedo, SlotNormal, SlotSurface, SlotEmissive,
                                           SlotHeight};
     for (MaterialSlot slot : editableSlots)
@@ -1939,8 +1939,8 @@ void testMaterialSaveParserRoundTrip()
     material.anims[0].curve = Curve::PingPong;
     material.anims[0].speed = 2.5f;
     material.anims[0].phase = 0.75f;
-    material.anims[0].min = glm::vec4(-1.0f);
-    material.anims[0].max = glm::vec4(3.0f);
+    material.anims[0].min = Math::vec4(-1.0f);
+    material.anims[0].max = Math::vec4(3.0f);
 
     const std::filesystem::path path =
         std::filesystem::temp_directory_path() / "radion_material_roundtrip_test.material";

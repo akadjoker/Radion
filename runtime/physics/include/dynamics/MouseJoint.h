@@ -14,7 +14,7 @@ namespace Radion::Physics
 class MouseJoint final : public Joint
 {
 public:
-    MouseJoint(RigidBody& body, const glm::vec3& worldGrabPoint);
+    MouseJoint(RigidBody& body, const Math::vec3& worldGrabPoint);
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -25,8 +25,8 @@ public:
     void solvePosition(f32 baumgarte) override;
 
     // Wakes the body: a sleeping body under a moving cursor must follow.
-    void setTarget(const glm::vec3& target);
-    const glm::vec3& target() const;
+    void setTarget(const Math::vec3& target);
+    const Math::vec3& target() const;
     void setMaxForce(f32 force);
     void setStiffness(f32 stiffness);
     void setDamping(f32 damping);
@@ -37,17 +37,17 @@ public:
 
 private:
     RigidBody* mBody;
-    glm::vec3 mLocalAnchor;
-    glm::vec3 mTarget;
+    Math::vec3 mLocalAnchor;
+    Math::vec3 mTarget;
     f32 mMaxForce = 500.0f;
     f32 mStiffness = 0.0f;
     f32 mDamping = 0.0f;
 
-    glm::vec3 mArm{0.0f};
-    glm::mat3 mEffectiveMass{0.0f};
-    glm::vec3 mSoftBias{0.0f};
+    Math::vec3 mArm{0.0f};
+    Math::mat3 mEffectiveMass{0.0f};
+    Math::vec3 mSoftBias{0.0f};
     f32 mGamma = 0.0f;
-    glm::vec3 mTotalImpulse{0.0f};
+    Math::vec3 mTotalImpulse{0.0f};
     f32 mMaxImpulse = 0.0f;
     f32 mPreviousDuration = 0.0f;
 };

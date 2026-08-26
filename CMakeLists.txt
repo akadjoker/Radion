@@ -64,6 +64,13 @@ include(RadionFormat)
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
 
+# Mathc is intentionally built here instead of through its own CMake project:
+# Radion controls the warning level and language standard for all of its
+# dependencies, and Mathc is a small self-contained implementation.
+add_library(radion_math STATIC vendor/mathc/mathc.cpp)
+target_include_directories(radion_math PUBLIC ${PROJECT_SOURCE_DIR}/vendor/mathc)
+target_compile_features(radion_math PUBLIC cxx_std_17)
+
 if(WIN32 AND BUILD_SHARED_LIBS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()

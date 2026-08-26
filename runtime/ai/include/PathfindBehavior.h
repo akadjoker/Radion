@@ -12,7 +12,7 @@
 #include "Behavior.h"
 #include "WaypointNetwork.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion::AI
 {
@@ -29,7 +29,7 @@ public:
         float avoidDistance = 0.0f;            // <= 0 disables avoidance
         float maxTimeBeforeAgitation = 25.0f;  // seconds stuck before the agitation nudge
         float maxTimeBeforeLineOfSight = 0.5f; // seconds between goal line-of-sight tests
-        glm::vec3 upVector = glm::vec3(0.0f, 1.0f, 0.0f);
+        Math::vec3 upVector = Math::vec3(0.0f, 1.0f, 0.0f);
         WaypointNetwork* waypointNetwork = nullptr; // non-owning
         // Line-of-sight functor used for the goal short-circuit. Supply one to
         // feed real LOS results, or nullptr for "always visible".

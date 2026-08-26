@@ -49,9 +49,9 @@ bool RibbonTrail::setBladePoints(GameObject* const* objects, u32 count)
     return true;
 }
 
-glm::vec3 RibbonTrail::centreOf(const Sample& value) const
+Math::vec3 RibbonTrail::centreOf(const Sample& value) const
 {
-    glm::vec3 sum(0.0f);
+    Math::vec3 sum(0.0f);
     for (u32 i = 0; i < mBladeCount; ++i)
         sum += value.points[i];
     return mBladeCount ? sum / static_cast<f32>(mBladeCount) : sum;
@@ -66,7 +66,7 @@ void RibbonTrail::setEmitting(bool emitting)
         const Sample& last = sample(mCount - 1);
         f32 moved = 0.0f;
         for (u32 i = 0; i < mBladeCount; ++i)
-            moved = glm::max(moved, glm::length(mCurrentPoints[i] - last.points[i]));
+            moved = Math::max(moved, Math::length(mCurrentPoints[i] - last.points[i]));
         if (moved > 0.0001f)
             push(mCurrentPoints, mCurrentDistance);
     }
@@ -126,11 +126,11 @@ void RibbonTrail::clear()
 }
 void RibbonTrail::setLifetime(f32 seconds)
 {
-    mLifetime = glm::max(0.01f, seconds);
+    mLifetime = Math::max(0.01f, seconds);
 }
 void RibbonTrail::setMinDistance(f32 distance)
 {
-    mMinDistance = glm::max(0.001f, distance);
+    mMinDistance = Math::max(0.001f, distance);
 }
 void RibbonTrail::setSmoothness(u32 subdivisions)
 {
@@ -138,7 +138,7 @@ void RibbonTrail::setSmoothness(u32 subdivisions)
     // computed and then drawn as eight straight chords, and on a fast swing -
     // where consecutive samples are furthest apart, which is exactly where
     // the curve matters - those chords are plainly visible facets.
-    mSubdivisions = glm::clamp(subdivisions, 1u, 64u);
+    mSubdivisions = Math::clamp(subdivisions, 1u, 64u);
     reserveVertices();
 }
 void RibbonTrail::setColor(Color start, Color end)
@@ -175,7 +175,7 @@ void RibbonTrail::onLateUpdate(f32 deltaTime)
 
     if (mEmitting && bladeAlive)
     {
-        glm::vec3 current[MaxBladePoints];
+        Math::vec3 current[MaxBladePoints];
         for (u32 i = 0; i < mBladeCount; ++i)
         {
             current[i] = mBlade[i]->globalPosition();
@@ -197,32 +197,32 @@ void RibbonTrail::onLateUpdate(f32 deltaTime)
             // by anything slower leaves the fast end visibly faceted.
             f32 travel = 0.0f;
             for (u32 i = 0; i < mBladeCount; ++i)
-                travel = glm::max(travel, glm::length(current[i] - mLastPoints[i]));
+                travel = Math::max(travel, Math::length(current[i] - mLastPoints[i]));
             const u32 steps = travel > 0.0f ? static_cast<u32>(travel / mMinDistance) : 0u;
             for (u32 step = 1; step <= steps; ++step)
             {
-                const f32 amount = glm::min((mMinDistance * step) / travel, 1.0f);
-                glm::vec3 stepped[MaxBladePoints];
+                const f32 amount = Math::min((mMinDistance * step) / travel, 1.0f);
+                Math::vec3 stepped[MaxBladePoints];
                 f32 advanced = 0.0f;
                 for (u32 i = 0; i < mBladeCount; ++i)
                 {
-                    stepped[i] = glm::mix(mLastPoints[i], current[i], amount);
-                    advanced = glm::max(advanced,
-                                        glm::length(stepped[i] - sample(mCount - 1).points[i]));
+                    stepped[i] = Math::mix(mLastPoints[i], current[i], amount);
+                    advanced = Math::max(advanced,
+                                        Math::length(stepped[i] - sample(mCount - 1).points[i]));
                 }
                 mDistance += advanced;
                 push(stepped, mDistance);
             }
             if (steps > 0)
             {
-                const f32 amount = glm::min((mMinDistance * steps) / travel, 1.0f);
+                const f32 amount = Math::min((mMinDistance * steps) / travel, 1.0f);
                 for (u32 i = 0; i < mBladeCount; ++i)
-                    mLastPoints[i] = glm::mix(mLastPoints[i], current[i], amount);
+                    mLastPoints[i] = Math::mix(mLastPoints[i], current[i], amount);
             }
             const Sample& last = sample(mCount - 1);
             f32 remaining = 0.0f;
             for (u32 i = 0; i < mBladeCount; ++i)
-                remaining = glm::max(remaining, glm::length(current[i] - last.points[i]));
+                remaining = Math::max(remaining, Math::length(current[i] - last.points[i]));
             mCurrentDistance = last.distance + remaining;
         }
     }
@@ -235,7 +235,7 @@ void RibbonTrail::onLateUpdate(f32 deltaTime)
              mDepthTest});
 }
 
-void RibbonTrail::push(const glm::vec3* points, f32 distance)
+void RibbonTrail::push(const Math::vec3* points, f32 distance)
 {
     if (mCount == MaxSamples)
     {
@@ -277,7 +277,7 @@ void RibbonTrail::buildVertices()
         const Sample& last = sample(mCount - 1);
         f32 moved = 0.0f;
         for (u32 i = 0; i < mBladeCount; ++i)
-            moved = glm::max(moved, glm::length(mCurrentPoints[i] - last.points[i]));
+            moved = Math::max(moved, Math::length(mCurrentPoints[i] - last.points[i]));
         if (moved > 0.0001f)
             ++renderCount;
     }
@@ -285,7 +285,7 @@ void RibbonTrail::buildVertices()
         return;
 
     const f32 firstDistance = renderSample(0).distance;
-    const f32 span = glm::max(renderSample(renderCount - 1).distance - firstDistance, 0.0001f);
+    const f32 span = Math::max(renderSample(renderCount - 1).distance - firstDistance, 0.0001f);
 
     for (usize segment = 0; segment + 1 < renderCount; ++segment)
     {
@@ -306,8 +306,8 @@ void RibbonTrail::buildVertices()
 
 void RibbonTrail::appendSection(const Sample& a, const Sample& b, f32 firstDistance, f32 span)
 {
-    const f32 fadeA = glm::clamp(1.0f - a.age / mLifetime, 0.0f, 1.0f);
-    const f32 fadeB = glm::clamp(1.0f - b.age / mLifetime, 0.0f, 1.0f);
+    const f32 fadeA = Math::clamp(1.0f - a.age / mLifetime, 0.0f, 1.0f);
+    const f32 fadeB = Math::clamp(1.0f - b.age / mLifetime, 0.0f, 1.0f);
     const Color colorA = Color::lerp(mEndColor, mStartColor, fadeA);
     const Color colorB = Color::lerp(mEndColor, mStartColor, fadeB);
     const f32 vA = (a.distance - firstDistance) / span;
@@ -321,12 +321,12 @@ void RibbonTrail::appendSection(const Sample& a, const Sample& b, f32 firstDista
     {
         const f32 u0 = static_cast<f32>(i) / spanU;
         const f32 u1 = static_cast<f32>(i + 1) / spanU;
-        mVertices.push_back({a.points[i], glm::vec2(u0, vA), colorA});
-        mVertices.push_back({a.points[i + 1], glm::vec2(u1, vA), colorA});
-        mVertices.push_back({b.points[i], glm::vec2(u0, vB), colorB});
-        mVertices.push_back({b.points[i + 1], glm::vec2(u1, vB), colorB});
-        mVertices.push_back({b.points[i], glm::vec2(u0, vB), colorB});
-        mVertices.push_back({a.points[i + 1], glm::vec2(u1, vA), colorA});
+        mVertices.push_back({a.points[i], Math::vec2(u0, vA), colorA});
+        mVertices.push_back({a.points[i + 1], Math::vec2(u1, vA), colorA});
+        mVertices.push_back({b.points[i], Math::vec2(u0, vB), colorB});
+        mVertices.push_back({b.points[i + 1], Math::vec2(u1, vB), colorB});
+        mVertices.push_back({b.points[i], Math::vec2(u0, vB), colorB});
+        mVertices.push_back({a.points[i + 1], Math::vec2(u1, vA), colorA});
     }
 }
 
@@ -346,24 +346,24 @@ RibbonTrail::Sample RibbonTrail::interpolate(const Sample& before, const Sample&
                                              f32 amount) const
 {
     auto limitedTangent =
-        [](const glm::vec3& previous, const glm::vec3& point, const glm::vec3& next)
+        [](const Math::vec3& previous, const Math::vec3& point, const Math::vec3& next)
     {
-        const glm::vec3 incoming = point - previous;
-        const glm::vec3 outgoing = next - point;
-        const f32 incomingLength = glm::length(incoming);
-        const f32 outgoingLength = glm::length(outgoing);
+        const Math::vec3 incoming = point - previous;
+        const Math::vec3 outgoing = next - point;
+        const f32 incomingLength = Math::length(incoming);
+        const f32 outgoingLength = Math::length(outgoing);
         if (incomingLength < 0.0001f || outgoingLength < 0.0001f ||
-            glm::dot(incoming, outgoing) <= 0.0f)
-            return glm::vec3(0.0f);
-        const glm::vec3 direction = incoming / incomingLength + outgoing / outgoingLength;
-        const f32 directionLength = glm::length(direction);
+            Math::dot(incoming, outgoing) <= 0.0f)
+            return Math::vec3(0.0f);
+        const Math::vec3 direction = incoming / incomingLength + outgoing / outgoingLength;
+        const f32 directionLength = Math::length(direction);
         if (directionLength < 0.0001f)
-            return glm::vec3(0.0f);
-        return direction / directionLength * glm::min(incomingLength, outgoingLength);
+            return Math::vec3(0.0f);
+        return direction / directionLength * Math::min(incomingLength, outgoingLength);
     };
 
-    auto hermite = [](const glm::vec3& fromPoint, const glm::vec3& fromTangent,
-                      const glm::vec3& toPoint, const glm::vec3& toTangent, f32 t)
+    auto hermite = [](const Math::vec3& fromPoint, const Math::vec3& fromTangent,
+                      const Math::vec3& toPoint, const Math::vec3& toTangent, f32 t)
     {
         const f32 t2 = t * t;
         const f32 t3 = t2 * t;
@@ -372,13 +372,13 @@ RibbonTrail::Sample RibbonTrail::interpolate(const Sample& before, const Sample&
                (t3 - t2) * toTangent;
     };
 
-    const glm::vec3 beforeCenter = centreOf(before);
-    const glm::vec3 fromCenter = centreOf(from);
-    const glm::vec3 toCenter = centreOf(to);
-    const glm::vec3 afterCenter = centreOf(after);
-    const glm::vec3 fromTangent = limitedTangent(beforeCenter, fromCenter, toCenter);
-    const glm::vec3 toTangent = limitedTangent(fromCenter, toCenter, afterCenter);
-    const glm::vec3 center = hermite(fromCenter, fromTangent, toCenter, toTangent, amount);
+    const Math::vec3 beforeCenter = centreOf(before);
+    const Math::vec3 fromCenter = centreOf(from);
+    const Math::vec3 toCenter = centreOf(to);
+    const Math::vec3 afterCenter = centreOf(after);
+    const Math::vec3 fromTangent = limitedTangent(beforeCenter, fromCenter, toCenter);
+    const Math::vec3 toTangent = limitedTangent(fromCenter, toCenter, afterCenter);
+    const Math::vec3 center = hermite(fromCenter, fromTangent, toCenter, toTangent, amount);
 
     // ONE curve, through the centre, with every blade point carried along as
     // an offset from it. Giving each point its own spline lets two of them
@@ -397,12 +397,12 @@ RibbonTrail::Sample RibbonTrail::interpolate(const Sample& before, const Sample&
     Sample result;
     for (u32 i = 0; i < mBladeCount; ++i)
     {
-        const glm::vec3 fromOffset = from.points[i] - fromCenter;
-        const glm::vec3 toOffset = to.points[i] - toCenter;
-        result.points[i] = center + glm::mix(fromOffset, toOffset, blend);
+        const Math::vec3 fromOffset = from.points[i] - fromCenter;
+        const Math::vec3 toOffset = to.points[i] - toCenter;
+        result.points[i] = center + Math::mix(fromOffset, toOffset, blend);
     }
-    result.age = glm::mix(from.age, to.age, amount);
-    result.distance = glm::mix(from.distance, to.distance, amount);
+    result.age = Math::mix(from.age, to.age, amount);
+    result.distance = Math::mix(from.distance, to.distance, amount);
     return result;
 }
 

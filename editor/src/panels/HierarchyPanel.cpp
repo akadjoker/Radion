@@ -49,7 +49,7 @@ Material defaultPrimitiveMaterial()
 {
     Material material;
     material.flags |= MaterialLit;
-    material.params.baseColor = glm::vec4(0.7f, 0.7f, 0.7f, 1.0f);
+    material.params.baseColor = Math::vec4(0.7f, 0.7f, 0.7f, 1.0f);
     material.params.surface.x = 0.7f; // roughness
     material.params.surface.y = 0.0f; // metal
     material.paramsDirty = true;
@@ -94,7 +94,7 @@ void createMirrorObject(EditorApplication& app, GameObject* parent)
         renderer->setMesh(mesh);
         Material material;
         material.flags |= MaterialLit | MaterialMirror;
-        material.params.baseColor = glm::vec4(0.9f, 0.9f, 0.9f, 1.0f);
+        material.params.baseColor = Math::vec4(0.9f, 0.9f, 0.9f, 1.0f);
         material.params.surface.x = 0.15f; // roughness
         material.params.surface.y = 0.0f;  // metal - the mirror mix is its own path, not this
         material.params.custom0.x = 1.0f;  // mirror strength, see lit.frag's HAS_MIRROR block
@@ -127,7 +127,7 @@ void createReflectionProbeObject(EditorApplication& app, GameObject* parent)
         ReflectionProbe* probeComponent = object->addComponent<ReflectionProbe>();
         probeComponent->create(128);
         EnvironmentProbe& env = probeComponent->probe();
-        env.extents = glm::vec3(0.0f);
+        env.extents = Math::vec3(0.0f);
         env.influenceRadius = 5.0f;
         env.content = EnvironmentProbe::Content::SkyAndWorld;
         env.refresh = EnvironmentProbe::Refresh::Automatic;
@@ -497,7 +497,7 @@ void HierarchyPanel::drawPendingOceanPopup()
             else
             {
                 ocean->setLevel(mPendingOcean.level);
-                ocean->setQuality(static_cast<OceanQuality>(glm::clamp(mPendingOcean.quality, 0, 2)));
+                ocean->setQuality(static_cast<OceanQuality>(Math::clamp(mPendingOcean.quality, 0, 2)));
             }
         }
         finishCreateObject(app(), object);
@@ -540,8 +540,8 @@ void HierarchyPanel::drawPendingGridDuplicatePopup()
     if (alongZ)
         ImGui::DragInt("Count Z", &mPendingGridDuplicate.countZ, 1.0f, 1, 512);
     ImGui::DragFloat("Spacing", &mPendingGridDuplicate.spacing, 0.05f, 0.01f, 10000.0f);
-    const u32 countX = alongX ? static_cast<u32>(glm::max(mPendingGridDuplicate.countX, 1)) : 1u;
-    const u32 countZ = alongZ ? static_cast<u32>(glm::max(mPendingGridDuplicate.countZ, 1)) : 1u;
+    const u32 countX = alongX ? static_cast<u32>(Math::max(mPendingGridDuplicate.countX, 1)) : 1u;
+    const u32 countZ = alongZ ? static_cast<u32>(Math::max(mPendingGridDuplicate.countZ, 1)) : 1u;
     // The source itself keeps the first cell, so one less clone than cells.
     ImGui::TextDisabled("%u objects total (%u new)", countX * countZ, countX * countZ - 1);
     ImGui::Separator();
@@ -864,7 +864,7 @@ void HierarchyPanel::queuePendingPrimitive(PrimitiveKind kind, GameObject* paren
     mPendingPrimitive.open = true;
     mPendingPrimitive.kind = kind;
     mPendingPrimitive.parent = parent;
-    mPendingPrimitive.dimensions = glm::vec3(1.0f);
+    mPendingPrimitive.dimensions = Math::vec3(1.0f);
     mPendingPrimitive.uvTiles = 1.0f;
     mPendingPrimitive.segmentsA = 0;
     mPendingPrimitive.segmentsB = 0;

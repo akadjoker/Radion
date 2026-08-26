@@ -12,13 +12,13 @@ namespace
 {
 
 GameObject* activatePooled(GameObject* object, const ParticleSystem::Emitter& emitter,
-                         u32 burstCount, const glm::vec3& position,
-                         const glm::vec3& direction)
+                         u32 burstCount, const Math::vec3& position,
+                         const Math::vec3& direction)
 {
     object->setActive(true);
     object->setName("ParticleEffect");
     object->setGlobalPosition(position);
-    if (glm::dot(direction, direction) > 0.0001f)
+    if (Math::dot(direction, direction) > 0.0001f)
         object->lookAt(position + direction);
 
     ParticleEffect* effect = object->getComponent<ParticleEffect>();
@@ -33,7 +33,7 @@ GameObject* activatePooled(GameObject* object, const ParticleSystem::Emitter& em
     effect->setEmitter(emitter);
     effect->setBurstCount(burstCount);
     effect->setAutoDestroy(false); // pool owns lifetime
-    effect->setUseOwnerDirection(direction != glm::vec3(0.0f));
+    effect->setUseOwnerDirection(direction != Math::vec3(0.0f));
     effect->play();
     return object;
 }
@@ -60,8 +60,8 @@ void ParticleEffectPool::shutdown()
 }
 
 ParticleEffect* ParticleEffectPool::spawn(const ParticleSystem::Emitter& emitter, u32 burstCount,
-                                          const glm::vec3& position,
-                                          const glm::vec3& direction)
+                                          const Math::vec3& position,
+                                          const Math::vec3& direction)
 {
     if (!mScene)
         return nullptr;

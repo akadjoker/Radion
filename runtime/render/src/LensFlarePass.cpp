@@ -15,9 +15,9 @@ namespace
 
 struct LensFlareBlock
 {
-    glm::vec4 lightScreenPosAndOcclusion;
-    glm::vec4 offsetAndSize;
-    glm::vec4 screenSizeRcp;
+    Math::vec4 lightScreenPosAndOcclusion;
+    Math::vec4 offsetAndSize;
+    Math::vec4 screenSizeRcp;
 };
 
  
@@ -135,19 +135,19 @@ void LensFlarePass::execute(const FrameContext& frame, PostProcessStack& post)
 
     // Directional light, sun at infinity: place it far along the sun
     // direction from the camera, the way Wicked does (POS = eye + D * -zFar).
-    const glm::vec3 toSunDir = glm::normalize(frame.sky->sunDirection);
-    const glm::vec3 sunWorld = frame.cameraPosition + toSunDir * sunDistance;
-    const glm::vec4 clip = frame.viewProjection * glm::vec4(sunWorld, 1.0f);
+    const Math::vec3 toSunDir = Math::normalize(frame.sky->sunDirection);
+    const Math::vec3 sunWorld = frame.cameraPosition + toSunDir * sunDistance;
+    const Math::vec4 clip = frame.viewProjection * Math::vec4(sunWorld, 1.0f);
     if (clip.w <= 0.0f)
         return;
 
-    const glm::vec3 cameraForward =
-        glm::normalize(glm::vec3(glm::inverse(frame.view) * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f)));
-    if (glm::dot(toSunDir, cameraForward) <= 0.0f)
+    const Math::vec3 cameraForward =
+        Math::normalize(Math::vec3(Math::inverse(frame.view) * Math::vec4(0.0f, 0.0f, -1.0f, 0.0f)));
+    if (Math::dot(toSunDir, cameraForward) <= 0.0f)
         return;
 
-    const glm::vec3 ndc = glm::vec3(clip) / clip.w;
-    const glm::vec3 screenPos(ndc.x * 0.5f + 0.5f, ndc.y * 0.5f + 0.5f, ndc.z * 0.5f + 0.5f);
+    const Math::vec3 ndc = Math::vec3(clip) / clip.w;
+    const Math::vec3 screenPos(ndc.x * 0.5f + 0.5f, ndc.y * 0.5f + 0.5f, ndc.z * 0.5f + 0.5f);
 
     GPU& gpu = GPU::getSingleton();
     gpu.setTarget(mColorOnlyTarget);
@@ -158,8 +158,8 @@ void LensFlarePass::execute(const FrameContext& frame, PostProcessStack& post)
     gpu.bindUniform(0, mBlock);
 
     LensFlareBlock block;
-    block.lightScreenPosAndOcclusion = glm::vec4(screenPos, occlusionRadius);
-    block.screenSizeRcp = glm::vec4(1.0f / static_cast<f32>(post.sceneWidth()),
+    block.lightScreenPosAndOcclusion = Math::vec4(screenPos, occlusionRadius);
+    block.screenSizeRcp = Math::vec4(1.0f / static_cast<f32>(post.sceneWidth()),
                                     1.0f / static_cast<f32>(post.sceneHeight()),
                                     debugOcclusion ? 1.0f : 0.0f, 0.0f);
 
@@ -175,7 +175,7 @@ void LensFlarePass::execute(const FrameContext& frame, PostProcessStack& post)
         const f32 width = gpu.textureInfo(mElementTextures[i], info) ? static_cast<f32>(info.width) : 64.0f;
         const f32 height = info.height > 0 ? static_cast<f32>(info.height) : 64.0f;
 
-        block.offsetAndSize = glm::vec4(kElementOffsets[i], width, height, 0.0f);
+        block.offsetAndSize = Math::vec4(kElementOffsets[i], width, height, 0.0f);
         gpu.updateBuffer(mBlock, 0, sizeof(block), &block);
         gpu.bindTexture(1, mElementTextures[i], mFlareSampler);
         gpu.draw(command);

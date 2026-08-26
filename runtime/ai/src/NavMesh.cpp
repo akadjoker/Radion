@@ -96,7 +96,7 @@ void collectReachablePolys(const dtNavMesh& navMesh, dtPolyRef seedRef,
 } // namespace
 
 bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s32 triangleCount,
-                    const NavMeshConfig& config, const glm::vec3* groundSeed)
+                    const NavMeshConfig& config, const Math::vec3* groundSeed)
 {
     release();
     if (!vertices || !indices || vertexCount <= 0 || triangleCount <= 0)
@@ -222,7 +222,7 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
             for (u32 corner = 0; corner < 3; ++corner)
             {
                 const f32* v = &verts[tris[tri * 4 + corner] * 3];
-                mDebugTriangles.push_back(glm::vec3(v[0], v[1], v[2]));
+                mDebugTriangles.push_back(Math::vec3(v[0], v[1], v[2]));
             }
     }
 
@@ -326,7 +326,7 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
                 // debugTriangles() mirrors the same prune: a roof that
                 // queries now refuse to route onto should not still draw as
                 // if it were part of the walkable surface.
-                std::vector<glm::vec3> reachableTriangles;
+                std::vector<Math::vec3> reachableTriangles;
                 reachableTriangles.reserve(mDebugTriangles.size());
                 for (s32 meshIndex = 0; meshIndex < tile->header->detailMeshCount; ++meshIndex)
                 {
@@ -348,7 +348,7 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
                                     : &tile->detailVerts[(detail.vertBase +
                                                           (vertexIndex - poly.vertCount)) *
                                                          3];
-                            reachableTriangles.push_back(glm::vec3(v[0], v[1], v[2]));
+                            reachableTriangles.push_back(Math::vec3(v[0], v[1], v[2]));
                         }
                     }
                 }
@@ -360,8 +360,8 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
     return true;
 }
 
-bool NavMesh::nearestPoint(const glm::vec3& point, glm::vec3& out,
-                           const glm::vec3& searchExtents) const
+bool NavMesh::nearestPoint(const Math::vec3& point, Math::vec3& out,
+                           const Math::vec3& searchExtents) const
 {
     if (!valid())
         return false;
@@ -379,12 +379,12 @@ bool NavMesh::nearestPoint(const glm::vec3& point, glm::vec3& out,
         reference == 0)
         return false;
 
-    out = glm::vec3(nearest[0], nearest[1], nearest[2]);
+    out = Math::vec3(nearest[0], nearest[1], nearest[2]);
     return true;
 }
 
-bool NavMesh::moveAlongSurface(const glm::vec3& from, const glm::vec3& to, glm::vec3& out,
-                               const glm::vec3& searchExtents) const
+bool NavMesh::moveAlongSurface(const Math::vec3& from, const Math::vec3& to, Math::vec3& out,
+                               const Math::vec3& searchExtents) const
 {
     if (!valid())
         return false;
@@ -418,12 +418,12 @@ bool NavMesh::moveAlongSurface(const glm::vec3& from, const glm::vec3& to, glm::
     if (dtStatusSucceed(query->getPolyHeight(endRef, result, &height)))
         result[1] = height;
 
-    out = glm::vec3(result[0], result[1], result[2]);
+    out = Math::vec3(result[0], result[1], result[2]);
     return true;
 }
 
-bool NavMesh::findPath(const glm::vec3& start, const glm::vec3& end,
-                       std::vector<glm::vec3>& outPath, const glm::vec3& searchExtents) const
+bool NavMesh::findPath(const Math::vec3& start, const Math::vec3& end,
+                       std::vector<Math::vec3>& outPath, const Math::vec3& searchExtents) const
 {
     outPath.clear();
     if (!valid())
@@ -473,13 +473,13 @@ bool NavMesh::findPath(const glm::vec3& start, const glm::vec3& end,
 
     outPath.reserve(static_cast<usize>(straightCount));
     for (s32 i = 0; i < straightCount; ++i)
-        outPath.push_back(glm::vec3(straightPath[static_cast<usize>(i) * 3 + 0],
+        outPath.push_back(Math::vec3(straightPath[static_cast<usize>(i) * 3 + 0],
                                     straightPath[static_cast<usize>(i) * 3 + 1],
                                     straightPath[static_cast<usize>(i) * 3 + 2]));
     return true;
 }
 
-const std::vector<glm::vec3>& NavMesh::debugTriangles() const
+const std::vector<Math::vec3>& NavMesh::debugTriangles() const
 {
     return mDebugTriangles;
 }
@@ -509,7 +509,7 @@ bool NavMesh::save(const std::string& filename) const
 
     const u64 debugChunk = writer.beginChunk(AssetFormat::NavDebugTriangles);
     writer.writeU32(static_cast<u32>(mDebugTriangles.size()));
-    for (const glm::vec3& vertex : mDebugTriangles)
+    for (const Math::vec3& vertex : mDebugTriangles)
     {
         writer.writeF32(vertex.x);
         writer.writeF32(vertex.y);
@@ -554,7 +554,7 @@ bool NavMesh::load(const std::string& filename)
             if (!reader.readU32(count))
                 return false;
             mDebugTriangles.resize(count);
-            for (glm::vec3& vertex : mDebugTriangles)
+            for (Math::vec3& vertex : mDebugTriangles)
                 if (!reader.readF32(vertex.x) || !reader.readF32(vertex.y) ||
                     !reader.readF32(vertex.z))
                     return false;

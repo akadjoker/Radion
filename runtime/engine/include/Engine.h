@@ -75,9 +75,9 @@ struct RenderTextureSettings
 // gathered by hand instead.
 struct RenderView
 {
-    glm::mat4 view = glm::mat4(1.0f);
-    glm::mat4 projection = glm::mat4(1.0f);
-    glm::vec3 position = glm::vec3(0.0f);
+    Math::mat4 view = Math::mat4(1.0f);
+    Math::mat4 projection = Math::mat4(1.0f);
+    Math::vec3 position = Math::vec3(0.0f);
     f32 fieldOfView = 60.0f;
     f32 aspect = 1.0f;
     f32 nearPlane = 0.1f;
@@ -265,7 +265,7 @@ public:
     TextureHandle directionalShadowTexture() const;
     void debugDrawTexture(TextureHandle texture, bool isArray, u32 layer, TargetHandle target,
                           u32 width, u32 height,
-                          const glm::vec4& sourceRect = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f));
+                          const Math::vec4& sourceRect = Math::vec4(1.0f, 1.0f, 0.0f, 0.0f));
     void debugDrawCubemap(TextureHandle texture, u32 face, u32 mip, TargetHandle target,
                           u32 width, u32 height);
     Lighting* lighting();
@@ -329,10 +329,10 @@ private:
 
     struct TemporalState
     {
-        glm::mat4 prevView = glm::mat4(1.0f);
-        glm::mat4 prevProjectionNoJitter = glm::mat4(1.0f);
-        glm::mat4 prevViewProjectionNoJitter = glm::mat4(1.0f);
-        glm::vec2 prevJitter = glm::vec2(0.0f);
+        Math::mat4 prevView = Math::mat4(1.0f);
+        Math::mat4 prevProjectionNoJitter = Math::mat4(1.0f);
+        Math::mat4 prevViewProjectionNoJitter = Math::mat4(1.0f);
+        Math::vec2 prevJitter = Math::vec2(0.0f);
         const void* viewIdentity = nullptr;
         u32 width = 0;
         u32 height = 0;

@@ -65,12 +65,12 @@ GrassAtlasRect Grass::computeRegion(u32 x, u32 y, u32 width, u32 height, f32 siz
 {
     GrassAtlasRect region;
     region.texMulAdd =
-        glm::vec4(static_cast<f32>(width) / static_cast<f32>(atlasWidth),
+        Math::vec4(static_cast<f32>(width) / static_cast<f32>(atlasWidth),
                   static_cast<f32>(height) / static_cast<f32>(atlasHeight),
                   static_cast<f32>(x) / static_cast<f32>(atlasWidth),
                   static_cast<f32>(y) / static_cast<f32>(atlasHeight));
     region.sizeAspect =
-        glm::vec4(size, static_cast<f32>(width) / static_cast<f32>(height), 0.0f, 0.0f);
+        Math::vec4(size, static_cast<f32>(width) / static_cast<f32>(height), 0.0f, 0.0f);
     return region;
 }
 
@@ -114,7 +114,7 @@ bool Grass::setRegion(u32 index, const GrassAtlasRect& region, f32 weight)
         return false;
     mTotalWeight -= mWeights[index];
     mRegions[index] = region;
-    mWeights[index] = glm::max(0.0f, weight);
+    mWeights[index] = Math::max(0.0f, weight);
     mTotalWeight += mWeights[index];
     mDirty = true;
     return true;
@@ -130,7 +130,7 @@ bool Grass::setRegion(u32 index, u32 x, u32 y, u32 width, u32 height, f32 size, 
 
     mTotalWeight -= mWeights[index];
     mRegions[index] = computeRegion(x, y, width, height, size, mAtlasWidth, mAtlasHeight);
-    mWeights[index] = glm::max(0.0f, weight);
+    mWeights[index] = Math::max(0.0f, weight);
     mTotalWeight += mWeights[index];
     mDirty = true;
     return true;
@@ -165,7 +165,7 @@ void Grass::clearRegions()
     mDirty = true;
 }
 
-bool Grass::plant(const glm::vec3& position, const glm::vec3& normal, f32 scale)
+bool Grass::plant(const Math::vec3& position, const Math::vec3& normal, f32 scale)
 {
     if (mRegions.empty() || scale <= 0.0f)
         return false;
@@ -188,9 +188,9 @@ bool Grass::plant(const glm::vec3& position, const glm::vec3& normal, f32 scale)
     }
 
     GrassClump clump;
-    clump.positionScale = glm::vec4(position, scale);
-    clump.normalRotation = glm::vec4(glm::normalize(normal), random() * 2.0f * glm::pi<f32>());
-    clump.rect = glm::vec4(static_cast<f32>(region), 0.0f, 0.0f, 0.0f);
+    clump.positionScale = Math::vec4(position, scale);
+    clump.normalRotation = Math::vec4(Math::normalize(normal), random() * 2.0f * Math::pi<f32>());
+    clump.rect = Math::vec4(static_cast<f32>(region), 0.0f, 0.0f, 0.0f);
     mClumps.push_back(clump);
     mDirty = true;
     return true;
@@ -200,7 +200,7 @@ bool Grass::plant(const GrassClump& clump)
 {
     const u32 region = static_cast<u32>(clump.rect.x);
     if (region >= mRegions.size() || clump.positionScale.w <= 0.0f ||
-        glm::length(glm::vec3(clump.normalRotation)) <= 0.000001f)
+        Math::length(Math::vec3(clump.normalRotation)) <= 0.000001f)
         return false;
     mClumps.push_back(clump);
     mDirty = true;
@@ -215,7 +215,7 @@ bool Grass::clump(u32 index, GrassClump& clump) const
     return true;
 }
 
-u32 Grass::paint(const glm::vec3& centre, f32 radius, u32 count)
+u32 Grass::paint(const Math::vec3& centre, f32 radius, u32 count)
 {
     if (mRegions.empty() || radius <= 0.0f)
         return 0;
@@ -225,11 +225,11 @@ u32 Grass::paint(const glm::vec3& centre, f32 radius, u32 count)
     {
         // Square root of the random radius: area grows with r², so a uniform
         // one would pile every tuft in the middle.
-        const f32 angle = random() * 2.0f * glm::pi<f32>();
+        const f32 angle = random() * 2.0f * Math::pi<f32>();
         const f32 distance = std::sqrt(random()) * radius;
-        const glm::vec3 position =
-            centre + glm::vec3(std::cos(angle) * distance, 0.0f, std::sin(angle) * distance);
-        const glm::vec3 normal(0.0f, 1.0f, 0.0f);
+        const Math::vec3 position =
+            centre + Math::vec3(std::cos(angle) * distance, 0.0f, std::sin(angle) * distance);
+        const Math::vec3 normal(0.0f, 1.0f, 0.0f);
 
         const f32 scale = 0.75f + random() * 0.5f;
         if (plant(position, normal, scale))
@@ -266,7 +266,7 @@ void Grass::setWind(f32 strength)
 
 void Grass::setAlphaCut(f32 cut)
 {
-    mAlphaCut = glm::clamp(cut, 0.0f, 1.0f);
+    mAlphaCut = Math::clamp(cut, 0.0f, 1.0f);
 }
 
 void Grass::setDrawDistance(f32 metres)
@@ -286,7 +286,7 @@ void Grass::setStiffness(f32 stiffness)
 
 void Grass::setDrag(f32 drag)
 {
-    mDrag = glm::clamp(drag, 0.0f, 1.0f);
+    mDrag = Math::clamp(drag, 0.0f, 1.0f);
 }
 
 f32 Grass::height() const
@@ -339,7 +339,7 @@ void Grass::clearInfluencers()
     mInfluencers.clear();
 }
 
-bool Grass::addInfluencer(const glm::vec3& centre, f32 radius, f32 force)
+bool Grass::addInfluencer(const Math::vec3& centre, f32 radius, f32 force)
 {
     if (mInfluencers.size() >= kGrassMaxInfluencers || radius <= 0.0f)
         return false;
@@ -398,18 +398,18 @@ u32 Grass::paintFromGrid()
 // pass culls against world-space planes and the shader never sees a model
 // matrix. Baking the transform in is the one place that gap is closed, and it
 // only runs when the field or the object actually moved.
-void Grass::rebuildWorld(const glm::mat4& transform)
+void Grass::rebuildWorld(const Math::mat4& transform)
 {
     mWorldClumps.resize(mClumps.size());
-    const glm::mat3 rotation(transform);
+    const Math::mat3 rotation(transform);
     for (usize i = 0; i < mClumps.size(); ++i)
     {
         const GrassClump& clump = mClumps[i];
         mWorldClumps[i].positionScale =
-            glm::vec4(glm::vec3(transform * glm::vec4(glm::vec3(clump.positionScale), 1.0f)),
+            Math::vec4(Math::vec3(transform * Math::vec4(Math::vec3(clump.positionScale), 1.0f)),
                       clump.positionScale.w);
-        mWorldClumps[i].normalRotation = glm::vec4(
-            glm::normalize(rotation * glm::vec3(clump.normalRotation)), clump.normalRotation.w);
+        mWorldClumps[i].normalRotation = Math::vec4(
+            Math::normalize(rotation * Math::vec3(clump.normalRotation)), clump.normalRotation.w);
         mWorldClumps[i].rect = clump.rect;
     }
 
@@ -418,7 +418,7 @@ void Grass::rebuildWorld(const glm::mat4& transform)
     ++mRevision;
 }
 
-void Grass::submit(const glm::mat4& transform, f32 deltaTime)
+void Grass::submit(const Math::mat4& transform, f32 deltaTime)
 {
     if (mClumps.empty() || mRegions.empty() || !mAtlas.valid())
         return;

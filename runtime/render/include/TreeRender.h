@@ -15,9 +15,9 @@ namespace Radion
 // with the impostor path, which orients its quad by it.
 struct TreeInstanceData
 {
-    glm::vec3 position = glm::vec3(0.0f);
+    Math::vec3 position = Math::vec3(0.0f);
     f32 scale = 1.0f;
-    glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    Math::vec3 normal = Math::vec3(0.0f, 1.0f, 0.0f);
     f32 rotation = 0.0f; // radians
 };
 

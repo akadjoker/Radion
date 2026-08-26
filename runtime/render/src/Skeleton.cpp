@@ -10,8 +10,8 @@
 #include <limits>
 
 #define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/matrix_decompose.hpp>
+#include "Math.h"
+#include "Math.h"
 
 namespace Radion
 {
@@ -19,11 +19,11 @@ namespace Radion
 namespace
 {
 
-glm::quat nlerp(const glm::quat& from, glm::quat to, f32 amount)
+Math::quat nlerp(const Math::quat& from, Math::quat to, f32 amount)
 {
-    if (glm::dot(from, to) < 0.0f)
+    if (Math::dot(from, to) < 0.0f)
         to = -to;
-    return glm::normalize(from * (1.0f - amount) + to * amount);
+    return Math::normalize(from * (1.0f - amount) + to * amount);
 }
 
 // Same "match by name suffix" convention Ragdoll::build() uses to find a
@@ -60,8 +60,8 @@ f32 lowestTrackHeight(const AnimationClip& clip, s32 boneIndex)
         if (track.bone != boneIndex || track.positions.empty())
             continue;
         f32 lowest = track.positions.front().y;
-        for (const glm::vec3& position : track.positions)
-            lowest = glm::min(lowest, position.y);
+        for (const Math::vec3& position : track.positions)
+            lowest = Math::min(lowest, position.y);
         return lowest;
     }
     return std::numeric_limits<f32>::quiet_NaN();
@@ -88,7 +88,7 @@ void warnOnHipsHeightMismatch(const std::string& skeletonFile, const Skeleton& s
             referenceFile = animationFiles[i];
             continue;
         }
-        if (glm::abs(height - referenceHeight) > kHipsHeightMismatchThreshold)
+        if (Math::abs(height - referenceHeight) > kHipsHeightMismatchThreshold)
             Log::warning(
                 "AnimationManager: '%s' Hips baseline (%.2f) differs from '%s' (%.2f) by "
                 "more than %.1f in skeleton '%s' - one of these clips likely was not "
@@ -124,8 +124,8 @@ s32 Skeleton::findBone(const char* name) const
     return -1;
 }
 
-bool Skeleton::addBone(const std::string& name, s32 parent, const glm::mat4& bindLocal,
-                       const glm::mat4& inverseBind)
+bool Skeleton::addBone(const std::string& name, s32 parent, const Math::mat4& bindLocal,
+                       const Math::mat4& inverseBind)
 {
     if (name.empty() || parent < -1 || parent >= 65535 || findBone(name.c_str()) >= 0)
         return false;
@@ -165,20 +165,20 @@ void Skeleton::bindPose(std::vector<LocalPose>& pose) const
     pose.resize(mBones.size());
     for (usize i = 0; i < mBones.size(); ++i)
     {
-        glm::vec3 skew;
-        glm::vec4 perspective;
-        if (!glm::decompose(mBones[i].bindLocal, pose[i].scale, pose[i].rotation, pose[i].position,
+        Math::vec3 skew;
+        Math::vec4 perspective;
+        if (!Math::decompose(mBones[i].bindLocal, pose[i].scale, pose[i].rotation, pose[i].position,
                             skew, perspective))
         {
             pose[i] = LocalPose();
             continue;
         }
-        pose[i].rotation = glm::normalize(pose[i].rotation);
+        pose[i].rotation = Math::normalize(pose[i].rotation);
     }
 }
 
-void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<glm::mat4>& globalPose,
-                        std::vector<glm::mat4>& palette) const
+void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<Math::mat4>& globalPose,
+                        std::vector<Math::mat4>& palette) const
 {
     if (localPose.size() != mBones.size() || mOrder.size() != mBones.size())
         return;
@@ -187,9 +187,9 @@ void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<glm
     for (u16 index : mOrder)
     {
         const LocalPose& pose = localPose[index];
-        const glm::mat4 local = glm::translate(glm::mat4(1.0f), pose.position) *
-                                glm::mat4_cast(pose.rotation) *
-                                glm::scale(glm::mat4(1.0f), pose.scale);
+        const Math::mat4 local = Math::translate(Math::mat4(1.0f), pose.position) *
+                                Math::mat4_cast(pose.rotation) *
+                                Math::scale(Math::mat4(1.0f), pose.scale);
         const s32 parent = mBones[index].parent;
         globalPose[index] = parent >= 0 ? globalPose[static_cast<usize>(parent)] * local : local;
         palette[index] = globalPose[index] * mBones[index].inverseBind;
@@ -201,36 +201,36 @@ void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<glm
 namespace
 {
 
-glm::mat4 composeLocal(const LocalPose& pose)
+Math::mat4 composeLocal(const LocalPose& pose)
 {
     // The same composition Skeleton::evaluate() uses - the solver writes back
     // into localPose, so it has to rebuild world matrices exactly the way the
     // evaluate step would, or the pose it hands back would not match itself.
-    return glm::translate(glm::mat4(1.0f), pose.position) * glm::mat4_cast(pose.rotation) *
-           glm::scale(glm::mat4(1.0f), pose.scale);
+    return Math::translate(Math::mat4(1.0f), pose.position) * Math::mat4_cast(pose.rotation) *
+           Math::scale(Math::mat4(1.0f), pose.scale);
 }
 
-bool decomposeLocal(const glm::mat4& matrix, LocalPose& out)
+bool decomposeLocal(const Math::mat4& matrix, LocalPose& out)
 {
-    glm::vec3 skew;
-    glm::vec4 perspective;
-    if (!glm::decompose(matrix, out.scale, out.rotation, out.position, skew, perspective))
+    Math::vec3 skew;
+    Math::vec4 perspective;
+    if (!Math::decompose(matrix, out.scale, out.rotation, out.position, skew, perspective))
         return false;
-    out.rotation = glm::normalize(out.rotation);
+    out.rotation = Math::normalize(out.rotation);
     return true;
 }
 
-glm::vec3 translationOf(const glm::mat4& matrix)
+Math::vec3 translationOf(const Math::mat4& matrix)
 {
-    return glm::vec3(matrix[3]);
+    return Math::vec3(matrix[3]);
 }
 
 // acos of the dot product, clamped - the reference's XMScalarACos does the
 // clamp itself, and without it a dot product a hair past 1.0 from rounding
 // returns NaN and poisons the whole chain.
-f32 angleBetweenNormals(const glm::vec3& a, const glm::vec3& b)
+f32 angleBetweenNormals(const Math::vec3& a, const Math::vec3& b)
 {
-    return std::acos(glm::clamp(glm::dot(a, b), -1.0f, 1.0f));
+    return std::acos(Math::clamp(Math::dot(a, b), -1.0f, 1.0f));
 }
 
 } // namespace
@@ -240,10 +240,10 @@ IKConstraint IKConstraint::thigh()
     // wiScene.cpp:3486-3491, verbatim.
     IKConstraint constraint;
     constraint.enabled = true;
-    constraint.minimum = glm::vec3(glm::pi<f32>() * 0.6f, glm::pi<f32>() * 0.1f,
-                                   glm::pi<f32>() * 0.1f);
-    constraint.maximum = glm::vec3(glm::pi<f32>() * 0.1f, glm::pi<f32>() * 0.1f,
-                                   glm::pi<f32>() * 0.1f);
+    constraint.minimum = Math::vec3(Math::pi<f32>() * 0.6f, Math::pi<f32>() * 0.1f,
+                                   Math::pi<f32>() * 0.1f);
+    constraint.maximum = Math::vec3(Math::pi<f32>() * 0.1f, Math::pi<f32>() * 0.1f,
+                                   Math::pi<f32>() * 0.1f);
     return constraint;
 }
 
@@ -253,8 +253,8 @@ IKConstraint IKConstraint::knee()
     // a hinge instead of a ball joint.
     IKConstraint constraint;
     constraint.enabled = true;
-    constraint.minimum = glm::vec3(0.0f);
-    constraint.maximum = glm::vec3(glm::pi<f32>() * 0.8f, 0.0f, 0.0f);
+    constraint.minimum = Math::vec3(0.0f);
+    constraint.maximum = Math::vec3(Math::pi<f32>() * 0.8f, 0.0f, 0.0f);
     return constraint;
 }
 
@@ -267,8 +267,8 @@ IKConstraint IKConstraint::inverted() const
 }
 
 void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
-                     const glm::mat4& ownerTransform, std::vector<LocalPose>& localPose,
-                     std::vector<glm::mat4>& globalPose)
+                     const Math::mat4& ownerTransform, std::vector<LocalPose>& localPose,
+                     std::vector<Math::mat4>& globalPose)
 {
     const u32 boneCount = skeleton.boneCount();
     if (!chain.enabled || chain.tipBone < 0 || static_cast<u32>(chain.tipBone) >= boneCount)
@@ -280,10 +280,10 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
 
     // The pose lives in the owner's space, the target arrives in world space -
     // one conversion here rather than at every call site.
-    const glm::mat4 toPoseSpace = glm::inverse(ownerTransform);
-    const glm::vec3 target = glm::vec3(toPoseSpace * glm::vec4(chain.target, 1.0f));
+    const Math::mat4 toPoseSpace = Math::inverse(ownerTransform);
+    const Math::vec3 target = Math::vec3(toPoseSpace * Math::vec4(chain.target, 1.0f));
 
-    const u32 linkCount = glm::min(chain.length, IKChain::MaxLinks);
+    const u32 linkCount = Math::min(chain.length, IKChain::MaxLinks);
     s32 stack[IKChain::MaxLinks] = {};
 
     for (u32 iteration = 0; iteration < chain.iterations; ++iteration)
@@ -300,116 +300,116 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
             if (parentBone < 0 || static_cast<u32>(parentBone) >= boneCount)
                 break;
 
-            const glm::mat4& parentWorld = globalPose[static_cast<usize>(parentBone)];
-            const glm::vec3 parentPosition = translationOf(parentWorld);
+            const Math::mat4& parentWorld = globalPose[static_cast<usize>(parentBone)];
+            const Math::vec3 parentPosition = translationOf(parentWorld);
 
             // The TIP, not the current child - CCD always aims the end
             // effector at the target, whichever link is being rotated.
-            const glm::vec3 tipPosition =
+            const Math::vec3 tipPosition =
                 translationOf(globalPose[static_cast<usize>(chain.tipBone)]);
 
-            const glm::vec3 toTip = tipPosition - parentPosition;
-            const glm::vec3 toTarget = target - parentPosition;
-            if (glm::dot(toTip, toTip) <= 1e-12f || glm::dot(toTarget, toTarget) <= 1e-12f)
+            const Math::vec3 toTip = tipPosition - parentPosition;
+            const Math::vec3 toTarget = target - parentPosition;
+            if (Math::dot(toTip, toTip) <= 1e-12f || Math::dot(toTarget, toTarget) <= 1e-12f)
                 break; // the tip sits on the joint: no direction to rotate along
-            const glm::vec3 directionToTip = glm::normalize(toTip);
-            const glm::vec3 directionToTarget = glm::normalize(toTarget);
+            const Math::vec3 directionToTip = Math::normalize(toTip);
+            const Math::vec3 directionToTarget = Math::normalize(toTarget);
 
             const IKConstraint& constraint = chain.constraints[link];
-            glm::quat rotation;
+            Math::quat rotation;
             if (constraint.enabled)
             {
                 // Constrained: one rotation PER AXIS rather than a single
                 // shortest one, each limited and each divided by the
                 // iteration count so the limit is a total spread over all
                 // the passes, not a per-pass allowance.
-                rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-                glm::mat4 axisFrame = parentWorld;
+                rotation = Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                Math::mat4 axisFrame = parentWorld;
                 const f32 iterationReciprocal = 1.0f / static_cast<f32>(chain.iterations);
                 for (u32 axisIndex = 0; axisIndex < 3; ++axisIndex)
                 {
-                    glm::vec3 localAxis(0.0f);
+                    Math::vec3 localAxis(0.0f);
                     localAxis[static_cast<int>(axisIndex)] = 1.0f;
                     const f32 axisMinimum = constraint.minimum[static_cast<int>(axisIndex)] *
                                             iterationReciprocal;
                     const f32 axisMaximum = constraint.maximum[static_cast<int>(axisIndex)] *
                                             iterationReciprocal;
 
-                    const glm::vec3 axisWorld = glm::mat3(axisFrame) * localAxis;
-                    if (glm::dot(axisWorld, axisWorld) <= 1e-12f)
+                    const Math::vec3 axisWorld = Math::mat3(axisFrame) * localAxis;
+                    if (Math::dot(axisWorld, axisWorld) <= 1e-12f)
                         continue;
-                    const glm::vec3 axis = glm::normalize(axisWorld);
+                    const Math::vec3 axis = Math::normalize(axisWorld);
 
                     // Both directions flattened onto the plane the axis is
                     // normal to: what is left is the part of the rotation
                     // this axis is allowed to answer for.
-                    const glm::vec3 flatTip =
-                        directionToTip - axis * glm::dot(axis, directionToTip);
-                    const glm::vec3 flatTarget =
-                        directionToTarget - axis * glm::dot(axis, directionToTarget);
-                    if (glm::dot(flatTip, flatTip) <= 1e-12f ||
-                        glm::dot(flatTarget, flatTarget) <= 1e-12f)
+                    const Math::vec3 flatTip =
+                        directionToTip - axis * Math::dot(axis, directionToTip);
+                    const Math::vec3 flatTarget =
+                        directionToTarget - axis * Math::dot(axis, directionToTarget);
+                    if (Math::dot(flatTip, flatTip) <= 1e-12f ||
+                        Math::dot(flatTarget, flatTarget) <= 1e-12f)
                         continue;
-                    const glm::vec3 projectedTip = glm::normalize(flatTip);
-                    const glm::vec3 projectedTarget = glm::normalize(flatTarget);
+                    const Math::vec3 projectedTip = Math::normalize(flatTip);
+                    const Math::vec3 projectedTarget = Math::normalize(flatTarget);
 
                     f32 angle = angleBetweenNormals(projectedTip, projectedTarget);
-                    if (glm::dot(glm::cross(projectedTip, projectedTarget), axis) < 0.0f)
-                        angle = glm::two_pi<f32>() - glm::min(angle, axisMinimum);
+                    if (Math::dot(Math::cross(projectedTip, projectedTarget), axis) < 0.0f)
+                        angle = Math::two_pi<f32>() - Math::min(angle, axisMinimum);
                     else
-                        angle = glm::min(angle, axisMaximum);
+                        angle = Math::min(angle, axisMaximum);
 
-                    const glm::quat axisRotation = glm::normalize(glm::angleAxis(angle, axis));
+                    const Math::quat axisRotation = Math::normalize(Math::angleAxis(angle, axis));
                     // The reference's own order (`W = R(Q1) * W`, row-vector,
-                    // so R applies before W) written for glm's column-vector
+                    // so R applies before W) written for Mathc's column-vector
                     // convention, where that same order is `W * R`. Left as
                     // the reference has it on purpose: it reads like a
                     // local-space rotation where a world one would be
                     // expected, and changing it would change the result.
-                    axisFrame = axisFrame * glm::mat4_cast(axisRotation);
+                    axisFrame = axisFrame * Math::mat4_cast(axisRotation);
                     rotation = rotation * axisRotation;
                 }
-                rotation = glm::normalize(rotation);
+                rotation = Math::normalize(rotation);
             }
             else
             {
                 // Unconstrained: the shortest rotation that takes the tip
                 // direction onto the target direction.
-                const glm::vec3 axis = glm::cross(directionToTip, directionToTarget);
-                if (glm::dot(axis, axis) <= 1e-12f)
+                const Math::vec3 axis = Math::cross(directionToTip, directionToTarget);
+                if (Math::dot(axis, axis) <= 1e-12f)
                     break; // already aligned, or exactly opposed
-                rotation = glm::normalize(
-                    glm::angleAxis(angleBetweenNormals(directionToTip, directionToTarget),
-                                   glm::normalize(axis)));
+                rotation = Math::normalize(
+                    Math::angleAxis(angleBetweenNormals(directionToTip, directionToTarget),
+                                   Math::normalize(axis)));
             }
 
             // Rotate the parent about its OWN position, keeping its
             // translation and scale: what the reference gets out of
-            // ApplyTransform() + Rotate() + UpdateTransform(). glm's product
+            // ApplyTransform() + Rotate() + UpdateTransform(). Mathc's product
             // order is reversed from the reference's XMQuaternionMultiply
             // (which reads "local first, then Q"), so the world rotation
             // goes on the left here.
-            glm::vec3 parentScale;
-            glm::quat parentRotation;
-            glm::vec3 parentTranslation;
-            glm::vec3 skew;
-            glm::vec4 perspective;
-            if (!glm::decompose(parentWorld, parentScale, parentRotation, parentTranslation, skew,
+            Math::vec3 parentScale;
+            Math::quat parentRotation;
+            Math::vec3 parentTranslation;
+            Math::vec3 skew;
+            Math::vec4 perspective;
+            if (!Math::decompose(parentWorld, parentScale, parentRotation, parentTranslation, skew,
                                 perspective))
                 break;
-            parentRotation = glm::normalize(rotation * glm::normalize(parentRotation));
+            parentRotation = Math::normalize(rotation * Math::normalize(parentRotation));
 
-            const glm::mat4 rotatedWorld = glm::translate(glm::mat4(1.0f), parentTranslation) *
-                                           glm::mat4_cast(parentRotation) *
-                                           glm::scale(glm::mat4(1.0f), parentScale);
+            const Math::mat4 rotatedWorld = Math::translate(Math::mat4(1.0f), parentTranslation) *
+                                           Math::mat4_cast(parentRotation) *
+                                           Math::scale(Math::mat4(1.0f), parentScale);
 
             // Back to local, against the grandparent - the reference's
             // MatrixTransform(inverse(parent_of_parent.world)) step, which it
             // skips when the parent is a root.
             const s32 grandParent = skeleton.bone(static_cast<u32>(parentBone)).parent;
-            const glm::mat4 newLocal =
+            const Math::mat4 newLocal =
                 grandParent >= 0
-                    ? glm::inverse(globalPose[static_cast<usize>(grandParent)]) * rotatedWorld
+                    ? Math::inverse(globalPose[static_cast<usize>(grandParent)]) * rotatedWorld
                     : rotatedWorld;
 
             LocalPose updated;
@@ -454,7 +454,7 @@ f32 AnimationClip::duration() const
 }
 void AnimationClip::setDuration(f32 duration)
 {
-    mDuration = glm::max(duration, 0.0f);
+    mDuration = Math::max(duration, 0.0f);
 }
 std::vector<BoneTrack>& AnimationClip::tracks()
 {
@@ -471,16 +471,16 @@ void AnimationClip::sample(f32 time, std::vector<LocalPose>& pose) const
     {
         if (track.bone < 0 || static_cast<usize>(track.bone) >= pose.size() || track.times.empty())
             continue;
-        const usize count = glm::min(
-            track.times.size(), glm::min(track.positions.size(),
-                                         glm::min(track.rotations.size(), track.scales.size())));
+        const usize count = Math::min(
+            track.times.size(), Math::min(track.positions.size(),
+                                         Math::min(track.rotations.size(), track.scales.size())));
         if (count == 0)
             continue;
         LocalPose& result = pose[static_cast<usize>(track.bone)];
         if (count == 1)
         {
             result.position = track.positions[0];
-            result.rotation = glm::normalize(track.rotations[0]);
+            result.rotation = Math::normalize(track.rotations[0]);
             result.scale = track.scales[0];
             continue;
         }
@@ -494,10 +494,10 @@ void AnimationClip::sample(f32 time, std::vector<LocalPose>& pose) const
         const usize previous = next > 0 ? next - 1 : 0;
         const f32 span = track.times[next] - track.times[previous];
         const f32 amount =
-            span > 0.000001f ? glm::clamp((time - track.times[previous]) / span, 0.0f, 1.0f) : 0.0f;
-        result.position = glm::mix(track.positions[previous], track.positions[next], amount);
+            span > 0.000001f ? Math::clamp((time - track.times[previous]) / span, 0.0f, 1.0f) : 0.0f;
+        result.position = Math::mix(track.positions[previous], track.positions[next], amount);
         result.rotation = nlerp(track.rotations[previous], track.rotations[next], amount);
-        result.scale = glm::mix(track.scales[previous], track.scales[next], amount);
+        result.scale = Math::mix(track.scales[previous], track.scales[next], amount);
     }
 }
 
@@ -522,7 +522,7 @@ void AnimationClip::setKeyframe(s32 bone, f32 time, const LocalPose& pose)
 
     const usize index = static_cast<usize>(
         std::lower_bound(track->times.begin(), track->times.end(), time) - track->times.begin());
-    if (index < track->times.size() && glm::abs(track->times[index] - time) < 0.0001f)
+    if (index < track->times.size() && Math::abs(track->times[index] - time) < 0.0001f)
     {
         track->positions[index] = pose.position;
         track->rotations[index] = pose.rotation;
@@ -537,7 +537,7 @@ void AnimationClip::setKeyframe(s32 bone, f32 time, const LocalPose& pose)
                                 pose.rotation);
         track->scales.insert(track->scales.begin() + static_cast<ptrdiff_t>(index), pose.scale);
     }
-    mDuration = glm::max(mDuration, time);
+    mDuration = Math::max(mDuration, time);
 }
 
 void AnimationClip::removeKeyframe(s32 bone, f32 time)
@@ -548,7 +548,7 @@ void AnimationClip::removeKeyframe(s32 bone, f32 time)
             continue;
         const usize index = static_cast<usize>(
             std::lower_bound(track.times.begin(), track.times.end(), time) - track.times.begin());
-        if (index >= track.times.size() || glm::abs(track.times[index] - time) >= 0.0001f)
+        if (index >= track.times.size() || Math::abs(track.times[index] - time) >= 0.0001f)
             return;
         track.times.erase(track.times.begin() + static_cast<ptrdiff_t>(index));
         track.positions.erase(track.positions.begin() + static_cast<ptrdiff_t>(index));
@@ -570,7 +570,7 @@ void AnimationLayer::play(const std::string& clip, PlayMode mode, f32 blendTime)
     mReturnTo.clear();
     mTime = 0.0f;
     mMode = mode;
-    mBlendDuration = glm::max(blendTime, 0.0f);
+    mBlendDuration = Math::max(blendTime, 0.0f);
     mBlend = mBlendDuration > 0.0f ? 0.0f : 1.0f;
 }
 
@@ -609,7 +609,7 @@ void AnimationLayer::setMask(const std::vector<f32>& weights)
 }
 void AnimationLayer::maskAll(const Skeleton& skeleton, f32 weight)
 {
-    mMask.assign(skeleton.boneCount(), glm::clamp(weight, 0.0f, 1.0f));
+    mMask.assign(skeleton.boneCount(), Math::clamp(weight, 0.0f, 1.0f));
 }
 
 void AnimationLayer::maskFromBone(const Skeleton& skeleton, const char* rootBone, f32 weight)
@@ -624,7 +624,7 @@ void AnimationLayer::maskFromBone(const Skeleton& skeleton, const char* rootBone
              boneIndex = skeleton.bone(static_cast<u32>(boneIndex)).parent)
             if (boneIndex == root)
             {
-                mMask[i] = glm::clamp(weight, 0.0f, 1.0f);
+                mMask[i] = Math::clamp(weight, 0.0f, 1.0f);
                 break;
             }
 }
@@ -655,7 +655,7 @@ f32 AnimationLayer::wrappedTime() const
     if (!(length > 0.0f))
         return 0.0f;
     if (mMode == PlayMode::Once)
-        return glm::clamp(mTime, 0.0f, length);
+        return Math::clamp(mTime, 0.0f, length);
     const f32 cycle = mMode == PlayMode::PingPong ? length * 2.0f : length;
     f32 wrapped = std::fmod(mTime, cycle);
     if (wrapped < 0.0f)
@@ -668,7 +668,7 @@ bool AnimationLayer::finished() const
 }
 void AnimationLayer::seek(f32 time)
 {
-    mTime = glm::max(time, 0.0f);
+    mTime = Math::max(time, 0.0f);
     mPrevious = nullptr;
     mBlend = 1.0f;
 }
@@ -786,7 +786,7 @@ AnimationManager& Animations()
 namespace
 {
 
-bool readMatrix(AssetFormat::Reader& reader, glm::mat4& matrix)
+bool readMatrix(AssetFormat::Reader& reader, Math::mat4& matrix)
 {
     for (u32 column = 0; column < 4; ++column)
         for (u32 row = 0; row < 4; ++row)
@@ -795,7 +795,7 @@ bool readMatrix(AssetFormat::Reader& reader, glm::mat4& matrix)
     return true;
 }
 
-void writeMatrix(AssetFormat::Writer& writer, const glm::mat4& matrix)
+void writeMatrix(AssetFormat::Writer& writer, const Math::mat4& matrix)
 {
     for (u32 column = 0; column < 4; ++column)
         for (u32 row = 0; row < 4; ++row)
@@ -828,7 +828,7 @@ bool RadionSkeletonIO::loadSkeleton(const std::string& filename, Skeleton& skele
             {
                 std::string name;
                 s32 parent = -1;
-                glm::mat4 local(1.0f), inverse(1.0f);
+                Math::mat4 local(1.0f), inverse(1.0f);
                 if (!reader.string(name) || !reader.readS32(parent) || !readMatrix(reader, local) ||
                     !readMatrix(reader, inverse) || !loaded.addBone(name, parent, local, inverse))
                     return false;
@@ -908,15 +908,15 @@ bool RadionSkeletonIO::loadAnimation(const std::string& filename, const Skeleton
                 track.scales.resize(keyCount);
                 for (u32 key = 0; key < keyCount; ++key)
                 {
-                    glm::vec3& p = track.positions[key];
-                    glm::quat& q = track.rotations[key];
-                    glm::vec3& s = track.scales[key];
+                    Math::vec3& p = track.positions[key];
+                    Math::quat& q = track.rotations[key];
+                    Math::vec3& s = track.scales[key];
                     if (!reader.readF32(track.times[key]) || !reader.readF32(p.x) ||
                         !reader.readF32(p.y) || !reader.readF32(p.z) || !reader.readF32(q.x) ||
                         !reader.readF32(q.y) || !reader.readF32(q.z) || !reader.readF32(q.w) ||
                         !reader.readF32(s.x) || !reader.readF32(s.y) || !reader.readF32(s.z))
                         return false;
-                    q = glm::normalize(q);
+                    q = Math::normalize(q);
                 }
                 loaded.tracks().push_back(std::move(track));
             }
@@ -950,9 +950,9 @@ bool RadionSkeletonIO::saveAnimation(const std::string& filename, const Skeleton
         for (u32 key = 0; key < count; ++key)
         {
             writer.writeF32(track.times[key]);
-            const glm::vec3& p = track.positions[key];
-            const glm::quat& q = track.rotations[key];
-            const glm::vec3& s = track.scales[key];
+            const Math::vec3& p = track.positions[key];
+            const Math::quat& q = track.rotations[key];
+            const Math::vec3& s = track.scales[key];
             writer.writeF32(p.x);
             writer.writeF32(p.y);
             writer.writeF32(p.z);

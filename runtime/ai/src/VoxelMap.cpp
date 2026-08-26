@@ -14,45 +14,45 @@ namespace
 {
 
 // 3D array index to flattened 1D array index.
-u32 flatten3D(const glm::uvec3& coord, const glm::uvec3& dim)
+u32 flatten3D(const Math::uvec3& coord, const Math::uvec3& dim)
 {
     return coord.z * dim.x * dim.y + coord.y * dim.x + coord.x;
 }
 
 // Flattened array index to 3D array index.
-glm::uvec3 unflatten3D(u32 idx, const glm::uvec3& dim)
+Math::uvec3 unflatten3D(u32 idx, const Math::uvec3& dim)
 {
     const u32 z = idx / (dim.x * dim.y);
     idx -= z * dim.x * dim.y;
     const u32 y = idx / dim.x;
     const u32 x = idx % dim.x;
-    return glm::uvec3(x, y, z);
+    return Math::uvec3(x, y, z);
 }
 
 // The block index and bit mask for one voxel coordinate - the same
 // addressing at every call site that touches the packed storage.
-void voxelAddress(const glm::uvec3& coord, const glm::uvec3& resolutionDiv4,
+void voxelAddress(const Math::uvec3& coord, const Math::uvec3& resolutionDiv4,
                   u32& outIndex, u64& outMask)
 {
-    const glm::uvec3 macroCoord = coord / 4u;
-    const glm::uvec3 subCoord = coord % 4u;
+    const Math::uvec3 macroCoord = coord / 4u;
+    const Math::uvec3 subCoord = coord % 4u;
     outIndex = flatten3D(macroCoord, resolutionDiv4);
-    const u32 bit = flatten3D(subCoord, glm::uvec3(4, 4, 4));
+    const u32 bit = flatten3D(subCoord, Math::uvec3(4, 4, 4));
     outMask = 1ull << bit;
 }
 
-glm::vec3 worldToUvw(const glm::vec3& worldPos, const glm::vec3& center,
-                     const glm::vec3& resolutionRcp, const glm::vec3& voxelSizeRcp)
+Math::vec3 worldToUvw(const Math::vec3& worldPos, const Math::vec3& center,
+                     const Math::vec3& resolutionRcp, const Math::vec3& voxelSizeRcp)
 {
-    const glm::vec3 diff = (worldPos - center) * resolutionRcp * voxelSizeRcp;
-    return diff * glm::vec3(0.5f, -0.5f, 0.5f) + glm::vec3(0.5f);
+    const Math::vec3 diff = (worldPos - center) * resolutionRcp * voxelSizeRcp;
+    return diff * Math::vec3(0.5f, -0.5f, 0.5f) + Math::vec3(0.5f);
 }
 
-glm::vec3 uvwToWorld(const glm::vec3& uvw, const glm::vec3& center,
-                     const glm::vec3& resolution, const glm::vec3& voxelSize)
+Math::vec3 uvwToWorld(const Math::vec3& uvw, const Math::vec3& center,
+                     const Math::vec3& resolution, const Math::vec3& voxelSize)
 {
-    glm::vec3 pos = uvw * 2.0f - glm::vec3(1.0f);
-    pos *= glm::vec3(1.0f, -1.0f, 1.0f);
+    Math::vec3 pos = uvw * 2.0f - Math::vec3(1.0f);
+    pos *= Math::vec3(1.0f, -1.0f, 1.0f);
     pos *= voxelSize;
     pos *= resolution;
     pos += center;
@@ -62,51 +62,51 @@ glm::vec3 uvwToWorld(const glm::vec3& uvw, const glm::vec3& center,
 // Shared tail of every inject_* preamble: two pixel-space corners (order not
 // guaranteed - the coordinate flip in worldToUvw can swap min and max) turned
 // into an inclusive-exclusive voxel coordinate range, clamped to the grid.
-void clampVoxelRange(const glm::vec3& p0, const glm::vec3& p1, const glm::vec3& resolution,
-                     glm::uvec3& outMin, glm::uvec3& outMax)
+void clampVoxelRange(const Math::vec3& p0, const Math::vec3& p1, const Math::vec3& resolution,
+                     Math::uvec3& outMin, Math::uvec3& outMax)
 {
-    glm::vec3 rangeMin = glm::min(p0, p1);
-    glm::vec3 rangeMax = glm::max(p0, p1);
+    Math::vec3 rangeMin = Math::min(p0, p1);
+    Math::vec3 rangeMax = Math::max(p0, p1);
 
-    rangeMin = glm::floor(rangeMin);
-    rangeMax = glm::ceil(rangeMax + glm::vec3(0.0001f));
+    rangeMin = Math::floor(rangeMin);
+    rangeMax = Math::ceil(rangeMax + Math::vec3(0.0001f));
 
-    rangeMin = glm::max(rangeMin, glm::vec3(0.0f));
-    rangeMax = glm::min(rangeMax, resolution);
+    rangeMin = Math::max(rangeMin, Math::vec3(0.0f));
+    rangeMax = Math::min(rangeMax, resolution);
 
-    outMin = glm::uvec3(rangeMin);
-    outMax = glm::uvec3(rangeMax);
+    outMin = Math::uvec3(rangeMin);
+    outMax = Math::uvec3(rangeMax);
 }
 
 // Triangle-vs-AABB separating axis test: 3 box axes, 1 triangle normal, and
 // the 9 cross products of a box axis with a triangle edge.
-bool triangleIntersectsAABB(const glm::vec3& boxCenter, const glm::vec3& boxHalfExtent,
-                            const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
+bool triangleIntersectsAABB(const Math::vec3& boxCenter, const Math::vec3& boxHalfExtent,
+                            const Math::vec3& v0, const Math::vec3& v1, const Math::vec3& v2)
 {
-    const glm::vec3 p0 = v0 - boxCenter;
-    const glm::vec3 p1 = v1 - boxCenter;
-    const glm::vec3 p2 = v2 - boxCenter;
+    const Math::vec3 p0 = v0 - boxCenter;
+    const Math::vec3 p1 = v1 - boxCenter;
+    const Math::vec3 p2 = v2 - boxCenter;
 
-    const glm::vec3 e0 = p1 - p0;
-    const glm::vec3 e1 = p2 - p1;
-    const glm::vec3 e2 = p0 - p2;
+    const Math::vec3 e0 = p1 - p0;
+    const Math::vec3 e1 = p2 - p1;
+    const Math::vec3 e2 = p0 - p2;
 
-    const glm::vec3 edges[3] = {e0, e1, e2};
-    const glm::vec3 boxAxes[3] = {glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-                                  glm::vec3(0.0f, 0.0f, 1.0f)};
+    const Math::vec3 edges[3] = {e0, e1, e2};
+    const Math::vec3 boxAxes[3] = {Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f),
+                                  Math::vec3(0.0f, 0.0f, 1.0f)};
 
     for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 3; ++j)
         {
-            const glm::vec3 axis = glm::cross(boxAxes[i], edges[j]);
+            const Math::vec3 axis = Math::cross(boxAxes[i], edges[j]);
             const f32 r = boxHalfExtent.x * std::abs(axis.x) +
                          boxHalfExtent.y * std::abs(axis.y) +
                          boxHalfExtent.z * std::abs(axis.z);
 
-            const f32 d0 = glm::dot(p0, axis);
-            const f32 d1 = glm::dot(p1, axis);
-            const f32 d2 = glm::dot(p2, axis);
+            const f32 d0 = Math::dot(p0, axis);
+            const f32 d1 = Math::dot(p1, axis);
+            const f32 d2 = Math::dot(p2, axis);
 
             const f32 projMin = std::min(d0, std::min(d1, d2));
             const f32 projMax = std::max(d0, std::max(d1, d2));
@@ -123,25 +123,25 @@ bool triangleIntersectsAABB(const glm::vec3& boxCenter, const glm::vec3& boxHalf
             return false;
     }
 
-    const glm::vec3 normal = glm::cross(e0, e1);
+    const Math::vec3 normal = Math::cross(e0, e1);
     const f32 r = boxHalfExtent.x * std::abs(normal.x) +
                  boxHalfExtent.y * std::abs(normal.y) +
                  boxHalfExtent.z * std::abs(normal.z);
-    const f32 distance = glm::dot(normal, p0);
+    const f32 distance = Math::dot(normal, p0);
     if (std::abs(distance) > r)
         return false;
 
     return true;
 }
 
-glm::vec3 closestPointOnSegment(const glm::vec3& a, const glm::vec3& b, const glm::vec3& point)
+Math::vec3 closestPointOnSegment(const Math::vec3& a, const Math::vec3& b, const Math::vec3& point)
 {
-    const glm::vec3 ab = b - a;
-    const f32 lengthSq = glm::dot(ab, ab);
+    const Math::vec3 ab = b - a;
+    const f32 lengthSq = Math::dot(ab, ab);
     if (lengthSq < Epsilon)
         return a;
-    f32 t = glm::dot(point - a, ab) / lengthSq;
-    t = glm::clamp(t, 0.0f, 1.0f);
+    f32 t = Math::dot(point - a, ab) / lengthSq;
+    t = Math::clamp(t, 0.0f, 1.0f);
     return a + ab * t;
 }
 
@@ -149,34 +149,34 @@ glm::vec3 closestPointOnSegment(const glm::vec3& a, const glm::vec3& b, const gl
 // the segment shrinks by one radius at each end before the distance test, so
 // the whole shape spans exactly base..tip. A degenerate axis leaves the
 // segment as it is - normalising a zero vector is what the shrink cannot do.
-bool pointInCapsule(const glm::vec3& point, const glm::vec3& base, const glm::vec3& tip,
+bool pointInCapsule(const Math::vec3& point, const Math::vec3& base, const Math::vec3& tip,
                     f32 radius)
 {
-    glm::vec3 a = base;
-    glm::vec3 b = tip;
-    const glm::vec3 axis = tip - base;
-    if (glm::dot(axis, axis) >= Epsilon)
+    Math::vec3 a = base;
+    Math::vec3 b = tip;
+    const Math::vec3 axis = tip - base;
+    if (Math::dot(axis, axis) >= Epsilon)
     {
-        const glm::vec3 offset = glm::normalize(axis) * radius;
+        const Math::vec3 offset = Math::normalize(axis) * radius;
         a = base + offset;
         b = tip - offset;
     }
 
-    const glm::vec3 closest = closestPointOnSegment(a, b, point);
-    const glm::vec3 delta = point - closest;
-    return glm::dot(delta, delta) <= radius * radius;
+    const Math::vec3 closest = closestPointOnSegment(a, b, point);
+    const Math::vec3 delta = point - closest;
+    return Math::dot(delta, delta) <= radius * radius;
 }
 
-void aabbCorners(const glm::vec3& center, const glm::vec3& halfExtent, glm::vec3 outCorners[8])
+void aabbCorners(const Math::vec3& center, const Math::vec3& halfExtent, Math::vec3 outCorners[8])
 {
-    outCorners[0] = center + glm::vec3(-halfExtent.x, -halfExtent.y, -halfExtent.z);
-    outCorners[1] = center + glm::vec3(-halfExtent.x, halfExtent.y, -halfExtent.z);
-    outCorners[2] = center + glm::vec3(-halfExtent.x, halfExtent.y, halfExtent.z);
-    outCorners[3] = center + glm::vec3(-halfExtent.x, -halfExtent.y, halfExtent.z);
-    outCorners[4] = center + glm::vec3(halfExtent.x, -halfExtent.y, -halfExtent.z);
-    outCorners[5] = center + glm::vec3(halfExtent.x, halfExtent.y, -halfExtent.z);
-    outCorners[6] = center + glm::vec3(halfExtent.x, halfExtent.y, halfExtent.z);
-    outCorners[7] = center + glm::vec3(halfExtent.x, -halfExtent.y, halfExtent.z);
+    outCorners[0] = center + Math::vec3(-halfExtent.x, -halfExtent.y, -halfExtent.z);
+    outCorners[1] = center + Math::vec3(-halfExtent.x, halfExtent.y, -halfExtent.z);
+    outCorners[2] = center + Math::vec3(-halfExtent.x, halfExtent.y, halfExtent.z);
+    outCorners[3] = center + Math::vec3(-halfExtent.x, -halfExtent.y, halfExtent.z);
+    outCorners[4] = center + Math::vec3(halfExtent.x, -halfExtent.y, -halfExtent.z);
+    outCorners[5] = center + Math::vec3(halfExtent.x, halfExtent.y, -halfExtent.z);
+    outCorners[6] = center + Math::vec3(halfExtent.x, halfExtent.y, halfExtent.z);
+    outCorners[7] = center + Math::vec3(halfExtent.x, -halfExtent.y, halfExtent.z);
 }
 
 } // namespace
@@ -209,32 +209,32 @@ bool VoxelMap::valid() const
     return !mVoxels.empty();
 }
 
-const glm::uvec3& VoxelMap::resolution() const
+const Math::uvec3& VoxelMap::resolution() const
 {
     return mResolution;
 }
 
-const glm::vec3& VoxelMap::center() const
+const Math::vec3& VoxelMap::center() const
 {
     return mCenter;
 }
 
-void VoxelMap::setCenter(const glm::vec3& center)
+void VoxelMap::setCenter(const Math::vec3& center)
 {
     mCenter = center;
 }
 
-const glm::vec3& VoxelMap::voxelSize() const
+const Math::vec3& VoxelMap::voxelSize() const
 {
     return mVoxelSize;
 }
 
 void VoxelMap::setVoxelSize(f32 size)
 {
-    setVoxelSize(glm::vec3(size, size, size));
+    setVoxelSize(Math::vec3(size, size, size));
 }
 
-void VoxelMap::setVoxelSize(const glm::vec3& size)
+void VoxelMap::setVoxelSize(const Math::vec3& size)
 {
     mVoxelSize = size;
     mVoxelSizeRcp.x = 1.0f / mVoxelSize.x;
@@ -250,7 +250,7 @@ usize VoxelMap::memorySize() const
 AABB VoxelMap::bounds() const
 {
     AABB box;
-    const glm::vec3 halfWidth = glm::vec3(mResolution) * mVoxelSize;
+    const Math::vec3 halfWidth = Math::vec3(mResolution) * mVoxelSize;
     box.min = mCenter - halfWidth;
     box.max = mCenter + halfWidth;
     return box;
@@ -259,76 +259,76 @@ AABB VoxelMap::bounds() const
 void VoxelMap::fromBounds(const AABB& box)
 {
     mCenter = box.center();
-    const glm::vec3 halfWidth = box.extents();
-    setVoxelSize(glm::vec3(halfWidth.x / static_cast<f32>(mResolution.x),
+    const Math::vec3 halfWidth = box.extents();
+    setVoxelSize(Math::vec3(halfWidth.x / static_cast<f32>(mResolution.x),
                           halfWidth.y / static_cast<f32>(mResolution.y),
                           halfWidth.z / static_cast<f32>(mResolution.z)));
 }
 
-glm::uvec3 VoxelMap::worldToCoord(const glm::vec3& worldPosition) const
+Math::uvec3 VoxelMap::worldToCoord(const Math::vec3& worldPosition) const
 {
-    const glm::vec3 uvw = worldToUvw(worldPosition, mCenter, mResolutionRcp, mVoxelSizeRcp);
-    return glm::uvec3(uvw * glm::vec3(mResolution));
+    const Math::vec3 uvw = worldToUvw(worldPosition, mCenter, mResolutionRcp, mVoxelSizeRcp);
+    return Math::uvec3(uvw * Math::vec3(mResolution));
 }
 
-glm::ivec3 VoxelMap::worldToCoordSigned(const glm::vec3& worldPosition) const
+Math::ivec3 VoxelMap::worldToCoordSigned(const Math::vec3& worldPosition) const
 {
-    const glm::vec3 uvw = worldToUvw(worldPosition, mCenter, mResolutionRcp, mVoxelSizeRcp);
-    return glm::ivec3(uvw * glm::vec3(mResolution));
+    const Math::vec3 uvw = worldToUvw(worldPosition, mCenter, mResolutionRcp, mVoxelSizeRcp);
+    return Math::ivec3(uvw * Math::vec3(mResolution));
 }
 
-glm::vec3 VoxelMap::coordToWorld(const glm::uvec3& coord) const
+Math::vec3 VoxelMap::coordToWorld(const Math::uvec3& coord) const
 {
-    const glm::vec3 uvw = (glm::vec3(coord) + glm::vec3(0.5f)) * mResolutionRcp;
-    return uvwToWorld(uvw, mCenter, glm::vec3(mResolution), mVoxelSize);
+    const Math::vec3 uvw = (Math::vec3(coord) + Math::vec3(0.5f)) * mResolutionRcp;
+    return uvwToWorld(uvw, mCenter, Math::vec3(mResolution), mVoxelSize);
 }
 
-glm::vec3 VoxelMap::coordToWorld(const glm::ivec3& coord) const
+Math::vec3 VoxelMap::coordToWorld(const Math::ivec3& coord) const
 {
-    const glm::vec3 uvw = (glm::vec3(coord) + glm::vec3(0.5f)) * mResolutionRcp;
-    return uvwToWorld(uvw, mCenter, glm::vec3(mResolution), mVoxelSize);
+    const Math::vec3 uvw = (Math::vec3(coord) + Math::vec3(0.5f)) * mResolutionRcp;
+    return uvwToWorld(uvw, mCenter, Math::vec3(mResolution), mVoxelSize);
 }
 
-bool VoxelMap::validCoord(const glm::uvec3& coord) const
+bool VoxelMap::validCoord(const Math::uvec3& coord) const
 {
     return coord.x < mResolution.x && coord.y < mResolution.y && coord.z < mResolution.z;
 }
 
-bool VoxelMap::validCoord(const glm::ivec3& coord) const
+bool VoxelMap::validCoord(const Math::ivec3& coord) const
 {
-    return validCoord(glm::uvec3(static_cast<u32>(coord.x), static_cast<u32>(coord.y),
+    return validCoord(Math::uvec3(static_cast<u32>(coord.x), static_cast<u32>(coord.y),
                                  static_cast<u32>(coord.z)));
 }
 
-bool VoxelMap::voxel(const glm::uvec3& coord) const
+bool VoxelMap::voxel(const Math::uvec3& coord) const
 {
     if (!validCoord(coord))
         return false; // outside of resolution
 
-    const glm::uvec3 macroCoord = coord / 4u;
+    const Math::uvec3 macroCoord = coord / 4u;
     const u32 idx = flatten3D(macroCoord, mResolutionDiv4);
     const u64 block = mVoxels[idx];
     if (block == 0)
         return false; // whole block is empty
 
-    const glm::uvec3 subCoord = coord % 4u;
-    const u32 bit = flatten3D(subCoord, glm::uvec3(4, 4, 4));
+    const Math::uvec3 subCoord = coord % 4u;
+    const u32 bit = flatten3D(subCoord, Math::uvec3(4, 4, 4));
     const u64 mask = 1ull << bit;
     return (block & mask) != 0ull;
 }
 
-bool VoxelMap::voxel(const glm::ivec3& coord) const
+bool VoxelMap::voxel(const Math::ivec3& coord) const
 {
-    return voxel(glm::uvec3(static_cast<u32>(coord.x), static_cast<u32>(coord.y),
+    return voxel(Math::uvec3(static_cast<u32>(coord.x), static_cast<u32>(coord.y),
                             static_cast<u32>(coord.z)));
 }
 
-bool VoxelMap::voxel(const glm::vec3& worldPosition) const
+bool VoxelMap::voxel(const Math::vec3& worldPosition) const
 {
     return voxel(worldToCoord(worldPosition));
 }
 
-void VoxelMap::setVoxel(const glm::uvec3& coord, bool value)
+void VoxelMap::setVoxel(const Math::uvec3& coord, bool value)
 {
     if (!validCoord(coord))
         return;
@@ -342,33 +342,33 @@ void VoxelMap::setVoxel(const glm::uvec3& coord, bool value)
         mVoxels[index] &= ~mask;
 }
 
-void VoxelMap::setVoxel(const glm::ivec3& coord, bool value)
+void VoxelMap::setVoxel(const Math::ivec3& coord, bool value)
 {
-    setVoxel(glm::uvec3(static_cast<u32>(coord.x), static_cast<u32>(coord.y),
+    setVoxel(Math::uvec3(static_cast<u32>(coord.x), static_cast<u32>(coord.y),
                         static_cast<u32>(coord.z)),
              value);
 }
 
-void VoxelMap::setVoxel(const glm::vec3& worldPosition, bool value)
+void VoxelMap::setVoxel(const Math::vec3& worldPosition, bool value)
 {
     setVoxel(worldToCoord(worldPosition), value);
 }
 
-void VoxelMap::injectTriangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
+void VoxelMap::injectTriangle(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c,
                               bool subtract)
 {
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
+    const Math::vec3 resolutionF = Math::vec3(mResolution);
 
-    const glm::vec3 pa = worldToUvw(a, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
-    const glm::vec3 pb = worldToUvw(b, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
-    const glm::vec3 pc = worldToUvw(c, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
+    const Math::vec3 pa = worldToUvw(a, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
+    const Math::vec3 pb = worldToUvw(b, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
+    const Math::vec3 pc = worldToUvw(c, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
 
-    const glm::vec3 normal = glm::cross(pb - pa, pc - pa);
-    if (normal == glm::vec3(0.0f))
+    const Math::vec3 normal = Math::cross(pb - pa, pc - pa);
+    if (normal == Math::vec3(0.0f))
         return;
 
-    glm::uvec3 mini, maxi;
-    clampVoxelRange(glm::min(pa, glm::min(pb, pc)), glm::max(pa, glm::max(pb, pc)), resolutionF,
+    Math::uvec3 mini, maxi;
+    clampVoxelRange(Math::min(pa, Math::min(pb, pc)), Math::max(pa, Math::max(pb, pc)), resolutionF,
                     mini, maxi);
 
     for (u32 x = mini.x; x < maxi.x; ++x)
@@ -377,14 +377,14 @@ void VoxelMap::injectTriangle(const glm::vec3& a, const glm::vec3& b, const glm:
         {
             for (u32 z = mini.z; z < maxi.z; ++z)
             {
-                const glm::vec3 voxelCenter(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f,
+                const Math::vec3 voxelCenter(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f,
                                             static_cast<f32>(z) + 0.5f);
-                if (!triangleIntersectsAABB(voxelCenter, glm::vec3(0.5f), pa, pb, pc))
+                if (!triangleIntersectsAABB(voxelCenter, Math::vec3(0.5f), pa, pb, pc))
                     continue;
 
                 u32 index;
                 u64 mask;
-                voxelAddress(glm::uvec3(x, y, z), mResolutionDiv4, index, mask);
+                voxelAddress(Math::uvec3(x, y, z), mResolutionDiv4, index, mask);
                 // Single-threaded here, so a plain OR/AND is enough.
                 if (subtract)
                     mVoxels[index] &= ~mask;
@@ -397,14 +397,14 @@ void VoxelMap::injectTriangle(const glm::vec3& a, const glm::vec3& b, const glm:
 
 void VoxelMap::injectBounds(const AABB& box, bool subtract)
 {
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
+    const Math::vec3 resolutionF = Math::vec3(mResolution);
 
-    const glm::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
-    const glm::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
 
-    glm::uvec3 mini, maxi;
+    Math::uvec3 mini, maxi;
     clampVoxelRange(pixelMin, pixelMax, resolutionF, mini, maxi);
 
     for (u32 x = mini.x; x < maxi.x; ++x)
@@ -415,7 +415,7 @@ void VoxelMap::injectBounds(const AABB& box, bool subtract)
             {
                 u32 index;
                 u64 mask;
-                voxelAddress(glm::uvec3(x, y, z), mResolutionDiv4, index, mask);
+                voxelAddress(Math::uvec3(x, y, z), mResolutionDiv4, index, mask);
                 if (subtract)
                     mVoxels[index] &= ~mask;
                 else
@@ -427,18 +427,18 @@ void VoxelMap::injectBounds(const AABB& box, bool subtract)
 
 void VoxelMap::injectSphere(const Sphere& sphere, bool subtract)
 {
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
+    const Math::vec3 resolutionF = Math::vec3(mResolution);
 
     AABB box;
-    box.min = sphere.center - glm::vec3(sphere.radius);
-    box.max = sphere.center + glm::vec3(sphere.radius);
+    box.min = sphere.center - Math::vec3(sphere.radius);
+    box.max = sphere.center + Math::vec3(sphere.radius);
 
-    const glm::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
-    const glm::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
 
-    glm::uvec3 mini, maxi;
+    Math::uvec3 mini, maxi;
     clampVoxelRange(pixelMin, pixelMax, resolutionF, mini, maxi);
 
     for (u32 x = mini.x; x < maxi.x; ++x)
@@ -447,8 +447,8 @@ void VoxelMap::injectSphere(const Sphere& sphere, bool subtract)
         {
             for (u32 z = mini.z; z < maxi.z; ++z)
             {
-                const glm::uvec3 coord(x, y, z);
-                const glm::vec3 voxelCenter = coordToWorld(coord);
+                const Math::uvec3 coord(x, y, z);
+                const Math::vec3 voxelCenter = coordToWorld(coord);
 
                 AABB voxelBox;
                 voxelBox.min = voxelCenter - mVoxelSize;
@@ -468,23 +468,23 @@ void VoxelMap::injectSphere(const Sphere& sphere, bool subtract)
     }
 }
 
-void VoxelMap::injectCapsule(const glm::vec3& base, const glm::vec3& tip, f32 radius,
+void VoxelMap::injectCapsule(const Math::vec3& base, const Math::vec3& tip, f32 radius,
                              bool subtract)
 {
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
+    const Math::vec3 resolutionF = Math::vec3(mResolution);
 
     AABB box;
     box.expand(base);
     box.expand(tip);
-    box.min -= glm::vec3(radius);
-    box.max += glm::vec3(radius);
+    box.min -= Math::vec3(radius);
+    box.max += Math::vec3(radius);
 
-    const glm::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
-    const glm::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
 
-    glm::uvec3 mini, maxi;
+    Math::uvec3 mini, maxi;
     clampVoxelRange(pixelMin, pixelMax, resolutionF, mini, maxi);
 
     for (u32 x = mini.x; x < maxi.x; ++x)
@@ -493,13 +493,13 @@ void VoxelMap::injectCapsule(const glm::vec3& base, const glm::vec3& tip, f32 ra
         {
             for (u32 z = mini.z; z < maxi.z; ++z)
             {
-                const glm::uvec3 coord(x, y, z);
-                const glm::vec3 voxelCenter = coordToWorld(coord);
+                const Math::uvec3 coord(x, y, z);
+                const Math::vec3 voxelCenter = coordToWorld(coord);
 
                 bool intersects = pointInCapsule(voxelCenter, base, tip, radius);
                 if (!intersects)
                 {
-                    glm::vec3 corners[8];
+                    Math::vec3 corners[8];
                     aabbCorners(voxelCenter, mVoxelSize, corners);
                     for (int i = 0; i < 8 && !intersects; ++i)
                         intersects = pointInCapsule(corners[i], base, tip, radius);
@@ -539,18 +539,18 @@ void VoxelMap::floodFill()
 {
     VoxelMap traversed;
     traversed.create(mResolution.x, mResolution.y, mResolution.z);
-    std::vector<glm::ivec3> stack;
+    std::vector<Math::ivec3> stack;
 
     for (usize i = 0; i < mVoxels.size(); ++i)
     {
         if (mVoxels[i] == ~0ull)
             continue; // whole block is filled already
 
-        const glm::uvec3 coord = unflatten3D(static_cast<u32>(i), mResolutionDiv4);
+        const Math::uvec3 coord = unflatten3D(static_cast<u32>(i), mResolutionDiv4);
         for (u32 bit = 0; bit < 64; ++bit)
         {
-            const glm::uvec3 subCoord = unflatten3D(bit, glm::uvec3(4, 4, 4));
-            const glm::ivec3 origin(static_cast<s32>(coord.x * 4u + subCoord.x),
+            const Math::uvec3 subCoord = unflatten3D(bit, Math::uvec3(4, 4, 4));
+            const Math::ivec3 origin(static_cast<s32>(coord.x * 4u + subCoord.x),
                                     static_cast<s32>(coord.y * 4u + subCoord.y),
                                     static_cast<s32>(coord.z * 4u + subCoord.z));
             if (voxel(origin))
@@ -564,19 +564,19 @@ void VoxelMap::floodFill()
 
             do
             {
-                const glm::ivec3 current = stack.back();
+                const Math::ivec3 current = stack.back();
                 stack.pop_back();
                 traversed.setVoxel(current, true);
 
-                const glm::ivec3 neighbors[6] = {
-                    glm::ivec3(current.x - 1, current.y, current.z),
-                    glm::ivec3(current.x + 1, current.y, current.z),
-                    glm::ivec3(current.x, current.y - 1, current.z),
-                    glm::ivec3(current.x, current.y + 1, current.z),
-                    glm::ivec3(current.x, current.y, current.z - 1),
-                    glm::ivec3(current.x, current.y, current.z + 1),
+                const Math::ivec3 neighbors[6] = {
+                    Math::ivec3(current.x - 1, current.y, current.z),
+                    Math::ivec3(current.x + 1, current.y, current.z),
+                    Math::ivec3(current.x, current.y - 1, current.z),
+                    Math::ivec3(current.x, current.y + 1, current.z),
+                    Math::ivec3(current.x, current.y, current.z - 1),
+                    Math::ivec3(current.x, current.y, current.z + 1),
                 };
-                for (const glm::ivec3& neighbor : neighbors)
+                for (const Math::ivec3& neighbor : neighbors)
                 {
                     if (!validCoord(neighbor))
                     {
@@ -596,7 +596,7 @@ void VoxelMap::floodFill()
     }
 }
 
-bool VoxelMap::visible(const glm::uvec3& start, const glm::uvec3& goal) const
+bool VoxelMap::visible(const Math::uvec3& start, const Math::uvec3& goal) const
 {
     const s32 dx = static_cast<s32>(goal.x) - static_cast<s32>(start.x);
     const s32 dy = static_cast<s32>(goal.y) - static_cast<s32>(start.y);
@@ -619,7 +619,7 @@ bool VoxelMap::visible(const glm::uvec3& start, const glm::uvec3& goal) const
 
     for (s32 i = 0; i < step; ++i)
     {
-        const glm::uvec3 coord(static_cast<u32>(std::round(x)), static_cast<u32>(std::round(y)),
+        const Math::uvec3 coord(static_cast<u32>(std::round(x)), static_cast<u32>(std::round(y)),
                                static_cast<u32>(std::round(z)));
         if (coord == goal)
             return true;
@@ -633,24 +633,24 @@ bool VoxelMap::visible(const glm::uvec3& start, const glm::uvec3& goal) const
     return true;
 }
 
-bool VoxelMap::visible(const glm::vec3& observer, const glm::vec3& subject) const
+bool VoxelMap::visible(const Math::vec3& observer, const Math::vec3& subject) const
 {
-    const glm::uvec3 start = worldToCoord(observer);
-    const glm::uvec3 goal = worldToCoord(subject);
+    const Math::uvec3 start = worldToCoord(observer);
+    const Math::uvec3 goal = worldToCoord(subject);
     return visible(start, goal);
 }
 
-bool VoxelMap::visible(const glm::vec3& observer, const AABB& subject) const
+bool VoxelMap::visible(const Math::vec3& observer, const AABB& subject) const
 {
-    const glm::uvec3 start = worldToCoord(observer);
+    const Math::uvec3 start = worldToCoord(observer);
 
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
-    const glm::vec3 pixelMin = worldToUvw(subject.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::vec3 resolutionF = Math::vec3(mResolution);
+    const Math::vec3 pixelMin = worldToUvw(subject.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
-    const glm::vec3 pixelMax = worldToUvw(subject.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::vec3 pixelMax = worldToUvw(subject.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
 
-    glm::uvec3 mini, maxi;
+    Math::uvec3 mini, maxi;
     clampVoxelRange(pixelMin, pixelMax, resolutionF, mini, maxi);
 
     for (u32 x = mini.x; x < maxi.x; ++x)
@@ -659,7 +659,7 @@ bool VoxelMap::visible(const glm::vec3& observer, const AABB& subject) const
         {
             for (u32 z = mini.z; z < maxi.z; ++z)
             {
-                if (visible(start, glm::uvec3(x, y, z)))
+                if (visible(start, Math::uvec3(x, y, z)))
                     return true;
             }
         }

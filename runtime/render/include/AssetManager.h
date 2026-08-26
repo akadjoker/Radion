@@ -21,7 +21,7 @@ class Pixmap;
 struct MeshMergeInput
 {
     const MeshData* mesh = nullptr;
-    glm::mat4 transform = glm::mat4(1.0f);
+    Math::mat4 transform = Math::mat4(1.0f);
     std::string sourceName;
 };
 
@@ -68,7 +68,7 @@ struct MeshDesc
     f32 params[8]{};
 
     static MeshDesc fromFile(const std::string& file);
-    static MeshDesc box(const glm::vec3& size);
+    static MeshDesc box(const Math::vec3& size);
     static MeshDesc plane(f32 width, f32 depth, u32 segX, u32 segZ, f32 uvTiles);
     static MeshDesc sphere(f32 radius, u32 rings, u32 slices);
     static MeshDesc cylinder(f32 radius, f32 height, u32 slices);
@@ -295,7 +295,7 @@ public:
     // these the same as any other mesh - there is no path that skips the pool.
     MeshHandle adoptMesh(const Mesh& mesh);
     bool updateMeshVertices(MeshHandle handle, u32 firstVertex, u32 vertexCount,
-                            const glm::vec3* positions, const MeshAttribs* attribs);
+                            const Math::vec3* positions, const MeshAttribs* attribs);
 
     // Convenience for a mesh that gets rebuilt on the CPU every frame (cloth,
     // any other per-vertex simulation): packs data's normal/tangent/uv/color
@@ -336,7 +336,7 @@ public:
     // -- procedural primitives
 
     // Axis-aligned box centred at the origin, full extents in `size`.
-    MeshHandle createBox(const glm::vec3& size);
+    MeshHandle createBox(const Math::vec3& size);
 
     // XZ plane at y=0, segX/segZ subdivisions - needed for per-vertex
     // displacement or per-quad lighting detail.
@@ -580,7 +580,7 @@ public:
 
     // Fixed axis: 0 = X, 1 = Y, 2 = Z.
     void makePlanarUV(MeshData& mesh, f32 resolutionS, f32 resolutionT, u8 axis,
-                      const glm::vec3& offset) const;
+                      const Math::vec3& offset) const;
 
     // Wraps u once around the Y axis (atan2(x,z)/2pi) and runs v linearly
     // over the mesh's own Y extent. `resolutionU`/`resolutionV` are tile
@@ -613,18 +613,18 @@ public:
     // with anything left out and no vertex is split. False when the mesh
     // carries no UVs to rework - makePlanarUV() and friends make them.
     bool transformFaceUVs(MeshData& mesh, const std::vector<u32>& faceIndices,
-                          const glm::vec2& scale, f32 rotationDegrees,
-                          const glm::vec2& offset) const;
+                          const Math::vec2& scale, f32 rotationDegrees,
+                          const Math::vec2& offset) const;
 
     // -- transforms
 
-    void translate(MeshData& mesh, const glm::vec3& delta) const;
-    void scale(MeshData& mesh, const glm::vec3& factor) const;
+    void translate(MeshData& mesh, const Math::vec3& delta) const;
+    void scale(MeshData& mesh, const Math::vec3& factor) const;
 
     // Positions go through the matrix, normals and tangents through its
     // inverse transpose, otherwise a non-uniform scale tilts them off the
     // surface.
-    void transform(MeshData& mesh, const glm::mat4& matrix) const;
+    void transform(MeshData& mesh, const Math::mat4& matrix) const;
 
     // The same, restricted to the given vertices and applied around their own
     // median point instead of the origin. Scaling a selection about the
@@ -632,14 +632,14 @@ public:
     // model sits from it; about the median it grows where it stands, which is
     // what an edit in place means. An empty `vertexIndices` transforms the
     // whole mesh, still about its own median.
-    void transformVertices(MeshData& mesh, const glm::mat4& matrix,
+    void transformVertices(MeshData& mesh, const Math::mat4& matrix,
                            const std::vector<u32>& vertexIndices = {}) const;
 
     // The same with the pivot named outright, for a caller whose matrix
     // already carries its own placement - a gizmo's, whose transform sits at
     // the pivot to begin with, and which the median version would place a
     // second time. Pass a zero pivot to apply `matrix` in world space.
-    void transformVerticesAbout(MeshData& mesh, const glm::mat4& matrix, const glm::vec3& pivot,
+    void transformVerticesAbout(MeshData& mesh, const Math::mat4& matrix, const Math::vec3& pivot,
                                 const std::vector<u32>& vertexIndices = {}) const;
 
     // Moves the mesh so the centre of its box sits on the origin.

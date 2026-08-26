@@ -10,7 +10,7 @@
 #include "Waypoint.h"
 
 #include <deque>
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <unordered_map>
 
 namespace Radion::AI
@@ -25,7 +25,7 @@ class WaypointVisibility
 {
 public:
     virtual ~WaypointVisibility() = default;
-    virtual bool isVisible(const glm::vec3& origin, const glm::vec3& destination) const
+    virtual bool isVisible(const Math::vec3& origin, const Math::vec3& destination) const
     {
         (void)origin;
         (void)destination;
@@ -55,12 +55,12 @@ public:
     // A* between arbitrary positions: snaps both endpoints to the closest
     // visible waypoint, then searches. If both snap to the same waypoint the
     // path is left empty and true is returned (walk straight to the goal).
-    bool findPath(const glm::vec3& origin, const glm::vec3& destination,
+    bool findPath(const Math::vec3& origin, const Math::vec3& destination,
                   const WaypointVisibility& visibility, Path& outPath) const;
 
     // False, with minimum/maximum left untouched, when the network is empty -
     // (+FLT_MAX, -FLT_MAX) used to be returned as if it were a valid box.
-    bool extents(glm::vec3& minimum, glm::vec3& maximum) const;
+    bool extents(Math::vec3& minimum, Math::vec3& maximum) const;
 
     const WaypointMap& waypoints() const
     {
@@ -72,7 +72,7 @@ public:
     }
 
 private:
-    bool findClosestValidWaypoint(const glm::vec3& origin, const WaypointVisibility& visibility,
+    bool findClosestValidWaypoint(const Math::vec3& origin, const WaypointVisibility& visibility,
                                   WaypointID& outWaypointID) const;
     float goalEstimate(WaypointID fromWaypoint, WaypointID toWaypoint) const;
 

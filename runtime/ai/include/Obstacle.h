@@ -26,16 +26,16 @@ struct PathIntersection
 {
     bool intersect = false;                    // was an intersection found?
     float distance = 0.0f;                     // how far the intersection is from the vehicle
-    glm::vec3 surfacePoint = glm::vec3(0.0f);  // position of intersection
-    glm::vec3 surfaceNormal = glm::vec3(0.0f); // unit normal at intersection
-    glm::vec3 steerHint = glm::vec3(0.0f);     // where to steer away from it
+    Math::vec3 surfacePoint = Math::vec3(0.0f);  // position of intersection
+    Math::vec3 surfaceNormal = Math::vec3(0.0f); // unit normal at intersection
+    Math::vec3 steerHint = Math::vec3(0.0f);     // where to steer away from it
     bool vehicleOutside = true;                // is the vehicle outside the obstacle?
     const Obstacle* obstacle = nullptr;        // obstacle the path intersects
 
     // Determine steering once path intersections have been found: lateral
     // component of steerHint, scaled to the vehicle's maxForce, if the
     // intersection is inside minTimeToCollision seconds of travel.
-    glm::vec3 steerToAvoidIfNeeded(const Entity& vehicle, float minTimeToCollision) const;
+    Math::vec3 steerToAvoidIfNeeded(const Entity& vehicle, float minTimeToCollision) const;
 };
 
 class Obstacle
@@ -45,10 +45,10 @@ public:
     virtual ~Obstacle() = default;
 
     // Compute steering for a vehicle to avoid this obstacle, if needed.
-    glm::vec3 steerToAvoid(const Entity& vehicle, float minTimeToCollision) const;
+    Math::vec3 steerToAvoid(const Entity& vehicle, float minTimeToCollision) const;
 
     // Apply steerToAvoid to the nearest obstacle in a group.
-    static glm::vec3 steerToAvoidObstacles(const Entity& vehicle, float minTimeToCollision,
+    static Math::vec3 steerToAvoidObstacles(const Entity& vehicle, float minTimeToCollision,
                                            const ObstacleGroup& obstacles);
 
     // Find the first vehicle-path intersection in a group, storing the nearest
@@ -80,10 +80,10 @@ class SphereObstacle final : public Obstacle
 {
 public:
     float radius = 1.0f;
-    glm::vec3 center = glm::vec3(0.0f);
+    Math::vec3 center = Math::vec3(0.0f);
 
     SphereObstacle() = default;
-    SphereObstacle(float r, const glm::vec3& c) : radius(r), center(c)
+    SphereObstacle(float r, const Math::vec3& c) : radius(r), center(c)
     {
     }
 
@@ -97,7 +97,7 @@ class PlaneObstacle : public Obstacle
 {
 public:
     PlaneObstacle() = default;
-    PlaneObstacle(const glm::vec3& s, const glm::vec3& u, const glm::vec3& f, const glm::vec3& p)
+    PlaneObstacle(const Math::vec3& s, const Math::vec3& u, const Math::vec3& f, const Math::vec3& p)
         : mSide(s), mUp(u), mForward(f), mPosition(p)
     {
     }
@@ -106,56 +106,56 @@ public:
                                          PathIntersection& pi) const override;
 
     // Is a point on the local XY plane inside this obstacle's 2D shape?
-    virtual bool xyPointInsideShape(const glm::vec3& point, float radius) const
+    virtual bool xyPointInsideShape(const Math::vec3& point, float radius) const
     {
         (void)point;
         (void)radius;
         return true;
     }
 
-    glm::vec3 side() const
+    Math::vec3 side() const
     {
         return mSide;
     }
-    glm::vec3 up() const
+    Math::vec3 up() const
     {
         return mUp;
     }
-    glm::vec3 forward() const
+    Math::vec3 forward() const
     {
         return mForward;
     }
-    glm::vec3 position() const
+    Math::vec3 position() const
     {
         return mPosition;
     }
-    void setSide(const glm::vec3& s)
+    void setSide(const Math::vec3& s)
     {
         mSide = s;
     }
-    void setUp(const glm::vec3& u)
+    void setUp(const Math::vec3& u)
     {
         mUp = u;
     }
-    void setForward(const glm::vec3& f)
+    void setForward(const Math::vec3& f)
     {
         mForward = f;
     }
-    void setPosition(const glm::vec3& p)
+    void setPosition(const Math::vec3& p)
     {
         mPosition = p;
     }
 
 private:
-    glm::vec3 localizeDirection(const glm::vec3& gd) const;
-    glm::vec3 localizePosition(const glm::vec3& gp) const;
-    glm::vec3 globalizePosition(const glm::vec3& lp) const;
-    glm::vec3 globalizeDirection(const glm::vec3& ld) const;
+    Math::vec3 localizeDirection(const Math::vec3& gd) const;
+    Math::vec3 localizePosition(const Math::vec3& gp) const;
+    Math::vec3 globalizePosition(const Math::vec3& lp) const;
+    Math::vec3 globalizeDirection(const Math::vec3& ld) const;
 
-    glm::vec3 mSide = glm::vec3(1.0f, 0.0f, 0.0f);
-    glm::vec3 mUp = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec3 mForward = glm::vec3(0.0f, 0.0f, 1.0f);
-    glm::vec3 mPosition = glm::vec3(0.0f);
+    Math::vec3 mSide = Math::vec3(1.0f, 0.0f, 0.0f);
+    Math::vec3 mUp = Math::vec3(0.0f, 1.0f, 0.0f);
+    Math::vec3 mForward = Math::vec3(0.0f, 0.0f, 1.0f);
+    Math::vec3 mPosition = Math::vec3(0.0f);
 };
 
 // A rectangular obstacle, centered on the XY (side/up) plane of a local space.
@@ -169,14 +169,14 @@ public:
     RectangleObstacle(float w, float h) : width(w), height(h)
     {
     }
-    RectangleObstacle(float w, float h, const glm::vec3& s, const glm::vec3& u, const glm::vec3& f,
-                      const glm::vec3& p, ObstacleSeenFrom sf)
+    RectangleObstacle(float w, float h, const Math::vec3& s, const Math::vec3& u, const Math::vec3& f,
+                      const Math::vec3& p, ObstacleSeenFrom sf)
         : PlaneObstacle(s, u, f, p), width(w), height(h)
     {
         setSeenFrom(sf);
     }
 
-    bool xyPointInsideShape(const glm::vec3& point, float radius) const override;
+    bool xyPointInsideShape(const Math::vec3& point, float radius) const override;
 };
 
 // A box-shaped (cuboid) obstacle, centered on and aligned with a local space.
@@ -188,8 +188,8 @@ public:
     float depth = 1.0f;  // extent along local Z (forward)
 
     BoxObstacle() = default;
-    BoxObstacle(float w, float h, float d, const glm::vec3& s, const glm::vec3& u,
-                const glm::vec3& f, const glm::vec3& p)
+    BoxObstacle(float w, float h, float d, const Math::vec3& s, const Math::vec3& u,
+                const Math::vec3& f, const Math::vec3& p)
         : PlaneObstacle(s, u, f, p), width(w), height(h), depth(d)
     {
     }

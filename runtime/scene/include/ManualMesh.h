@@ -20,9 +20,9 @@ public:
 
     void begin(const std::string& material = std::string());
     void beginSubMesh(const std::string& material = std::string());
-    void position(const glm::vec3& value);
-    void normal(const glm::vec3& value);
-    void uv(const glm::vec2& value);
+    void position(const Math::vec3& value);
+    void normal(const Math::vec3& value);
+    void uv(const Math::vec2& value);
     // setColor(), not color(u32) - position/normal/uv's "value" setter and
     // "by index" getter never collide, their parameter types differ, but a
     // colour is a u32 both ways: same signature as the getter below, which
@@ -34,12 +34,12 @@ public:
     void clear();
 
     u32 vertexCount() const;
-    glm::vec3& position(u32 index);
-    const glm::vec3& position(u32 index) const;
-    glm::vec3& normal(u32 index);
-    const glm::vec3& normal(u32 index) const;
-    glm::vec2& uv(u32 index);
-    const glm::vec2& uv(u32 index) const;
+    Math::vec3& position(u32 index);
+    const Math::vec3& position(u32 index) const;
+    Math::vec3& normal(u32 index);
+    const Math::vec3& normal(u32 index) const;
+    Math::vec2& uv(u32 index);
+    const Math::vec2& uv(u32 index) const;
     u32& color(u32 index);
     const u32& color(u32 index) const;
 

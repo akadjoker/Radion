@@ -445,8 +445,8 @@ void ImGuiLayer::drawSkyContents(SkySettings& sky)
         ImGui::SliderFloat("Elevation", &sky.sunElevation, -89.0f, 89.0f, "%.1f deg");
     }
     ImGui::TextDisabled("Az %.1f  El %.1f", sky.sunAzimuth, sky.sunElevation);
-    ImGui::ColorButton("Sun transmittance", ImVec4(sky.sunTransmittance.r, sky.sunTransmittance.g,
-                                                   sky.sunTransmittance.b, 1.0f));
+    ImGui::ColorButton("Sun transmittance", ImVec4(sky.sunTransmittance.x, sky.sunTransmittance.y,
+                                                   sky.sunTransmittance.z, 1.0f));
     ImGui::SameLine();
     ImGui::TextDisabled("atmospheric sun color");
     ImGui::ColorEdit3("Ambient", &sky.ambient.x);

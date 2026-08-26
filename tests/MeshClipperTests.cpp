@@ -24,15 +24,15 @@ void check(bool condition, const char* expression, int line)
 MeshData makeQuad()
 {
     MeshData mesh;
-    mesh.positions.push_back(glm::vec3(-1.0f, 0.0f, -1.0f));
-    mesh.positions.push_back(glm::vec3(1.0f, 0.0f, -1.0f));
-    mesh.positions.push_back(glm::vec3(-1.0f, 0.0f, 1.0f));
-    mesh.positions.push_back(glm::vec3(1.0f, 0.0f, 1.0f));
-    mesh.normals.assign(4, glm::vec3(0.0f, 1.0f, 0.0f));
-    mesh.uvs.push_back(glm::vec2(0.0f, 0.0f));
-    mesh.uvs.push_back(glm::vec2(1.0f, 0.0f));
-    mesh.uvs.push_back(glm::vec2(0.0f, 1.0f));
-    mesh.uvs.push_back(glm::vec2(1.0f, 1.0f));
+    mesh.positions.push_back(Math::vec3(-1.0f, 0.0f, -1.0f));
+    mesh.positions.push_back(Math::vec3(1.0f, 0.0f, -1.0f));
+    mesh.positions.push_back(Math::vec3(-1.0f, 0.0f, 1.0f));
+    mesh.positions.push_back(Math::vec3(1.0f, 0.0f, 1.0f));
+    mesh.normals.assign(4, Math::vec3(0.0f, 1.0f, 0.0f));
+    mesh.uvs.push_back(Math::vec2(0.0f, 0.0f));
+    mesh.uvs.push_back(Math::vec2(1.0f, 0.0f));
+    mesh.uvs.push_back(Math::vec2(0.0f, 1.0f));
+    mesh.uvs.push_back(Math::vec2(1.0f, 1.0f));
     mesh.indices.push_back(0);
     mesh.indices.push_back(2);
     mesh.indices.push_back(1);
@@ -50,7 +50,7 @@ void testPlaneCut()
 {
     MeshData input = makeQuad();
     MeshData positive;
-    CHECK(clipMeshByPlane(input, glm::vec3(1.0f, 0.0f, 0.0f), 0.0f, true, positive));
+    CHECK(clipMeshByPlane(input, Math::vec3(1.0f, 0.0f, 0.0f), 0.0f, true, positive));
     CHECK(!positive.positions.empty());
     CHECK(positive.indices.size() % 3 == 0);
     CHECK(positive.normals.size() == positive.positions.size());
@@ -59,7 +59,7 @@ void testPlaneCut()
     CHECK(positive.submeshes[0].materialSlot == 3);
 
     bool foundBoundary = false;
-    for (const glm::vec3& position : positive.positions)
+    for (const Math::vec3& position : positive.positions)
     {
         CHECK(position.x >= -0.0001f);
         if (std::abs(position.x) < 0.0001f)
@@ -68,9 +68,9 @@ void testPlaneCut()
     CHECK(foundBoundary);
 
     MeshData negative;
-    CHECK(clipMeshByPlane(input, glm::vec3(1.0f, 0.0f, 0.0f), 0.0f, false, negative));
+    CHECK(clipMeshByPlane(input, Math::vec3(1.0f, 0.0f, 0.0f), 0.0f, false, negative));
     CHECK(!negative.positions.empty());
-    for (const glm::vec3& position : negative.positions)
+    for (const Math::vec3& position : negative.positions)
         CHECK(position.x <= 0.0001f);
 }
 
@@ -78,9 +78,9 @@ void testRejectedInputs()
 {
     MeshData input = makeQuad();
     MeshData output;
-    CHECK(!clipMeshByPlane(input, glm::vec3(0.0f), 0.0f, true, output));
+    CHECK(!clipMeshByPlane(input, Math::vec3(0.0f), 0.0f, true, output));
     input.skin.resize(input.positions.size());
-    CHECK(!clipMeshByPlane(input, glm::vec3(1.0f, 0.0f, 0.0f), 0.0f, true, output));
+    CHECK(!clipMeshByPlane(input, Math::vec3(1.0f, 0.0f, 0.0f), 0.0f, true, output));
 }
 }
 

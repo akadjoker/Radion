@@ -19,7 +19,7 @@ f32 surfaceArea(const AABB& box)
 {
     if (box.empty())
         return 0.0f;
-    const glm::vec3 size = glm::max(box.max - box.min, glm::vec3(0.0f));
+    const Math::vec3 size = Math::max(box.max - box.min, Math::vec3(0.0f));
     return 2.0f * (size.x * size.y + size.y * size.z + size.z * size.x);
 }
 } // namespace
@@ -36,7 +36,7 @@ void BoundsTree::clear()
 
 void BoundsTree::setLeafCapacity(u32 capacity)
 {
-    mLeafCapacity = glm::max(capacity, 1u);
+    mLeafCapacity = Math::max(capacity, 1u);
 }
 
 void BoundsTree::build(const AABB* bounds, u32 count)
@@ -76,7 +76,7 @@ void BoundsTree::updateNodeBounds(u32 nodeIndex, const AABB* bounds)
 
 void BoundsTree::subdivide(u32 nodeIndex, const AABB* bounds, u32 depth)
 {
-    mDepth = glm::max(mDepth, depth);
+    mDepth = Math::max(mDepth, depth);
     if (depth >= kMaxDepth)
         return;
 
@@ -91,7 +91,7 @@ void BoundsTree::subdivide(u32 nodeIndex, const AABB* bounds, u32 depth)
     // Split down the middle of the longest axis. Not a surface-area
     // heuristic: this is rebuilt often and refitted constantly, and the time
     // an SAH build costs is worth more than the traversal it saves here.
-    const glm::vec3 extent = mNodes[nodeIndex].bounds.max - mNodes[nodeIndex].bounds.min;
+    const Math::vec3 extent = mNodes[nodeIndex].bounds.max - mNodes[nodeIndex].bounds.min;
     u32 axis = 0;
     if (extent.y > extent.x)
         axis = 1;

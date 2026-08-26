@@ -50,9 +50,9 @@ bool SquadEntity::waypointReached()
         Waypoint* wp = mWaypointNetwork->findWaypoint(mNextWaypoint);
         if (wp)
         {
-            glm::vec3 vec = wp->position() - position();
+            Math::vec3 vec = wp->position() - position();
             vec.y = 0.0f; // XZ only, matching the reference demo
-            float distToWP = glm::length(vec);
+            float distToWP = Math::length(vec);
             return (distToWP - kEntityRadius) < wp->radius();
         }
     }
@@ -68,9 +68,9 @@ void SquadEntity::onWaypointReached()
 
 bool SquadEntity::goalReached()
 {
-    glm::vec3 vec = mGoalPosition - position();
+    Math::vec3 vec = mGoalPosition - position();
     vec.y = 0.0f; // XZ only
-    return glm::length(vec) < mGoalRadius;
+    return Math::length(vec) < mGoalRadius;
 }
 
 void SquadEntity::onGoalReached()

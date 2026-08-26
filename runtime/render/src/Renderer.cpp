@@ -21,7 +21,7 @@
 #include "TreeRender.h"
 #include "WaterPass.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -249,7 +249,7 @@ void Renderer::debugDrawShadows(bool showCascades, bool showAtlas, u32 windowWid
 }
 
 void Renderer::debugDrawTexture(TextureHandle texture, bool isArray, u32 layer, TargetHandle target,
-                                u32 width, u32 height, const glm::vec4& sourceRect)
+                                u32 width, u32 height, const Math::vec4& sourceRect)
 {
     if (mShadowDebugView)
         mShadowDebugView->drawTexture(texture, isArray, layer, target, width, height, sourceRect);
@@ -331,8 +331,8 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
     // again, and two reflective surfaces that disagree in one shot is not
     // what this is for. The first one found wins, and a scene that needs
     // otherwise wants a probe, not this.
-    glm::vec3 planePoint(0.0f);
-    glm::vec3 planeNormal(0.0f, 1.0f, 0.0f);
+    Math::vec3 planePoint(0.0f);
+    Math::vec3 planeNormal(0.0f, 1.0f, 0.0f);
     // custom0.y - the Inspector's Quality combo, 0 meaning "not set, use the
     // 0.5 default" so a mirror saved before this field existed still renders
     // exactly as it always has.
@@ -353,7 +353,7 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
     // as the main camera turned, since the reflected view direction was
     // borrowed from it instead of aimed at the mirror itself.
     bool haveMirrorRect = false;
-    glm::vec3 mirrorCornerBL(0.0f), mirrorCornerBR(0.0f), mirrorCornerTL(0.0f);
+    Math::vec3 mirrorCornerBL(0.0f), mirrorCornerBR(0.0f), mirrorCornerTL(0.0f);
     // custom1.x - the Inspector's Far Plane field. 0 means "not set", auto
     // below (twice the distance to the mirror, floored at 5000).
     f32 farPlaneOverride = 0.0f;
@@ -382,11 +382,11 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
                 // reflecting again on the very frame it crosses back.
                 {
                     constexpr f32 kMinMirrorApparentSize = 0.02f;
-                    const glm::mat4& model = frame.list->models()[packet.instance];
+                    const Math::mat4& model = frame.list->models()[packet.instance];
                     if (const Mesh* mesh = Assets().getMesh(instance.mesh))
                     {
                         const AABB world = transformAABB(mesh->bounds, model);
-                        const f32 distance = glm::length(world.center() - frame.cameraPosition);
+                        const f32 distance = Math::length(world.center() - frame.cameraPosition);
                         if (distance > world.radius() &&
                             world.radius() / distance < kMinMirrorApparentSize)
                             continue;
@@ -397,9 +397,9 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
                 // the same normal convention buildPlane() gives an ordinary
                 // Plane mesh, so rotating the GameObject in the editor is
                 // all it takes to aim the mirror anywhere.
-                const glm::mat4& model = frame.list->models()[packet.instance];
-                planePoint = glm::vec3(model[3]);
-                planeNormal = glm::normalize(glm::vec3(model[1]));
+                const Math::mat4& model = frame.list->models()[packet.instance];
+                planePoint = Math::vec3(model[3]);
+                planeNormal = Math::normalize(Math::vec3(model[1]));
                 if (instance.material->params.custom0.y > 0.0f)
                     resolutionScale = instance.material->params.custom0.y;
                 if (instance.material->params.custom0.w > 0.0f)
@@ -410,11 +410,11 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
                 {
                     // buildPlane()'s own layout: XZ at y=0, so the AABB's
                     // min/max X/Z corners are exactly the quad's corners.
-                    const glm::vec3& min = mirrorMesh->bounds.min;
-                    const glm::vec3& max = mirrorMesh->bounds.max;
-                    mirrorCornerBL = glm::vec3(model * glm::vec4(min.x, 0.0f, min.z, 1.0f));
-                    mirrorCornerBR = glm::vec3(model * glm::vec4(max.x, 0.0f, min.z, 1.0f));
-                    mirrorCornerTL = glm::vec3(model * glm::vec4(min.x, 0.0f, max.z, 1.0f));
+                    const Math::vec3& min = mirrorMesh->bounds.min;
+                    const Math::vec3& max = mirrorMesh->bounds.max;
+                    mirrorCornerBL = Math::vec3(model * Math::vec4(min.x, 0.0f, min.z, 1.0f));
+                    mirrorCornerBR = Math::vec3(model * Math::vec4(max.x, 0.0f, min.z, 1.0f));
+                    mirrorCornerTL = Math::vec3(model * Math::vec4(min.x, 0.0f, max.z, 1.0f));
                     haveMirrorRect = true;
                 }
                 wanted = true;
@@ -434,7 +434,7 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
         {
             if (command.quality == OceanQuality::SkyOnly)
                 continue;
-            planePoint = glm::vec3(0.0f, command.model[3].y, 0.0f);
+            planePoint = Math::vec3(0.0f, command.model[3].y, 0.0f);
             wanted = true;
             mReflectionSource = "ocean";
             break;
@@ -445,7 +445,7 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
         const std::vector<RenderPacket>& water = frame.list->packets(RenderCategory::Refraction);
         if (!water.empty())
         {
-            planePoint = glm::vec3(0.0f, frame.list->models()[water[0].instance][3].y, 0.0f);
+            planePoint = Math::vec3(0.0f, frame.list->models()[water[0].instance][3].y, 0.0f);
             wanted = true;
             mReflectionSource = "water";
         }
@@ -471,9 +471,9 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
     // different scale (its Quality combo, resolutionScale above) when it is
     // what the camera is actually looking at and worth the extra cost, or
     // less when it is a background prop.
-    const u32 width = glm::max(1u, static_cast<u32>(static_cast<f32>(frame.width) * resolutionScale));
+    const u32 width = Math::max(1u, static_cast<u32>(static_cast<f32>(frame.width) * resolutionScale));
     const u32 height =
-        glm::max(1u, static_cast<u32>(static_cast<f32>(frame.height) * resolutionScale));
+        Math::max(1u, static_cast<u32>(static_cast<f32>(frame.height) * resolutionScale));
     if (mReflection.width != width || mReflection.height != height)
     {
         mReflection.destroy();
@@ -501,16 +501,16 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
     // this collapses to exactly the diag(1,-1,1) + translate(0,2*level,0)
     // this used to hardcode, so Water/Ocean reflect exactly as before.
     const f32 nx = planeNormal.x, ny = planeNormal.y, nz = planeNormal.z;
-    glm::mat4 mirror(1.0f);
-    mirror[0] = glm::vec4(1.0f - 2.0f * nx * nx, -2.0f * nx * ny, -2.0f * nx * nz, 0.0f);
-    mirror[1] = glm::vec4(-2.0f * nx * ny, 1.0f - 2.0f * ny * ny, -2.0f * ny * nz, 0.0f);
-    mirror[2] = glm::vec4(-2.0f * nx * nz, -2.0f * ny * nz, 1.0f - 2.0f * nz * nz, 0.0f);
-    mirror[3] = glm::vec4(2.0f * glm::dot(planePoint, planeNormal) * planeNormal, 1.0f);
+    Math::mat4 mirror(1.0f);
+    mirror[0] = Math::vec4(1.0f - 2.0f * nx * nx, -2.0f * nx * ny, -2.0f * nx * nz, 0.0f);
+    mirror[1] = Math::vec4(-2.0f * nx * ny, 1.0f - 2.0f * ny * ny, -2.0f * ny * nz, 0.0f);
+    mirror[2] = Math::vec4(-2.0f * nx * nz, -2.0f * ny * nz, 1.0f - 2.0f * nz * nz, 0.0f);
+    mirror[3] = Math::vec4(2.0f * Math::dot(planePoint, planeNormal) * planeNormal, 1.0f);
 
     // Everything that does not depend on where the camera is stays: the
     // lights, the shadow atlas, the sky. Only the camera and the target move.
     FrameContext reflectFrame = frame;
-    const glm::vec3 reflectedEye = glm::vec3(mirror * glm::vec4(frame.cameraPosition, 1.0f));
+    const Math::vec3 reflectedEye = Math::vec3(mirror * Math::vec4(frame.cameraPosition, 1.0f));
     reflectFrame.cameraPosition = reflectedEye;
 
     if (haveMirrorRect)
@@ -523,21 +523,21 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
         // direction. The three corners are ON the mirror plane, which
         // reflection through that same plane leaves fixed - they need no
         // mirroring of their own, only the eye does.
-        const glm::vec3& pa = mirrorCornerBL;
-        const glm::vec3& pb = mirrorCornerBR;
-        const glm::vec3& pc = mirrorCornerTL;
-        glm::vec3 vr = glm::normalize(pb - pa);
-        glm::vec3 vu = glm::normalize(pc - pa);
-        glm::vec3 vn = glm::normalize(glm::cross(vr, vu));
+        const Math::vec3& pa = mirrorCornerBL;
+        const Math::vec3& pb = mirrorCornerBR;
+        const Math::vec3& pc = mirrorCornerTL;
+        Math::vec3 vr = Math::normalize(pb - pa);
+        Math::vec3 vu = Math::normalize(pc - pa);
+        Math::vec3 vn = Math::normalize(Math::cross(vr, vu));
         // vn has to point back toward the eye for `d` below to come out
         // positive - cross(vr, vu) has no reason to already agree with
         // that for an arbitrarily rotated mirror.
-        if (glm::dot(vn, reflectedEye - pa) < 0.0f)
+        if (Math::dot(vn, reflectedEye - pa) < 0.0f)
             vn = -vn;
 
-        const glm::vec3 va = pa - reflectedEye;
-        const glm::vec3 vb = pb - reflectedEye;
-        const glm::vec3 vc = pc - reflectedEye;
+        const Math::vec3 va = pa - reflectedEye;
+        const Math::vec3 vb = pb - reflectedEye;
+        const Math::vec3 vc = pc - reflectedEye;
         // Perpendicular distance from the eye to the window's own plane -
         // va points FROM the eye TO the corner and vn was just oriented
         // toward the eye, so va and vn point roughly opposite ways and
@@ -547,23 +547,23 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
         // the mirror surface is ever meant to render (the clip plane below
         // enforces the same boundary from the other side), so there is no
         // depth range being wasted or geometry being clipped away by it.
-        const f32 d = glm::max(-glm::dot(va, vn), 0.01f);
+        const f32 d = Math::max(-Math::dot(va, vn), 0.01f);
         const f32 nearPlane = d;
         // Not tracked anywhere on FrameContext (only the finished projection
         // matrix is), so 5000 is a guess - the Inspector's Far Plane field
         // (custom1.x) overrides it for a scene where that guess is wrong.
         // Kept comfortably past nearPlane regardless of source: near >= far
-        // makes glm::frustum() build a degenerate matrix that draws
+        // makes Math::frustum() build a degenerate matrix that draws
         // nothing, and a mirror far from the camera (or scaled to a large
         // world) can push nearPlane (== the distance to it) past either on
         // its own.
-        const f32 farPlane = glm::max(farPlaneOverride > 0.0f ? farPlaneOverride : 5000.0f,
+        const f32 farPlane = Math::max(farPlaneOverride > 0.0f ? farPlaneOverride : 5000.0f,
                                       nearPlane * 2.0f);
 
-        const f32 l = glm::dot(vr, va) * nearPlane / d;
-        const f32 r = glm::dot(vr, vb) * nearPlane / d;
-        const f32 b = glm::dot(vu, va) * nearPlane / d;
-        const f32 t = glm::dot(vu, vc) * nearPlane / d;
+        const f32 l = Math::dot(vr, va) * nearPlane / d;
+        const f32 r = Math::dot(vr, vb) * nearPlane / d;
+        const f32 b = Math::dot(vu, va) * nearPlane / d;
+        const f32 t = Math::dot(vu, vc) * nearPlane / d;
         // fovZoom > 1 grows the window past its own edges either side -
         // useful room for Bump/roughness sampling near the rim, or simply
         // an artistic wider reflection than the literal rectangle.
@@ -571,19 +571,19 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
         const f32 halfHeight = (t - b) * 0.5f * fovZoom;
         const f32 midX = (r + l) * 0.5f;
         const f32 midY = (t + b) * 0.5f;
-        reflectFrame.projection = glm::frustum(midX - halfWidth, midX + halfWidth,
+        reflectFrame.projection = Math::frustum(midX - halfWidth, midX + halfWidth,
                                                midY - halfHeight, midY + halfHeight, nearPlane,
                                                farPlane);
 
         // Rotates world axes onto (vr, vu, vn). Kooima's view basis uses +vn
         // for the third row here; negating it makes the camera look behind
         // the mirror and leaves the reflection frustum with nothing to draw.
-        glm::mat4 basis(1.0f);
-        basis[0] = glm::vec4(vr, 0.0f);
-        basis[1] = glm::vec4(vu, 0.0f);
-        basis[2] = glm::vec4(vn, 0.0f);
-        reflectFrame.view = glm::transpose(basis) *
-                            glm::translate(glm::mat4(1.0f), -reflectedEye);
+        Math::mat4 basis(1.0f);
+        basis[0] = Math::vec4(vr, 0.0f);
+        basis[1] = Math::vec4(vu, 0.0f);
+        basis[2] = Math::vec4(vn, 0.0f);
+        reflectFrame.view = Math::transpose(basis) *
+                            Math::translate(Math::mat4(1.0f), -reflectedEye);
     }
     else
     {
@@ -604,7 +604,7 @@ bool Renderer::executeReflection(ShadowCasterSource& casters, FrameContext& fram
     // in the mirror, and the ocean pass reads this same plane to know it
     // must sit this one out rather than reflect itself.
     reflectFrame.clipPlane =
-        glm::vec4(planeNormal, -glm::dot(planePoint, planeNormal));
+        Math::vec4(planeNormal, -Math::dot(planePoint, planeNormal));
     reflectFrame.target = mReflection.target;
     reflectFrame.viewport = Viewport{0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height)};
     reflectFrame.width = width;
@@ -692,8 +692,8 @@ bool Renderer::executeRefraction(ShadowCasterSource& casters, FrameContext& fram
     if (!forwardTechnique || !forwardTechnique->isEnabled())
         return false;
 
-    const u32 width = glm::max(1u, frame.width);
-    const u32 height = glm::max(1u, frame.height);
+    const u32 width = Math::max(1u, frame.width);
+    const u32 height = Math::max(1u, frame.height);
     if (mRefraction.width != width || mRefraction.height != height)
     {
         mRefraction.destroy();
@@ -713,7 +713,7 @@ bool Renderer::executeRefraction(ShadowCasterSource& casters, FrameContext& fram
     // of the water is cut. No Sky here - open sky belongs above the surface,
     // and letting it in is what puts clouds inside the pool.
     FrameContext refractFrame = frame;
-    refractFrame.clipPlane = glm::vec4(0.0f, -1.0f, 0.0f, level);
+    refractFrame.clipPlane = Math::vec4(0.0f, -1.0f, 0.0f, level);
     refractFrame.target = mRefraction.target;
     refractFrame.viewport = Viewport{0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height)};
     refractFrame.width = width;
@@ -758,7 +758,7 @@ void Renderer::captureEnvironment(EnvironmentProbe& probe, ShadowCasterSource& c
     if (wantsWorld && !mCaptureList)
         mCaptureList = new RenderList();
 
-    glm::mat4 faceViewProjection[EnvironmentProbe::FaceCount];
+    Math::mat4 faceViewProjection[EnvironmentProbe::FaceCount];
     probe.faceViewProjections(faceViewProjection);
 
     GPU& gpu = GPU::getSingleton();
@@ -776,13 +776,13 @@ void Renderer::captureEnvironment(EnvironmentProbe& probe, ShadowCasterSource& c
         FrameContext faceFrame = frame;
         faceFrame.target = target;
         faceFrame.viewProjection = faceViewProjection[face];
-        faceFrame.projection = glm::mat4(1.0f); // unused by Forward/Sky
-        faceFrame.view = glm::mat4(1.0f);
+        faceFrame.projection = Math::mat4(1.0f); // unused by Forward/Sky
+        faceFrame.view = Math::mat4(1.0f);
         faceFrame.cameraPosition = probe.position;
         faceFrame.viewport = Viewport{0.0f, 0.0f, resolution, resolution};
         faceFrame.width = probe.resolution();
         faceFrame.height = probe.resolution();
-        faceFrame.clipPlane = glm::vec4(0.0f);
+        faceFrame.clipPlane = Math::vec4(0.0f);
         // No reflection inside the reflection: sampling the cubemap while
         // rendering into it is undefined, and one bounce is all this buys
         // anyway.

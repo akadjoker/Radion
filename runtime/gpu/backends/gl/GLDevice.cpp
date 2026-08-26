@@ -1276,8 +1276,8 @@ TargetHandle GLDevice::createTarget(const TargetDesc& desc)
         }
 
         drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
-        target.width = glm::max(1u, texture->width >> attachment.mip);
-        target.height = glm::max(1u, texture->height >> attachment.mip);
+        target.width = Math::max(1u, texture->width >> attachment.mip);
+        target.height = Math::max(1u, texture->height >> attachment.mip);
     }
 
     if (desc.colorCount > 0)
@@ -1318,8 +1318,8 @@ TargetHandle GLDevice::createTarget(const TargetDesc& desc)
                 // still 0 here) at mip > 0 reported the wrong size for every
                 // mip but 0, and callers that size a viewport off it drew
                 // into a fraction of the actual attachment.
-                target.width = glm::max(1u, texture->width >> desc.depth.mip);
-                target.height = glm::max(1u, texture->height >> desc.depth.mip);
+                target.width = Math::max(1u, texture->width >> desc.depth.mip);
+                target.height = Math::max(1u, texture->height >> desc.depth.mip);
             }
         }
     }

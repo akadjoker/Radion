@@ -19,7 +19,7 @@ void Collider::setSphere(f32 radius)
     mShape = ColliderShape::Sphere;
     mRadius = radius;
 }
-void Collider::setBox(const glm::vec3& halfExtents)
+void Collider::setBox(const Math::vec3& halfExtents)
 {
     mShape = ColliderShape::Box;
     mHalfExtents = halfExtents;
@@ -44,7 +44,7 @@ f32 Collider::radius() const
 {
     return mRadius;
 }
-const glm::vec3& Collider::halfExtents() const
+const Math::vec3& Collider::halfExtents() const
 {
     return mHalfExtents;
 }
@@ -77,7 +77,7 @@ CollisionResponse Collider::response() const
 
 f32 Collider::capsuleSegmentHalfHeight() const
 {
-    return glm::max(mHeight * 0.5f - mRadius, 0.0f);
+    return Math::max(mHeight * 0.5f - mRadius, 0.0f);
 }
 
 AABB Collider::worldBounds() const
@@ -114,7 +114,7 @@ void Collider::clearContacts()
 {
     mContacts.clear();
 }
-void Collider::addContact(Collider* other, const glm::vec3& normal, const glm::vec3& point)
+void Collider::addContact(Collider* other, const Math::vec3& normal, const Math::vec3& point)
 {
     Contact contact;
     contact.other = other;

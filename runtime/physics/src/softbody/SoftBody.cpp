@@ -25,17 +25,17 @@ u64 edgeKey(u32 a, u32 b)
 // Signed angle between the normals of the two triangles sharing edge x0-x1,
 // with x2 and x3 the opposite vertices. The same expression the projection
 // uses, so the rest angle measured at build time cancels exactly at rest.
-f32 dihedralAngle(const glm::vec3& x0, const glm::vec3& x1, const glm::vec3& x2,
-                  const glm::vec3& x3)
+f32 dihedralAngle(const Math::vec3& x0, const Math::vec3& x1, const Math::vec3& x2,
+                  const Math::vec3& x3)
 {
-    const glm::vec3 e = x1 - x0;
-    const glm::vec3 n1 = glm::cross(x2 - x0, x2 - x1);
-    const glm::vec3 n2 = glm::cross(x3 - x1, x3 - x0);
-    const f32 lengthsSquared = glm::dot(n1, n1) * glm::dot(n2, n2);
+    const Math::vec3 e = x1 - x0;
+    const Math::vec3 n1 = Math::cross(x2 - x0, x2 - x1);
+    const Math::vec3 n2 = Math::cross(x3 - x1, x3 - x0);
+    const f32 lengthsSquared = Math::dot(n1, n1) * Math::dot(n2, n2);
     if (lengthsSquared < 1.0e-24f)
         return 0.0f;
-    const f32 sign = glm::dot(glm::cross(n2, n1), e) < 0.0f ? -1.0f : 1.0f;
-    const f32 d = glm::clamp(glm::dot(n1, n2) / std::sqrt(lengthsSquared), -1.0f, 1.0f);
+    const f32 sign = Math::dot(Math::cross(n2, n1), e) < 0.0f ? -1.0f : 1.0f;
+    const f32 d = Math::clamp(Math::dot(n1, n2) / std::sqrt(lengthsSquared), -1.0f, 1.0f);
     return sign * std::acos(d);
 }
 
@@ -47,11 +47,11 @@ f32 dihedralAngle(const glm::vec3& x0, const glm::vec3& x1, const glm::vec3& x2,
 // particle, per step. mMaxLinearVelocity is not the number for this - it is
 // the safety clamp step() applies at the end, 500 m/s by default, which is
 // metres of reach at any normal frame rate.
-f32 particleTravel(const SoftBody::Particle& particle, const glm::vec3& gravity,
-                   const glm::vec3& windPerParticle, f32 dt)
+f32 particleTravel(const SoftBody::Particle& particle, const Math::vec3& gravity,
+                   const Math::vec3& windPerParticle, f32 dt)
 {
-    const glm::vec3 acceleration = gravity + windPerParticle * particle.invMass;
-    return (glm::length(particle.velocity) + glm::length(acceleration) * dt) * dt;
+    const Math::vec3 acceleration = gravity + windPerParticle * particle.invMass;
+    return (Math::length(particle.velocity) + Math::length(acceleration) * dt) * dt;
 }
 } // namespace
 
@@ -63,7 +63,7 @@ void SoftBody::clear()
     mAttachments.clear();
 }
 
-void SoftBody::setParticles(const glm::vec3* positions, u32 count, f32 totalMass)
+void SoftBody::setParticles(const Math::vec3* positions, u32 count, f32 totalMass)
 {
     mParticles.clear();
     mConstraints.clear();
@@ -80,7 +80,7 @@ void SoftBody::setParticles(const glm::vec3* positions, u32 count, f32 totalMass
         Particle& particle = mParticles[i];
         particle.position = positions[i];
         particle.previousPosition = positions[i];
-        particle.velocity = glm::vec3(0.0f);
+        particle.velocity = Math::vec3(0.0f);
         particle.invMass = invMass;
     }
 }
@@ -105,8 +105,8 @@ void SoftBody::addDistanceConstraint(u32 a, u32 b, f32 compliance)
     DistanceConstraint constraint;
     constraint.a = a;
     constraint.b = b;
-    constraint.restLength = glm::length(mParticles[b].position - mParticles[a].position);
-    constraint.compliance = glm::max(compliance, 0.0f);
+    constraint.restLength = Math::length(mParticles[b].position - mParticles[a].position);
+    constraint.compliance = Math::max(compliance, 0.0f);
     mConstraints.push_back(constraint);
 }
 
@@ -204,7 +204,7 @@ void SoftBody::buildAttachments(f32 maxDistanceMultiplier)
     if (anchors.empty())
         return;
 
-    const f32 multiplier = glm::max(maxDistanceMultiplier, 1.0f);
+    const f32 multiplier = Math::max(maxDistanceMultiplier, 1.0f);
     for (u32 i = 0; i < mParticles.size(); ++i)
     {
         if (mParticles[i].invMass == 0.0f)
@@ -214,8 +214,8 @@ void SoftBody::buildAttachments(f32 maxDistanceMultiplier)
         f32 nearestSquared = std::numeric_limits<f32>::max();
         for (u32 anchor : anchors)
         {
-            const glm::vec3 delta = mParticles[i].position - mParticles[anchor].position;
-            const f32 squared = glm::dot(delta, delta);
+            const Math::vec3 delta = mParticles[i].position - mParticles[anchor].position;
+            const f32 squared = Math::dot(delta, delta);
             if (squared < nearestSquared)
             {
                 nearestSquared = squared;
@@ -237,8 +237,8 @@ void SoftBody::predict(f32 dt)
     // Jolt distributes an accumulated body force over all vertices before
     // applying inverse mass. Without this division, refining a cloth mesh
     // multiplies its wind acceleration by its vertex count.
-    const glm::vec3 windPerParticle =
-        mParticles.empty() ? glm::vec3(0.0f)
+    const Math::vec3 windPerParticle =
+        mParticles.empty() ? Math::vec3(0.0f)
                            : mWind / static_cast<f32>(mParticles.size());
     for (Particle& particle : mParticles)
     {
@@ -260,8 +260,8 @@ void SoftBody::projectDistanceConstraints(f32 dt)
         Particle& a = mParticles[constraint.a];
         Particle& b = mParticles[constraint.b];
 
-        const glm::vec3 delta = b.position - a.position;
-        const f32 length = glm::length(delta);
+        const Math::vec3 delta = b.position - a.position;
+        const f32 length = Math::length(delta);
         if (length < kEpsilon)
             continue;
 
@@ -270,7 +270,7 @@ void SoftBody::projectDistanceConstraints(f32 dt)
         if (denominator < kEpsilon)
             continue;
 
-        const glm::vec3 correction = delta * ((length - constraint.restLength) / denominator);
+        const Math::vec3 correction = delta * ((length - constraint.restLength) / denominator);
         a.position += correction * a.invMass;
         b.position -= correction * b.invMass;
     }
@@ -287,45 +287,45 @@ void SoftBody::projectDihedralBendConstraints(f32 dt)
         Particle& p2 = mParticles[bend.c];
         Particle& p3 = mParticles[bend.d];
 
-        const glm::vec3 x0 = p0.position;
-        const glm::vec3 x1 = p1.position;
-        const glm::vec3 x2 = p2.position;
-        const glm::vec3 x3 = p3.position;
+        const Math::vec3 x0 = p0.position;
+        const Math::vec3 x1 = p1.position;
+        const Math::vec3 x2 = p2.position;
+        const Math::vec3 x3 = p3.position;
 
-        const glm::vec3 e = x1 - x0;
-        const f32 edgeLength = glm::length(e);
+        const Math::vec3 e = x1 - x0;
+        const f32 edgeLength = Math::length(e);
         if (edgeLength < 1.0e-6f)
             continue;
 
-        const glm::vec3 x1x2 = x2 - x1;
-        const glm::vec3 x1x3 = x3 - x1;
-        glm::vec3 n1 = glm::cross(x2 - x0, x1x2);
-        glm::vec3 n2 = glm::cross(x1x3, x3 - x0);
-        const f32 n1LengthSquared = glm::dot(n1, n1);
-        const f32 n2LengthSquared = glm::dot(n2, n2);
+        const Math::vec3 x1x2 = x2 - x1;
+        const Math::vec3 x1x3 = x3 - x1;
+        Math::vec3 n1 = Math::cross(x2 - x0, x1x2);
+        Math::vec3 n2 = Math::cross(x1x3, x3 - x0);
+        const f32 n1LengthSquared = Math::dot(n1, n1);
+        const f32 n2LengthSquared = Math::dot(n2, n2);
         const f32 lengthsSquared = n1LengthSquared * n2LengthSquared;
         if (lengthsSquared < 1.0e-24f)
             continue;
 
-        const f32 sign = glm::dot(glm::cross(n2, n1), e) < 0.0f ? -1.0f : 1.0f;
-        const f32 d = glm::clamp(glm::dot(n1, n2) / std::sqrt(lengthsSquared), -1.0f, 1.0f);
+        const f32 sign = Math::dot(Math::cross(n2, n1), e) < 0.0f ? -1.0f : 1.0f;
+        const f32 d = Math::clamp(Math::dot(n1, n2) / std::sqrt(lengthsSquared), -1.0f, 1.0f);
         f32 c = sign * std::acos(d) - bend.initialAngle;
-        if (c > glm::pi<f32>())
-            c -= glm::two_pi<f32>();
-        else if (c < -glm::pi<f32>())
-            c += glm::two_pi<f32>();
+        if (c > Math::pi<f32>())
+            c -= Math::two_pi<f32>();
+        else if (c < -Math::pi<f32>())
+            c += Math::two_pi<f32>();
 
         n1 /= n1LengthSquared;
         n2 /= n2LengthSquared;
-        const glm::vec3 d0c = (glm::dot(x1x2, e) * n1 + glm::dot(x1x3, e) * n2) / edgeLength;
-        const glm::vec3 d2c = edgeLength * n1;
-        const glm::vec3 d3c = edgeLength * n2;
-        const glm::vec3 d1c = -d0c - d2c - d3c;
+        const Math::vec3 d0c = (Math::dot(x1x2, e) * n1 + Math::dot(x1x3, e) * n2) / edgeLength;
+        const Math::vec3 d2c = edgeLength * n1;
+        const Math::vec3 d3c = edgeLength * n2;
+        const Math::vec3 d1c = -d0c - d2c - d3c;
 
-        const f32 denominator = p0.invMass * glm::dot(d0c, d0c) +
-                                p1.invMass * glm::dot(d1c, d1c) +
-                                p2.invMass * glm::dot(d2c, d2c) +
-                                p3.invMass * glm::dot(d3c, d3c) +
+        const f32 denominator = p0.invMass * Math::dot(d0c, d0c) +
+                                p1.invMass * Math::dot(d1c, d1c) +
+                                p2.invMass * Math::dot(d2c, d2c) +
+                                p3.invMass * Math::dot(d3c, d3c) +
                                 bend.compliance * inverseStepSquared;
         if (denominator < 1.0e-12f)
             continue;
@@ -342,10 +342,10 @@ void SoftBody::projectAttachments()
 {
     for (const LongRangeAttachment& attachment : mAttachments)
     {
-        const glm::vec3 anchor = mParticles[attachment.anchor].position;
+        const Math::vec3 anchor = mParticles[attachment.anchor].position;
         Particle& particle = mParticles[attachment.vertex];
-        const glm::vec3 delta = particle.position - anchor;
-        const f32 squared = glm::dot(delta, delta);
+        const Math::vec3 delta = particle.position - anchor;
+        const f32 squared = Math::dot(delta, delta);
         if (squared > attachment.maxDistance * attachment.maxDistance && squared > kEpsilon)
             particle.position = anchor + delta * (attachment.maxDistance / std::sqrt(squared));
     }
@@ -363,16 +363,16 @@ void SoftBody::determineContactPlanes(f32 dt)
     if (!mCollisionWorld || dt <= 0.0f || mParticles.empty())
         return;
 
-    const glm::vec3 windPerParticle = mWind / static_cast<f32>(mParticles.size());
+    const Math::vec3 windPerParticle = mWind / static_cast<f32>(mParticles.size());
     AABB bounds;
-    bounds.min = glm::vec3(std::numeric_limits<f32>::max());
-    bounds.max = glm::vec3(-std::numeric_limits<f32>::max());
+    bounds.min = Math::vec3(std::numeric_limits<f32>::max());
+    bounds.max = Math::vec3(-std::numeric_limits<f32>::max());
     for (const Particle& particle : mParticles)
     {
         const f32 reach =
             mCollisionMargin + particleTravel(particle, mGravity, windPerParticle, dt);
-        bounds.min = glm::min(bounds.min, particle.position - glm::vec3(reach));
-        bounds.max = glm::max(bounds.max, particle.position + glm::vec3(reach));
+        bounds.min = Math::min(bounds.min, particle.position - Math::vec3(reach));
+        bounds.max = Math::max(bounds.max, particle.position + Math::vec3(reach));
     }
     mCollisionWorld->queryAABB(bounds, mCollisionQuery, mCollisionCandidates);
     if (mCollisionCandidates.empty())
@@ -390,8 +390,8 @@ void SoftBody::determineContactPlanes(f32 dt)
             continue;
 
         const f32 search = particleTravel(particle, mGravity, windPerParticle, dt);
-        glm::mat4 particleTransform(1.0f);
-        particleTransform[3] = glm::vec4(particle.position, 1.0f);
+        Math::mat4 particleTransform(1.0f);
+        particleTransform[3] = Math::vec4(particle.position, 1.0f);
 
         f32 deepest = -std::numeric_limits<f32>::max();
         for (u32 id : mCollisionCandidates)
@@ -441,7 +441,7 @@ void SoftBody::determineContactPlanes(f32 dt)
                     // The particle centre sits margin - penetration from the
                     // surface along the normal; anchor the plane there so a
                     // later position measures its true clearance against it.
-                    plane.offset = glm::dot(plane.normal, particle.position) -
+                    plane.offset = Math::dot(plane.normal, particle.position) -
                                    (mCollisionMargin - deepest);
                     plane.bodyId = id;
                     plane.friction = entry->friction;
@@ -458,7 +458,7 @@ void SoftBody::applyContactPlanes(f32 dt)
     if (!mCollisionWorld || dt <= 0.0f || mContactPlanes.size() != mParticles.size())
         return;
 
-    const f32 restitutionThreshold = -2.0f * glm::length(mGravity) * dt;
+    const f32 restitutionThreshold = -2.0f * Math::length(mGravity) * dt;
     for (u32 index = 0; index < mParticles.size(); ++index)
     {
         const ContactPlane& plane = mContactPlanes[index];
@@ -466,7 +466,7 @@ void SoftBody::applyContactPlanes(f32 dt)
         if (!plane.active || particle.invMass == 0.0f)
             continue;
 
-        const f32 projected = plane.offset - glm::dot(plane.normal, particle.position) +
+        const f32 projected = plane.offset - Math::dot(plane.normal, particle.position) +
                               mCollisionMargin;
         if (projected <= 0.0f)
             continue;
@@ -480,18 +480,18 @@ void SoftBody::applyContactPlanes(f32 dt)
         // velocity is read from the collider so a kinematic body drags and
         // carries the cloth; the reference's simple path assumes a static
         // collider and works on absolute velocity.
-        glm::vec3 colliderVelocity(0.0f);
+        Math::vec3 colliderVelocity(0.0f);
         if (const BodyEntry* entry = mCollisionWorld->body(plane.bodyId))
             if (entry->body)
                 colliderVelocity = entry->body->velocityAtPoint(particle.position);
 
-        const glm::vec3 relativeVelocity = particle.velocity - colliderVelocity;
-        const f32 normalVelocity = glm::dot(relativeVelocity, plane.normal);
-        const glm::vec3 tangent = relativeVelocity - plane.normal * normalVelocity;
-        const f32 tangentSpeed = glm::length(tangent);
+        const Math::vec3 relativeVelocity = particle.velocity - colliderVelocity;
+        const f32 normalVelocity = Math::dot(relativeVelocity, plane.normal);
+        const Math::vec3 tangent = relativeVelocity - plane.normal * normalVelocity;
+        const f32 tangentSpeed = Math::length(tangent);
         if (tangentSpeed > kEpsilon && plane.friction > 0.0f)
             particle.velocity -=
-                tangent * glm::min(plane.friction * projected / (tangentSpeed * dt), 1.0f);
+                tangent * Math::min(plane.friction * projected / (tangentSpeed * dt), 1.0f);
 
         // The whole normal component goes, separating or not - while the
         // particle still reaches the plane, a resting pile's own constraint
@@ -501,7 +501,7 @@ void SoftBody::applyContactPlanes(f32 dt)
         // velocity as it stood before this substep's update.
         particle.velocity -= plane.normal * normalVelocity;
         const f32 previousNormalVelocity =
-            glm::dot(particle.previousVelocity - colliderVelocity, plane.normal);
+            Math::dot(particle.previousVelocity - colliderVelocity, plane.normal);
         if (previousNormalVelocity < restitutionThreshold)
             particle.velocity -= plane.restitution * previousNormalVelocity * plane.normal;
     }
@@ -517,7 +517,7 @@ void SoftBody::updateVelocities(f32 dt)
         particle.previousVelocity = particle.velocity;
         if (particle.invMass == 0.0f)
         {
-            particle.velocity = glm::vec3(0.0f);
+            particle.velocity = Math::vec3(0.0f);
             continue;
         }
         particle.velocity = (particle.position - particle.previousPosition) * inverseStep;
@@ -529,7 +529,7 @@ void SoftBody::step(f32 dt, u32 substeps)
     if (mParticles.empty() || !(dt > 0.0f))
         return;
 
-    const u32 count = glm::max(substeps, 1u);
+    const u32 count = Math::max(substeps, 1u);
     const f32 h = dt / static_cast<f32>(count);
     determineContactPlanes(dt);
     for (u32 i = 0; i < count; ++i)
@@ -548,7 +548,7 @@ void SoftBody::step(f32 dt, u32 substeps)
     const f32 maximumSquared = mMaxLinearVelocity * mMaxLinearVelocity;
     for (Particle& particle : mParticles)
     {
-        const f32 speedSquared = glm::dot(particle.velocity, particle.velocity);
+        const f32 speedSquared = Math::dot(particle.velocity, particle.velocity);
         if (speedSquared > maximumSquared && speedSquared > kEpsilon)
             particle.velocity *= mMaxLinearVelocity / std::sqrt(speedSquared);
     }
@@ -561,9 +561,9 @@ f32 SoftBody::worstStretch() const
     {
         if (constraint.restLength < kEpsilon)
             continue;
-        const f32 length = glm::length(mParticles[constraint.b].position -
+        const f32 length = Math::length(mParticles[constraint.b].position -
                                        mParticles[constraint.a].position);
-        worst = glm::max(worst, length / constraint.restLength);
+        worst = Math::max(worst, length / constraint.restLength);
     }
     return worst;
 }

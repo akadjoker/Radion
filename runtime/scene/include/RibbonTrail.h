@@ -58,19 +58,19 @@ private:
 
     struct Sample
     {
-        glm::vec3 points[MaxBladePoints] = {};
+        Math::vec3 points[MaxBladePoints] = {};
         f32 age = 0.0f;
         f32 distance = 0.0f;
     };
 
     RibbonTrail();
     void onLateUpdate(f32 deltaTime) override;
-    void push(const glm::vec3* points, f32 distance);
+    void push(const Math::vec3* points, f32 distance);
     // Average of a sample's blade points. The curve is run through THIS and
     // each point keeps its offset from it - two edges given independent
     // splines cross on a fast reversal and fold the ribbon into a sail, and
     // with more than two the odds only get worse.
-    glm::vec3 centreOf(const Sample& sample) const;
+    Math::vec3 centreOf(const Sample& sample) const;
     Sample& sample(usize index);
     const Sample& sample(usize index) const;
     void expire();
@@ -90,8 +90,8 @@ private:
     Sample mSamples[MaxSamples];
     usize mFirst = 0;
     usize mCount = 0;
-    glm::vec3 mLastPoints[MaxBladePoints] = {};
-    glm::vec3 mCurrentPoints[MaxBladePoints] = {};
+    Math::vec3 mLastPoints[MaxBladePoints] = {};
+    Math::vec3 mCurrentPoints[MaxBladePoints] = {};
     f32 mDistance = 0.0f;
     f32 mCurrentDistance = 0.0f;
     f32 mLifetime = 0.35f;

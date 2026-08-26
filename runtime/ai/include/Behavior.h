@@ -1,7 +1,7 @@
 #ifndef RADION_AI_BEHAVIOR_H
 #define RADION_AI_BEHAVIOR_H
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion::AI
 {
@@ -233,18 +233,18 @@ private:
 class StayWithinSphereBehavior final : public Behavior
 {
 public:
-    StayWithinSphereBehavior(const glm::vec3& center, float radius);
+    StayWithinSphereBehavior(const Math::vec3& center, float radius);
     void iterate(float timeDelta, Entity& entity) override;
     const char* name() const override
     {
         return "Stay Within Sphere Behavior";
     }
 
-    const glm::vec3& sphereCenter() const
+    const Math::vec3& sphereCenter() const
     {
         return mCenter;
     }
-    void setSphereCenter(const glm::vec3& center)
+    void setSphereCenter(const Math::vec3& center)
     {
         mCenter = center;
     }
@@ -258,7 +258,7 @@ public:
     }
 
 private:
-    glm::vec3 mCenter;
+    Math::vec3 mCenter;
     float mRadius;
 };
 

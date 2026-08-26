@@ -3,7 +3,7 @@
 
 #include "GPU.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <vector>
 
 namespace Radion
@@ -16,14 +16,14 @@ public:
  
     struct Emitter
     {
-        glm::vec3 position = glm::vec3(0.0f);
+        Math::vec3 position = Math::vec3(0.0f);
 
         // Continuous emission (particles per second). 0 = bursts only.
         f32 rate = 0.0f;
 
         // Base direction and cone half-angle, in radians.
         // spread = PI gives a full sphere - what an explosion wants.
-        glm::vec3 direction = glm::vec3(0.0f, 1.0f, 0.0f);
+        Math::vec3 direction = Math::vec3(0.0f, 1.0f, 0.0f);
         f32 spread = 0.35f;
 
         f32 speedMin = 4.0f;
@@ -35,8 +35,8 @@ public:
         f32 sizeBegin = 0.5f;
         f32 sizeEnd = 0.05f;
 
-        glm::vec4 colorBegin = glm::vec4(1.0f, 0.85f, 0.35f, 1.0f);
-        glm::vec4 colorEnd = glm::vec4(1.0f, 0.15f, 0.05f, 0.0f); // stored PER particle
+        Math::vec4 colorBegin = Math::vec4(1.0f, 0.85f, 0.35f, 1.0f);
+        Math::vec4 colorEnd = Math::vec4(1.0f, 0.15f, 0.05f, 0.0f); // stored PER particle
 
         f32 mass = 1.0f;
 
@@ -48,7 +48,7 @@ public:
 
     // Global forces, the same for every particle. Properties of the WORLD,
     // not of the emitter - which is why they live here and not on Emitter.
-    glm::vec3 gravity = glm::vec3(0.0f, -9.8f, 0.0f);
+    Math::vec3 gravity = Math::vec3(0.0f, -9.8f, 0.0f);
 
     // Exponential drag. High stops the spread quickly: it is what tells a
     // fireball (high drag, stays put) from flying shrapnel (low drag, keeps
@@ -81,8 +81,8 @@ public:
 
     // Draws. A single indirect draw, with the instance count written by the
     // GPU.
-    void render(const glm::mat4& viewProjection, const glm::vec3& cameraRight,
-               const glm::vec3& cameraUp, bool additive);
+    void render(const Math::mat4& viewProjection, const Math::vec3& cameraRight,
+               const Math::vec3& cameraUp, bool additive);
 
     u32 maxParticles() const
     {

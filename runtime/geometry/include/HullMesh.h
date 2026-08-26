@@ -25,13 +25,13 @@ namespace Radion::Geometry
 // average the normals across corners that are meant to be hard.
 //
 // False when there are no faces to walk; `out` is cleared either way.
-bool buildHullMesh(const std::vector<glm::vec3>& vertices,
+bool buildHullMesh(const std::vector<Math::vec3>& vertices,
                    const std::vector<ConvexHullComputer::Edge>& edges,
                    const std::vector<int>& faces, MeshData& out);
 
 // The convex hull of a point cloud, as a mesh. The hull itself is computed
 // with no shrink.
-bool buildConvexHullMesh(const std::vector<glm::vec3>& points, MeshData& out);
+bool buildConvexHullMesh(const std::vector<Math::vec3>& points, MeshData& out);
 
 } // namespace Radion::Geometry
 

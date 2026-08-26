@@ -3,7 +3,7 @@
 
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <vector>
 
 namespace Radion::Geometry
@@ -30,7 +30,7 @@ public:
         friend class ConvexHullComputer;
     };
 
-    std::vector<glm::vec3> vertices;
+    std::vector<Math::vec3> vertices;
     std::vector<Edge> edges;
     std::vector<int> faces;
 

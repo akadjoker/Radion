@@ -11,7 +11,7 @@ Waypoints::Waypoints() : Component(Type)
 {
 }
 
-u32 Waypoints::addPoint(const glm::vec3& localPosition, f32 radius)
+u32 Waypoints::addPoint(const Math::vec3& localPosition, f32 radius)
 {
     WaypointNode node;
     node.position = localPosition;
@@ -61,7 +61,7 @@ WaypointNode& Waypoints::point(u32 index)
     return mPoints[index];
 }
 
-void Waypoints::setPointPosition(u32 index, const glm::vec3& localPosition)
+void Waypoints::setPointPosition(u32 index, const Math::vec3& localPosition)
 {
     if (index < mPoints.size())
         mPoints[index].position = localPosition;
@@ -70,25 +70,25 @@ void Waypoints::setPointPosition(u32 index, const glm::vec3& localPosition)
 void Waypoints::setPointRadius(u32 index, f32 radius)
 {
     if (index < mPoints.size())
-        mPoints[index].radius = glm::max(radius, 0.0f);
+        mPoints[index].radius = Math::max(radius, 0.0f);
 }
 
-glm::vec3 Waypoints::worldPosition(u32 index) const
+Math::vec3 Waypoints::worldPosition(u32 index) const
 {
     if (index >= mPoints.size())
-        return glm::vec3(0.0f);
+        return Math::vec3(0.0f);
     const GameObject* object = owner();
     if (!object)
         return mPoints[index].position;
-    return glm::vec3(object->globalTransform() * glm::vec4(mPoints[index].position, 1.0f));
+    return Math::vec3(object->globalTransform() * Math::vec4(mPoints[index].position, 1.0f));
 }
 
 bool Waypoints::linked(u32 a, u32 b) const
 {
     if (a >= mPoints.size() || b >= mPoints.size())
         return false;
-    const u32 low = glm::min(a, b);
-    const u32 high = glm::max(a, b);
+    const u32 low = Math::min(a, b);
+    const u32 high = Math::max(a, b);
     const std::vector<u32>& links = mPoints[low].links;
     return std::find(links.begin(), links.end(), high) != links.end();
 }
@@ -99,7 +99,7 @@ bool Waypoints::link(u32 a, u32 b)
         return false;
     // Stored once, on the lower index - a two-way edge kept in one place
     // cannot fall out of sync with itself.
-    mPoints[glm::min(a, b)].links.push_back(glm::max(a, b));
+    mPoints[Math::min(a, b)].links.push_back(Math::max(a, b));
     return true;
 }
 
@@ -107,8 +107,8 @@ bool Waypoints::unlink(u32 a, u32 b)
 {
     if (a == b || a >= mPoints.size() || b >= mPoints.size())
         return false;
-    std::vector<u32>& links = mPoints[glm::min(a, b)].links;
-    const auto found = std::find(links.begin(), links.end(), glm::max(a, b));
+    std::vector<u32>& links = mPoints[Math::min(a, b)].links;
+    const auto found = std::find(links.begin(), links.end(), Math::max(a, b));
     if (found == links.end())
         return false;
     links.erase(found);
@@ -128,8 +128,8 @@ void Waypoints::autoLink(f32 radius)
     for (u32 i = 0; i < mPoints.size(); ++i)
         for (u32 j = i + 1; j < static_cast<u32>(mPoints.size()); ++j)
         {
-            const glm::vec3 delta = mPoints[j].position - mPoints[i].position;
-            if (glm::dot(delta, delta) <= radiusSquared)
+            const Math::vec3 delta = mPoints[j].position - mPoints[i].position;
+            if (Math::dot(delta, delta) <= radiusSquared)
                 mPoints[i].links.push_back(j);
         }
 }

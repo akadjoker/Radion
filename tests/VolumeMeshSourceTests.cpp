@@ -32,7 +32,7 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-MeshData buildBox(const glm::vec3& size)
+MeshData buildBox(const Math::vec3& size)
 {
     MeshData mesh;
     AssetManager::getSingleton().buildMeshData(MeshDesc::box(size), mesh);
@@ -53,9 +53,9 @@ void testBuildRejectsNothing()
     CHECK(!source.build(empty));
     CHECK(!source.valid());
     // A source with nothing in it still has to answer, and answer "outside".
-    CHECK(source.sampleDensity(glm::vec3(0.0f)) < 0.0f);
+    CHECK(source.sampleDensity(Math::vec3(0.0f)) < 0.0f);
 
-    MeshData box = buildBox(glm::vec3(2.0f));
+    MeshData box = buildBox(Math::vec3(2.0f));
     CHECK(source.build(box));
     CHECK(source.valid());
     CHECK(source.triangleCount() == box.indices.size() / 3);
@@ -66,12 +66,12 @@ void testBuildRejectsNothing()
 // the distance and the sign are right, and neither number came from me.
 void testMatchesTheAnalyticBox()
 {
-    MeshData box = buildBox(glm::vec3(2.0f, 2.0f, 2.0f));
+    MeshData box = buildBox(Math::vec3(2.0f, 2.0f, 2.0f));
     Volume::MeshSource mesh;
     CHECK(mesh.build(box));
 
     // MeshDesc::box takes the full size, so the half extents are half of it.
-    const Volume::BoxSource analytic(glm::vec3(0.0f), glm::vec3(1.0f));
+    const Volume::BoxSource analytic(Math::vec3(0.0f), Math::vec3(1.0f));
 
     u32 signMismatches = 0;
     f32 worst = 0.0f;
@@ -81,7 +81,7 @@ void testMatchesTheAnalyticBox()
         for (s32 y = -6; y <= 6; ++y)
             for (s32 x = -6; x <= 6; ++x)
             {
-                const glm::vec3 p(static_cast<f32>(x) * 0.3f, static_cast<f32>(y) * 0.3f,
+                const Math::vec3 p(static_cast<f32>(x) * 0.3f, static_cast<f32>(y) * 0.3f,
                                   static_cast<f32>(z) * 0.3f);
 
                 const f32 fromMesh = mesh.sampleDensity(p);
@@ -90,11 +90,11 @@ void testMatchesTheAnalyticBox()
                 // Points sitting all but exactly on the surface are where the
                 // two disagree for reasons that are not bugs, so the sign is
                 // only compared away from it.
-                if (glm::abs(fromAnalytic) > 0.05f)
+                if (Math::abs(fromAnalytic) > 0.05f)
                 {
                     if ((fromMesh > 0.0f) != (fromAnalytic > 0.0f))
                         ++signMismatches;
-                    worst = glm::max(worst, glm::abs(fromMesh - fromAnalytic));
+                    worst = Math::max(worst, Math::abs(fromMesh - fromAnalytic));
                     ++compared;
                 }
             }
@@ -115,7 +115,7 @@ void testAgreesWithTheAnalyticSphere()
     Volume::MeshSource mesh;
     CHECK(mesh.build(sphere));
 
-    const Volume::SphereSource analytic(glm::vec3(0.0f), 1.0f);
+    const Volume::SphereSource analytic(Math::vec3(0.0f), 1.0f);
 
     u32 signMismatches = 0;
     f32 worst = 0.0f;
@@ -123,15 +123,15 @@ void testAgreesWithTheAnalyticSphere()
         for (s32 y = -4; y <= 4; ++y)
             for (s32 x = -4; x <= 4; ++x)
             {
-                const glm::vec3 p(static_cast<f32>(x) * 0.4f, static_cast<f32>(y) * 0.4f,
+                const Math::vec3 p(static_cast<f32>(x) * 0.4f, static_cast<f32>(y) * 0.4f,
                                   static_cast<f32>(z) * 0.4f);
                 const f32 fromMesh = mesh.sampleDensity(p);
                 const f32 fromAnalytic = analytic.sampleDensity(p);
-                if (glm::abs(fromAnalytic) > 0.1f)
+                if (Math::abs(fromAnalytic) > 0.1f)
                 {
                     if ((fromMesh > 0.0f) != (fromAnalytic > 0.0f))
                         ++signMismatches;
-                    worst = glm::max(worst, glm::abs(fromMesh - fromAnalytic));
+                    worst = Math::max(worst, Math::abs(fromMesh - fromAnalytic));
                 }
             }
 
@@ -143,39 +143,39 @@ void testAgreesWithTheAnalyticSphere()
 // backwards would turn every Difference into an Intersection.
 void testSignConvention()
 {
-    MeshData box = buildBox(glm::vec3(2.0f));
+    MeshData box = buildBox(Math::vec3(2.0f));
     Volume::MeshSource mesh;
     CHECK(mesh.build(box));
 
-    CHECK(mesh.sampleDensity(glm::vec3(0.0f)) > 0.0f);
-    CHECK(glm::abs(mesh.sampleDensity(glm::vec3(0.0f)) - 1.0f) < 0.01f);
+    CHECK(mesh.sampleDensity(Math::vec3(0.0f)) > 0.0f);
+    CHECK(Math::abs(mesh.sampleDensity(Math::vec3(0.0f)) - 1.0f) < 0.01f);
 
-    CHECK(mesh.sampleDensity(glm::vec3(5.0f, 0.0f, 0.0f)) < 0.0f);
-    CHECK(glm::abs(mesh.sampleDensity(glm::vec3(5.0f, 0.0f, 0.0f)) + 4.0f) < 0.01f);
+    CHECK(mesh.sampleDensity(Math::vec3(5.0f, 0.0f, 0.0f)) < 0.0f);
+    CHECK(Math::abs(mesh.sampleDensity(Math::vec3(5.0f, 0.0f, 0.0f)) + 4.0f) < 0.01f);
 
     // Just inside and just outside one face.
-    CHECK(mesh.sampleDensity(glm::vec3(0.98f, 0.0f, 0.0f)) > 0.0f);
-    CHECK(mesh.sampleDensity(glm::vec3(1.02f, 0.0f, 0.0f)) < 0.0f);
+    CHECK(mesh.sampleDensity(Math::vec3(0.98f, 0.0f, 0.0f)) > 0.0f);
+    CHECK(mesh.sampleDensity(Math::vec3(1.02f, 0.0f, 0.0f)) < 0.0f);
 
     // Off a corner, where the nearest feature is a vertex rather than a face.
-    const f32 corner = mesh.sampleDensity(glm::vec3(2.0f, 2.0f, 2.0f));
+    const f32 corner = mesh.sampleDensity(Math::vec3(2.0f, 2.0f, 2.0f));
     CHECK(corner < 0.0f);
-    CHECK(glm::abs(glm::abs(corner) - glm::length(glm::vec3(1.0f))) < 0.01f);
+    CHECK(Math::abs(Math::abs(corner) - Math::length(Math::vec3(1.0f))) < 0.01f);
 }
 
 // A mesh that is not centred on the origin: an implementation that quietly
 // assumes it is passes everything above and fails here.
 void testOffCentreMesh()
 {
-    MeshData box = buildBox(glm::vec3(2.0f));
-    AssetManager::getSingleton().translate(box, glm::vec3(10.0f, -5.0f, 3.0f));
+    MeshData box = buildBox(Math::vec3(2.0f));
+    AssetManager::getSingleton().translate(box, Math::vec3(10.0f, -5.0f, 3.0f));
 
     Volume::MeshSource mesh;
     CHECK(mesh.build(box));
 
-    CHECK(mesh.sampleDensity(glm::vec3(10.0f, -5.0f, 3.0f)) > 0.0f);
-    CHECK(mesh.sampleDensity(glm::vec3(0.0f)) < 0.0f);
-    CHECK(glm::abs(mesh.sampleDensity(glm::vec3(10.0f, -5.0f, 3.0f)) - 1.0f) < 0.01f);
+    CHECK(mesh.sampleDensity(Math::vec3(10.0f, -5.0f, 3.0f)) > 0.0f);
+    CHECK(mesh.sampleDensity(Math::vec3(0.0f)) < 0.0f);
+    CHECK(Math::abs(mesh.sampleDensity(Math::vec3(10.0f, -5.0f, 3.0f)) - 1.0f) < 0.01f);
 }
 
 // What this was built for: the combinators that already existed, driven by a
@@ -183,29 +183,29 @@ void testOffCentreMesh()
 // is wrong anywhere.
 void testDifferenceAgainstAMesh()
 {
-    MeshData box = buildBox(glm::vec3(2.0f));
+    MeshData box = buildBox(Math::vec3(2.0f));
     Volume::MeshSource solid;
     CHECK(solid.build(box));
 
-    const Volume::SphereSource drill(glm::vec3(0.0f), 0.5f);
+    const Volume::SphereSource drill(Math::vec3(0.0f), 0.5f);
     const Volume::DifferenceSource drilled(solid, drill);
 
     // The middle is gone, the shell around it is not.
-    CHECK(drilled.sampleDensity(glm::vec3(0.0f)) < 0.0f);
-    CHECK(drilled.sampleDensity(glm::vec3(0.8f, 0.0f, 0.0f)) > 0.0f);
+    CHECK(drilled.sampleDensity(Math::vec3(0.0f)) < 0.0f);
+    CHECK(drilled.sampleDensity(Math::vec3(0.8f, 0.0f, 0.0f)) > 0.0f);
     // Still outside the box entirely.
-    CHECK(drilled.sampleDensity(glm::vec3(3.0f, 0.0f, 0.0f)) < 0.0f);
+    CHECK(drilled.sampleDensity(Math::vec3(3.0f, 0.0f, 0.0f)) < 0.0f);
 
     const Volume::IntersectionSource common(solid, drill);
-    CHECK(common.sampleDensity(glm::vec3(0.0f)) > 0.0f);
-    CHECK(common.sampleDensity(glm::vec3(0.8f, 0.0f, 0.0f)) < 0.0f);
+    CHECK(common.sampleDensity(Math::vec3(0.0f)) > 0.0f);
+    CHECK(common.sampleDensity(Math::vec3(0.8f, 0.0f, 0.0f)) < 0.0f);
 
     // Named, not a temporary: BinarySource keeps references to its operands,
     // so one built in the argument list is dead before it is ever sampled.
-    const Volume::SphereSource beside(glm::vec3(2.0f, 0.0f, 0.0f), 0.5f);
+    const Volume::SphereSource beside(Math::vec3(2.0f, 0.0f, 0.0f), 0.5f);
     const Volume::UnionSource both(solid, beside);
-    CHECK(both.sampleDensity(glm::vec3(0.0f)) > 0.0f);
-    CHECK(both.sampleDensity(glm::vec3(2.0f, 0.0f, 0.0f)) > 0.0f);
+    CHECK(both.sampleDensity(Math::vec3(0.0f)) > 0.0f);
+    CHECK(both.sampleDensity(Math::vec3(2.0f, 0.0f, 0.0f)) > 0.0f);
 }
 
 // End to end: mesh in, density field, marching cubes, mesh out. The result
@@ -213,14 +213,14 @@ void testDifferenceAgainstAMesh()
 // decides the rest.
 void testMeshesBackOut()
 {
-    MeshData box = buildBox(glm::vec3(2.0f));
+    MeshData box = buildBox(Math::vec3(2.0f));
     Volume::MeshSource source;
     CHECK(source.build(box));
 
     Volume::MeshingSettings settings;
     settings.bounds = source.bounds();
-    settings.bounds.min -= glm::vec3(0.5f);
-    settings.bounds.max += glm::vec3(0.5f);
+    settings.bounds.min -= Math::vec3(0.5f);
+    settings.bounds.max += Math::vec3(0.5f);
     settings.voxelSize = 0.2f;
 
     MeshData out;
@@ -232,10 +232,10 @@ void testMeshesBackOut()
     CHECK(stats.triangles > 0);
 
     // Within a voxel of the box it came from on every axis.
-    const glm::vec3 size = out.bounds.max - out.bounds.min;
-    CHECK(glm::abs(size.x - 2.0f) < 0.4f);
-    CHECK(glm::abs(size.y - 2.0f) < 0.4f);
-    CHECK(glm::abs(size.z - 2.0f) < 0.4f);
+    const Math::vec3 size = out.bounds.max - out.bounds.min;
+    CHECK(Math::abs(size.x - 2.0f) < 0.4f);
+    CHECK(Math::abs(size.y - 2.0f) < 0.4f);
+    CHECK(Math::abs(size.z - 2.0f) < 0.4f);
 }
 
 } // namespace

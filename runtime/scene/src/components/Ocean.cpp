@@ -4,7 +4,7 @@
 
 #include "AssetManager.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 
 #include <cmath>
 
@@ -15,21 +15,21 @@ namespace
 {
 constexpr f32 kGravity = 9.81f;
 
-// glm::normalize() on a zero (or NaN/infinite) vector is undefined - not the
+// Math::normalize() on a zero (or NaN/infinite) vector is undefined - not the
 // harmless zero a caller might assume. A single bad wave direction propagates
 // through heightAt()/normalAt() into position, normal, clip-space and depth
 // for the whole surface. Falls back to (1,0) rather than the caller's
 // previous direction: this is a pure function, with nothing to remember.
-glm::vec2 safeDirection(const glm::vec2& direction)
+Math::vec2 safeDirection(const Math::vec2& direction)
 {
-    const f32 lengthSq = glm::dot(direction, direction);
+    const f32 lengthSq = Math::dot(direction, direction);
     if (!std::isfinite(lengthSq) || lengthSq < 1e-8f)
-        return glm::vec2(1.0f, 0.0f);
+        return Math::vec2(1.0f, 0.0f);
     return direction * (1.0f / std::sqrt(lengthSq));
 }
 
 // Must match kPhaseOffset in ocean.vert exactly - see the comment there.
-const glm::vec2 kPhaseOffset[kOceanMaxWaves] = {
+const Math::vec2 kPhaseOffset[kOceanMaxWaves] = {
     {0.0f, 0.0f}, {311.7f, 172.3f}, {-198.4f, 402.1f},
     {87.6f, -266.9f}, {-355.2f, -114.8f}, {224.1f, 333.6f},
 };
@@ -39,12 +39,12 @@ Ocean::Ocean() : Component(Type)
 {
     // Wavelengths coprime on purpose: multiples of one another realign
     // periodically and the repeat becomes visible on the surface.
-    mWaves[0] = {glm::vec2(1.00f, 0.15f), 61.0f, 1.35f};
-    mWaves[1] = {glm::vec2(0.70f, -0.70f), 37.0f, 0.75f};
-    mWaves[2] = {glm::vec2(-0.35f, 0.94f), 23.0f, 0.40f};
-    mWaves[3] = {glm::vec2(0.90f, 0.44f), 13.0f, 0.18f};
-    mWaves[4] = {glm::vec2(-0.80f, -0.60f), 7.0f, 0.09f};
-    mWaves[5] = {glm::vec2(0.20f, 0.98f), 4.0f, 0.05f};
+    mWaves[0] = {Math::vec2(1.00f, 0.15f), 61.0f, 1.35f};
+    mWaves[1] = {Math::vec2(0.70f, -0.70f), 37.0f, 0.75f};
+    mWaves[2] = {Math::vec2(-0.35f, 0.94f), 23.0f, 0.40f};
+    mWaves[3] = {Math::vec2(0.90f, 0.44f), 13.0f, 0.18f};
+    mWaves[4] = {Math::vec2(-0.80f, -0.60f), 7.0f, 0.09f};
+    mWaves[5] = {Math::vec2(0.20f, 0.98f), 4.0f, 0.05f};
 }
 
 void Ocean::onDestroy()
@@ -97,13 +97,13 @@ OceanQuality Ocean::quality() const
     return mQuality;
 }
 
-void Ocean::setWave(u32 index, const glm::vec2& direction, f32 wavelength, f32 amplitude)
+void Ocean::setWave(u32 index, const Math::vec2& direction, f32 wavelength, f32 amplitude)
 {
     if (index >= kOceanMaxWaves)
         return;
     mWaves[index].direction = safeDirection(direction);
-    mWaves[index].wavelength = glm::max(0.001f, wavelength);
-    mWaves[index].amplitude = std::isfinite(amplitude) ? glm::max(0.0f, amplitude) : 0.0f;
+    mWaves[index].wavelength = Math::max(0.001f, wavelength);
+    mWaves[index].amplitude = std::isfinite(amplitude) ? Math::max(0.0f, amplitude) : 0.0f;
 }
 
 const OceanWave& Ocean::wave(u32 index) const
@@ -114,7 +114,7 @@ const OceanWave& Ocean::wave(u32 index) const
 
 void Ocean::setWaveCount(u32 count)
 {
-    mWaveCount = glm::min(count, kOceanMaxWaves);
+    mWaveCount = Math::min(count, kOceanMaxWaves);
 }
 
 u32 Ocean::waveCount() const
@@ -124,7 +124,7 @@ u32 Ocean::waveCount() const
 
 void Ocean::setWaveScale(f32 scale)
 {
-    mWaveScale = glm::max(0.0f, scale);
+    mWaveScale = Math::max(0.0f, scale);
 }
 
 f32 Ocean::waveScale() const
@@ -134,7 +134,7 @@ f32 Ocean::waveScale() const
 
 void Ocean::setSteepness(f32 steepness)
 {
-    mSteepness = glm::clamp(steepness, 0.0f, 1.0f);
+    mSteepness = Math::clamp(steepness, 0.0f, 1.0f);
 }
 
 f32 Ocean::steepness() const
@@ -162,37 +162,37 @@ f32 Ocean::level() const
     return mLevel;
 }
 
-void Ocean::setShallowColor(const glm::vec3& color)
+void Ocean::setShallowColor(const Math::vec3& color)
 {
     mShallowColor = color;
 }
 
-const glm::vec3& Ocean::shallowColor() const { return mShallowColor; }
+const Math::vec3& Ocean::shallowColor() const { return mShallowColor; }
 
-void Ocean::setDeepColor(const glm::vec3& color)
+void Ocean::setDeepColor(const Math::vec3& color)
 {
     mDeepColor = color;
 }
 
-const glm::vec3& Ocean::deepColor() const { return mDeepColor; }
+const Math::vec3& Ocean::deepColor() const { return mDeepColor; }
 
 void Ocean::setAbsorptionDistance(f32 distance)
 {
-    mAbsorptionDistance = glm::max(0.001f, distance);
+    mAbsorptionDistance = Math::max(0.001f, distance);
 }
 
 f32 Ocean::absorptionDistance() const { return mAbsorptionDistance; }
 
 void Ocean::setRoughness(f32 roughness)
 {
-    mRoughness = glm::clamp(roughness, 0.001f, 1.0f);
+    mRoughness = Math::clamp(roughness, 0.001f, 1.0f);
 }
 
 f32 Ocean::roughness() const { return mRoughness; }
 
 void Ocean::setSpecularStrength(f32 strength)
 {
-    mSpecularStrength = glm::max(0.0f, strength);
+    mSpecularStrength = Math::max(0.0f, strength);
 }
 
 f32 Ocean::specularStrength() const { return mSpecularStrength; }
@@ -219,7 +219,7 @@ bool Ocean::normalMapEnabled() const { return mHasNormalMap; }
 
 void Ocean::setNormalOctaves(u32 octaves)
 {
-    mNormalOctaves = glm::clamp(octaves, 1u, 6u);
+    mNormalOctaves = Math::clamp(octaves, 1u, 6u);
 }
 
 u32 Ocean::normalOctaves() const { return mNormalOctaves; }
@@ -285,7 +285,7 @@ f32 Ocean::foamStrength() const { return mFoamStrength; }
 
 void Ocean::setFoamDepth(f32 depth)
 {
-    mFoamDepth = glm::max(0.001f, depth);
+    mFoamDepth = Math::max(0.001f, depth);
 }
 
 f32 Ocean::foamDepth() const { return mFoamDepth; }
@@ -299,42 +299,42 @@ f32 Ocean::foamCrest() const { return mFoamCrest; }
 
 void Ocean::setFresnelDetail(f32 amount)
 {
-    mFresnelDetail = glm::clamp(amount, 0.0f, 1.0f);
+    mFresnelDetail = Math::clamp(amount, 0.0f, 1.0f);
 }
 
 f32 Ocean::fresnelDetail() const { return mFresnelDetail; }
 
 void Ocean::setFresnelMax(f32 amount)
 {
-    mFresnelMax = glm::clamp(amount, 0.0f, 1.0f);
+    mFresnelMax = Math::clamp(amount, 0.0f, 1.0f);
 }
 
 f32 Ocean::fresnelMax() const { return mFresnelMax; }
 
 void Ocean::setFresnelBias(f32 amount)
 {
-    mFresnelBias = glm::clamp(amount, 0.0f, 1.0f);
+    mFresnelBias = Math::clamp(amount, 0.0f, 1.0f);
 }
 
 f32 Ocean::fresnelBias() const { return mFresnelBias; }
 
 void Ocean::setFresnelScale(f32 amount)
 {
-    mFresnelScale = glm::max(amount, 0.0f);
+    mFresnelScale = Math::max(amount, 0.0f);
 }
 
 f32 Ocean::fresnelScale() const { return mFresnelScale; }
 
 void Ocean::setFresnelPower(f32 amount)
 {
-    mFresnelPower = glm::max(amount, 0.1f);
+    mFresnelPower = Math::max(amount, 0.1f);
 }
 
 f32 Ocean::fresnelPower() const { return mFresnelPower; }
 
 void Ocean::setMinOpacity(f32 amount)
 {
-    mMinOpacity = glm::clamp(amount, 0.0f, 1.0f);
+    mMinOpacity = Math::clamp(amount, 0.0f, 1.0f);
 }
 
 f32 Ocean::minOpacity() const { return mMinOpacity; }
@@ -348,31 +348,31 @@ f32 Ocean::reflectionDistortion() const { return mReflectionDistortion; }
 
 void Ocean::setReflectionStrength(f32 amount)
 {
-    mReflectionStrength = glm::clamp(amount, 0.0f, 2.0f);
+    mReflectionStrength = Math::clamp(amount, 0.0f, 2.0f);
 }
 
 f32 Ocean::reflectionStrength() const { return mReflectionStrength; }
 
 void Ocean::setRefractionStrength(f32 amount)
 {
-    mRefractionStrength = glm::clamp(amount, 0.0f, 1.0f);
+    mRefractionStrength = Math::clamp(amount, 0.0f, 1.0f);
 }
 
 f32 Ocean::refractionStrength() const { return mRefractionStrength; }
 
 void Ocean::setColorStrength(f32 amount)
 {
-    mColorStrength = glm::clamp(amount, 0.0f, 2.0f);
+    mColorStrength = Math::clamp(amount, 0.0f, 2.0f);
 }
 
 f32 Ocean::colorStrength() const { return mColorStrength; }
 
-void Ocean::setUnderwaterColor(const glm::vec3& color)
+void Ocean::setUnderwaterColor(const Math::vec3& color)
 {
     mUnderwaterColor = color;
 }
 
-const glm::vec3& Ocean::underwaterColor() const { return mUnderwaterColor; }
+const Math::vec3& Ocean::underwaterColor() const { return mUnderwaterColor; }
 
 void Ocean::setDebugMode(s32 mode)
 {
@@ -391,13 +391,13 @@ f32 Ocean::heightAt(f32 x, f32 z, f32 time) const
     for (u32 i = 0; i < mWaveCount && i < kOceanMaxWaves; ++i)
     {
         const OceanWave& wave = mWaves[i];
-        const glm::vec2 D = safeDirection(wave.direction);
-        const f32 wavelength = glm::max(0.001f, wave.wavelength);
+        const Math::vec2 D = safeDirection(wave.direction);
+        const f32 wavelength = Math::max(0.001f, wave.wavelength);
         const f32 A = wave.amplitude;
 
         const f32 k = 6.28318530718f / wavelength;
         const f32 w = std::sqrt(kGravity * k);
-        const glm::vec2& offset = kPhaseOffset[i];
+        const Math::vec2& offset = kPhaseOffset[i];
         const f32 phase = k * (D.x * (x + offset.x) + D.y * (z + offset.y)) - w * t;
         y += A * mWaveScale * std::sin(phase);
     }
@@ -406,36 +406,36 @@ f32 Ocean::heightAt(f32 x, f32 z, f32 time) const
 
 // Same tangent/binormal accumulation as the vertex shader, evaluated at one
 // point instead of a whole grid.
-glm::vec3 Ocean::normalAt(f32 x, f32 z, f32 time) const
+Math::vec3 Ocean::normalAt(f32 x, f32 z, f32 time) const
 {
     const f32 t = time * mTimeScale;
-    glm::vec3 tangent(1.0f, 0.0f, 0.0f);
-    glm::vec3 binormal(0.0f, 0.0f, 1.0f);
+    Math::vec3 tangent(1.0f, 0.0f, 0.0f);
+    Math::vec3 binormal(0.0f, 0.0f, 1.0f);
 
     for (u32 i = 0; i < mWaveCount && i < kOceanMaxWaves; ++i)
     {
         const OceanWave& wave = mWaves[i];
-        const glm::vec2 D = safeDirection(wave.direction);
-        const f32 wavelength = glm::max(0.001f, wave.wavelength);
+        const Math::vec2 D = safeDirection(wave.direction);
+        const f32 wavelength = Math::max(0.001f, wave.wavelength);
         const f32 A = wave.amplitude;
 
         const f32 k = 6.28318530718f / wavelength;
         const f32 w = std::sqrt(kGravity * k);
         const f32 Q = mSteepness / (k * A * static_cast<f32>(mWaveCount) + 1e-5f);
 
-        const glm::vec2& offset = kPhaseOffset[i];
+        const Math::vec2& offset = kPhaseOffset[i];
         const f32 phase = k * (D.x * (x + offset.x) + D.y * (z + offset.y)) - w * t;
         const f32 s = std::sin(phase);
         const f32 c = std::cos(phase);
         const f32 QA = Q * A;
 
-        tangent += glm::vec3(-D.x * D.x * QA * k * s, D.x * A * k * c, -D.x * D.y * QA * k * s);
-        binormal += glm::vec3(-D.x * D.y * QA * k * s, D.y * A * k * c, -D.y * D.y * QA * k * s);
+        tangent += Math::vec3(-D.x * D.x * QA * k * s, D.x * A * k * c, -D.x * D.y * QA * k * s);
+        binormal += Math::vec3(-D.x * D.y * QA * k * s, D.y * A * k * c, -D.y * D.y * QA * k * s);
     }
-    return glm::normalize(glm::cross(binormal, tangent));
+    return Math::normalize(Math::cross(binormal, tangent));
 }
 
-void Ocean::submit(const glm::mat4& transform)
+void Ocean::submit(const Math::mat4& transform)
 {
     if (!mMesh.valid() || mWaveCount == 0)
         return;
@@ -446,7 +446,7 @@ void Ocean::submit(const glm::mat4& transform)
     // one place both sides can agree on it. heightAt() adds it on the CPU, the
     // vertex shader gets it through uModel, and the reflection reads the plane
     // straight off model[3].y - three readers, one number.
-    command.model = glm::translate(transform, glm::vec3(0.0f, mLevel, 0.0f));
+    command.model = Math::translate(transform, Math::vec3(0.0f, mLevel, 0.0f));
     command.quality = mQuality;
 
     // Only the waves the grid can actually carry. The displacement happens per
@@ -484,7 +484,7 @@ void Ocean::submit(const glm::mat4& transform)
     // So the scale keeps raising the height above that point, but the crests
     // stop sharpening: taller waves at the same wavelength is exactly the
     // thing real water answers by breaking.
-    command.steepness = glm::min(mSteepness * mWaveScale, 1.0f);
+    command.steepness = Math::min(mSteepness * mWaveScale, 1.0f);
     command.timeScale = mTimeScale;
 
     command.shallowColor = mShallowColor;
