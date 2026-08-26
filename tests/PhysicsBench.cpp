@@ -1,11 +1,13 @@
 #include "PCH.h"
 
+#include "collision/Broadphase.h"
 #include "collision/CollisionShape.h"
 #include "dynamics/PhysicsWorld.h"
 #include "dynamics/RigidBody.h"
 #include "softbody/SoftBody.h"
 
 #include <chrono>
+#include <cstring>
 #include <cstdio>
 #include <deque>
 
@@ -83,6 +85,143 @@ void benchBoxPile(u32 count)
     }
     std::printf("box pile %4u bodies: %6.3f ms/step avg, %6.3f ms worst\n", count,
                 total / static_cast<f64>(kSteps / 2), worst);
+}
+
+void countContactEvent(const ContactEventInfo&, void* userData)
+{
+    ++*static_cast<u64*>(userData);
+}
+
+void benchContactEvents(u32 count)
+{
+    BoxShape groundShape(glm::vec3(60.0f, 0.5f, 60.0f));
+    BoxShape boxShape(glm::vec3(0.5f));
+
+    PhysicsWorld world;
+    world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
+    RigidBody ground;
+    ground.setBodyType(BodyType::Static);
+    ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
+    BodyEntry groundEntry;
+    groundEntry.body = &ground;
+    groundEntry.shape = &groundShape;
+    world.addBody(groundEntry);
+
+    std::deque<RigidBody> bodies;
+    const u32 side = static_cast<u32>(std::cbrt(static_cast<f64>(count))) + 1;
+    u32 spawned = 0;
+    for (u32 y = 0; y < side && spawned < count; ++y)
+        for (u32 x = 0; x < side && spawned < count; ++x)
+            for (u32 z = 0; z < side && spawned < count; ++z)
+            {
+                bodies.emplace_back();
+                RigidBody& body = bodies.back();
+                body.setMass(1.0f);
+                body.setInertiaTensor(Inertia::box(1.0f, glm::vec3(0.5f)));
+                body.setPosition(glm::vec3(static_cast<f32>(x) * 1.01f -
+                                               static_cast<f32>(side) * 0.505f,
+                                           1.0f + static_cast<f32>(y) * 1.01f,
+                                           static_cast<f32>(z) * 1.01f -
+                                               static_cast<f32>(side) * 0.505f));
+                BodyEntry entry;
+                entry.body = &body;
+                entry.shape = &boxShape;
+                world.addBody(entry);
+                ++spawned;
+            }
+
+    u64 eventCount = 0;
+    world.setEventCallback(countContactEvent, &eventCount);
+    constexpr u32 kSteps = 240;
+    f64 total = 0.0;
+    for (u32 step = 0; step < kSteps; ++step)
+    {
+        const auto begin = std::chrono::steady_clock::now();
+        world.step(1.0f / 60.0f);
+        const auto end = std::chrono::steady_clock::now();
+        if (step >= kSteps / 2)
+            total += milliseconds(begin, end);
+    }
+    std::printf("contact events %4u bodies: %6.3f ms/step avg, %llu callbacks\n", count,
+                total / static_cast<f64>(kSteps / 2),
+                static_cast<unsigned long long>(eventCount));
+}
+
+void benchBroadphase(u32 count, bool overlapping, bool movable = true)
+{
+    Broadphase broadphase;
+    broadphase.reserve(count);
+    for (u32 index = 0; index < count; ++index)
+    {
+        const glm::vec3 center = overlapping
+                                     ? glm::vec3(0.0f)
+                                     : glm::vec3(static_cast<f32>(index % 64) * 3.0f,
+                                                 static_cast<f32>((index / 64) % 32) * 3.0f,
+                                                 static_cast<f32>(index / 2048) * 3.0f);
+        BroadphaseProxy proxy;
+        proxy.id = index;
+        proxy.movable = movable;
+        proxy.bounds.min = center - glm::vec3(0.5f);
+        proxy.bounds.max = center + glm::vec3(0.5f);
+        broadphase.add(proxy);
+    }
+
+    std::vector<BroadphasePair> pairs;
+    constexpr u32 kRuns = 32;
+    f64 total = 0.0;
+    for (u32 run = 0; run < kRuns; ++run)
+    {
+        const auto begin = std::chrono::steady_clock::now();
+        broadphase.findPairs(pairs);
+        total += milliseconds(begin, std::chrono::steady_clock::now());
+    }
+    std::printf("broadphase %s %s %5u proxies: %7.3f ms/findPairs, %zu pairs\n",
+                movable ? "moving" : "static", overlapping ? "overlap" : "sparse ", count,
+                total / kRuns, pairs.size());
+}
+
+void benchStaticBvh(u32 staticCount, u32 kinematicCount)
+{
+    BoxShape shape(glm::vec3(0.5f));
+    PhysicsWorld world;
+    std::deque<RigidBody> staticBodies;
+    for (u32 index = 0; index < staticCount; ++index)
+    {
+        staticBodies.emplace_back();
+        RigidBody& body = staticBodies.back();
+        body.setBodyType(BodyType::Static);
+        body.setPosition(glm::vec3(static_cast<f32>(index % 64) * 3.0f,
+                                   static_cast<f32>((index / 64) % 32) * 3.0f,
+                                   static_cast<f32>(index / 2048) * 3.0f));
+        BodyEntry entry;
+        entry.body = &body;
+        entry.shape = &shape;
+        world.addBody(entry);
+    }
+
+    std::deque<RigidBody> kinematicBodies;
+    for (u32 index = 0; index < kinematicCount; ++index)
+    {
+        kinematicBodies.emplace_back();
+        RigidBody& body = kinematicBodies.back();
+        body.setBodyType(BodyType::Kinematic);
+        body.setPosition(glm::vec3(static_cast<f32>(index) * 3.0f + 0.75f, 100.0f, 0.0f));
+        BodyEntry entry;
+        entry.body = &body;
+        entry.shape = &shape;
+        world.addBody(entry);
+    }
+
+    constexpr u32 kSteps = 120;
+    f64 total = 0.0;
+    for (u32 step = 0; step < kSteps; ++step)
+    {
+        const auto begin = std::chrono::steady_clock::now();
+        world.step(1.0f / 60.0f);
+        total += milliseconds(begin, std::chrono::steady_clock::now());
+    }
+    std::printf("static BVH %u static + %u kinematic: %7.3f ms/step avg\n", staticCount,
+                kinematicCount, total / kSteps);
 }
 
 void benchRaycasts(u32 bodyCount, u32 rayCount)
@@ -368,8 +507,33 @@ void benchLargeTrimesh(u32 quadsPerSide)
 
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc == 2 && std::strcmp(argv[1], "softbody") == 0)
+    {
+        benchSoftBody();
+        benchSoftBodySplashes(6, 8);
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "events") == 0)
+    {
+        benchContactEvents(128);
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "broadphase") == 0)
+    {
+        benchBroadphase(1000, false);
+        benchBroadphase(5000, false);
+        benchBroadphase(512, true);
+        benchBroadphase(5000, false, false);
+        return 0;
+    }
+    if (argc == 2 && std::strcmp(argv[1], "static-bvh") == 0)
+    {
+        benchStaticBvh(5000, 64);
+        return 0;
+    }
+
     benchLargeTrimesh(708);
     benchBoxPile(128);
     benchBoxPile(512);

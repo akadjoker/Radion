@@ -132,6 +132,8 @@ void PhysicsWorld::insertBody(u32 id, const BodyEntry& entry)
     mIdToSlot[id] = static_cast<u32>(mBodies.size());
     mBodies.push_back(entry);
     mBodyIds.push_back(id);
+    if (entry.body->bodyType() == BodyType::Static)
+        mStaticBroadphaseDirty = true;
 }
 
 void PhysicsWorld::removeBody(u32 id)
@@ -167,6 +169,8 @@ void PhysicsWorld::removeBodyImmediate(u32 id)
         return;
 
     RigidBody* removedBody = mBodies[slot].body;
+    if (removedBody->bodyType() == BodyType::Static)
+        mStaticBroadphaseDirty = true;
     mJoints.erase(std::remove_if(mJoints.begin(), mJoints.end(),
                                  [removedBody](Joint* joint)
                                  {
@@ -238,6 +242,10 @@ void PhysicsWorld::clearImmediate()
     mCache.clear();
     mContacts.clear();
     mJoints.clear();
+    mStaticBroadphase.clear();
+    mStaticBounds.clear();
+    mStaticIds.clear();
+    mStaticBroadphaseDirty = true;
     mEventQueue.clear();
     mPairs.clear();
     mAccumulator = 0.0f;
@@ -326,6 +334,34 @@ void PhysicsWorld::setContactPersistence(u32 steps)
 void PhysicsWorld::setContactMargin(f32 margin)
 {
     mContactMargin = glm::max(margin, 0.0f);
+    mStaticBroadphaseDirty = true;
+}
+
+void PhysicsWorld::markStaticBroadphaseDirty()
+{
+    mStaticBroadphaseDirty = true;
+}
+
+void PhysicsWorld::rebuildStaticBroadphase()
+{
+    mStaticBounds.clear();
+    mStaticIds.clear();
+    mStaticBounds.reserve(mBodies.size());
+    mStaticIds.reserve(mBodies.size());
+    for (u32 index = 0; index < mBodies.size(); ++index)
+    {
+        const BodyEntry& entry = mBodies[index];
+        if (!entry.body || !entry.shape || !entry.enabled ||
+            entry.body->bodyType() != BodyType::Static)
+            continue;
+        AABB bounds = entry.shape->bounds(entry.body->transform());
+        bounds.min -= glm::vec3(mContactMargin);
+        bounds.max += glm::vec3(mContactMargin);
+        mStaticBounds.push_back(bounds);
+        mStaticIds.push_back(mBodyIds[index]);
+    }
+    mStaticBroadphase.build(mStaticBounds.data(), static_cast<u32>(mStaticBounds.size()));
+    mStaticBroadphaseDirty = false;
 }
 
 void PhysicsWorld::warmStartFromCache(u32 a, u32 b, ContactManifold& manifold)
@@ -486,17 +522,22 @@ void PhysicsWorld::step(f32 duration)
             entry.body->integrateForces(duration);
         }
 
-    mBroadphase.clear();
-    mBroadphase.reserve(mBodies.size());
+    if (mStaticBroadphaseDirty)
+        rebuildStaticBroadphase();
+    mDynamicBroadphase.clear();
+    mDynamicBroadphase.reserve(mBodies.size());
+    mDynamicProxies.clear();
+    mDynamicProxies.reserve(mBodies.size());
     for (u32 i = 0; i < mBodies.size(); ++i)
     {
         const BodyEntry& entry = mBodies[i];
-        if (!entry.body || !entry.shape || !entry.enabled)
+        if (!entry.body || !entry.shape || !entry.enabled ||
+            entry.body->bodyType() == BodyType::Static)
             continue;
         BroadphaseProxy proxy;
         proxy.id = mBodyIds[i];
         proxy.filter = entry.filter;
-        proxy.movable = entry.body->bodyType() != BodyType::Static;
+        proxy.movable = true;
         proxy.bounds = entry.shape->bounds(entry.body->transform());
         // Grown by the contact margin, or the broadphase throws away exactly
         // the pairs the margin exists to keep: a body resting on a surface
@@ -504,9 +545,29 @@ void PhysicsWorld::step(f32 duration)
         // overlap, and the narrowphase is never even asked.
         proxy.bounds.min -= glm::vec3(mContactMargin);
         proxy.bounds.max += glm::vec3(mContactMargin);
-        mBroadphase.add(proxy);
+        mDynamicBroadphase.add(proxy);
+        mDynamicProxies.push_back(proxy);
     }
-    mBroadphase.findPairs(mPairs);
+    mPairs.clear();
+    for (const BroadphaseProxy& dynamic : mDynamicProxies)
+    {
+        mStaticBroadphase.queryCandidates(dynamic.bounds, mStaticCandidates);
+        for (u32 candidate : mStaticCandidates)
+        {
+            const AABB& staticBounds = mStaticBroadphase.itemBounds(candidate);
+            const u32 staticId = mStaticIds[candidate];
+            const u32 staticSlot = slotForId(staticId);
+            if (staticSlot == InvalidIndex)
+                continue;
+            const BodyEntry& staticEntry = mBodies[staticSlot];
+            if (!shouldCollide(dynamic.filter, staticEntry.filter) ||
+                !Broadphase::overlaps(dynamic.bounds, staticBounds))
+                continue;
+            mPairs.push_back({glm::min(dynamic.id, staticId), glm::max(dynamic.id, staticId)});
+        }
+    }
+    mDynamicBroadphase.findPairs(mDynamicPairs);
+    mPairs.insert(mPairs.end(), mDynamicPairs.begin(), mDynamicPairs.end());
 
     mContacts.clear();
     mContacts.reserve(mPairs.size());

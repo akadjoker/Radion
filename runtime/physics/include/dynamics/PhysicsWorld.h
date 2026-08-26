@@ -2,6 +2,7 @@
 #define RADION_PHYSICS_DYNAMICS_PHYSICSWORLD_H
 
 #include "Containers.h"
+#include "BoundsTree.h"
 #include "collision/Broadphase.h"
 #include "collision/CollisionFilter.h"
 #include "dynamics/ContactSolver.h"
@@ -92,6 +93,10 @@ public:
     u32 addBody(const BodyEntry& entry);
     void removeBody(u32 id);
     void clear();
+    // Call after changing an already-added static body's transform, shape,
+    // filter, enabled state or type. Dynamic and kinematic bodies rebuild
+    // their proxies every step and need no notification.
+    void markStaticBroadphaseDirty();
 
     void addJoint(Joint* joint);
     void removeJoint(Joint* joint);
@@ -238,6 +243,7 @@ private:
     void clearImmediate();
     void flushPendingMutations();
     void dispatchEvents();
+    void rebuildStaticBroadphase();
 
     // Bodies and their ids are parallel dense arrays. Public ids never move;
     // mIdToSlot is updated when the last slot is swapped over a removed one.
@@ -260,7 +266,14 @@ private:
     bool mClearPending = false;
     bool mDispatchingEvents = false;
 
-    Broadphase mBroadphase;
+    Broadphase mDynamicBroadphase;
+    BoundsTree mStaticBroadphase;
+    std::vector<AABB> mStaticBounds;
+    std::vector<u32> mStaticIds;
+    std::vector<BroadphaseProxy> mDynamicProxies;
+    std::vector<BroadphasePair> mDynamicPairs;
+    std::vector<u32> mStaticCandidates;
+    bool mStaticBroadphaseDirty = true;
     std::vector<BroadphasePair> mPairs;
     // Scratch for one pair's manifolds, reused every step. A convex against a
     // trimesh produces one per triangle it touches.

@@ -223,6 +223,7 @@ void testBroadphaseFindsEveryOverlapInAStack()
         CHECK(pair.b == pair.a + 1);
 }
 
+
 // --------------------------------------------------------------- narrowphase
 
 void testSphereSphere()

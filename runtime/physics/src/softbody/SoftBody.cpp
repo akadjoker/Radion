@@ -379,8 +379,9 @@ void SoftBody::determineContactPlanes(f32 dt)
         return;
 
     const SphereShape particleShape(mCollisionMargin);
-    std::vector<ContactManifold> manifolds;
-    manifolds.reserve(4);
+    std::vector<ContactManifold>& manifolds = mCollisionManifolds;
+    if (manifolds.capacity() < 4)
+        manifolds.reserve(4);
 
     for (u32 index = 0; index < mParticles.size(); ++index)
     {

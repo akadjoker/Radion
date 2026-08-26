@@ -91,6 +91,40 @@ private:
     }
 };
 
+class SelfRemovingComponent final : public Component
+{
+public:
+    static constexpr ComponentType Type = ComponentType::SelfDestroy;
+
+    SelfRemovingComponent() : Component(Type, ComponentEventUpdate)
+    {
+    }
+
+private:
+    void onUpdate(f32) override
+    {
+        owner()->removeComponent<SelfRemovingComponent>();
+    }
+};
+
+class CountingComponent final : public Component
+{
+public:
+    static constexpr ComponentType Type = ComponentType::Waypoints;
+
+    CountingComponent() : Component(Type, ComponentEventUpdate)
+    {
+    }
+
+    u32 updates = 0;
+
+private:
+    void onUpdate(f32) override
+    {
+        ++updates;
+    }
+};
+
 void check(bool condition, const char* expression, int line)
 {
     if (condition)
@@ -1837,6 +1871,22 @@ void testParticleEffect()
     CHECK(ParticleEffectPool::getSingleton().availableCount() >= 1);
 }
 
+void testComponentSelfRemovalCompactsLazily()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("component_removal");
+    CHECK(object->addComponent<SelfRemovingComponent>() != nullptr);
+    CountingComponent* counter = object->addComponent<CountingComponent>();
+    CHECK(counter != nullptr);
+
+    scene.update(1.0f / 60.0f);
+    CHECK(object->getComponent<SelfRemovingComponent>() == nullptr);
+    CHECK(counter->updates == 1);
+
+    scene.update(1.0f / 60.0f);
+    CHECK(counter->updates == 2);
+}
+
 void testStaticMeshLoad()
 {
     const std::filesystem::path bistroFile = "/media/projectos/assets/bistro/extrior.rstm";
@@ -2068,6 +2118,7 @@ int main()
     testProceduralTrees();
     testForestWithoutSpecies();
     testParticleEffect();
+    testComponentSelfRemovalCompactsLazily();
     testMaterialSaveParserRoundTrip();
     testMeshRendererMaterialOwnershipState();
     testAllAuthoredMaterialFilesParse();

@@ -4,6 +4,7 @@
 #include "Math.h"
 #include "Types.h"
 #include "collision/CollisionFilter.h"
+#include "collision/Narrowphase.h"
 
 #include <vector>
 
@@ -237,6 +238,7 @@ private:
     const PhysicsWorld* mCollisionWorld = nullptr;
     QueryFilter mCollisionQuery;
     std::vector<u32> mCollisionCandidates;
+    std::vector<ContactManifold> mCollisionManifolds;
     glm::vec3 mGravity{0.0f, -9.81f, 0.0f};
     glm::vec3 mWind{0.0f};
     // Equivalent to Jolt's default linear damping of 0.1 / second:
