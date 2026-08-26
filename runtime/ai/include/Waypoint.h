@@ -31,8 +31,8 @@ class WaypointNetwork;
 class Waypoint
 {
 public:
-    explicit Waypoint(const glm::vec3& position = glm::vec3(0.0f),
-                      const glm::quat& orientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+    explicit Waypoint(const Math::Vec3& position = Math::Vec3(0.0f),
+                      const Math::Quaternion& orientation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f),
                       float radius = 1.0f);
 
     WaypointID id() const
@@ -40,19 +40,19 @@ public:
         return mId;
     }
 
-    const glm::vec3& position() const
+    const Math::Vec3& position() const
     {
         return mPosition;
     }
-    void setPosition(const glm::vec3& position)
+    void setPosition(const Math::Vec3& position)
     {
         mPosition = position;
     }
-    const glm::quat& orientation() const
+    const Math::Quaternion& orientation() const
     {
         return mOrientation;
     }
-    void setOrientation(const glm::quat& orientation)
+    void setOrientation(const Math::Quaternion& orientation)
     {
         mOrientation = orientation;
     }
@@ -86,8 +86,8 @@ public:
 private:
     WaypointID mId;
     std::vector<NetworkEdge> mOutgoingEdges;
-    glm::vec3 mPosition;
-    glm::quat mOrientation;
+    Math::Vec3 mPosition;
+    Math::Quaternion mOrientation;
     float mRadius;
 };
 

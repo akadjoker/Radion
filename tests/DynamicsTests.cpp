@@ -28,12 +28,12 @@ bool near(f32 a, f32 b, f32 epsilon = 1e-4f)
     return std::abs(a - b) <= epsilon;
 }
 
-bool near(const glm::vec3& a, const glm::vec3& b, f32 epsilon = 1e-4f)
+bool near(const Math::Vec3& a, const Math::Vec3& b, f32 epsilon = 1e-4f)
 {
     return glm::length(a - b) <= epsilon;
 }
 
-RigidBody makeBox(f32 mass = 2.0f, const glm::vec3& halfExtents = glm::vec3(0.5f))
+RigidBody makeBox(f32 mass = 2.0f, const Math::Vec3& halfExtents = Math::Vec3(0.5f))
 {
     RigidBody body;
     body.setMass(mass);
@@ -50,7 +50,7 @@ void testInertiaFormulas()
     // I_xx = m/12 * (height^2 + depth^2), the other two FULL sides. A cube of
     // side 1 and mass 12 is therefore 12/12 * (1 + 1) = 2 on every axis, not
     // 1 - the halved extents in the call are not the ones in the formula.
-    const glm::mat3 cube = Inertia::box(12.0f, glm::vec3(0.5f));
+    const Math::Mat3 cube = Inertia::box(12.0f, Math::Vec3(0.5f));
     CHECK(near(cube[0][0], 2.0f));
     CHECK(near(cube[1][1], 2.0f));
     CHECK(near(cube[2][2], 2.0f));
@@ -59,7 +59,7 @@ void testInertiaFormulas()
     // Same formula on unequal sides, worked out by hand: m=12, full sides
     // (2, 4, 6) gives m/12 * (16 + 36) = 52 about x, (4 + 36) = 40 about y,
     // (4 + 16) = 20 about z.
-    const glm::mat3 slab = Inertia::box(12.0f, glm::vec3(1.0f, 2.0f, 3.0f));
+    const Math::Mat3 slab = Inertia::box(12.0f, Math::Vec3(1.0f, 2.0f, 3.0f));
     CHECK(near(slab[0][0], 52.0f));
     CHECK(near(slab[1][1], 40.0f));
     CHECK(near(slab[2][2], 20.0f));
@@ -67,7 +67,7 @@ void testInertiaFormulas()
     // A box that is long in x has its SMALLEST moment about x - that is the
     // axis it is easiest to spin around, and getting this backwards is the
     // classic way a body tumbles wrongly.
-    const glm::mat3 rod = Inertia::box(1.0f, glm::vec3(4.0f, 0.25f, 0.25f));
+    const Math::Mat3 rod = Inertia::box(1.0f, Math::Vec3(4.0f, 0.25f, 0.25f));
     CHECK(rod[0][0] < rod[1][1]);
     CHECK(rod[0][0] < rod[2][2]);
     CHECK(near(rod[1][1], rod[2][2]));
@@ -79,8 +79,8 @@ void testInertiaFormulas()
 
     // A capsule is a cylinder plus two caps, so it must be heavier to spin
     // end-over-end than the bare cylinder of the same length.
-    const glm::mat3 cylinder = Inertia::cylinderY(3.0f, 0.5f, 2.0f);
-    const glm::mat3 capsule = Inertia::capsuleY(3.0f, 0.5f, 2.0f);
+    const Math::Mat3 cylinder = Inertia::cylinderY(3.0f, 0.5f, 2.0f);
+    const Math::Mat3 capsule = Inertia::capsuleY(3.0f, 0.5f, 2.0f);
     CHECK(capsule[0][0] > cylinder[0][0]);
     CHECK(near(capsule[0][0], capsule[2][2]));
 
@@ -94,7 +94,7 @@ void testInertiaFormulas()
 void testFreeFall()
 {
     RigidBody body = makeBox();
-    body.setAcceleration(glm::vec3(0.0f, -10.0f, 0.0f));
+    body.setAcceleration(Math::Vec3(0.0f, -10.0f, 0.0f));
 
     // v = a t and y = 0.5 a t^2 exactly only in the continuous case; a
     // semi-implicit Euler step lands one step of a*dt^2 ahead. Check the
@@ -117,8 +117,8 @@ void testMassScalesForce()
 {
     RigidBody light = makeBox(1.0f);
     RigidBody heavy = makeBox(4.0f);
-    light.addForce(glm::vec3(8.0f, 0.0f, 0.0f));
-    heavy.addForce(glm::vec3(8.0f, 0.0f, 0.0f));
+    light.addForce(Math::Vec3(8.0f, 0.0f, 0.0f));
+    heavy.addForce(Math::Vec3(8.0f, 0.0f, 0.0f));
     light.integrate(0.5f);
     heavy.integrate(0.5f);
 
@@ -130,8 +130,8 @@ void testMassScalesForce()
     // same. This is why acceleration is kept apart from the accumulator.
     RigidBody lightFall = makeBox(1.0f);
     RigidBody heavyFall = makeBox(1000.0f);
-    lightFall.setAcceleration(glm::vec3(0.0f, -9.8f, 0.0f));
-    heavyFall.setAcceleration(glm::vec3(0.0f, -9.8f, 0.0f));
+    lightFall.setAcceleration(Math::Vec3(0.0f, -9.8f, 0.0f));
+    heavyFall.setAcceleration(Math::Vec3(0.0f, -9.8f, 0.0f));
     lightFall.integrate(0.1f);
     heavyFall.integrate(0.1f);
     CHECK(near(lightFall.velocity().y, heavyFall.velocity().y));
@@ -140,9 +140,9 @@ void testMassScalesForce()
 void testAccumulatorsCleared()
 {
     RigidBody body = makeBox(1.0f);
-    body.addForce(glm::vec3(10.0f, 0.0f, 0.0f));
+    body.addForce(Math::Vec3(10.0f, 0.0f, 0.0f));
     body.integrate(0.1f);
-    const glm::vec3 after = body.velocity();
+    const Math::Vec3 after = body.velocity();
     // A force applied once must act for exactly one step. Left in the
     // accumulator it would keep pushing forever.
     body.integrate(0.1f);
@@ -153,21 +153,21 @@ void testAccumulatorsCleared()
 
 void testTorqueFromOffsetForce()
 {
-    RigidBody body = makeBox(2.0f, glm::vec3(0.5f));
+    RigidBody body = makeBox(2.0f, Math::Vec3(0.5f));
 
     // Straight through the centre of mass: it moves and does not turn.
-    body.addForceAtPoint(glm::vec3(0.0f, 0.0f, 10.0f), body.position());
+    body.addForceAtPoint(Math::Vec3(0.0f, 0.0f, 10.0f), body.position());
     body.integrate(0.1f);
     CHECK(body.velocity().z > 0.0f);
-    CHECK(near(body.angularVelocity(), glm::vec3(0.0f)));
+    CHECK(near(body.angularVelocity(), Math::Vec3(0.0f)));
 
     // Same push, one edge away. Worked out rather than guessed:
     // r x F = (0.5,0,0) x (0,0,10), whose y component is r_z*F_x - r_x*F_z
     // = 0 - 5 = -5. So an offset along +x with a force along +z spins about
     // MINUS y.
-    RigidBody offset = makeBox(2.0f, glm::vec3(0.5f));
-    offset.addForceAtPoint(glm::vec3(0.0f, 0.0f, 10.0f),
-                           offset.position() + glm::vec3(0.5f, 0.0f, 0.0f));
+    RigidBody offset = makeBox(2.0f, Math::Vec3(0.5f));
+    offset.addForceAtPoint(Math::Vec3(0.0f, 0.0f, 10.0f),
+                           offset.position() + Math::Vec3(0.5f, 0.0f, 0.0f));
     offset.integrate(0.1f);
     CHECK(offset.angularVelocity().y < 0.0f);
     CHECK(near(offset.angularVelocity().x, 0.0f));
@@ -179,17 +179,17 @@ void testTorqueFromOffsetForce()
 void testInertiaTensorRotatesIntoWorld()
 {
     // A rod that is long in x: easy to spin about x, hard about z.
-    const glm::vec3 halfExtents(4.0f, 0.25f, 0.25f);
+    const Math::Vec3 halfExtents(4.0f, 0.25f, 0.25f);
     RigidBody body = makeBox(1.0f, halfExtents);
 
-    const glm::mat3 upright = body.inverseInertiaTensorWorld();
+    const Math::Mat3 upright = body.inverseInertiaTensorWorld();
     CHECK(upright[0][0] > upright[2][2]); // inverse, so easy axis is larger
 
     // Stand it on end - a quarter turn about z sends the long axis to y. The
     // world tensor must follow, or a body would resist the same in world
     // space however it is turned.
-    body.setOrientation(glm::angleAxis(glm::half_pi<f32>(), glm::vec3(0.0f, 0.0f, 1.0f)));
-    const glm::mat3 onEnd = body.inverseInertiaTensorWorld();
+    body.setOrientation(glm::angleAxis(glm::half_pi<f32>(), Math::Vec3(0.0f, 0.0f, 1.0f)));
+    const Math::Mat3 onEnd = body.inverseInertiaTensorWorld();
     CHECK(onEnd[1][1] > onEnd[2][2]);
     CHECK(near(onEnd[1][1], upright[0][0], 1e-3f));
 
@@ -201,7 +201,7 @@ void testInertiaTensorRotatesIntoWorld()
 void testOrientationStaysNormalized()
 {
     RigidBody body = makeBox(1.0f);
-    body.setAngularVelocity(glm::vec3(0.0f, 12.0f, 0.0f));
+    body.setAngularVelocity(Math::Vec3(0.0f, 12.0f, 0.0f));
     for (u32 i = 0; i < 2000; ++i)
         body.integrate(1.0f / 60.0f);
     // Two thousand steps of "add a vector to a quaternion" drift a long way
@@ -213,14 +213,14 @@ void testOrientationStaysNormalized()
 void testSpinDirection()
 {
     RigidBody body = makeBox(1.0f);
-    body.setAngularVelocity(glm::vec3(0.0f, glm::half_pi<f32>(), 0.0f));
+    body.setAngularVelocity(Math::Vec3(0.0f, glm::half_pi<f32>(), 0.0f));
     // A quarter turn per second about +y, for one second: +x ends on -z,
     // which is the right-handed direction. A sign error here reads as the
     // whole world spinning backwards.
     for (u32 i = 0; i < 1000; ++i)
         body.integrate(1.0f / 1000.0f);
-    const glm::vec3 axis = body.directionToWorld(glm::vec3(1.0f, 0.0f, 0.0f));
-    CHECK(near(axis, glm::vec3(0.0f, 0.0f, -1.0f), 1e-2f));
+    const Math::Vec3 axis = body.directionToWorld(Math::Vec3(1.0f, 0.0f, 0.0f));
+    CHECK(near(axis, Math::Vec3(0.0f, 0.0f, -1.0f), 1e-2f));
 }
 
 // ------------------------------------------------------------------ frames
@@ -228,35 +228,35 @@ void testSpinDirection()
 void testSpaceConversions()
 {
     RigidBody body = makeBox();
-    body.setPosition(glm::vec3(3.0f, -2.0f, 7.0f));
-    body.setOrientation(glm::angleAxis(0.7f, glm::normalize(glm::vec3(1.0f, 2.0f, -3.0f))));
+    body.setPosition(Math::Vec3(3.0f, -2.0f, 7.0f));
+    body.setOrientation(glm::angleAxis(0.7f, glm::normalize(Math::Vec3(1.0f, 2.0f, -3.0f))));
 
-    const glm::vec3 local(0.25f, -0.5f, 0.75f);
+    const Math::Vec3 local(0.25f, -0.5f, 0.75f);
     CHECK(near(body.pointToLocal(body.pointToWorld(local)), local, 1e-4f));
 
     // A direction ignores the translation; a point does not.
-    CHECK(near(body.directionToWorld(glm::vec3(0.0f)), glm::vec3(0.0f)));
-    CHECK(near(body.pointToWorld(glm::vec3(0.0f)), body.position()));
-    CHECK(near(glm::length(body.directionToWorld(glm::vec3(0.0f, 1.0f, 0.0f))), 1.0f));
+    CHECK(near(body.directionToWorld(Math::Vec3(0.0f)), Math::Vec3(0.0f)));
+    CHECK(near(body.pointToWorld(Math::Vec3(0.0f)), body.position()));
+    CHECK(near(glm::length(body.directionToWorld(Math::Vec3(0.0f, 1.0f, 0.0f))), 1.0f));
 
     // The transform matrix and the point conversion have to agree - the
     // solver uses one and the renderer the other.
-    const glm::vec3 throughMatrix = glm::vec3(body.transform() * glm::vec4(local, 1.0f));
+    const Math::Vec3 throughMatrix = Math::Vec3(body.transform() * Math::Vec4(local, 1.0f));
     CHECK(near(throughMatrix, body.pointToWorld(local), 1e-4f));
 }
 
 void testVelocityAtPoint()
 {
     RigidBody body = makeBox();
-    body.setVelocity(glm::vec3(1.0f, 0.0f, 0.0f));
-    body.setAngularVelocity(glm::vec3(0.0f, 2.0f, 0.0f));
+    body.setVelocity(Math::Vec3(1.0f, 0.0f, 0.0f));
+    body.setAngularVelocity(Math::Vec3(0.0f, 2.0f, 0.0f));
 
     // At the centre a point moves at the body's own velocity.
-    CHECK(near(body.velocityAtPoint(body.position()), glm::vec3(1.0f, 0.0f, 0.0f)));
+    CHECK(near(body.velocityAtPoint(body.position()), Math::Vec3(1.0f, 0.0f, 0.0f)));
 
     // One unit along +x, spinning about +y: w x r points along -z.
-    const glm::vec3 point = body.position() + glm::vec3(1.0f, 0.0f, 0.0f);
-    CHECK(near(body.velocityAtPoint(point), glm::vec3(1.0f, 0.0f, -2.0f)));
+    const Math::Vec3 point = body.position() + Math::Vec3(1.0f, 0.0f, 0.0f);
+    CHECK(near(body.velocityAtPoint(point), Math::Vec3(1.0f, 0.0f, -2.0f)));
 }
 
 // ------------------------------------------------------------------ impulses
@@ -264,13 +264,13 @@ void testVelocityAtPoint()
 void testImpulses()
 {
     RigidBody body = makeBox(4.0f);
-    body.applyLinearImpulse(glm::vec3(8.0f, 0.0f, 0.0f));
+    body.applyLinearImpulse(Math::Vec3(8.0f, 0.0f, 0.0f));
     // An impulse changes velocity there and then: dv = J/m, no step needed.
     CHECK(near(body.velocity().x, 2.0f));
 
-    RigidBody spun = makeBox(2.0f, glm::vec3(0.5f));
-    spun.applyImpulseAtPoint(glm::vec3(0.0f, 0.0f, 4.0f),
-                             spun.position() + glm::vec3(0.5f, 0.0f, 0.0f));
+    RigidBody spun = makeBox(2.0f, Math::Vec3(0.5f));
+    spun.applyImpulseAtPoint(Math::Vec3(0.0f, 0.0f, 4.0f),
+                             spun.position() + Math::Vec3(0.5f, 0.0f, 0.0f));
     CHECK(spun.velocity().z > 0.0f);
     // Same r x F as testTorqueFromOffsetForce: about minus y.
     CHECK(spun.angularVelocity().y < 0.0f);
@@ -282,27 +282,27 @@ void testBodyTypes()
 {
     RigidBody stat = makeBox();
     stat.setBodyType(BodyType::Static);
-    stat.setAcceleration(glm::vec3(0.0f, -10.0f, 0.0f));
-    stat.addForce(glm::vec3(100.0f, 0.0f, 0.0f));
-    stat.applyLinearImpulse(glm::vec3(100.0f, 0.0f, 0.0f));
+    stat.setAcceleration(Math::Vec3(0.0f, -10.0f, 0.0f));
+    stat.addForce(Math::Vec3(100.0f, 0.0f, 0.0f));
+    stat.applyLinearImpulse(Math::Vec3(100.0f, 0.0f, 0.0f));
     stat.integrate(1.0f);
     // Nothing reaches it: not gravity, not a force, not an impulse.
-    CHECK(near(stat.position(), glm::vec3(0.0f)));
-    CHECK(near(stat.velocity(), glm::vec3(0.0f)));
+    CHECK(near(stat.position(), Math::Vec3(0.0f)));
+    CHECK(near(stat.velocity(), Math::Vec3(0.0f)));
     CHECK(stat.inverseMass() == 0.0f);
     // Infinite inverse inertia would be zero: an angular impulse does nothing.
     CHECK(near(stat.inverseInertiaTensorWorld()[0][0], 0.0f));
 
     RigidBody kinematic = makeBox();
     kinematic.setBodyType(BodyType::Kinematic);
-    kinematic.setVelocity(glm::vec3(2.0f, 0.0f, 0.0f));
-    kinematic.setAcceleration(glm::vec3(0.0f, -10.0f, 0.0f));
-    kinematic.addForce(glm::vec3(0.0f, 0.0f, 500.0f));
+    kinematic.setVelocity(Math::Vec3(2.0f, 0.0f, 0.0f));
+    kinematic.setAcceleration(Math::Vec3(0.0f, -10.0f, 0.0f));
+    kinematic.addForce(Math::Vec3(0.0f, 0.0f, 500.0f));
     kinematic.integrate(1.0f);
     // Moves by its own velocity only. Gravity and forces are ignored, but it
     // does move - that is the whole difference from Static.
-    CHECK(near(kinematic.position(), glm::vec3(2.0f, 0.0f, 0.0f)));
-    CHECK(near(kinematic.velocity(), glm::vec3(2.0f, 0.0f, 0.0f)));
+    CHECK(near(kinematic.position(), Math::Vec3(2.0f, 0.0f, 0.0f)));
+    CHECK(near(kinematic.velocity(), Math::Vec3(2.0f, 0.0f, 0.0f)));
 
     // Switching back to Dynamic must restore the mass the caller gave, not
     // leave the body with the infinite mass Static forced on it.
@@ -327,8 +327,8 @@ void testMassGuards()
 
     // A singular inertia tensor is refused for the same reason: inverting it
     // gives infinities that spread through every later step.
-    const glm::mat3 kept = body.inverseInertiaTensor();
-    body.setInertiaTensor(glm::mat3(0.0f));
+    const Math::Mat3 kept = body.inverseInertiaTensor();
+    body.setInertiaTensor(Math::Mat3(0.0f));
     CHECK(near(body.inverseInertiaTensor()[0][0], kept[0][0]));
 }
 
@@ -342,8 +342,8 @@ void testDampingIsStepIndependent()
     RigidBody fine = makeBox(1.0f);
     coarse.setDamping(0.5f, 0.5f);
     fine.setDamping(0.5f, 0.5f);
-    coarse.setVelocity(glm::vec3(10.0f, 0.0f, 0.0f));
-    fine.setVelocity(glm::vec3(10.0f, 0.0f, 0.0f));
+    coarse.setVelocity(Math::Vec3(10.0f, 0.0f, 0.0f));
+    fine.setVelocity(Math::Vec3(10.0f, 0.0f, 0.0f));
 
     coarse.integrate(1.0f);
     fine.integrate(0.5f);
@@ -359,20 +359,20 @@ void testSleep()
     body.setCanSleep(true);
     body.setSleepEpsilon(0.3f);
     body.setDamping(0.9f, 0.9f);
-    body.setVelocity(glm::vec3(0.01f, 0.0f, 0.0f));
+    body.setVelocity(Math::Vec3(0.01f, 0.0f, 0.0f));
 
     for (u32 i = 0; i < 600 && body.awake(); ++i)
         body.integrate(1.0f / 60.0f);
     CHECK(!body.awake());
     // Falling asleep zeroes the velocities, so nothing creeps.
-    CHECK(near(body.velocity(), glm::vec3(0.0f)));
+    CHECK(near(body.velocity(), Math::Vec3(0.0f)));
 
-    const glm::vec3 restingAt = body.position();
+    const Math::Vec3 restingAt = body.position();
     body.integrate(1.0f);
     CHECK(near(body.position(), restingAt));
 
     // Any force has to wake it, or a sleeping body is unhittable.
-    body.addForce(glm::vec3(0.0f, 0.0f, 5.0f));
+    body.addForce(Math::Vec3(0.0f, 0.0f, 5.0f));
     CHECK(body.awake());
     body.integrate(1.0f / 60.0f);
     CHECK(body.position().z > restingAt.z);
@@ -396,30 +396,30 @@ void testNoDriftAtRest()
     body.setCanSleep(false);
     for (u32 i = 0; i < 10000; ++i)
         body.integrate(1.0f / 60.0f);
-    CHECK(near(body.position(), glm::vec3(0.0f), 1e-6f));
-    CHECK(near(body.velocity(), glm::vec3(0.0f), 1e-6f));
+    CHECK(near(body.position(), Math::Vec3(0.0f), 1e-6f));
+    CHECK(near(body.velocity(), Math::Vec3(0.0f), 1e-6f));
     CHECK(near(glm::length(body.orientation()), 1.0f, 1e-5f));
 }
 
 void testDegenerateStepsIgnored()
 {
     RigidBody body = makeBox(1.0f);
-    body.setVelocity(glm::vec3(1.0f, 0.0f, 0.0f));
+    body.setVelocity(Math::Vec3(1.0f, 0.0f, 0.0f));
     body.integrate(0.0f);
     body.integrate(-1.0f);
     body.integrate(std::numeric_limits<f32>::quiet_NaN());
     // A zero, negative or NaN step leaves the body exactly as it was rather
     // than sending it to infinity.
-    CHECK(near(body.position(), glm::vec3(0.0f)));
+    CHECK(near(body.position(), Math::Vec3(0.0f)));
     CHECK(std::isfinite(body.position().x));
 }
 
 void testAngularMomentumIsConserved()
 {
     // No damping, no torque: a free body keeps spinning at the same rate.
-    RigidBody body = makeBox(2.0f, glm::vec3(0.5f, 1.0f, 0.25f));
+    RigidBody body = makeBox(2.0f, Math::Vec3(0.5f, 1.0f, 0.25f));
     body.setCanSleep(false);
-    body.setAngularVelocity(glm::vec3(0.0f, 3.0f, 0.0f));
+    body.setAngularVelocity(Math::Vec3(0.0f, 3.0f, 0.0f));
     const f32 before = glm::length(body.angularVelocity());
     for (u32 i = 0; i < 1200; ++i)
         body.integrate(1.0f / 120.0f);
@@ -430,7 +430,7 @@ void testWingTurnsSpeedIntoLift()
 {
     RigidBody body;
     body.setMass(2.5f);
-    body.setInertiaTensor(glm::mat3(1.0f));
+    body.setInertiaTensor(Math::Mat3(1.0f));
     body.setDamping(1.0f, 1.0f);
 
     Airplane plane;
@@ -438,7 +438,7 @@ void testWingTurnsSpeedIntoLift()
     plane.setThrust(0.0f);
 
     // Flying nose-first along -X, which is the reference aircraft's forward.
-    body.setVelocity(glm::vec3(-40.0f, 0.0f, 0.0f));
+    body.setVelocity(Math::Vec3(-40.0f, 0.0f, 0.0f));
     plane.applyForces();
     body.integrate(1.0f / 60.0f);
 
@@ -454,16 +454,16 @@ void testStationaryWingMakesNoLift()
 {
     RigidBody body;
     body.setMass(2.5f);
-    body.setInertiaTensor(glm::mat3(1.0f));
+    body.setInertiaTensor(Math::Mat3(1.0f));
     body.setDamping(1.0f, 1.0f);
 
     Airplane plane;
     plane.setBody(&body);
     plane.setThrust(0.0f);
-    body.setVelocity(glm::vec3(0.0f));
+    body.setVelocity(Math::Vec3(0.0f));
     plane.applyForces();
     body.integrate(1.0f / 60.0f);
-    CHECK(near(body.velocity(), glm::vec3(0.0f), 1e-5f));
+    CHECK(near(body.velocity(), Math::Vec3(0.0f), 1e-5f));
 }
 
 void testAileronsRollOppositeWays()
@@ -472,14 +472,14 @@ void testAileronsRollOppositeWays()
     {
         RigidBody body;
         body.setMass(2.5f);
-        body.setInertiaTensor(glm::mat3(1.0f));
+        body.setInertiaTensor(Math::Mat3(1.0f));
         body.setDamping(1.0f, 1.0f);
 
         Airplane plane;
         plane.setBody(&body);
         plane.setThrust(0.0f);
         plane.setRoll(control);
-        body.setVelocity(glm::vec3(-40.0f, 0.0f, 0.0f));
+        body.setVelocity(Math::Vec3(-40.0f, 0.0f, 0.0f));
         plane.applyForces();
         body.integrate(1.0f / 60.0f);
         // Roll is rotation about the forward axis.
@@ -500,14 +500,14 @@ void testRudderYawsBothWays()
     {
         RigidBody body;
         body.setMass(2.5f);
-        body.setInertiaTensor(glm::mat3(1.0f));
+        body.setInertiaTensor(Math::Mat3(1.0f));
         body.setDamping(1.0f, 1.0f);
 
         Airplane plane;
         plane.setBody(&body);
         plane.setThrust(0.0f);
         plane.setYaw(control);
-        body.setVelocity(glm::vec3(-40.0f, 0.0f, 0.0f));
+        body.setVelocity(Math::Vec3(-40.0f, 0.0f, 0.0f));
         plane.applyForces();
         body.integrate(1.0f / 60.0f);
         return body.angularVelocity().y;
@@ -518,19 +518,19 @@ void testRudderYawsBothWays()
 
 void testControlSurfaceInterpolates()
 {
-    const glm::mat3 base(0.0f);
-    const glm::mat3 minimum(-1.0f);
-    const glm::mat3 maximum(1.0f);
-    AeroControlSurface surface(base, minimum, maximum, glm::vec3(0.0f));
+    const Math::Mat3 base(0.0f);
+    const Math::Mat3 minimum(-1.0f);
+    const Math::Mat3 maximum(1.0f);
+    AeroControlSurface surface(base, minimum, maximum, Math::Vec3(0.0f));
 
     RigidBody body;
     body.setMass(1.0f);
-    body.setInertiaTensor(glm::mat3(1.0f));
-    body.setVelocity(glm::vec3(1.0f, 0.0f, 0.0f));
+    body.setInertiaTensor(Math::Mat3(1.0f));
+    body.setVelocity(Math::Vec3(1.0f, 0.0f, 0.0f));
 
     // Half deflection has to sit between rest and full, not jump to it.
     surface.setControl(0.5f);
-    const f32 half = glm::length(surface.tensor() * glm::vec3(1.0f));
+    const f32 half = glm::length(surface.tensor() * Math::Vec3(1.0f));
     surface.setControl(2.0f);
     CHECK(near(surface.control(), 1.0f));
     surface.setControl(-2.0f);
@@ -542,14 +542,14 @@ void testThrustPushesAlongTheNose()
 {
     RigidBody body;
     body.setMass(2.5f);
-    body.setInertiaTensor(glm::mat3(1.0f));
+    body.setInertiaTensor(Math::Mat3(1.0f));
     body.setDamping(1.0f, 1.0f);
 
     Airplane plane;
     plane.setBody(&body);
     plane.setThrust(10.0f);
     // Wings make no force at rest, so what remains is thrust alone.
-    body.setVelocity(glm::vec3(0.0f));
+    body.setVelocity(Math::Vec3(0.0f));
     plane.applyForces();
     body.integrate(1.0f / 60.0f);
     CHECK(body.velocity().x < 0.0f);
@@ -559,9 +559,9 @@ void testThrustPushesAlongTheNose()
     // world space - the force is in body space, not world.
     RigidBody flipped;
     flipped.setMass(2.5f);
-    flipped.setInertiaTensor(glm::mat3(1.0f));
+    flipped.setInertiaTensor(Math::Mat3(1.0f));
     flipped.setDamping(1.0f, 1.0f);
-    flipped.setOrientation(glm::angleAxis(glm::pi<f32>(), glm::vec3(0.0f, 1.0f, 0.0f)));
+    flipped.setOrientation(glm::angleAxis(glm::pi<f32>(), Math::Vec3(0.0f, 1.0f, 0.0f)));
     Airplane other;
     other.setBody(&flipped);
     other.setThrust(10.0f);

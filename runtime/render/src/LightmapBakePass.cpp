@@ -18,23 +18,23 @@ namespace
 {
 struct BakeBlock
 {
-    glm::mat4 shadowViewProjection;
-    glm::mat4 model;
-    glm::vec4 lightDirection;
-    glm::vec4 lightColor;
+    Math::Mat4 shadowViewProjection;
+    Math::Mat4 model;
+    Math::Vec4 lightDirection;
+    Math::Vec4 lightColor;
     // x = depth bias (already divided by the shadow map's own depth range),
     // y = ground bounce as a fraction of the sky term, z = PCF filter radius
     // in shadow texels, w = per-sample weight.
-    glm::vec4 params;
+    Math::Vec4 params;
     // rgb = sky light; see LightmapBakeSettings::ambient.
-    glm::vec4 ambientSky;
+    Math::Vec4 ambientSky;
     // xy = this sample's rasterization offset, in clip space. Jittering WHERE
     // the texel is rasterized (as opposed to jitterSunDirection(), which
     // jitters the light) is what stops a chart's border texels from being
     // decided by one arbitrary sample position - the artifact along every
     // seam. Halton, so successive samples fill the pixel evenly instead of
     // clumping the way a random pair does at low counts.
-    glm::vec4 jitter;
+    Math::Vec4 jitter;
 };
 
 // Van der Corput in `base`, the one-dimensional building block of a Halton
@@ -55,17 +55,17 @@ f32 halton(u32 index, u32 base)
 // sun's ortho frustum is fitted to: sizing it from the box's radius instead
 // means sizing it to the box's DIAGONAL, which on a wide flat map is close to
 // half the texels spent on empty space either side of the geometry.
-void projectBounds(const AABB& bounds, const glm::mat4& view, glm::vec3& minimum,
-                   glm::vec3& maximum)
+void projectBounds(const AABB& bounds, const Math::Mat4& view, Math::Vec3& minimum,
+                   Math::Vec3& maximum)
 {
-    minimum = glm::vec3(1.0e30f);
-    maximum = glm::vec3(-1.0e30f);
+    minimum = Math::Vec3(1.0e30f);
+    maximum = Math::Vec3(-1.0e30f);
     for (u32 corner = 0; corner < 8; ++corner)
     {
-        const glm::vec3 point((corner & 1) ? bounds.max.x : bounds.min.x,
+        const Math::Vec3 point((corner & 1) ? bounds.max.x : bounds.min.x,
                               (corner & 2) ? bounds.max.y : bounds.min.y,
                               (corner & 4) ? bounds.max.z : bounds.min.z);
-        const glm::vec3 viewPoint = glm::vec3(view * glm::vec4(point, 1.0f));
+        const Math::Vec3 viewPoint = Math::Vec3(view * Math::Vec4(point, 1.0f));
         minimum = glm::min(minimum, viewPoint);
         maximum = glm::max(maximum, viewPoint);
     }
@@ -90,7 +90,7 @@ void dilateLightmap(std::vector<f32>& pixels, u32 resolution, u32 iterations)
                 const usize i = (static_cast<usize>(y) * resolution + x) * 4;
                 if (pixels[i + 3] > 0.0f)
                     continue;
-                glm::vec3 sum(0.0f);
+                Math::Vec3 sum(0.0f);
                 s32 count = 0;
                 for (s32 dy = -1; dy <= 1; ++dy)
                     for (s32 dx = -1; dx <= 1; ++dx)
@@ -105,13 +105,13 @@ void dilateLightmap(std::vector<f32>& pixels, u32 resolution, u32 iterations)
                         const usize ni = (static_cast<usize>(ny) * resolution + static_cast<usize>(nx)) * 4;
                         if (pixels[ni + 3] > 0.0f)
                         {
-                            sum += glm::vec3(pixels[ni + 0], pixels[ni + 1], pixels[ni + 2]);
+                            sum += Math::Vec3(pixels[ni + 0], pixels[ni + 1], pixels[ni + 2]);
                             ++count;
                         }
                     }
                 if (count > 0)
                 {
-                    const glm::vec3 average = sum / static_cast<f32>(count);
+                    const Math::Vec3 average = sum / static_cast<f32>(count);
                     next[i + 0] = average.x;
                     next[i + 1] = average.y;
                     next[i + 2] = average.z;
@@ -129,12 +129,12 @@ void dilateLightmap(std::vector<f32>& pixels, u32 resolution, u32 iterations)
 // distribution lit.frag's own VOGEL[] table uses for cascade PCF - low
 // discrepancy without the periodic banding a regular grid gives at low
 // counts.
-glm::vec2 vogelDisk(u32 index, u32 count)
+Math::Vec2 vogelDisk(u32 index, u32 count)
 {
     const f32 goldenAngle = 2.39996323f;
     const f32 radius = glm::sqrt((static_cast<f32>(index) + 0.5f) / static_cast<f32>(count));
     const f32 theta = static_cast<f32>(index) * goldenAngle;
-    return radius * glm::vec2(glm::cos(theta), glm::sin(theta));
+    return radius * Math::Vec2(glm::cos(theta), glm::sin(theta));
 }
 
 // Rotates `direction` by up to `angularRadius` degrees towards a point on
@@ -143,14 +143,14 @@ glm::vec2 vogelDisk(u32 index, u32 count)
 // orthographic light: it turns the whole bundle of parallel rays by a tiny
 // angle, exactly what a different point on a distant, angularly-small sun
 // would produce.
-glm::vec3 jitterSunDirection(const glm::vec3& direction, f32 angularRadius, u32 index, u32 count)
+Math::Vec3 jitterSunDirection(const Math::Vec3& direction, f32 angularRadius, u32 index, u32 count)
 {
     if (angularRadius <= 0.0f || count <= 1)
         return direction;
-    glm::vec3 reference = glm::abs(direction.y) > 0.99f ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
-    const glm::vec3 right = glm::normalize(glm::cross(reference, direction));
-    const glm::vec3 up = glm::cross(direction, right);
-    const glm::vec2 offset = vogelDisk(index, count) * glm::tan(glm::radians(angularRadius));
+    Math::Vec3 reference = glm::abs(direction.y) > 0.99f ? Math::Vec3(1.0f, 0.0f, 0.0f) : Math::Vec3(0.0f, 1.0f, 0.0f);
+    const Math::Vec3 right = glm::normalize(glm::cross(reference, direction));
+    const Math::Vec3 up = glm::cross(direction, right);
+    const Math::Vec2 offset = vogelDisk(index, count) * glm::tan(glm::radians(angularRadius));
     return glm::normalize(direction + right * offset.x + up * offset.y);
 }
 
@@ -234,8 +234,8 @@ void LightmapBakePass::shutdown()
     destroyResources();
 }
 
-bool LightmapBakePass::bake(MeshHandle meshHandle, const glm::mat4& model, const AABB& bounds,
-                            const glm::vec3& lightDirection, const glm::vec3& lightColor,
+bool LightmapBakePass::bake(MeshHandle meshHandle, const Math::Mat4& model, const AABB& bounds,
+                            const Math::Vec3& lightDirection, const Math::Vec3& lightColor,
                             u32 resolution, const LightmapBakeSettings& settings)
 {
     const Mesh* mesh = Assets().getMesh(meshHandle);
@@ -309,14 +309,16 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const glm::mat4& model, const
         return false;
     }
 
-    const glm::vec3 direction = glm::normalize(lightDirection);
+    const Math::Vec3 direction = glm::normalize(lightDirection);
     // `bounds` is in the mesh's own object space; the vertex shader draws
     // aPosition through uModel, so the shadow frustum has to be built from
     // the same transformed box or it ends up sized/placed for geometry that
     // is not where the actual (scaled, rotated, moved) mesh is.
     const AABB worldBounds = transformAABB(bounds, model);
-    const glm::vec3 center = worldBounds.center();
-    const glm::vec3 extents = worldBounds.extents();
+    const Math::Vec3 mathCenter = worldBounds.center();
+    const Math::Vec3 mathExtents = worldBounds.extents();
+    const Math::Vec3 center(mathCenter.x, mathCenter.y, mathCenter.z);
+    const Math::Vec3 extents(mathExtents.x, mathExtents.y, mathExtents.z);
     const f32 radius = glm::max(glm::length(extents), 1.0f);
 
     auto drawMesh = [&](PipelineHandle pipeline, TargetHandle target, bool shadowPass, bool clearColor)
@@ -353,31 +355,31 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const glm::mat4& model, const
     const f32 weight = 1.0f / static_cast<f32>(samples);
     for (u32 sample = 0; sample < samples; ++sample)
     {
-        const glm::vec3 sampleDirection =
+        const Math::Vec3 sampleDirection =
             jitterSunDirection(direction, settings.sunAngularRadius, sample, samples);
-        glm::vec3 up(0.0f, 1.0f, 0.0f);
+        Math::Vec3 up(0.0f, 1.0f, 0.0f);
         if (glm::abs(glm::dot(up, sampleDirection)) > 0.95f)
-            up = glm::vec3(1.0f, 0.0f, 0.0f);
-        const glm::mat4 shadowView = glm::lookAt(center - sampleDirection * radius * 2.5f, center, up);
+            up = Math::Vec3(1.0f, 0.0f, 0.0f);
+        const Math::Mat4 shadowView = glm::lookAt(center - sampleDirection * radius * 2.5f, center, up);
 
         // Fitted to where the geometry actually lands in the sun's own view,
         // not to a box sized by the scene's radius. glm::lookAt looks down -z,
         // so the box's near/far are -maximum.z and -minimum.z; both get a
         // margin so a caster sitting exactly on the plane is not clipped away.
-        glm::vec3 viewMinimum, viewMaximum;
+        Math::Vec3 viewMinimum, viewMaximum;
         projectBounds(worldBounds, shadowView, viewMinimum, viewMaximum);
         const f32 margin = glm::max(radius * 0.01f, 0.01f);
         const f32 nearPlane = glm::max(-viewMaximum.z - margin, 0.01f);
         const f32 farPlane = -viewMinimum.z + margin;
-        const glm::mat4 shadowProjection =
+        const Math::Mat4 shadowProjection =
             glm::ortho(viewMinimum.x - margin, viewMaximum.x + margin, viewMinimum.y - margin,
                        viewMaximum.y + margin, nearPlane, farPlane);
 
         BakeBlock block;
         block.shadowViewProjection = shadowProjection * shadowView;
         block.model = model;
-        block.lightDirection = glm::vec4(sampleDirection, 0.0f);
-        block.lightColor = glm::vec4(lightColor, 1.0f);
+        block.lightDirection = Math::Vec4(sampleDirection, 0.0f);
+        block.lightColor = Math::Vec4(lightColor, 1.0f);
         // Bias, from texels to world units to the ortho's own [0,1] depth,
         // against the frustum this sample actually ended up with. Doing it
         // here rather than asking the caller for a depth fraction is what
@@ -389,16 +391,16 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const glm::mat4& model, const
             (viewMaximum.x - viewMinimum.x + 2.0f * margin) / static_cast<f32>(shadowResolution);
         const f32 worldBias =
             settings.bias > 0.0f ? settings.bias : settings.biasTexels * texelWorldSize;
-        block.params = glm::vec4(worldBias / depthRange, settings.ambientGround,
+        block.params = Math::Vec4(worldBias / depthRange, settings.ambientGround,
                                  settings.filterRadius, weight);
-        block.ambientSky = glm::vec4(settings.ambient, 0.0f);
+        block.ambientSky = Math::Vec4(settings.ambient, 0.0f);
         // Bases 2 and 3, centred on the texel and widened a little past one
         // texel so the samples reach into the neighbour a border texel is
         // missing coverage from - the reference boosts its own by the same
         // sort of factor for the same reason.
         const f32 texelWidth = 2.0f / static_cast<f32>(mResolution);
         block.jitter =
-            glm::vec4((halton(sample, 2) * 2.0f - 1.0f) * texelWidth * 0.7f,
+            Math::Vec4((halton(sample, 2) * 2.0f - 1.0f) * texelWidth * 0.7f,
                       (halton(sample, 3) * 2.0f - 1.0f) * texelWidth * 0.7f, 0.0f, 0.0f);
         gpu.updateBuffer(mBlock, 0, sizeof(block), &block);
         gpu.bindUniform(0, mBlock);

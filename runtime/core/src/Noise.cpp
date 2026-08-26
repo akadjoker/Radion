@@ -133,40 +133,40 @@ f32 computeSin(f32 x)
 namespace
 {
 
-glm::vec2 hash(glm::vec2 p)
+Math::Vec2 hash(Math::Vec2 p)
 {
-    glm::vec2 r(glm::dot(p, glm::vec2(127.1f, 311.7f)),
-                glm::dot(p, glm::vec2(269.5f, 183.3f)));
+    Math::Vec2 r(glm::dot(p, Math::Vec2(127.1f, 311.7f)),
+                glm::dot(p, Math::Vec2(269.5f, 183.3f)));
     r.x = computeSin(r.x);
     r.y = computeSin(r.y);
     r *= 18.5453f;
-    return glm::vec2(r.x - std::floor(r.x), r.y - std::floor(r.y));
+    return Math::Vec2(r.x - std::floor(r.x), r.y - std::floor(r.y));
 }
 
 } // namespace
 
 Result compute(f32 x, f32 y, f32 seed)
 {
-    const glm::vec2 p(x, y);
-    const glm::vec2 n(std::floor(p.x), std::floor(p.y));
-    const glm::vec2 f = p - n;
+    const Math::Vec2 p(x, y);
+    const Math::Vec2 n(std::floor(p.x), std::floor(p.y));
+    const Math::Vec2 f = p - n;
 
-    glm::vec3 best(8.0f, 0.0f, 0.0f); // x = best squared distance
+    Math::Vec3 best(8.0f, 0.0f, 0.0f); // x = best squared distance
     for (s32 j = -1; j <= 1; ++j)
     {
         for (s32 i = -1; i <= 1; ++i)
         {
-            const glm::vec2 g{static_cast<f32>(i), static_cast<f32>(j)};
-            const glm::vec2 o = hash(n + g);
+            const Math::Vec2 g{static_cast<f32>(i), static_cast<f32>(j)};
+            const Math::Vec2 o = hash(n + g);
             // The cell's point is not at its centre: it is displaced by the
             // hash, and the seed enters HERE, inside the sine, not in the hash.
             // That is what makes the same pattern of cells give different
             // terrains.
-            const glm::vec2 r(g.x - f.x + (0.5f + 0.5f * computeSin(seed * o.x)),
+            const Math::Vec2 r(g.x - f.x + (0.5f + 0.5f * computeSin(seed * o.x)),
                               g.y - f.y + (0.5f + 0.5f * computeSin(seed * o.y)));
             const f32 d = glm::dot(r, r);
             if (d < best.x)
-                best = glm::vec3(d, o.x, o.y);
+                best = Math::Vec3(d, o.x, o.y);
         }
     }
 

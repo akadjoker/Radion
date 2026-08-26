@@ -10,11 +10,11 @@ namespace Radion::Physics
 namespace
 {
 
-f32 rotationAngleAroundAxis(const glm::quat& q, const glm::vec3& axis)
+f32 rotationAngleAroundAxis(const Math::Quaternion& q, const Math::Vec3& axis)
 {
     if (q.w == 0.0f)
         return glm::pi<f32>();
-    return 2.0f * std::atan(glm::dot(glm::vec3(q.x, q.y, q.z), axis) / q.w);
+    return 2.0f * std::atan(glm::dot(Math::Vec3(q.x, q.y, q.z), axis) / q.w);
 }
 
 f32 centerAngleAroundZero(f32 angle)
@@ -26,29 +26,29 @@ f32 centerAngleAroundZero(f32 angle)
     return angle;
 }
 
-glm::vec3 normalizedPerpendicular(const glm::vec3& v)
+Math::Vec3 normalizedPerpendicular(const Math::Vec3& v)
 {
     if (std::abs(v.x) > std::abs(v.y))
     {
         const f32 length = std::sqrt(v.x * v.x + v.z * v.z);
-        return glm::vec3(v.z, 0.0f, -v.x) / length;
+        return Math::Vec3(v.z, 0.0f, -v.x) / length;
     }
     const f32 length = std::sqrt(v.y * v.y + v.z * v.z);
-    return glm::vec3(0.0f, v.z, -v.y) / length;
+    return Math::Vec3(0.0f, v.z, -v.y) / length;
 }
 
 }
 
-UniversalJoint::UniversalJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
-                               const glm::vec3& worldAxisA, const glm::vec3& worldAxisB)
+UniversalJoint::UniversalJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor,
+                               const Math::Vec3& worldAxisA, const Math::Vec3& worldAxisB)
     : UniversalJoint(a, a.pointToLocal(worldAnchor), a.directionToLocal(glm::normalize(worldAxisA)),
                      b, b.pointToLocal(worldAnchor), b.directionToLocal(glm::normalize(worldAxisB)))
 {
 }
 
-UniversalJoint::UniversalJoint(RigidBody& a, const glm::vec3& localAnchorA,
-                               const glm::vec3& localAxisA, RigidBody& b,
-                               const glm::vec3& localAnchorB, const glm::vec3& localAxisB)
+UniversalJoint::UniversalJoint(RigidBody& a, const Math::Vec3& localAnchorA,
+                               const Math::Vec3& localAxisA, RigidBody& b,
+                               const Math::Vec3& localAnchorB, const Math::Vec3& localAxisB)
     : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
       mLocalAxisA(glm::normalize(localAxisA)), mLocalAxisB(glm::normalize(localAxisB)),
       mInverseInitialOrientation(glm::conjugate(b.orientation()) * a.orientation())
@@ -81,14 +81,14 @@ void UniversalJoint::setLimitsB(f32 minAngle, f32 maxAngle)
 
 f32 UniversalJoint::currentAngleA() const
 {
-    const glm::quat diff = mBodyB->orientation() * mInverseInitialOrientation *
+    const Math::Quaternion diff = mBodyB->orientation() * mInverseInitialOrientation *
                            glm::conjugate(mBodyA->orientation());
     return rotationAngleAroundAxis(diff, mBodyA->directionToWorld(mLocalAxisA));
 }
 
 f32 UniversalJoint::currentAngleB() const
 {
-    const glm::quat diff = mBodyB->orientation() * mInverseInitialOrientation *
+    const Math::Quaternion diff = mBodyB->orientation() * mInverseInitialOrientation *
                            glm::conjugate(mBodyA->orientation());
     return rotationAngleAroundAxis(diff, mBodyB->directionToWorld(mLocalAxisB));
 }
@@ -127,12 +127,12 @@ void UniversalJoint::calculatePositionProperties()
 {
     mArmA = mBodyA->directionToWorld(mLocalAnchorA);
     mArmB = mBodyB->directionToWorld(mLocalAnchorB);
-    glm::mat3 inverseEffectiveMass(0.0f);
-    const glm::vec3 axes[] = {glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-                              glm::vec3(0.0f, 0.0f, 1.0f)};
+    Math::Mat3 inverseEffectiveMass(0.0f);
+    const Math::Vec3 axes[] = {Math::Vec3(1.0f, 0.0f, 0.0f), Math::Vec3(0.0f, 1.0f, 0.0f),
+                              Math::Vec3(0.0f, 0.0f, 1.0f)};
     for (u32 axis = 0; axis < 3; ++axis)
     {
-        glm::vec3 response = axes[axis] * (mBodyA->inverseMass() + mBodyB->inverseMass());
+        Math::Vec3 response = axes[axis] * (mBodyA->inverseMass() + mBodyB->inverseMass());
         response += glm::cross(
             mBodyA->inverseInertiaTensorWorld() * glm::cross(mArmA, axes[axis]), mArmA);
         response += glm::cross(
@@ -144,8 +144,8 @@ void UniversalJoint::calculatePositionProperties()
         mPositionEffectiveMass = glm::inverse(inverseEffectiveMass);
     else
     {
-        mPositionEffectiveMass = glm::mat3(0.0f);
-        mTotalPositionImpulse = glm::vec3(0.0f);
+        mPositionEffectiveMass = Math::Mat3(0.0f);
+        mTotalPositionImpulse = Math::Vec3(0.0f);
     }
 }
 
@@ -155,7 +155,7 @@ void UniversalJoint::calculatePerpendicularityProperties()
     mAxisB = glm::normalize(mBodyB->directionToWorld(mLocalAxisB));
 
     const f32 k = glm::dot(mAxisA, mAxisB);
-    const glm::vec3 axisBPerpendicular = mAxisB - k * mAxisA;
+    const Math::Vec3 axisBPerpendicular = mAxisB - k * mAxisA;
     const f32 length = glm::length(axisBPerpendicular);
     mPerpendicularAxis = length > 1.0e-6f ? glm::normalize(glm::cross(mAxisA, axisBPerpendicular))
                                           : normalizedPerpendicular(mAxisA);
@@ -171,14 +171,14 @@ void UniversalJoint::calculatePerpendicularityProperties()
 
 void UniversalJoint::calculateAngles()
 {
-    const glm::quat diff = mBodyB->orientation() * mInverseInitialOrientation *
+    const Math::Quaternion diff = mBodyB->orientation() * mInverseInitialOrientation *
                            glm::conjugate(mBodyA->orientation());
     mThetaA = rotationAngleAroundAxis(diff, mAxisA);
     mThetaB = rotationAngleAroundAxis(diff, mAxisB);
 }
 
 void UniversalJoint::calculateLimitProperties(bool hasLimits, f32 theta, f32 minAngle, f32 maxAngle,
-                                              const glm::vec3& axis, bool& active,
+                                              const Math::Vec3& axis, bool& active,
                                               f32& effectiveMass)
 {
     active = hasLimits && (theta <= minAngle || theta >= maxAngle);
@@ -194,7 +194,7 @@ void UniversalJoint::calculateLimitProperties(bool hasLimits, f32 theta, f32 min
         active = false;
 }
 
-void UniversalJoint::calculateMotorProperties(bool enabled, const glm::vec3& axis,
+void UniversalJoint::calculateMotorProperties(bool enabled, const Math::Vec3& axis,
                                               f32& effectiveMass)
 {
     if (!enabled)
@@ -232,7 +232,7 @@ void UniversalJoint::setup(f32 duration)
     }
     else
     {
-        mTotalPositionImpulse = glm::vec3(0.0f);
+        mTotalPositionImpulse = Math::Vec3(0.0f);
         mTotalPerpendicularImpulse = 0.0f;
         mTotalLimitImpulseA = 0.0f;
         mTotalLimitImpulseB = 0.0f;
@@ -244,7 +244,7 @@ void UniversalJoint::setup(f32 duration)
     mPreviousDuration = duration;
 }
 
-void UniversalJoint::applyLinearImpulse(const glm::vec3& impulse)
+void UniversalJoint::applyLinearImpulse(const Math::Vec3& impulse)
 {
     if (mBodyA->isDynamic())
     {
@@ -262,7 +262,7 @@ void UniversalJoint::applyLinearImpulse(const glm::vec3& impulse)
     }
 }
 
-void UniversalJoint::applyAngularImpulse(const glm::vec3& impulse)
+void UniversalJoint::applyAngularImpulse(const Math::Vec3& impulse)
 {
     if (mBodyA->isDynamic())
         mBodyA->setAngularVelocity(mBodyA->angularVelocity() -
@@ -305,10 +305,10 @@ void UniversalJoint::solveVelocity()
         applyAngularImpulse(mAxisB * (mTotalMotorImpulseB - previous));
     }
 
-    const glm::vec3 relativeVelocity =
+    const Math::Vec3 relativeVelocity =
         mBodyB->velocity() + glm::cross(mBodyB->angularVelocity(), mArmB) -
         mBodyA->velocity() - glm::cross(mBodyA->angularVelocity(), mArmA);
-    const glm::vec3 positionImpulse = -(mPositionEffectiveMass * relativeVelocity);
+    const Math::Vec3 positionImpulse = -(mPositionEffectiveMass * relativeVelocity);
     mTotalPositionImpulse += positionImpulse;
     applyLinearImpulse(positionImpulse);
 
@@ -362,9 +362,9 @@ void UniversalJoint::solveVelocity()
 void UniversalJoint::solvePosition(f32 baumgarte)
 {
     calculatePositionProperties();
-    const glm::vec3 pointA = mBodyA->position() + mArmA;
-    const glm::vec3 pointB = mBodyB->position() + mArmB;
-    const glm::vec3 positionImpulse = -(mPositionEffectiveMass * (pointB - pointA)) * baumgarte;
+    const Math::Vec3 pointA = mBodyA->position() + mArmA;
+    const Math::Vec3 pointB = mBodyB->position() + mArmB;
+    const Math::Vec3 positionImpulse = -(mPositionEffectiveMass * (pointB - pointA)) * baumgarte;
     mBodyA->applyPositionImpulseAtPoint(-positionImpulse, pointA);
     mBodyB->applyPositionImpulseAtPoint(positionImpulse, pointB);
 
@@ -374,14 +374,14 @@ void UniversalJoint::solvePosition(f32 baumgarte)
         const f32 lambda = -mPerpendicularEffectiveMass * baumgarte * mPerpendicularity;
         if (mBodyA->isDynamic())
         {
-            const glm::vec3 step = mBodyA->inverseInertiaTensorWorld() * mPerpendicularAxis * -lambda;
-            const glm::quat spin(0.0f, step);
+            const Math::Vec3 step = mBodyA->inverseInertiaTensorWorld() * mPerpendicularAxis * -lambda;
+            const Math::Quaternion spin(0.0f, step);
             mBodyA->setOrientation(mBodyA->orientation() + 0.5f * spin * mBodyA->orientation());
         }
         if (mBodyB->isDynamic())
         {
-            const glm::vec3 step = mBodyB->inverseInertiaTensorWorld() * mPerpendicularAxis * lambda;
-            const glm::quat spin(0.0f, step);
+            const Math::Vec3 step = mBodyB->inverseInertiaTensorWorld() * mPerpendicularAxis * lambda;
+            const Math::Quaternion spin(0.0f, step);
             mBodyB->setOrientation(mBodyB->orientation() + 0.5f * spin * mBodyB->orientation());
         }
     }
@@ -405,14 +405,14 @@ void UniversalJoint::solvePosition(f32 baumgarte)
             const f32 lambda = -mLimitEffectiveMassA * baumgarte * error;
             if (mBodyA->isDynamic())
             {
-                const glm::vec3 step = mBodyA->inverseInertiaTensorWorld() * mAxisA * -lambda;
-                const glm::quat spin(0.0f, step);
+                const Math::Vec3 step = mBodyA->inverseInertiaTensorWorld() * mAxisA * -lambda;
+                const Math::Quaternion spin(0.0f, step);
                 mBodyA->setOrientation(mBodyA->orientation() + 0.5f * spin * mBodyA->orientation());
             }
             if (mBodyB->isDynamic())
             {
-                const glm::vec3 step = mBodyB->inverseInertiaTensorWorld() * mAxisA * lambda;
-                const glm::quat spin(0.0f, step);
+                const Math::Vec3 step = mBodyB->inverseInertiaTensorWorld() * mAxisA * lambda;
+                const Math::Quaternion spin(0.0f, step);
                 mBodyB->setOrientation(mBodyB->orientation() + 0.5f * spin * mBodyB->orientation());
             }
         }
@@ -431,14 +431,14 @@ void UniversalJoint::solvePosition(f32 baumgarte)
             const f32 lambda = -mLimitEffectiveMassB * baumgarte * error;
             if (mBodyA->isDynamic())
             {
-                const glm::vec3 step = mBodyA->inverseInertiaTensorWorld() * mAxisB * -lambda;
-                const glm::quat spin(0.0f, step);
+                const Math::Vec3 step = mBodyA->inverseInertiaTensorWorld() * mAxisB * -lambda;
+                const Math::Quaternion spin(0.0f, step);
                 mBodyA->setOrientation(mBodyA->orientation() + 0.5f * spin * mBodyA->orientation());
             }
             if (mBodyB->isDynamic())
             {
-                const glm::vec3 step = mBodyB->inverseInertiaTensorWorld() * mAxisB * lambda;
-                const glm::quat spin(0.0f, step);
+                const Math::Vec3 step = mBodyB->inverseInertiaTensorWorld() * mAxisB * lambda;
+                const Math::Quaternion spin(0.0f, step);
                 mBodyB->setOrientation(mBodyB->orientation() + 0.5f * spin * mBodyB->orientation());
             }
         }

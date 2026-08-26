@@ -23,10 +23,10 @@ namespace Radion::Physics
 class UniversalJoint final : public Joint
 {
 public:
-    UniversalJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
-                   const glm::vec3& worldAxisA, const glm::vec3& worldAxisB);
-    UniversalJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localAxisA,
-                   RigidBody& b, const glm::vec3& localAnchorB, const glm::vec3& localAxisB);
+    UniversalJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor,
+                   const Math::Vec3& worldAxisA, const Math::Vec3& worldAxisB);
+    UniversalJoint(RigidBody& a, const Math::Vec3& localAnchorA, const Math::Vec3& localAxisA,
+                   RigidBody& b, const Math::Vec3& localAnchorB, const Math::Vec3& localAxisB);
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -49,27 +49,27 @@ private:
     void calculatePerpendicularityProperties();
     void calculateAngles();
     void calculateLimitProperties(bool hasLimits, f32 theta, f32 minAngle, f32 maxAngle,
-                                  const glm::vec3& axis, bool& active, f32& effectiveMass);
-    void calculateMotorProperties(bool enabled, const glm::vec3& axis, f32& effectiveMass);
-    void applyLinearImpulse(const glm::vec3& impulse);
-    void applyAngularImpulse(const glm::vec3& impulse);
+                                  const Math::Vec3& axis, bool& active, f32& effectiveMass);
+    void calculateMotorProperties(bool enabled, const Math::Vec3& axis, f32& effectiveMass);
+    void applyLinearImpulse(const Math::Vec3& impulse);
+    void applyAngularImpulse(const Math::Vec3& impulse);
 
     RigidBody* mBodyA;
     RigidBody* mBodyB;
-    glm::vec3 mLocalAnchorA;
-    glm::vec3 mLocalAnchorB;
-    glm::vec3 mLocalAxisA;
-    glm::vec3 mLocalAxisB;
-    glm::quat mInverseInitialOrientation;
+    Math::Vec3 mLocalAnchorA;
+    Math::Vec3 mLocalAnchorB;
+    Math::Vec3 mLocalAxisA;
+    Math::Vec3 mLocalAxisB;
+    Math::Quaternion mInverseInitialOrientation;
 
-    glm::vec3 mArmA{0.0f};
-    glm::vec3 mArmB{0.0f};
-    glm::mat3 mPositionEffectiveMass{0.0f};
-    glm::vec3 mTotalPositionImpulse{0.0f};
+    Math::Vec3 mArmA{0.0f};
+    Math::Vec3 mArmB{0.0f};
+    Math::Mat3 mPositionEffectiveMass{0.0f};
+    Math::Vec3 mTotalPositionImpulse{0.0f};
 
-    glm::vec3 mAxisA{1.0f, 0.0f, 0.0f};
-    glm::vec3 mAxisB{0.0f, 1.0f, 0.0f};
-    glm::vec3 mPerpendicularAxis{0.0f, 0.0f, 1.0f};
+    Math::Vec3 mAxisA{1.0f, 0.0f, 0.0f};
+    Math::Vec3 mAxisB{0.0f, 1.0f, 0.0f};
+    Math::Vec3 mPerpendicularAxis{0.0f, 0.0f, 1.0f};
     f32 mPerpendicularity = 0.0f;
     f32 mPerpendicularEffectiveMass = 0.0f;
     f32 mTotalPerpendicularImpulse = 0.0f;

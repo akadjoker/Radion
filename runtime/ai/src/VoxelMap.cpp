@@ -41,18 +41,18 @@ void voxelAddress(const glm::uvec3& coord, const glm::uvec3& resolutionDiv4,
     outMask = 1ull << bit;
 }
 
-glm::vec3 worldToUvw(const glm::vec3& worldPos, const glm::vec3& center,
-                     const glm::vec3& resolutionRcp, const glm::vec3& voxelSizeRcp)
+Math::Vec3 worldToUvw(const Math::Vec3& worldPos, const Math::Vec3& center,
+                     const Math::Vec3& resolutionRcp, const Math::Vec3& voxelSizeRcp)
 {
-    const glm::vec3 diff = (worldPos - center) * resolutionRcp * voxelSizeRcp;
-    return diff * glm::vec3(0.5f, -0.5f, 0.5f) + glm::vec3(0.5f);
+    const Math::Vec3 diff = (worldPos - center) * resolutionRcp * voxelSizeRcp;
+    return diff * Math::Vec3(0.5f, -0.5f, 0.5f) + Math::Vec3(0.5f);
 }
 
-glm::vec3 uvwToWorld(const glm::vec3& uvw, const glm::vec3& center,
-                     const glm::vec3& resolution, const glm::vec3& voxelSize)
+Math::Vec3 uvwToWorld(const Math::Vec3& uvw, const Math::Vec3& center,
+                     const Math::Vec3& resolution, const Math::Vec3& voxelSize)
 {
-    glm::vec3 pos = uvw * 2.0f - glm::vec3(1.0f);
-    pos *= glm::vec3(1.0f, -1.0f, 1.0f);
+    Math::Vec3 pos = uvw * 2.0f - Math::Vec3(1.0f);
+    pos *= Math::Vec3(1.0f, -1.0f, 1.0f);
     pos *= voxelSize;
     pos *= resolution;
     pos += center;
@@ -62,16 +62,16 @@ glm::vec3 uvwToWorld(const glm::vec3& uvw, const glm::vec3& center,
 // Shared tail of every inject_* preamble: two pixel-space corners (order not
 // guaranteed - the coordinate flip in worldToUvw can swap min and max) turned
 // into an inclusive-exclusive voxel coordinate range, clamped to the grid.
-void clampVoxelRange(const glm::vec3& p0, const glm::vec3& p1, const glm::vec3& resolution,
+void clampVoxelRange(const Math::Vec3& p0, const Math::Vec3& p1, const Math::Vec3& resolution,
                      glm::uvec3& outMin, glm::uvec3& outMax)
 {
-    glm::vec3 rangeMin = glm::min(p0, p1);
-    glm::vec3 rangeMax = glm::max(p0, p1);
+    Math::Vec3 rangeMin = glm::min(p0, p1);
+    Math::Vec3 rangeMax = glm::max(p0, p1);
 
     rangeMin = glm::floor(rangeMin);
-    rangeMax = glm::ceil(rangeMax + glm::vec3(0.0001f));
+    rangeMax = glm::ceil(rangeMax + Math::Vec3(0.0001f));
 
-    rangeMin = glm::max(rangeMin, glm::vec3(0.0f));
+    rangeMin = glm::max(rangeMin, Math::Vec3(0.0f));
     rangeMax = glm::min(rangeMax, resolution);
 
     outMin = glm::uvec3(rangeMin);
@@ -80,26 +80,26 @@ void clampVoxelRange(const glm::vec3& p0, const glm::vec3& p1, const glm::vec3& 
 
 // Triangle-vs-AABB separating axis test: 3 box axes, 1 triangle normal, and
 // the 9 cross products of a box axis with a triangle edge.
-bool triangleIntersectsAABB(const glm::vec3& boxCenter, const glm::vec3& boxHalfExtent,
-                            const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
+bool triangleIntersectsAABB(const Math::Vec3& boxCenter, const Math::Vec3& boxHalfExtent,
+                            const Math::Vec3& v0, const Math::Vec3& v1, const Math::Vec3& v2)
 {
-    const glm::vec3 p0 = v0 - boxCenter;
-    const glm::vec3 p1 = v1 - boxCenter;
-    const glm::vec3 p2 = v2 - boxCenter;
+    const Math::Vec3 p0 = v0 - boxCenter;
+    const Math::Vec3 p1 = v1 - boxCenter;
+    const Math::Vec3 p2 = v2 - boxCenter;
 
-    const glm::vec3 e0 = p1 - p0;
-    const glm::vec3 e1 = p2 - p1;
-    const glm::vec3 e2 = p0 - p2;
+    const Math::Vec3 e0 = p1 - p0;
+    const Math::Vec3 e1 = p2 - p1;
+    const Math::Vec3 e2 = p0 - p2;
 
-    const glm::vec3 edges[3] = {e0, e1, e2};
-    const glm::vec3 boxAxes[3] = {glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-                                  glm::vec3(0.0f, 0.0f, 1.0f)};
+    const Math::Vec3 edges[3] = {e0, e1, e2};
+    const Math::Vec3 boxAxes[3] = {Math::Vec3(1.0f, 0.0f, 0.0f), Math::Vec3(0.0f, 1.0f, 0.0f),
+                                  Math::Vec3(0.0f, 0.0f, 1.0f)};
 
     for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 3; ++j)
         {
-            const glm::vec3 axis = glm::cross(boxAxes[i], edges[j]);
+            const Math::Vec3 axis = glm::cross(boxAxes[i], edges[j]);
             const f32 r = boxHalfExtent.x * std::abs(axis.x) +
                          boxHalfExtent.y * std::abs(axis.y) +
                          boxHalfExtent.z * std::abs(axis.z);
@@ -123,7 +123,7 @@ bool triangleIntersectsAABB(const glm::vec3& boxCenter, const glm::vec3& boxHalf
             return false;
     }
 
-    const glm::vec3 normal = glm::cross(e0, e1);
+    const Math::Vec3 normal = glm::cross(e0, e1);
     const f32 r = boxHalfExtent.x * std::abs(normal.x) +
                  boxHalfExtent.y * std::abs(normal.y) +
                  boxHalfExtent.z * std::abs(normal.z);
@@ -134,9 +134,9 @@ bool triangleIntersectsAABB(const glm::vec3& boxCenter, const glm::vec3& boxHalf
     return true;
 }
 
-glm::vec3 closestPointOnSegment(const glm::vec3& a, const glm::vec3& b, const glm::vec3& point)
+Math::Vec3 closestPointOnSegment(const Math::Vec3& a, const Math::Vec3& b, const Math::Vec3& point)
 {
-    const glm::vec3 ab = b - a;
+    const Math::Vec3 ab = b - a;
     const f32 lengthSq = glm::dot(ab, ab);
     if (lengthSq < Epsilon)
         return a;
@@ -149,34 +149,34 @@ glm::vec3 closestPointOnSegment(const glm::vec3& a, const glm::vec3& b, const gl
 // the segment shrinks by one radius at each end before the distance test, so
 // the whole shape spans exactly base..tip. A degenerate axis leaves the
 // segment as it is - normalising a zero vector is what the shrink cannot do.
-bool pointInCapsule(const glm::vec3& point, const glm::vec3& base, const glm::vec3& tip,
+bool pointInCapsule(const Math::Vec3& point, const Math::Vec3& base, const Math::Vec3& tip,
                     f32 radius)
 {
-    glm::vec3 a = base;
-    glm::vec3 b = tip;
-    const glm::vec3 axis = tip - base;
+    Math::Vec3 a = base;
+    Math::Vec3 b = tip;
+    const Math::Vec3 axis = tip - base;
     if (glm::dot(axis, axis) >= Epsilon)
     {
-        const glm::vec3 offset = glm::normalize(axis) * radius;
+        const Math::Vec3 offset = glm::normalize(axis) * radius;
         a = base + offset;
         b = tip - offset;
     }
 
-    const glm::vec3 closest = closestPointOnSegment(a, b, point);
-    const glm::vec3 delta = point - closest;
+    const Math::Vec3 closest = closestPointOnSegment(a, b, point);
+    const Math::Vec3 delta = point - closest;
     return glm::dot(delta, delta) <= radius * radius;
 }
 
-void aabbCorners(const glm::vec3& center, const glm::vec3& halfExtent, glm::vec3 outCorners[8])
+void aabbCorners(const Math::Vec3& center, const Math::Vec3& halfExtent, Math::Vec3 outCorners[8])
 {
-    outCorners[0] = center + glm::vec3(-halfExtent.x, -halfExtent.y, -halfExtent.z);
-    outCorners[1] = center + glm::vec3(-halfExtent.x, halfExtent.y, -halfExtent.z);
-    outCorners[2] = center + glm::vec3(-halfExtent.x, halfExtent.y, halfExtent.z);
-    outCorners[3] = center + glm::vec3(-halfExtent.x, -halfExtent.y, halfExtent.z);
-    outCorners[4] = center + glm::vec3(halfExtent.x, -halfExtent.y, -halfExtent.z);
-    outCorners[5] = center + glm::vec3(halfExtent.x, halfExtent.y, -halfExtent.z);
-    outCorners[6] = center + glm::vec3(halfExtent.x, halfExtent.y, halfExtent.z);
-    outCorners[7] = center + glm::vec3(halfExtent.x, -halfExtent.y, halfExtent.z);
+    outCorners[0] = center + Math::Vec3(-halfExtent.x, -halfExtent.y, -halfExtent.z);
+    outCorners[1] = center + Math::Vec3(-halfExtent.x, halfExtent.y, -halfExtent.z);
+    outCorners[2] = center + Math::Vec3(-halfExtent.x, halfExtent.y, halfExtent.z);
+    outCorners[3] = center + Math::Vec3(-halfExtent.x, -halfExtent.y, halfExtent.z);
+    outCorners[4] = center + Math::Vec3(halfExtent.x, -halfExtent.y, -halfExtent.z);
+    outCorners[5] = center + Math::Vec3(halfExtent.x, halfExtent.y, -halfExtent.z);
+    outCorners[6] = center + Math::Vec3(halfExtent.x, halfExtent.y, halfExtent.z);
+    outCorners[7] = center + Math::Vec3(halfExtent.x, -halfExtent.y, halfExtent.z);
 }
 
 } // namespace
@@ -214,27 +214,27 @@ const glm::uvec3& VoxelMap::resolution() const
     return mResolution;
 }
 
-const glm::vec3& VoxelMap::center() const
+const Math::Vec3& VoxelMap::center() const
 {
     return mCenter;
 }
 
-void VoxelMap::setCenter(const glm::vec3& center)
+void VoxelMap::setCenter(const Math::Vec3& center)
 {
     mCenter = center;
 }
 
-const glm::vec3& VoxelMap::voxelSize() const
+const Math::Vec3& VoxelMap::voxelSize() const
 {
     return mVoxelSize;
 }
 
 void VoxelMap::setVoxelSize(f32 size)
 {
-    setVoxelSize(glm::vec3(size, size, size));
+    setVoxelSize(Math::Vec3(size, size, size));
 }
 
-void VoxelMap::setVoxelSize(const glm::vec3& size)
+void VoxelMap::setVoxelSize(const Math::Vec3& size)
 {
     mVoxelSize = size;
     mVoxelSizeRcp.x = 1.0f / mVoxelSize.x;
@@ -250,43 +250,45 @@ usize VoxelMap::memorySize() const
 AABB VoxelMap::bounds() const
 {
     AABB box;
-    const glm::vec3 halfWidth = glm::vec3(mResolution) * mVoxelSize;
-    box.min = mCenter - halfWidth;
-    box.max = mCenter + halfWidth;
+    const Math::Vec3 halfWidth = Math::Vec3(mResolution) * mVoxelSize;
+    box.min = Math::Vec3(mCenter.x - halfWidth.x, mCenter.y - halfWidth.y, mCenter.z - halfWidth.z);
+    box.max = Math::Vec3(mCenter.x + halfWidth.x, mCenter.y + halfWidth.y, mCenter.z + halfWidth.z);
     return box;
 }
 
 void VoxelMap::fromBounds(const AABB& box)
 {
-    mCenter = box.center();
-    const glm::vec3 halfWidth = box.extents();
-    setVoxelSize(glm::vec3(halfWidth.x / static_cast<f32>(mResolution.x),
+    const Math::Vec3 mathCenter = box.center();
+    const Math::Vec3 mathHalfWidth = box.extents();
+    mCenter = Math::Vec3(mathCenter.x, mathCenter.y, mathCenter.z);
+    const Math::Vec3 halfWidth(mathHalfWidth.x, mathHalfWidth.y, mathHalfWidth.z);
+    setVoxelSize(Math::Vec3(halfWidth.x / static_cast<f32>(mResolution.x),
                           halfWidth.y / static_cast<f32>(mResolution.y),
                           halfWidth.z / static_cast<f32>(mResolution.z)));
 }
 
-glm::uvec3 VoxelMap::worldToCoord(const glm::vec3& worldPosition) const
+glm::uvec3 VoxelMap::worldToCoord(const Math::Vec3& worldPosition) const
 {
-    const glm::vec3 uvw = worldToUvw(worldPosition, mCenter, mResolutionRcp, mVoxelSizeRcp);
-    return glm::uvec3(uvw * glm::vec3(mResolution));
+    const Math::Vec3 uvw = worldToUvw(worldPosition, mCenter, mResolutionRcp, mVoxelSizeRcp);
+    return glm::uvec3(uvw * Math::Vec3(mResolution));
 }
 
-glm::ivec3 VoxelMap::worldToCoordSigned(const glm::vec3& worldPosition) const
+glm::ivec3 VoxelMap::worldToCoordSigned(const Math::Vec3& worldPosition) const
 {
-    const glm::vec3 uvw = worldToUvw(worldPosition, mCenter, mResolutionRcp, mVoxelSizeRcp);
-    return glm::ivec3(uvw * glm::vec3(mResolution));
+    const Math::Vec3 uvw = worldToUvw(worldPosition, mCenter, mResolutionRcp, mVoxelSizeRcp);
+    return glm::ivec3(uvw * Math::Vec3(mResolution));
 }
 
-glm::vec3 VoxelMap::coordToWorld(const glm::uvec3& coord) const
+Math::Vec3 VoxelMap::coordToWorld(const glm::uvec3& coord) const
 {
-    const glm::vec3 uvw = (glm::vec3(coord) + glm::vec3(0.5f)) * mResolutionRcp;
-    return uvwToWorld(uvw, mCenter, glm::vec3(mResolution), mVoxelSize);
+    const Math::Vec3 uvw = (Math::Vec3(coord) + Math::Vec3(0.5f)) * mResolutionRcp;
+    return uvwToWorld(uvw, mCenter, Math::Vec3(mResolution), mVoxelSize);
 }
 
-glm::vec3 VoxelMap::coordToWorld(const glm::ivec3& coord) const
+Math::Vec3 VoxelMap::coordToWorld(const glm::ivec3& coord) const
 {
-    const glm::vec3 uvw = (glm::vec3(coord) + glm::vec3(0.5f)) * mResolutionRcp;
-    return uvwToWorld(uvw, mCenter, glm::vec3(mResolution), mVoxelSize);
+    const Math::Vec3 uvw = (Math::Vec3(coord) + Math::Vec3(0.5f)) * mResolutionRcp;
+    return uvwToWorld(uvw, mCenter, Math::Vec3(mResolution), mVoxelSize);
 }
 
 bool VoxelMap::validCoord(const glm::uvec3& coord) const
@@ -323,7 +325,7 @@ bool VoxelMap::voxel(const glm::ivec3& coord) const
                             static_cast<u32>(coord.z)));
 }
 
-bool VoxelMap::voxel(const glm::vec3& worldPosition) const
+bool VoxelMap::voxel(const Math::Vec3& worldPosition) const
 {
     return voxel(worldToCoord(worldPosition));
 }
@@ -349,22 +351,22 @@ void VoxelMap::setVoxel(const glm::ivec3& coord, bool value)
              value);
 }
 
-void VoxelMap::setVoxel(const glm::vec3& worldPosition, bool value)
+void VoxelMap::setVoxel(const Math::Vec3& worldPosition, bool value)
 {
     setVoxel(worldToCoord(worldPosition), value);
 }
 
-void VoxelMap::injectTriangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
+void VoxelMap::injectTriangle(const Math::Vec3& a, const Math::Vec3& b, const Math::Vec3& c,
                               bool subtract)
 {
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
+    const Math::Vec3 resolutionF = Math::Vec3(mResolution);
 
-    const glm::vec3 pa = worldToUvw(a, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
-    const glm::vec3 pb = worldToUvw(b, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
-    const glm::vec3 pc = worldToUvw(c, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
+    const Math::Vec3 pa = worldToUvw(a, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
+    const Math::Vec3 pb = worldToUvw(b, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
+    const Math::Vec3 pc = worldToUvw(c, mCenter, mResolutionRcp, mVoxelSizeRcp) * resolutionF;
 
-    const glm::vec3 normal = glm::cross(pb - pa, pc - pa);
-    if (normal == glm::vec3(0.0f))
+    const Math::Vec3 normal = glm::cross(pb - pa, pc - pa);
+    if (normal == Math::Vec3(0.0f))
         return;
 
     glm::uvec3 mini, maxi;
@@ -377,9 +379,9 @@ void VoxelMap::injectTriangle(const glm::vec3& a, const glm::vec3& b, const glm:
         {
             for (u32 z = mini.z; z < maxi.z; ++z)
             {
-                const glm::vec3 voxelCenter(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f,
+                const Math::Vec3 voxelCenter(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f,
                                             static_cast<f32>(z) + 0.5f);
-                if (!triangleIntersectsAABB(voxelCenter, glm::vec3(0.5f), pa, pb, pc))
+                if (!triangleIntersectsAABB(voxelCenter, Math::Vec3(0.5f), pa, pb, pc))
                     continue;
 
                 u32 index;
@@ -397,11 +399,11 @@ void VoxelMap::injectTriangle(const glm::vec3& a, const glm::vec3& b, const glm:
 
 void VoxelMap::injectBounds(const AABB& box, bool subtract)
 {
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
+    const Math::Vec3 resolutionF = Math::Vec3(mResolution);
 
-    const glm::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::Vec3 pixelMin = worldToUvw(Math::Vec3(box.min.x, box.min.y, box.min.z), mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
-    const glm::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::Vec3 pixelMax = worldToUvw(Math::Vec3(box.max.x, box.max.y, box.max.z), mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
 
     glm::uvec3 mini, maxi;
@@ -427,15 +429,15 @@ void VoxelMap::injectBounds(const AABB& box, bool subtract)
 
 void VoxelMap::injectSphere(const Sphere& sphere, bool subtract)
 {
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
+    const Math::Vec3 resolutionF = Math::Vec3(mResolution);
 
     AABB box;
-    box.min = sphere.center - glm::vec3(sphere.radius);
-    box.max = sphere.center + glm::vec3(sphere.radius);
+    box.min = sphere.center - Math::Vec3(sphere.radius);
+    box.max = sphere.center + Math::Vec3(sphere.radius);
 
-    const glm::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::Vec3 pixelMin = worldToUvw(Math::Vec3(box.min.x, box.min.y, box.min.z), mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
-    const glm::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::Vec3 pixelMax = worldToUvw(Math::Vec3(box.max.x, box.max.y, box.max.z), mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
 
     glm::uvec3 mini, maxi;
@@ -448,11 +450,11 @@ void VoxelMap::injectSphere(const Sphere& sphere, bool subtract)
             for (u32 z = mini.z; z < maxi.z; ++z)
             {
                 const glm::uvec3 coord(x, y, z);
-                const glm::vec3 voxelCenter = coordToWorld(coord);
+                const Math::Vec3 voxelCenter = coordToWorld(coord);
 
                 AABB voxelBox;
-                voxelBox.min = voxelCenter - mVoxelSize;
-                voxelBox.max = voxelCenter + mVoxelSize;
+                voxelBox.min = Math::Vec3(voxelCenter.x - mVoxelSize.x, voxelCenter.y - mVoxelSize.y, voxelCenter.z - mVoxelSize.z);
+                voxelBox.max = Math::Vec3(voxelCenter.x + mVoxelSize.x, voxelCenter.y + mVoxelSize.y, voxelCenter.z + mVoxelSize.z);
                 if (!sphere.intersects(voxelBox))
                     continue;
 
@@ -468,20 +470,20 @@ void VoxelMap::injectSphere(const Sphere& sphere, bool subtract)
     }
 }
 
-void VoxelMap::injectCapsule(const glm::vec3& base, const glm::vec3& tip, f32 radius,
+void VoxelMap::injectCapsule(const Math::Vec3& base, const Math::Vec3& tip, f32 radius,
                              bool subtract)
 {
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
+    const Math::Vec3 resolutionF = Math::Vec3(mResolution);
 
     AABB box;
     box.expand(base);
     box.expand(tip);
-    box.min -= glm::vec3(radius);
-    box.max += glm::vec3(radius);
+    box.min -= Math::Vec3(radius);
+    box.max += Math::Vec3(radius);
 
-    const glm::vec3 pixelMin = worldToUvw(box.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::Vec3 pixelMin = worldToUvw(Math::Vec3(box.min.x, box.min.y, box.min.z), mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
-    const glm::vec3 pixelMax = worldToUvw(box.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::Vec3 pixelMax = worldToUvw(Math::Vec3(box.max.x, box.max.y, box.max.z), mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
 
     glm::uvec3 mini, maxi;
@@ -494,12 +496,12 @@ void VoxelMap::injectCapsule(const glm::vec3& base, const glm::vec3& tip, f32 ra
             for (u32 z = mini.z; z < maxi.z; ++z)
             {
                 const glm::uvec3 coord(x, y, z);
-                const glm::vec3 voxelCenter = coordToWorld(coord);
+                const Math::Vec3 voxelCenter = coordToWorld(coord);
 
                 bool intersects = pointInCapsule(voxelCenter, base, tip, radius);
                 if (!intersects)
                 {
-                    glm::vec3 corners[8];
+                    Math::Vec3 corners[8];
                     aabbCorners(voxelCenter, mVoxelSize, corners);
                     for (int i = 0; i < 8 && !intersects; ++i)
                         intersects = pointInCapsule(corners[i], base, tip, radius);
@@ -633,21 +635,21 @@ bool VoxelMap::visible(const glm::uvec3& start, const glm::uvec3& goal) const
     return true;
 }
 
-bool VoxelMap::visible(const glm::vec3& observer, const glm::vec3& subject) const
+bool VoxelMap::visible(const Math::Vec3& observer, const Math::Vec3& subject) const
 {
     const glm::uvec3 start = worldToCoord(observer);
     const glm::uvec3 goal = worldToCoord(subject);
     return visible(start, goal);
 }
 
-bool VoxelMap::visible(const glm::vec3& observer, const AABB& subject) const
+bool VoxelMap::visible(const Math::Vec3& observer, const AABB& subject) const
 {
     const glm::uvec3 start = worldToCoord(observer);
 
-    const glm::vec3 resolutionF = glm::vec3(mResolution);
-    const glm::vec3 pixelMin = worldToUvw(subject.min, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::Vec3 resolutionF = Math::Vec3(mResolution);
+    const Math::Vec3 pixelMin = worldToUvw(Math::Vec3(subject.min.x, subject.min.y, subject.min.z), mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
-    const glm::vec3 pixelMax = worldToUvw(subject.max, mCenter, mResolutionRcp, mVoxelSizeRcp) *
+    const Math::Vec3 pixelMax = worldToUvw(Math::Vec3(subject.max.x, subject.max.y, subject.max.z), mCenter, mResolutionRcp, mVoxelSizeRcp) *
                                resolutionF;
 
     glm::uvec3 mini, maxi;

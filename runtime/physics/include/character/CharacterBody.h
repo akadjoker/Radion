@@ -28,12 +28,12 @@ public:
         bool onCeiling = false;
         // Flattest ground found this move - the one the character is really
         // standing on when a move touches two. Up when airborne.
-        glm::vec3 groundNormal{0.0f, 1.0f, 0.0f};
+        Math::Vec3 groundNormal{0.0f, 1.0f, 0.0f};
         // The steepest wall and the ceiling touched this move, if any.
-        glm::vec3 wallNormal{0.0f};
-        glm::vec3 ceilingNormal{0.0f};
+        Math::Vec3 wallNormal{0.0f};
+        Math::Vec3 ceilingNormal{0.0f};
         // What the slide could not deliver, in world units.
-        glm::vec3 remaining{0.0f};
+        Math::Vec3 remaining{0.0f};
     };
 
     // `radius` and `height` describe a capsule: height is the INNER segment,
@@ -49,16 +49,16 @@ public:
         return mHeight;
     }
 
-    void setPosition(const glm::vec3& position)
+    void setPosition(const Math::Vec3& position)
     {
         mPosition = position;
     }
-    const glm::vec3& position() const
+    const Math::Vec3& position() const
     {
         return mPosition;
     }
     // World transform of the capsule, for a contact query or a debug draw.
-    glm::mat4 transform() const;
+    Math::Mat4 transform() const;
 
     // Ground steeper than this is a wall: it blocks instead of carrying.
     void setSlopeLimit(f32 degrees);
@@ -82,22 +82,22 @@ public:
     // Moves by `displacement`, sliding along whatever it meets. The sweep is
     // continuous, so there is nothing to split into substeps - a fast move
     // cannot pass through a wall the way a push-out would let it.
-    MoveResult move(const glm::vec3& displacement, const TrimeshShape& mesh,
-                    const glm::mat4& meshTransform);
+    MoveResult move(const Math::Vec3& displacement, const TrimeshShape& mesh,
+                    const Math::Mat4& meshTransform);
 
     // Applies gravity, then moves by the horizontal input. This is what a
     // caller drives every frame; move() is the raw one underneath.
-    MoveResult update(f32 deltaTime, const TrimeshShape& mesh, const glm::mat4& meshTransform);
+    MoveResult update(f32 deltaTime, const TrimeshShape& mesh, const Math::Mat4& meshTransform);
 
     // Caller-owned drive: set the full velocity yourself (gravity included)
     // and call moveAndSlide(). update() is the wrapper for callers who want
     // the controller to own gravity and input.
-    void setVelocity(const glm::vec3& velocity)
+    void setVelocity(const Math::Vec3& velocity)
     {
         mVelocity = velocity;
     }
     MoveResult moveAndSlide(f32 deltaTime, const TrimeshShape& mesh,
-                            const glm::mat4& meshTransform);
+                            const Math::Mat4& meshTransform);
     // No grounded check, so a double jump is the caller's call.
     void setVerticalSpeed(f32 speed)
     {
@@ -107,11 +107,11 @@ public:
     // The up axis the slope limit, the ground snap and the ceiling test are
     // measured against. Default (0,1,0); a rotated world sets it to its own
     // "up" so the whole controller works on its side or upside down.
-    void setUpDirection(const glm::vec3& up)
+    void setUpDirection(const Math::Vec3& up)
     {
         mUpDirection = glm::normalize(up);
     }
-    const glm::vec3& upDirection() const
+    const Math::Vec3& upDirection() const
     {
         return mUpDirection;
     }
@@ -143,11 +143,11 @@ public:
 
     // Horizontal velocity the character is trying to hold, world units per
     // second. Y is ignored - gravity and jump own that axis.
-    void setMoveInput(const glm::vec3& velocity)
+    void setMoveInput(const Math::Vec3& velocity)
     {
-        mMoveInput = glm::vec3(velocity.x, 0.0f, velocity.z);
+        mMoveInput = Math::Vec3(velocity.x, 0.0f, velocity.z);
     }
-    const glm::vec3& moveInput() const
+    const Math::Vec3& moveInput() const
     {
         return mMoveInput;
     }
@@ -192,12 +192,12 @@ public:
     // setVerticalSpeed() is the no-check alternative.
     void jump(f32 speed);
     // Straight there, clearing the fall.
-    void teleport(const glm::vec3& position);
+    void teleport(const Math::Vec3& position);
 
     // Probe down by the snap distance and settle onto whatever is there,
     // without moving sideways. Called every update() when the slide loses the
     // floor; exposed so a caller can re-snap after moving the body itself.
-    bool applyFloorSnap(const TrimeshShape& mesh, const glm::mat4& meshTransform);
+    bool applyFloorSnap(const TrimeshShape& mesh, const Math::Mat4& meshTransform);
 
     // Same probe as applyFloorSnap(), but read-only - reports whether a
     // walkable floor sits within `maxDistance` below right now without
@@ -206,7 +206,7 @@ public:
     // before landing back on it; a caller that only wants "close enough to
     // the ground to not look airborne" (a jump/fall animation switch, say)
     // should use this instead of reacting to that flicker.
-    bool isNearGround(const TrimeshShape& mesh, const glm::mat4& meshTransform,
+    bool isNearGround(const TrimeshShape& mesh, const Math::Mat4& meshTransform,
                       f32 maxDistance) const;
 
     // Contact state, kept up to date by update() and moveAndSlide().
@@ -222,15 +222,15 @@ public:
     {
         return mOnCeiling;
     }
-    const glm::vec3& floorNormal() const
+    const Math::Vec3& floorNormal() const
     {
         return mGroundNormal;
     }
-    const glm::vec3& wallNormal() const
+    const Math::Vec3& wallNormal() const
     {
         return mWallNormal;
     }
-    const glm::vec3& ceilingNormal() const
+    const Math::Vec3& ceilingNormal() const
     {
         return mCeilingNormal;
     }
@@ -239,14 +239,14 @@ public:
     {
         return mGrounded;
     }
-    const glm::vec3& groundNormal() const
+    const Math::Vec3& groundNormal() const
     {
         return mGroundNormal;
     }
     // Degrees between the ground and horizontal; 0 when airborne.
     f32 slopeAngle() const;
     // What the last update actually achieved, per second.
-    const glm::vec3& velocity() const
+    const Math::Vec3& velocity() const
     {
         return mVelocity;
     }
@@ -260,11 +260,11 @@ private:
     // position, reporting the steepest floor it came off.
     struct Slide
     {
-        glm::vec3 centre{0.0f};
-        glm::vec3 velocity{0.0f};
-        glm::vec3 groundNormal{0.0f, 0.0f, 0.0f};
-        glm::vec3 wallNormal{0.0f};
-        glm::vec3 ceilingNormal{0.0f};
+        Math::Vec3 centre{0.0f};
+        Math::Vec3 velocity{0.0f};
+        Math::Vec3 groundNormal{0.0f, 0.0f, 0.0f};
+        Math::Vec3 wallNormal{0.0f};
+        Math::Vec3 ceilingNormal{0.0f};
         bool collided = false;
         bool grounded = false;
         bool onWall = false;
@@ -273,24 +273,24 @@ private:
     };
 
     // The ellipsoid half-extents this capsule is swept as.
-    glm::vec3 radii() const;
+    Math::Vec3 radii() const;
 
-    Slide slide(const glm::vec3& startCentre, const glm::vec3& displacement,
-                const TrimeshShape& mesh, const glm::mat4& meshTransform) const;
+    Slide slide(const Math::Vec3& startCentre, const Math::Vec3& displacement,
+                const TrimeshShape& mesh, const Math::Mat4& meshTransform) const;
     // Up, across, down - the phase order both references use. False when the
     // raised path is blocked or there is nothing to land on.
-    bool stepUp(const glm::vec3& startCentre, const glm::vec3& horizontal, const TrimeshShape& mesh,
-                const glm::mat4& meshTransform, Slide& out) const;
+    bool stepUp(const Math::Vec3& startCentre, const Math::Vec3& horizontal, const TrimeshShape& mesh,
+                const Math::Mat4& meshTransform, Slide& out) const;
     // Probes down by the snap distance and settles onto whatever it finds.
-    bool snapToGround(const TrimeshShape& mesh, const glm::mat4& meshTransform);
+    bool snapToGround(const TrimeshShape& mesh, const Math::Mat4& meshTransform);
 
-    glm::vec3 mPosition{0.0f};
-    glm::vec3 mUpDirection{0.0f, 1.0f, 0.0f};
-    glm::vec3 mGroundNormal{0.0f, 1.0f, 0.0f};
-    glm::vec3 mWallNormal{0.0f};
-    glm::vec3 mCeilingNormal{0.0f};
-    glm::vec3 mMoveInput{0.0f};
-    glm::vec3 mVelocity{0.0f};
+    Math::Vec3 mPosition{0.0f};
+    Math::Vec3 mUpDirection{0.0f, 1.0f, 0.0f};
+    Math::Vec3 mGroundNormal{0.0f, 1.0f, 0.0f};
+    Math::Vec3 mWallNormal{0.0f};
+    Math::Vec3 mCeilingNormal{0.0f};
+    Math::Vec3 mMoveInput{0.0f};
+    Math::Vec3 mVelocity{0.0f};
     f32 mRadius = 0.4f;
     f32 mHeight = 1.2f;
     f32 mSlopeLimitDegrees = 45.0f;

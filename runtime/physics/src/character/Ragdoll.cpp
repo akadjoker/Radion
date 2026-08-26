@@ -60,22 +60,22 @@ s32 findBoneAnyOf(const Skeleton& skeleton, std::initializer_list<const char*> s
 // matrix - duplicated here rather than shared because it is three lines and
 // Skeleton keeps it private (IKSolver does the same thing for the same
 // reason).
-glm::mat4 composeLocal(const Radion::LocalPose& pose)
+Math::Mat4 composeLocal(const Radion::LocalPose& pose)
 {
-    return glm::translate(glm::mat4(1.0f), pose.position) * glm::mat4_cast(pose.rotation) *
-          glm::scale(glm::mat4(1.0f), pose.scale);
+    return glm::translate(Math::Mat4(1.0f), pose.position) * glm::mat4_cast(pose.rotation) *
+          glm::scale(Math::Mat4(1.0f), pose.scale);
 }
 
-glm::quat rotationBetween(const glm::vec3& from, const glm::vec3& to)
+Math::Quaternion rotationBetween(const Math::Vec3& from, const Math::Vec3& to)
 {
     const f32 cosine = glm::clamp(glm::dot(from, to), -1.0f, 1.0f);
     if (cosine > 0.9999f)
-        return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        return Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
     if (cosine < -0.9999f)
-        return glm::angleAxis(glm::pi<f32>(), glm::vec3(1.0f, 0.0f, 0.0f));
-    const glm::vec3 axis = glm::cross(from, to);
+        return glm::angleAxis(glm::pi<f32>(), Math::Vec3(1.0f, 0.0f, 0.0f));
+    const Math::Vec3 axis = glm::cross(from, to);
     const f32 scale = std::sqrt((1.0f + cosine) * 2.0f);
-    return glm::normalize(glm::quat(scale * 0.5f, axis / scale));
+    return glm::normalize(Math::Quaternion(scale * 0.5f, axis / scale));
 }
 
 // Ten parts, ten bits - starting well above any low bit a scene's own
@@ -190,8 +190,8 @@ void Ragdoll::resolveHierarchy(const Skeleton& skeleton)
     }
 }
 
-void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& globalPose,
-                       const std::vector<Radion::LocalPose>& localPose, const glm::mat4& ownerWorld)
+void Ragdoll::activate(PhysicsWorld& world, const std::vector<Math::Mat4>& globalPose,
+                       const std::vector<Radion::LocalPose>& localPose, const Math::Mat4& ownerWorld)
 {
     if (!mValid || mActive)
         return;
@@ -201,39 +201,39 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
     mPointJoints.clear();
     mHingeJoints.clear();
 
-    auto worldMatrix = [&](s32 bone) -> glm::mat4
+    auto worldMatrix = [&](s32 bone) -> Math::Mat4
     {
         return ownerWorld * globalPose[static_cast<usize>(bone)];
     };
-    auto worldPosition = [&](s32 bone) -> glm::vec3
+    auto worldPosition = [&](s32 bone) -> Math::Vec3
     {
-        return glm::vec3(worldMatrix(bone)[3]);
+        return Math::Vec3(worldMatrix(bone)[3]);
     };
 
-    std::array<glm::vec3, static_cast<usize>(RagdollPart::Count)> jointPosition;
-    std::array<glm::vec3, static_cast<usize>(RagdollPart::Count)> segmentAxis;
+    std::array<Math::Vec3, static_cast<usize>(RagdollPart::Count)> jointPosition;
+    std::array<Math::Vec3, static_cast<usize>(RagdollPart::Count)> segmentAxis;
     std::array<CollisionShape*, static_cast<usize>(RagdollPart::Count)> shapeOf{};
 
     for (usize i = 0; i < mParts.size(); ++i)
     {
         Part& p = mParts[i];
-        const glm::vec3 nearPosition = worldPosition(p.boneIndex);
-        const glm::vec3 farPosition = worldPosition(p.farBoneIndex);
-        const glm::vec3 segment = farPosition - nearPosition;
+        const Math::Vec3 nearPosition = worldPosition(p.boneIndex);
+        const Math::Vec3 farPosition = worldPosition(p.farBoneIndex);
+        const Math::Vec3 segment = farPosition - nearPosition;
         const f32 length = glm::max(glm::length(segment), 0.02f);
-        const glm::vec3 axis = glm::length(segment) > 1.0e-5f ? segment / glm::length(segment)
-                                                              : glm::vec3(0.0f, 1.0f, 0.0f);
-        const glm::quat orientation = rotationBetween(glm::vec3(0.0f, 1.0f, 0.0f), axis);
+        const Math::Vec3 axis = glm::length(segment) > 1.0e-5f ? segment / glm::length(segment)
+                                                              : Math::Vec3(0.0f, 1.0f, 0.0f);
+        const Math::Quaternion orientation = rotationBetween(Math::Vec3(0.0f, 1.0f, 0.0f), axis);
 
         jointPosition[i] = nearPosition;
         segmentAxis[i] = axis;
 
         CollisionShape* shape = nullptr;
-        glm::vec3 centre = (nearPosition + farPosition) * 0.5f;
+        Math::Vec3 centre = (nearPosition + farPosition) * 0.5f;
         switch (p.shapeKind)
         {
         case Part::ShapeKind::Box:
-            p.box = BoxShape(glm::vec3(glm::max(length * 0.32f, 0.05f),
+            p.box = BoxShape(Math::Vec3(glm::max(length * 0.32f, 0.05f),
                                        glm::max(length * 0.5f, 0.05f),
                                        glm::max(length * 0.22f, 0.05f)));
             shape = &p.box;
@@ -263,8 +263,8 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
         body.setInertiaTensor(shape->inertia(p.mass));
         body.setPosition(centre);
         body.setOrientation(orientation);
-        body.setVelocity(glm::vec3(0.0f));
-        body.setAngularVelocity(glm::vec3(0.0f));
+        body.setVelocity(Math::Vec3(0.0f));
+        body.setAngularVelocity(Math::Vec3(0.0f));
         body.setDamping(0.999f, 0.995f);
         body.calculateDerivedData();
         body.setAwake(true);
@@ -283,7 +283,7 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
         // bone sat relative to the body frame we just chose for it.
         p.attachmentLocal = glm::inverse(body.transform()) * worldMatrix(p.boneIndex);
 
-        glm::mat4 chain(1.0f);
+        Math::Mat4 chain(1.0f);
         for (auto it = p.parentChain.rbegin(); it != p.parentChain.rend(); ++it)
             chain = chain * composeLocal(localPose[static_cast<usize>(*it)]);
         p.parentChainLocal = chain;
@@ -327,7 +327,7 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
         }
     }
 
-    const glm::vec3 lateral = part(RagdollPart::Hips).rigidBody.directionToWorld(glm::vec3(1.0f, 0.0f, 0.0f));
+    const Math::Vec3 lateral = part(RagdollPart::Hips).rigidBody.directionToWorld(Math::Vec3(1.0f, 0.0f, 0.0f));
 
     for (usize i = 0; i < mParts.size(); ++i)
     {
@@ -339,7 +339,7 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
 
         if (isLowerLimb(thisPart))
         {
-            glm::vec3 axis = glm::cross(segmentAxis[static_cast<usize>(p.parentPart)], segmentAxis[i]);
+            Math::Vec3 axis = glm::cross(segmentAxis[static_cast<usize>(p.parentPart)], segmentAxis[i]);
             axis = glm::length(axis) > 1.0e-4f ? glm::normalize(axis) : lateral;
             mHingeJoints.emplace_back(parentP.rigidBody, p.rigidBody, jointPosition[i], axis);
             if (isLeg(thisPart))
@@ -350,7 +350,7 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
         }
         else
         {
-            const glm::vec3 anchor =
+            const Math::Vec3 anchor =
                 thisPart == RagdollPart::Head ? worldPosition(p.farBoneIndex) : jointPosition[i];
             mPointJoints.emplace_back(parentP.rigidBody, p.rigidBody, anchor);
             mWorld->addJoint(&mPointJoints.back());
@@ -386,8 +386,8 @@ void Ragdoll::writePose(std::vector<Radion::LocalPose>& localPose) const
     if (!mActive)
         return;
 
-    std::array<glm::mat4, static_cast<usize>(RagdollPart::Count)> modelOf;
-    const glm::mat4 invOwner = glm::inverse(mOwnerWorld);
+    std::array<Math::Mat4, static_cast<usize>(RagdollPart::Count)> modelOf;
+    const Math::Mat4 invOwner = glm::inverse(mOwnerWorld);
 
     for (usize i = 0; i < mParts.size(); ++i)
     {
@@ -395,17 +395,17 @@ void Ragdoll::writePose(std::vector<Radion::LocalPose>& localPose) const
         if (p.boneIndex < 0 || static_cast<usize>(p.boneIndex) >= localPose.size())
             continue;
 
-        const glm::mat4 boneWorld = p.rigidBody.transform() * p.attachmentLocal;
-        const glm::mat4 boneModel = invOwner * boneWorld;
+        const Math::Mat4 boneWorld = p.rigidBody.transform() * p.attachmentLocal;
+        const Math::Mat4 boneModel = invOwner * boneWorld;
         modelOf[i] = boneModel;
 
-        const glm::mat4 parentModel =
-            p.parentPart == RagdollPart::Count ? glm::mat4(1.0f) : modelOf[static_cast<usize>(p.parentPart)];
-        const glm::mat4 local = glm::inverse(p.parentChainLocal) * glm::inverse(parentModel) * boneModel;
+        const Math::Mat4 parentModel =
+            p.parentPart == RagdollPart::Count ? Math::Mat4(1.0f) : modelOf[static_cast<usize>(p.parentPart)];
+        const Math::Mat4 local = glm::inverse(p.parentChainLocal) * glm::inverse(parentModel) * boneModel;
 
         Radion::LocalPose pose;
-        glm::vec3 skew;
-        glm::vec4 perspective;
+        Math::Vec3 skew;
+        Math::Vec4 perspective;
         if (!glm::decompose(local, pose.scale, pose.rotation, pose.position, skew, perspective))
             continue;
         pose.rotation = glm::normalize(pose.rotation);

@@ -165,14 +165,14 @@ struct MaterialTexture
 // a fixed meaning; the render technique decides how custom fields are used.
 struct MaterialParams
 {
-    glm::vec4 baseColor = glm::vec4(1.0f);
-    glm::vec4 emissive = glm::vec4(0.0f);
-    glm::vec4 surface = glm::vec4(1.0f, 0.0f, 0.5f, 1.0f); // rough, metal, alphaCut, normalScale
-    glm::vec4 uvTransform = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f); // tileU, tileV, offU, offV
-    glm::vec4 uvAnim = glm::vec4(0.0f);                        // scrollU, scrollV, rotSpeed, _
-    glm::vec4 sequence = glm::vec4(0.0f);                      // frames, fps, loop, interpolate
-    glm::vec4 custom0 = glm::vec4(0.0f);
-    glm::vec4 custom1 = glm::vec4(0.0f);
+    Math::Vec4 baseColor = Math::Vec4(1.0f);
+    Math::Vec4 emissive = Math::Vec4(0.0f);
+    Math::Vec4 surface = Math::Vec4(1.0f, 0.0f, 0.5f, 1.0f); // rough, metal, alphaCut, normalScale
+    Math::Vec4 uvTransform = Math::Vec4(1.0f, 1.0f, 0.0f, 0.0f); // tileU, tileV, offU, offV
+    Math::Vec4 uvAnim = Math::Vec4(0.0f);                        // scrollU, scrollV, rotSpeed, _
+    Math::Vec4 sequence = Math::Vec4(0.0f);                      // frames, fps, loop, interpolate
+    Math::Vec4 custom0 = Math::Vec4(0.0f);
+    Math::Vec4 custom1 = Math::Vec4(0.0f);
 };
 
 static_assert(sizeof(MaterialParams) == 128, "block must match the std140 layout in the shader");
@@ -196,8 +196,8 @@ struct MaterialAnim
     Curve curve = Curve::SineWave;
     f32 speed = 1.0f;
     f32 phase = 0.0f;
-    glm::vec4 min = glm::vec4(0.0f);
-    glm::vec4 max = glm::vec4(1.0f);
+    Math::Vec4 min = Math::Vec4(0.0f);
+    Math::Vec4 max = Math::Vec4(1.0f);
 };
 
 // ------------------------------------------------------------ material

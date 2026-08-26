@@ -12,12 +12,12 @@ namespace Radion::Volume
 class SphereSource final : public Source
 {
 public:
-    SphereSource(glm::vec3 center, f32 radius);
-    f32 sampleDensity(const glm::vec3& position) const override;
-    Sample sample(const glm::vec3& position) const override;
+    SphereSource(Math::Vec3 center, f32 radius);
+    f32 sampleDensity(const Math::Vec3& position) const override;
+    Sample sample(const Math::Vec3& position) const override;
 
 private:
-    glm::vec3 m_center;
+    Math::Vec3 m_center;
     f32 m_radius;
 };
 
@@ -25,25 +25,25 @@ class PlaneSource final : public Source
 {
 public:
     // Plane equation: dot(normal, position) + offset == 0.
-    PlaneSource(glm::vec3 normal, f32 offset = 0.0f);
-    f32 sampleDensity(const glm::vec3& position) const override;
-    Sample sample(const glm::vec3& position) const override;
+    PlaneSource(Math::Vec3 normal, f32 offset = 0.0f);
+    f32 sampleDensity(const Math::Vec3& position) const override;
+    Sample sample(const Math::Vec3& position) const override;
 
 private:
-    glm::vec3 m_normal;
+    Math::Vec3 m_normal;
     f32 m_offset;
 };
 
 class BoxSource final : public Source
 {
 public:
-    BoxSource(glm::vec3 center, glm::vec3 halfExtents);
-    f32 sampleDensity(const glm::vec3& position) const override;
-    Sample sample(const glm::vec3& position) const override;
+    BoxSource(Math::Vec3 center, Math::Vec3 halfExtents);
+    f32 sampleDensity(const Math::Vec3& position) const override;
+    Sample sample(const Math::Vec3& position) const override;
 
 private:
-    glm::vec3 m_center;
-    glm::vec3 m_halfExtents;
+    Math::Vec3 m_center;
+    Math::Vec3 m_halfExtents;
 };
 
 class BinarySource : public Source
@@ -58,32 +58,32 @@ class UnionSource final : public BinarySource
 {
 public:
     UnionSource(const Source& left, const Source& right);
-    f32 sampleDensity(const glm::vec3&) const override;
-    Sample sample(const glm::vec3&) const override;
+    f32 sampleDensity(const Math::Vec3&) const override;
+    Sample sample(const Math::Vec3&) const override;
 };
 
 class IntersectionSource final : public BinarySource
 {
 public:
     IntersectionSource(const Source& left, const Source& right);
-    f32 sampleDensity(const glm::vec3&) const override;
-    Sample sample(const glm::vec3&) const override;
+    f32 sampleDensity(const Math::Vec3&) const override;
+    Sample sample(const Math::Vec3&) const override;
 };
 
 class DifferenceSource final : public BinarySource
 {
 public:
     DifferenceSource(const Source& left, const Source& right);
-    f32 sampleDensity(const glm::vec3&) const override;
-    Sample sample(const glm::vec3&) const override;
+    f32 sampleDensity(const Math::Vec3&) const override;
+    Sample sample(const Math::Vec3&) const override;
 };
 
 class NegateSource final : public Source
 {
 public:
     explicit NegateSource(const Source& source);
-    f32 sampleDensity(const glm::vec3&) const override;
-    Sample sample(const glm::vec3&) const override;
+    f32 sampleDensity(const Math::Vec3&) const override;
+    Sample sample(const Math::Vec3&) const override;
 private:
     const Source& m_source;
 };
@@ -92,8 +92,8 @@ class ScaleSource final : public Source
 {
 public:
     ScaleSource(const Source& source, f32 scale);
-    f32 sampleDensity(const glm::vec3&) const override;
-    Sample sample(const glm::vec3&) const override;
+    f32 sampleDensity(const Math::Vec3&) const override;
+    Sample sample(const Math::Vec3&) const override;
 private:
     const Source& m_source;
     f32 m_scale;
@@ -107,9 +107,9 @@ public:
     NoiseSource(u32 seed, f32 frequency = 1.0f, f32 amplitude = 1.0f);
     NoiseSource(const Source& source, u32 seed, f32 frequency = 1.0f, f32 amplitude = 1.0f);
     void setOctaves(std::vector<NoiseOctave> octaves);
-    f32 sampleDensity(const glm::vec3& position) const override;
+    f32 sampleDensity(const Math::Vec3& position) const override;
 private:
-    f32 noiseAt(const glm::vec3& position) const;
+    f32 noiseAt(const Math::Vec3& position) const;
 
     const Source* m_source;
     Noise::Perlin m_noise;

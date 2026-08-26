@@ -6,7 +6,7 @@
 namespace Radion
 {
 
-bool clipMeshByPlane(const MeshData& input, const glm::vec3& normal, f32 offset,
+bool clipMeshByPlane(const MeshData& input, const Math::Vec3& normal, f32 offset,
                      bool keepPositive, MeshData& output);
 
 }

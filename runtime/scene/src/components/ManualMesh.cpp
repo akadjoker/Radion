@@ -39,22 +39,22 @@ void ManualMesh::beginSubMesh(const std::string& material)
                                mCurrentMaterial, 0, {}});
 }
 
-void ManualMesh::position(const glm::vec3& value)
+void ManualMesh::position(const Math::Vec3& value)
 {
     mData.positions.push_back(value);
-    mData.normals.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
-    mData.tangents.push_back(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-    mData.uvs.push_back(glm::vec2(0.0f));
+    mData.normals.push_back(Math::Vec3(0.0f, 1.0f, 0.0f));
+    mData.tangents.push_back(Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    mData.uvs.push_back(Math::Vec2(0.0f));
     mData.colors.push_back(0xffffffffu);
 }
 
-void ManualMesh::normal(const glm::vec3& value)
+void ManualMesh::normal(const Math::Vec3& value)
 {
     if (!mData.normals.empty())
         mData.normals.back() = value;
 }
 
-void ManualMesh::uv(const glm::vec2& value)
+void ManualMesh::uv(const Math::Vec2& value)
 {
     if (!mData.uvs.empty())
         mData.uvs.back() = value;
@@ -115,32 +115,32 @@ u32 ManualMesh::vertexCount() const
     return static_cast<u32>(mData.positions.size());
 }
 
-glm::vec3& ManualMesh::position(u32 index)
+Math::Vec3& ManualMesh::position(u32 index)
 {
     return mData.positions.at(index);
 }
 
-const glm::vec3& ManualMesh::position(u32 index) const
+const Math::Vec3& ManualMesh::position(u32 index) const
 {
     return mData.positions.at(index);
 }
 
-glm::vec3& ManualMesh::normal(u32 index)
+Math::Vec3& ManualMesh::normal(u32 index)
 {
     return mData.normals.at(index);
 }
 
-const glm::vec3& ManualMesh::normal(u32 index) const
+const Math::Vec3& ManualMesh::normal(u32 index) const
 {
     return mData.normals.at(index);
 }
 
-glm::vec2& ManualMesh::uv(u32 index)
+Math::Vec2& ManualMesh::uv(u32 index)
 {
     return mData.uvs.at(index);
 }
 
-const glm::vec2& ManualMesh::uv(u32 index) const
+const Math::Vec2& ManualMesh::uv(u32 index) const
 {
     return mData.uvs.at(index);
 }

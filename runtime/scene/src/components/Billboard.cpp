@@ -14,13 +14,13 @@ Billboard::Billboard() : Component(Type, ComponentEventLateUpdate)
 
 void Billboard::setSize(f32 width, f32 height)
 {
-    mSize = glm::vec2(width, height);
+    mSize = Math::Vec2(width, height);
 }
-void Billboard::setSize(const glm::vec2& size)
+void Billboard::setSize(const Math::Vec2& size)
 {
     mSize = size;
 }
-const glm::vec2& Billboard::size() const
+const Math::Vec2& Billboard::size() const
 {
     return mSize;
 }
@@ -83,10 +83,10 @@ bool Billboard::depthTest() const
 }
 void Billboard::setUVRect(f32 u0, f32 v0, f32 width, f32 height)
 {
-    mUVRect = glm::vec4(u0, v0, width, height);
+    mUVRect = Math::Vec4(u0, v0, width, height);
     mAnimated = false;
 }
-const glm::vec4& Billboard::uvRect() const
+const Math::Vec4& Billboard::uvRect() const
 {
     return mUVRect;
 }
@@ -97,7 +97,7 @@ void Billboard::setAtlasCell(u32 cols, u32 rows, u32 col, u32 row)
     col = glm::min(col, cols - 1);
     row = glm::min(row, rows - 1);
     const f32 w = 1.0f / (f32)cols, h = 1.0f / (f32)rows;
-    mUVRect = glm::vec4((f32)col * w, (f32)row * h, w, h);
+    mUVRect = Math::Vec4((f32)col * w, (f32)row * h, w, h);
     mAnimated = false;
 }
 void Billboard::setAnimatedAtlas(u32 cols, u32 rows, f32 fps)
@@ -126,7 +126,7 @@ f32 Billboard::atlasFps() const
 
 // Normalized (u0, v0, width, height) for whichever atlas cell mAtlasTime
 // lands on - row-major order, looping once it runs past the last cell.
-glm::vec4 Billboard::currentUVRect() const
+Math::Vec4 Billboard::currentUVRect() const
 {
     if (!mAnimated)
         return mUVRect;
@@ -134,7 +134,7 @@ glm::vec4 Billboard::currentUVRect() const
     u32 frame = total > 0 ? (u32)(mAtlasTime * mAtlasFps) % total : 0;
     const u32 col = frame % mAtlasCols, row = frame / mAtlasCols;
     const f32 w = 1.0f / (f32)mAtlasCols, h = 1.0f / (f32)mAtlasRows;
-    return glm::vec4((f32)col * w, (f32)row * h, w, h);
+    return Math::Vec4((f32)col * w, (f32)row * h, w, h);
 }
 
 void Billboard::onLateUpdate(f32 deltaTime)

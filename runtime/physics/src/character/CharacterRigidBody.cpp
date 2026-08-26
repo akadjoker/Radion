@@ -56,11 +56,11 @@ void CharacterRigidBody::setMask(u32 mask)
             entry->filter.mask = mMask;
 }
 
-void CharacterRigidBody::addToWorld(PhysicsWorld& world, const glm::vec3& position)
+void CharacterRigidBody::addToWorld(PhysicsWorld& world, const Math::Vec3& position)
 {
     mBody.setBodyType(BodyType::Dynamic);
     mBody.setMass(mMass);
-    mBody.setInverseInertiaTensor(glm::mat3(0.0f));
+    mBody.setInverseInertiaTensor(Math::Mat3(0.0f));
     mBody.setPosition(position);
 
     BodyEntry entry;
@@ -83,34 +83,34 @@ void CharacterRigidBody::removeFromWorld()
     mBodyId = kInvalidBodyId;
 }
 
-void CharacterRigidBody::setLinearVelocity(const glm::vec3& velocity)
+void CharacterRigidBody::setLinearVelocity(const Math::Vec3& velocity)
 {
     mBody.setVelocity(velocity);
     if (glm::dot(velocity, velocity) > 1.0e-12f && !mBody.awake())
         mBody.setAwake(true);
 }
 
-const glm::vec3& CharacterRigidBody::linearVelocity() const
+const Math::Vec3& CharacterRigidBody::linearVelocity() const
 {
     return mBody.velocity();
 }
 
-void CharacterRigidBody::addLinearVelocity(const glm::vec3& velocity)
+void CharacterRigidBody::addLinearVelocity(const Math::Vec3& velocity)
 {
     setLinearVelocity(mBody.velocity() + velocity);
 }
 
-void CharacterRigidBody::addImpulse(const glm::vec3& impulse)
+void CharacterRigidBody::addImpulse(const Math::Vec3& impulse)
 {
     mBody.applyLinearImpulse(impulse);
 }
 
-const glm::vec3& CharacterRigidBody::position() const
+const Math::Vec3& CharacterRigidBody::position() const
 {
     return mBody.position();
 }
 
-glm::mat4 CharacterRigidBody::transform() const
+Math::Mat4 CharacterRigidBody::transform() const
 {
     return mBody.transform();
 }
@@ -120,17 +120,17 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
     if (!mWorld || mBodyId == kInvalidBodyId)
         return;
 
-    const glm::vec3 characterPosition = mBody.position();
-    const glm::mat4 characterTransform = mBody.transform();
+    const Math::Vec3 characterPosition = mBody.position();
+    const Math::Mat4 characterTransform = mBody.transform();
 
     u32 groundBodyId = kInvalidBodyId;
-    glm::vec3 groundNormal(0.0f);
-    glm::vec3 groundPosition(0.0f);
+    Math::Vec3 groundNormal(0.0f);
+    Math::Vec3 groundPosition(0.0f);
     f32 bestDot = -std::numeric_limits<f32>::max();
 
     AABB candidateBounds = mShape.bounds(characterTransform);
-    candidateBounds.min -= glm::vec3(maxSeparationDistance);
-    candidateBounds.max += glm::vec3(maxSeparationDistance);
+    candidateBounds.min -= Math::Vec3(maxSeparationDistance);
+    candidateBounds.max += Math::Vec3(maxSeparationDistance);
     QueryFilter query;
     query.collision = {mLayer, mMask};
     query.ignoredBody = mBodyId;
@@ -161,7 +161,7 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
         {
             if (manifold.count == 0)
                 continue;
-            const glm::vec3 normal = -manifold.normal;
+            const Math::Vec3 normal = -manifold.normal;
             const f32 dot = glm::dot(normal, mUp);
             if (dot > bestDot)
             {
@@ -177,16 +177,16 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
     if (groundBodyId == kInvalidBodyId)
     {
         mGroundState = GroundState::InAir;
-        mGroundNormal = glm::vec3(0.0f);
-        mGroundPosition = glm::vec3(0.0f);
-        mGroundVelocity = glm::vec3(0.0f);
+        mGroundNormal = Math::Vec3(0.0f);
+        mGroundPosition = Math::Vec3(0.0f);
+        mGroundVelocity = Math::Vec3(0.0f);
         return;
     }
 
     mGroundNormal = groundNormal;
     mGroundPosition = groundPosition;
 
-    const glm::vec3 localGroundPosition = groundPosition - characterPosition;
+    const Math::Vec3 localGroundPosition = groundPosition - characterPosition;
     if (mSupportingVolume.distance(localGroundPosition) > 0.0f)
         mGroundState = GroundState::NotSupported;
     else if (glm::dot(groundNormal, mUp) < mMaxSlopeAngleCosine)
@@ -196,7 +196,7 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
 
     const BodyEntry* groundEntry = mWorld->body(groundBodyId);
     mGroundVelocity = (groundEntry && groundEntry->body) ? groundEntry->body->velocityAtPoint(groundPosition)
-                                                          : glm::vec3(0.0f);
+                                                          : Math::Vec3(0.0f);
 }
 
 } // namespace Radion::Physics

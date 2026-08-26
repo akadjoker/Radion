@@ -22,7 +22,7 @@ class MotorcycleController
 public:
     MotorcycleController(RaycastVehicle& vehicle, RigidBody& chassis);
 
-    void preUpdate(f32 step, const glm::vec3& gravity);
+    void preUpdate(f32 step, const Math::Vec3& gravity);
     void postUpdate(f32 step);
 
     // -1..1, positive steers left; the controller owns the front wheel's
@@ -61,7 +61,7 @@ private:
     f32 mLeanSmoothingFactor = 0.8f;
     bool mEnableLeanController = true;
 
-    glm::vec3 mTargetLean{0.0f, 1.0f, 0.0f};
+    Math::Vec3 mTargetLean{0.0f, 1.0f, 0.0f};
     f32 mLeanSpringIntegratedDeltaAngle = 0.0f;
 };
 

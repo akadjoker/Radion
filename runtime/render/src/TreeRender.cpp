@@ -24,20 +24,20 @@ namespace
 struct alignas(16) TreeBlock
 {
     // x = model height in metres, y = time, z = wind, w = 1 for leaves.
-    glm::vec4 wind = glm::vec4(1.0f, 0.0f, 1.0f, 0.0f);
+    Math::Vec4 wind = Math::Vec4(1.0f, 0.0f, 1.0f, 0.0f);
     // x unused, y = alpha cut, z = bark bump, w = capture mode.
-    glm::vec4 surface = glm::vec4(0.0f, 0.4f, 1.0f, 0.0f);
+    Math::Vec4 surface = Math::Vec4(0.0f, 0.4f, 1.0f, 0.0f);
     // x = the time one frame ago, for the leaves' previous sway position.
-    glm::vec4 temporal = glm::vec4(0.0f);
+    Math::Vec4 temporal = Math::Vec4(0.0f);
 };
 
 // Matches ImpostorBlock in impostor.vert/frag.
 struct alignas(16) ImpostorBlock
 {
     // x = height, y = width/height, z = angle count, w = first array layer.
-    glm::vec4 shape = glm::vec4(1.0f, 0.85f, 8.0f, 0.0f);
+    Math::Vec4 shape = Math::Vec4(1.0f, 0.85f, 8.0f, 0.0f);
     // x = swap distance, y = band half-width, z = alpha cut.
-    glm::vec4 swap = glm::vec4(120.0f, 12.0f, 0.4f, 0.0f);
+    Math::Vec4 swap = Math::Vec4(120.0f, 12.0f, 0.4f, 0.0f);
 };
 
 // Its own bindings, above what a Lit material uses, so a tree draw never
@@ -106,7 +106,7 @@ public:
 
         const CameraBlock camera{frame.viewProjection,
                                  frame.clipPlane,
-                                 glm::vec4(frame.cameraPosition, 1.0f),
+                                 Math::Vec4(frame.cameraPosition, 1.0f),
                                  frame.view,
                                  frame.viewProjectionNoJitter,
                                  frame.prevViewProjectionNoJitter};
@@ -154,10 +154,10 @@ public:
                 const bool leaves = submeshIndex == 1;
 
                 TreeBlock block;
-                block.wind = glm::vec4(command.modelHeight, frame.time, command.wind,
+                block.wind = Math::Vec4(command.modelHeight, frame.time, command.wind,
                                        leaves ? 1.0f : 0.0f);
-                block.surface = glm::vec4(0.0f, command.alphaCut, command.bumpForce, 0.0f);
-                block.temporal = glm::vec4(frame.time - frame.deltaTime, 0.0f, 0.0f, 0.0f);
+                block.surface = Math::Vec4(0.0f, command.alphaCut, command.bumpForce, 0.0f);
+                block.temporal = Math::Vec4(frame.time - frame.deltaTime, 0.0f, 0.0f, 0.0f);
                 gpu.updateBuffer(mBlockBuffer, 0, sizeof(block), &block);
                 gpu.bindUniform(kTreeBlockBinding, mBlockBuffer);
 
@@ -330,7 +330,7 @@ private:
         // and the top at +half. With 0..height it photographed from half height
         // up: half the image came out empty and the tree sat shrunk in the
         // bottom - the impostor appeared at half the size of the mesh.
-        const glm::mat4 projection =
+        const Math::Mat4 projection =
             glm::ortho(-width, width, -half, half, 0.01f, height * 6.0f);
 
         // One instance, at the origin and unrotated: the rotation is applied on
@@ -356,15 +356,15 @@ private:
         {
             const f32 theta =
                 glm::two_pi<f32>() * static_cast<f32>(angle) / static_cast<f32>(kImpostorAngles);
-            const glm::vec3 eye(std::sin(theta) * height * 3.0f, half,
+            const Math::Vec3 eye(std::sin(theta) * height * 3.0f, half,
                                 std::cos(theta) * height * 3.0f);
-            const glm::mat4 view =
-                glm::lookAt(eye, glm::vec3(0.0f, half, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            const Math::Mat4 view =
+                glm::lookAt(eye, Math::Vec3(0.0f, half, 0.0f), Math::Vec3(0.0f, 1.0f, 0.0f));
 
             CameraBlock camera;
             camera.viewProj = projection * view;
-            camera.clipPlane = glm::vec4(0.0f);
-            camera.cameraPos = glm::vec4(eye, 1.0f);
+            camera.clipPlane = Math::Vec4(0.0f);
+            camera.cameraPos = Math::Vec4(eye, 1.0f);
             camera.view = view;
             // A still capture, not a frame: both matrices are the same one, so
             // the motion vector the shared vertex shader computes is zero.
@@ -395,9 +395,9 @@ private:
                     TreeBlock block;
                     // No wind and no time: the photograph is of the rest pose,
                     // or every instance would wear one frozen gust.
-                    block.wind = glm::vec4(height, 0.0f, 0.0f,
+                    block.wind = Math::Vec4(height, 0.0f, 0.0f,
                                            submeshIndex == 1 ? 1.0f : 0.0f);
-                    block.surface = glm::vec4(0.0f, command.alphaCut, command.bumpForce,
+                    block.surface = Math::Vec4(0.0f, command.alphaCut, command.bumpForce,
                                               target == 0 ? 1.0f : 2.0f);
                     gpu.updateBuffer(mBlockBuffer, 0, sizeof(block), &block);
                     gpu.bindUniform(kTreeBlockBinding, mBlockBuffer);
@@ -478,11 +478,11 @@ private:
             gpu.bindStorage(kTreeInstanceBinding, mInstanceBuffer);
 
             ImpostorBlock block;
-            block.shape = glm::vec4(command.modelHeight, command.impostorWidth,
+            block.shape = Math::Vec4(command.modelHeight, command.impostorWidth,
                                     static_cast<f32>(kImpostorAngles),
                                     static_cast<f32>(mImpostorSlots[static_cast<usize>(slot)]
                                                          .baseLayer));
-            block.swap = glm::vec4(command.swapDistance, command.swapBand, command.alphaCut, 0.0f);
+            block.swap = Math::Vec4(command.swapDistance, command.swapBand, command.alphaCut, 0.0f);
             gpu.updateBuffer(mImpostorBlockBuffer, 0, sizeof(block), &block);
             gpu.bindUniform(kImpostorBlockBinding, mImpostorBlockBuffer);
 

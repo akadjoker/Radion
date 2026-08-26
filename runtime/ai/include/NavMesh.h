@@ -59,7 +59,7 @@ public:
     // ground. Omit it (or pass a point off the mesh) to keep every
     // walkable-slope surface, roofs included, the way build() always did.
     bool build(const f32* vertices, s32 vertexCount, const s32* indices, s32 triangleCount,
-               const NavMeshConfig& config, const glm::vec3* groundSeed = nullptr);
+               const NavMeshConfig& config, const Math::Vec3* groundSeed = nullptr);
     void release();
     bool valid() const;
 
@@ -67,13 +67,13 @@ public:
     // is off the mesh (beyond `searchExtents`) or no route exists. A partial
     // route - the goal unreachable but progress possible - still returns true
     // and ends at the closest reachable point.
-    bool findPath(const glm::vec3& start, const glm::vec3& end, std::vector<glm::vec3>& outPath,
-                  const glm::vec3& searchExtents = glm::vec3(2.0f, 4.0f, 2.0f)) const;
+    bool findPath(const Math::Vec3& start, const Math::Vec3& end, std::vector<Math::Vec3>& outPath,
+                  const Math::Vec3& searchExtents = Math::Vec3(2.0f, 4.0f, 2.0f)) const;
 
     // Closest point actually on the walkable surface, for snapping a spawn
     // or a click onto it. False when nothing is within `searchExtents`.
-    bool nearestPoint(const glm::vec3& point, glm::vec3& out,
-                      const glm::vec3& searchExtents = glm::vec3(2.0f, 4.0f, 2.0f)) const;
+    bool nearestPoint(const Math::Vec3& point, Math::Vec3& out,
+                      const Math::Vec3& searchExtents = Math::Vec3(2.0f, 4.0f, 2.0f)) const;
 
     // Slides `from` towards `to` across the walkable surface and returns
     // where it ends up, which is `to` only when the whole segment stays on
@@ -86,12 +86,12 @@ public:
     // `from` is expected to already be on the mesh - it is the agent's last
     // constrained position, not an arbitrary point. False when it is not,
     // leaving `out` untouched.
-    bool moveAlongSurface(const glm::vec3& from, const glm::vec3& to, glm::vec3& out,
-                          const glm::vec3& searchExtents = glm::vec3(2.0f, 4.0f, 2.0f)) const;
+    bool moveAlongSurface(const Math::Vec3& from, const Math::Vec3& to, Math::Vec3& out,
+                          const Math::Vec3& searchExtents = Math::Vec3(2.0f, 4.0f, 2.0f)) const;
 
     // Triangles of the walkable surface itself, world space, for drawing it.
     // Rebuilt only by build(), so a caller may keep the reference.
-    const std::vector<glm::vec3>& debugTriangles() const;
+    const std::vector<Math::Vec3>& debugTriangles() const;
 
     // Persists the built surface itself - the Detour tile's raw bytes, not
     // the Recast recipe that produced them - so loading skips the whole
@@ -108,7 +108,7 @@ private:
     // includes stay inside NavMesh.cpp.
     void* mNavMesh = nullptr;
     void* mNavQuery = nullptr;
-    std::vector<glm::vec3> mDebugTriangles;
+    std::vector<Math::Vec3> mDebugTriangles;
 };
 
 } // namespace Radion::AI

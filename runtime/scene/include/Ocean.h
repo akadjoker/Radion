@@ -36,7 +36,7 @@ public:
     // Up to kOceanMaxWaves; index beyond that is ignored. Direction is
     // normalised on read, not on write, so a panel can drag it through zero
     // without the call failing.
-    void setWave(u32 index, const glm::vec2& direction, f32 wavelength, f32 amplitude);
+    void setWave(u32 index, const Math::Vec2& direction, f32 wavelength, f32 amplitude);
     const OceanWave& wave(u32 index) const;
     void setWaveCount(u32 count);
     u32 waveCount() const;
@@ -58,10 +58,10 @@ public:
     void setLevel(f32 level);
     f32 level() const;
 
-    void setShallowColor(const glm::vec3& color);
-    const glm::vec3& shallowColor() const;
-    void setDeepColor(const glm::vec3& color);
-    const glm::vec3& deepColor() const;
+    void setShallowColor(const Math::Vec3& color);
+    const Math::Vec3& shallowColor() const;
+    void setDeepColor(const Math::Vec3& color);
+    const Math::Vec3& deepColor() const;
     void setAbsorptionDistance(f32 distance);
     f32 absorptionDistance() const;
     void setRoughness(f32 roughness);
@@ -119,8 +119,8 @@ public:
     f32 refractionStrength() const;
     void setColorStrength(f32 amount);
     f32 colorStrength() const;
-    void setUnderwaterColor(const glm::vec3& color);
-    const glm::vec3& underwaterColor() const;
+    void setUnderwaterColor(const Math::Vec3& color);
+    const Math::Vec3& underwaterColor() const;
     void setDebugMode(s32 mode);
     s32 debugMode() const;
 
@@ -130,7 +130,7 @@ public:
     // way the two are guaranteed to agree - a clock ticking independently on
     // the CPU would drift a frame or a stutter away from what the GPU drew.
     f32 heightAt(f32 x, f32 z, f32 time) const;
-    glm::vec3 normalAt(f32 x, f32 z, f32 time) const;
+    Math::Vec3 normalAt(f32 x, f32 z, f32 time) const;
 
 private:
     friend class GameObject;
@@ -139,7 +139,7 @@ private:
     Ocean();
     void onDestroy() override;
 
-    void submit(const glm::mat4& transform);
+    void submit(const Math::Mat4& transform);
 
     MeshHandle mMesh;
     // World units between two vertices, from build(). The Gerstner sum runs
@@ -156,8 +156,8 @@ private:
 
     OceanQuality mQuality = OceanQuality::Reflection;
 
-    glm::vec3 mShallowColor = glm::vec3(0.28f, 0.55f, 0.55f);
-    glm::vec3 mDeepColor = glm::vec3(0.02f, 0.11f, 0.20f);
+    Math::Vec3 mShallowColor = Math::Vec3(0.28f, 0.55f, 0.55f);
+    Math::Vec3 mDeepColor = Math::Vec3(0.02f, 0.11f, 0.20f);
     f32 mAbsorptionDistance = 28.0f;
     f32 mRoughness = 0.06f;
     f32 mSpecularStrength = 0.6f;
@@ -190,7 +190,7 @@ private:
     f32 mReflectionStrength = 1.0f;
     f32 mRefractionStrength = 1.0f;
     f32 mColorStrength = 1.0f;
-    glm::vec3 mUnderwaterColor = glm::vec3(0.06f, 0.22f, 0.30f);
+    Math::Vec3 mUnderwaterColor = Math::Vec3(0.06f, 0.22f, 0.30f);
     s32 mDebugMode = 0;
 };
 

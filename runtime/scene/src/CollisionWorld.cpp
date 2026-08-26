@@ -18,8 +18,8 @@ namespace
 
 bool buildConvexManifold(Collider& a, Collider& b, Physics::ContactManifold& out)
 {
-    const glm::mat4& transformA = a.owner()->globalTransform();
-    const glm::mat4& transformB = b.owner()->globalTransform();
+    const Math::Mat4& transformA = a.owner()->globalTransform();
+    const Math::Mat4& transformB = b.owner()->globalTransform();
 
     switch (a.shape())
     {
@@ -93,7 +93,7 @@ struct SweptHit
 {
     bool hit = false;
     f32 t = 1.0f;
-    glm::vec3 normal{0.0f, 1.0f, 0.0f};
+    Math::Vec3 normal{0.0f, 1.0f, 0.0f};
 };
 
 bool solveQuadratic(f32 a, f32 b, f32 c, f32 maxT, f32& t)
@@ -124,13 +124,13 @@ bool solveQuadratic(f32 a, f32 b, f32 c, f32 maxT, f32& t)
     return false;
 }
 
-bool sweepSphereSphere(const glm::vec3& sv, const glm::vec3& dv, f32 srcRadius,
-                       const glm::vec3& dstCenter, f32 dstRadius, SweptHit& out)
+bool sweepSphereSphere(const Math::Vec3& sv, const Math::Vec3& dv, f32 srcRadius,
+                       const Math::Vec3& dstCenter, f32 dstRadius, SweptHit& out)
 {
-    const glm::vec3 delta = dv - sv;
+    const Math::Vec3 delta = dv - sv;
     const f32 r = srcRadius + dstRadius;
 
-    const glm::vec3 o = sv - dstCenter;
+    const Math::Vec3 o = sv - dstCenter;
     const f32 a = glm::dot(delta, delta);
     if (a <= 1e-12f)
         return false;
@@ -151,10 +151,10 @@ bool sweepSphereSphere(const glm::vec3& sv, const glm::vec3& dv, f32 srcRadius,
     if (t < 0.0f || t > 1.0f)
         return false;
 
-    const glm::vec3 centerAtHit = sv + delta * t;
-    glm::vec3 n = centerAtHit - dstCenter;
+    const Math::Vec3 centerAtHit = sv + delta * t;
+    Math::Vec3 n = centerAtHit - dstCenter;
     if (glm::dot(n, n) <= 1e-12f)
-        n = glm::vec3(0.0f, 1.0f, 0.0f);
+        n = Math::Vec3(0.0f, 1.0f, 0.0f);
     else
         n = glm::normalize(n);
 
@@ -164,27 +164,27 @@ bool sweepSphereSphere(const glm::vec3& sv, const glm::vec3& dv, f32 srcRadius,
     return true;
 }
 
-bool sweepSphereAABB(const glm::vec3& sv, const glm::vec3& dv, f32 radius, const AABB& box,
+bool sweepSphereAABB(const Math::Vec3& sv, const Math::Vec3& dv, f32 radius, const AABB& box,
                      SweptHit& out)
 {
     if (box.empty())
         return false;
 
     AABB expanded = box;
-    expanded.min -= glm::vec3(radius);
-    expanded.max += glm::vec3(radius);
+    expanded.min -= Math::Vec3(radius);
+    expanded.max += Math::Vec3(radius);
 
-    const glm::vec3 delta = dv - sv;
+    const Math::Vec3 delta = dv - sv;
     const f32 len = glm::length(delta);
     if (len <= 1e-12f)
         return false;
 
-    const glm::vec3 dir = delta / len;
-    const glm::vec3 inv(1.0f / dir.x, 1.0f / dir.y, 1.0f / dir.z);
-    const glm::vec3 t0 = (expanded.min - sv) * inv;
-    const glm::vec3 t1 = (expanded.max - sv) * inv;
-    const glm::vec3 tmin = glm::min(t0, t1);
-    const glm::vec3 tmax = glm::max(t0, t1);
+    const Math::Vec3 dir = delta / len;
+    const Math::Vec3 inv(1.0f / dir.x, 1.0f / dir.y, 1.0f / dir.z);
+    const Math::Vec3 t0 = (expanded.min - sv) * inv;
+    const Math::Vec3 t1 = (expanded.max - sv) * inv;
+    const Math::Vec3 tmin = glm::min(t0, t1);
+    const Math::Vec3 tmax = glm::max(t0, t1);
     const f32 enter = glm::max(glm::max(tmin.x, tmin.y), tmin.z);
     const f32 exit = glm::min(glm::min(tmax.x, tmax.y), tmax.z);
     const f32 tDist = (exit >= enter && exit >= 0.0f) ? (enter < 0.0f ? 0.0f : enter) : -1.0f;
@@ -195,12 +195,12 @@ bool sweepSphereAABB(const glm::vec3& sv, const glm::vec3& dv, f32 radius, const
     if (t < 0.0f || t > 1.0f)
         return false;
 
-    const glm::vec3 hitPos = sv + delta * t;
-    const glm::vec3 c = expanded.center();
-    const glm::vec3 local = hitPos - c;
+    const Math::Vec3 hitPos = sv + delta * t;
+    const Math::Vec3 c = expanded.center();
+    const Math::Vec3 local = hitPos - c;
 
-    glm::vec3 n(0.0f);
-    const glm::vec3 ext = expanded.extents();
+    Math::Vec3 n(0.0f);
+    const Math::Vec3 ext = expanded.extents();
     const f32 ax = glm::abs(local.x / glm::max(ext.x, 1e-6f));
     const f32 ay = glm::abs(local.y / glm::max(ext.y, 1e-6f));
     const f32 az = glm::abs(local.z / glm::max(ext.z, 1e-6f));
@@ -217,29 +217,29 @@ bool sweepSphereAABB(const glm::vec3& sv, const glm::vec3& dv, f32 radius, const
     return true;
 }
 
-bool sweepSphereCapsule(const glm::vec3& sv, const glm::vec3& dv, f32 srcRadius,
-                        const glm::vec3& capA, const glm::vec3& capB, f32 capRadius, SweptHit& out)
+bool sweepSphereCapsule(const Math::Vec3& sv, const Math::Vec3& dv, f32 srcRadius,
+                        const Math::Vec3& capA, const Math::Vec3& capB, f32 capRadius, SweptHit& out)
 {
-    const glm::vec3 delta = dv - sv;
+    const Math::Vec3 delta = dv - sv;
     if (glm::dot(delta, delta) <= 1e-12f)
         return false;
 
-    const glm::vec3 seg = capB - capA;
+    const Math::Vec3 seg = capB - capA;
     const f32 segLen2 = glm::dot(seg, seg);
     const f32 radius = srcRadius + capRadius;
 
     if (segLen2 <= 1e-12f)
         return sweepSphereSphere(sv, dv, srcRadius, capA, capRadius, out);
 
-    const glm::vec3 axis = seg * glm::inversesqrt(segLen2);
-    const glm::vec3 rel = sv - capA;
+    const Math::Vec3 axis = seg * glm::inversesqrt(segLen2);
+    const Math::Vec3 rel = sv - capA;
     const f32 relProj = glm::dot(rel, axis);
     const f32 deltaProj = glm::dot(delta, axis);
-    const glm::vec3 relPerp = rel - axis * relProj;
-    const glm::vec3 deltaPerp = delta - axis * deltaProj;
+    const Math::Vec3 relPerp = rel - axis * relProj;
+    const Math::Vec3 deltaPerp = delta - axis * deltaProj;
 
     f32 bestT = 1.0f;
-    glm::vec3 bestNormal(0.0f, 1.0f, 0.0f);
+    Math::Vec3 bestNormal(0.0f, 1.0f, 0.0f);
     bool hit = false;
 
     f32 tCyl = bestT;
@@ -251,10 +251,10 @@ bool sweepSphereCapsule(const glm::vec3& sv, const glm::vec3& dv, f32 srcRadius,
         if (proj >= 0.0f && proj <= segLen)
         {
             bestT = tCyl;
-            const glm::vec3 center = sv + delta * bestT;
-            const glm::vec3 closest = capA + axis * proj;
-            const glm::vec3 n = center - closest;
-            bestNormal = glm::dot(n, n) > 1e-12f ? glm::normalize(n) : glm::vec3(0.0f, 1.0f, 0.0f);
+            const Math::Vec3 center = sv + delta * bestT;
+            const Math::Vec3 closest = capA + axis * proj;
+            const Math::Vec3 n = center - closest;
+            bestNormal = glm::dot(n, n) > 1e-12f ? glm::normalize(n) : Math::Vec3(0.0f, 1.0f, 0.0f);
             hit = true;
         }
     }
@@ -282,21 +282,21 @@ bool sweepSphereCapsule(const glm::vec3& sv, const glm::vec3& dv, f32 srcRadius,
     return true;
 }
 
-bool sweepAgainstCollider(const glm::vec3& sv, const glm::vec3& dv, f32 radius,
+bool sweepAgainstCollider(const Math::Vec3& sv, const Math::Vec3& dv, f32 radius,
                          const Collider& target, SweptHit& hit)
 {
     switch (target.shape())
     {
     case ColliderShape::Sphere:
     {
-        const glm::vec3 center(target.owner()->globalTransform()[3]);
+        const Math::Vec3 center(target.owner()->globalTransform()[3]);
         return sweepSphereSphere(sv, dv, radius, center, target.radius(), hit);
     }
     case ColliderShape::Box:
         return sweepSphereAABB(sv, dv, radius, target.worldBounds(), hit);
     case ColliderShape::Capsule:
     {
-        glm::vec3 lower, upper;
+        Math::Vec3 lower, upper;
         Physics::CapsuleShape(target.radius(), target.capsuleSegmentHalfHeight())
             .segment(target.owner()->globalTransform(), lower, upper);
         return sweepSphereCapsule(sv, dv, radius, lower, upper, target.radius(), hit);
@@ -326,8 +326,8 @@ void CollisionWorld::collideMeshPair(Collider& mesh, Collider& other)
         return;
 
     TriangleOctree::SweepHit hit;
-    const glm::vec3 center(other.owner()->globalTransform()[3]);
-    if (!mesh.mesh()->sweepSphere(center, other.radius(), glm::vec3(0.0f), hit))
+    const Math::Vec3 center(other.owner()->globalTransform()[3]);
+    if (!mesh.mesh()->sweepSphere(center, other.radius(), Math::Vec3(0.0f), hit))
         return;
 
     other.addContact(&mesh, hit.normal, hit.point);
@@ -362,7 +362,7 @@ void CollisionWorld::collidePair(Collider& a, Collider& b)
     if (!buildConvexManifold(a, b, manifold) || manifold.count == 0)
         return;
 
-    const glm::vec3 point = manifold.points[0].position; // normal: A towards B (Narrowphase.h)
+    const Math::Vec3 point = manifold.points[0].position; // normal: A towards B (Narrowphase.h)
     a.addContact(&b, -manifold.normal, point);
     b.addContact(&a, manifold.normal, point);
     notifyCollision(a, b);
@@ -472,7 +472,7 @@ const CollisionWorld::MoveConfig& CollisionWorld::moveConfig() const
     return mMoveConfig;
 }
 
-CollisionWorld::MoveResult CollisionWorld::moveSphere(const glm::vec3& from, const glm::vec3& to,
+CollisionWorld::MoveResult CollisionWorld::moveSphere(const Math::Vec3& from, const Math::Vec3& to,
                                                        f32 radius, u32 movingType,
                                                        u32 maxHits) const
 {
@@ -486,12 +486,12 @@ CollisionWorld::MoveResult CollisionWorld::moveSphere(const glm::vec3& from, con
     const f32 zeroEpsilon = mMoveConfig.zeroEpsilon;
     const std::vector<Collider*>& colliders = mScene->colliders();
 
-    glm::vec3 sv = from;
-    glm::vec3 dv = to;
-    glm::vec3 safe = sv;
+    Math::Vec3 sv = from;
+    Math::Vec3 dv = to;
+    Math::Vec3 safe = sv;
 
     f32 td = glm::length(dv - sv);
-    f32 td_xz = glm::length(glm::vec2(dv.x - sv.x, dv.z - sv.z));
+    f32 td_xz = glm::length(Math::Vec2(dv.x - sv.x, dv.z - sv.z));
 
     u32 n_hit = 0;
     Plane planes[2];
@@ -536,9 +536,9 @@ CollisionWorld::MoveResult CollisionWorld::moveSphere(const glm::vec3& from, con
         out.collided = true;
         out.lastNormal = best.normal;
 
-        const glm::vec3 delta = dv - sv;
+        const Math::Vec3 delta = dv - sv;
         const f32 t = Clamp(best.t, 0.0f, 1.0f);
-        const glm::vec3 hitPos = sv + delta * t;
+        const Math::Vec3 hitPos = sv + delta * t;
 
         Plane collPlane;
         collPlane.normal = glm::normalize(best.normal);
@@ -560,7 +560,7 @@ CollisionWorld::MoveResult CollisionWorld::moveSphere(const glm::vec3& from, con
             }
         }
 
-        glm::vec3 nv = dv - best.normal * glm::dot(dv - hitPos, best.normal);
+        Math::Vec3 nv = dv - best.normal * glm::dot(dv - hitPos, best.normal);
 
         if (n_hit == 0)
         {
@@ -578,10 +578,10 @@ CollisionWorld::MoveResult CollisionWorld::moveSphere(const glm::vec3& from, con
                 const f32 ndot = glm::dot(planes[0].normal, collPlane.normal);
                 if (glm::abs(ndot) < 1.0f - zeroEpsilon)
                 {
-                    const glm::vec3 crease = glm::cross(planes[0].normal, collPlane.normal);
+                    const Math::Vec3 crease = glm::cross(planes[0].normal, collPlane.normal);
                     if (glm::dot(crease, crease) > 1e-12f)
                     {
-                        const glm::vec3 dir = glm::normalize(crease);
+                        const Math::Vec3 dir = glm::normalize(crease);
                         dv = hitPos + dir * glm::dot(dv - hitPos, dir);
                     }
                     else
@@ -611,7 +611,7 @@ CollisionWorld::MoveResult CollisionWorld::moveSphere(const glm::vec3& from, con
             }
         }
 
-        glm::vec3 dd = dv - sv;
+        Math::Vec3 dd = dv - sv;
         if (glm::dot(dd, delta) <= 0.0f)
         {
             dv = sv;
@@ -631,7 +631,7 @@ CollisionWorld::MoveResult CollisionWorld::moveSphere(const glm::vec3& from, con
         }
         else if (bestResponse == CollisionResponse::SlideXZ)
         {
-            const f32 d = glm::length(glm::vec2(dd.x, dd.z));
+            const f32 d = glm::length(Math::Vec2(dd.x, dd.z));
             if (d <= zeroEpsilon)
             {
                 dv = sv;
@@ -649,7 +649,7 @@ CollisionWorld::MoveResult CollisionWorld::moveSphere(const glm::vec3& from, con
             planes[n_hit++] = collPlane;
 
         td = glm::length(dv - sv);
-        td_xz = glm::length(glm::vec2(dv.x - sv.x, dv.z - sv.z));
+        td_xz = glm::length(Math::Vec2(dv.x - sv.x, dv.z - sv.z));
     }
 
     out.position = out.hitCount >= maxHits ? safe : dv;

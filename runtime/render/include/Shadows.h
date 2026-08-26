@@ -24,7 +24,7 @@ DirectionalShadowRegion directionalShadowRegion(u32 atlasSize, u32 cascadeCount,
 
 struct ShadowCamera
 {
-    glm::mat4 view = glm::mat4(1.0f);
+    Math::Mat4 view = Math::Mat4(1.0f);
     f32 fieldOfView = 60.0f;
     f32 aspect = 16.0f / 9.0f;
     f32 nearPlane = 0.1f;
@@ -77,24 +77,24 @@ struct CascadeShadowSettings
     // have to be the ones already in use rather than this factory's defaults.
     static CascadeShadowSettings sizedForCamera(const CascadeShadowSettings& base, f32 sceneRadius,
                                                 const ShadowCamera& camera,
-                                                const glm::vec3& lightDirection,
+                                                const Math::Vec3& lightDirection,
                                                 f32 targetTexelsPerUnit = 20.0f);
 };
 
 struct CascadeShadowData
 {
-    glm::mat4 viewProjection[MaxShadowCascades];
+    Math::Mat4 viewProjection[MaxShadowCascades];
     // Same volume with the near plane pushed back towards the sun, so caster
     // culling keeps geometry that only the pancake clamp can flatten in.
-    glm::mat4 cullViewProjection[MaxShadowCascades];
+    Math::Mat4 cullViewProjection[MaxShadowCascades];
     // World to atlas UV, split rect and NDC-to-UV bias already folded in.
-    glm::mat4 shadowMatrix[MaxShadowCascades];
+    Math::Mat4 shadowMatrix[MaxShadowCascades];
     f32 splits[MaxShadowCascades]{};
     f32 halfExtents[MaxShadowCascades]{};
     f32 shadowBias[MaxShadowCascades]{};
     f32 shadowNormalBias[MaxShadowCascades]{};
     f32 rangeBegin[MaxShadowCascades]{};
-    glm::vec2 uvScale[MaxShadowCascades]{};
+    Math::Vec2 uvScale[MaxShadowCascades]{};
     f32 texelSize[MaxShadowCascades]{};
     f32 fadeFrom = 0.0f;
     f32 fadeTo = 0.0f;
@@ -109,7 +109,7 @@ class CascadeShadowCalculator final
 {
 public:
     CascadeShadowSettings settings;
-    bool update(const ShadowCamera& camera, const glm::vec3& lightDirection,
+    bool update(const ShadowCamera& camera, const Math::Vec3& lightDirection,
                 CascadeShadowData& output) const;
 };
 
@@ -149,7 +149,7 @@ class ShadowAtlasLayout final
 {
 public:
     ShadowAtlasSettings settings;
-    void update(const glm::vec3& cameraPosition, const std::vector<RenderLight>& lights);
+    void update(const Math::Vec3& cameraPosition, const std::vector<RenderLight>& lights);
 
     const std::vector<ShadowTile>& tiles() const
     {

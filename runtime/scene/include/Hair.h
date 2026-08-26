@@ -48,7 +48,7 @@ public:
     void setSpecularStrength(f32 strength);
     void setSpecularTint(f32 tint);
     void setTransmission(f32 transmission);
-    void setColor(const glm::vec3& color);
+    void setColor(const Math::Vec3& color);
     void setSoftFringe(bool enabled);
 
     u32 strandCount() const;
@@ -70,12 +70,12 @@ public:
     f32 specularStrength() const;
     f32 specularTint() const;
     f32 transmission() const;
-    const glm::vec3& color() const;
+    const Math::Vec3& color() const;
     bool softFringe() const;
 
     void clearColliders();
-    bool addSphereCollider(const glm::vec3& worldCentre, f32 radius);
-    bool addCapsuleCollider(const glm::vec3& worldA, const glm::vec3& worldB, f32 radius);
+    bool addSphereCollider(const Math::Vec3& worldCentre, f32 radius);
+    bool addCapsuleCollider(const Math::Vec3& worldA, const Math::Vec3& worldB, f32 radius);
     u32 colliderCount() const;
 
 private:
@@ -113,7 +113,7 @@ private:
     f32 mSpecularStrength = 0.12f;
     f32 mSpecularTint = 0.55f;
     f32 mTransmission = 0.30f;
-    glm::vec3 mColor = glm::vec3(0.12f, 0.055f, 0.025f);
+    Math::Vec3 mColor = Math::Vec3(0.12f, 0.055f, 0.025f);
     bool mSoftFringe = true;
     bool mReset = true;
 };

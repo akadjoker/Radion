@@ -14,17 +14,17 @@ namespace Radion
 
 struct LocalPose
 {
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    glm::vec3 scale = glm::vec3(1.0f);
+    Math::Vec3 position = Math::Vec3(0.0f);
+    Math::Quaternion rotation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::Vec3 scale = Math::Vec3(1.0f);
 };
 
 struct Bone
 {
     std::string name;
     s32 parent = -1;
-    glm::mat4 bindLocal = glm::mat4(1.0f);
-    glm::mat4 inverseBind = glm::mat4(1.0f);
+    Math::Mat4 bindLocal = Math::Mat4(1.0f);
+    Math::Mat4 inverseBind = Math::Mat4(1.0f);
 };
 
 class Skeleton
@@ -35,12 +35,12 @@ public:
     const Bone& bone(u32 index) const;
     s32 findBone(const char* name) const;
 
-    bool addBone(const std::string& name, s32 parent, const glm::mat4& bindLocal,
-                 const glm::mat4& inverseBind);
+    bool addBone(const std::string& name, s32 parent, const Math::Mat4& bindLocal,
+                 const Math::Mat4& inverseBind);
     bool finalize();
     void bindPose(std::vector<LocalPose>& pose) const;
-    void evaluate(const std::vector<LocalPose>& localPose, std::vector<glm::mat4>& globalPose,
-                  std::vector<glm::mat4>& palette) const;
+    void evaluate(const std::vector<LocalPose>& localPose, std::vector<Math::Mat4>& globalPose,
+                  std::vector<Math::Mat4>& palette) const;
 
 private:
     std::vector<Bone> mBones;
@@ -55,8 +55,8 @@ private:
 struct IKConstraint
 {
     bool enabled = false;
-    glm::vec3 minimum = glm::vec3(0.0f);
-    glm::vec3 maximum = glm::vec3(0.0f);
+    Math::Vec3 minimum = Math::Vec3(0.0f);
+    Math::Vec3 maximum = Math::Vec3(0.0f);
 
     // The reference's own numbers, kept verbatim - see IKSolver's comment for
     // why the bone-to-preset mapping is the caller's job here and not a table
@@ -83,7 +83,7 @@ struct IKChain
     // through the owning transform - a foot-placement raycast gives a world
     // hit, so taking world here is what avoids every caller doing that
     // conversion by hand.
-    glm::vec3 target = glm::vec3(0.0f);
+    Math::Vec3 target = Math::Vec3(0.0f);
 
     u32 length = 2;         // how many parents up from the tip
     u32 iterations = 10;    // CCD passes
@@ -102,17 +102,17 @@ public:
     // what Skeleton::evaluate() produced for localPose, and stays consistent
     // with it on the way out.
     static void solve(const Skeleton& skeleton, const IKChain& chain,
-                      const glm::mat4& ownerTransform, std::vector<LocalPose>& localPose,
-                      std::vector<glm::mat4>& globalPose);
+                      const Math::Mat4& ownerTransform, std::vector<LocalPose>& localPose,
+                      std::vector<Math::Mat4>& globalPose);
 };
 
 struct BoneTrack
 {
     s32 bone = -1;
     std::vector<f32> times;
-    std::vector<glm::vec3> positions;
-    std::vector<glm::quat> rotations;
-    std::vector<glm::vec3> scales;
+    std::vector<Math::Vec3> positions;
+    std::vector<Math::Quaternion> rotations;
+    std::vector<Math::Vec3> scales;
 };
 
 class AnimationClip

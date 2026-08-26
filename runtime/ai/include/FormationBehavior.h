@@ -44,13 +44,13 @@ public:
     }
 
 private:
-    void singleFile(Entity& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void abreast(Entity& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void diamond(Entity& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void pentagon(Entity& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void wedge(Entity& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void vFormation(Entity& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void circle(Entity& entity, glm::vec3& goal, glm::vec3& dir) const;
+    void singleFile(Entity& entity, Math::Vec3& goal, Math::Vec3& dir) const;
+    void abreast(Entity& entity, Math::Vec3& goal, Math::Vec3& dir) const;
+    void diamond(Entity& entity, Math::Vec3& goal, Math::Vec3& dir) const;
+    void pentagon(Entity& entity, Math::Vec3& goal, Math::Vec3& dir) const;
+    void wedge(Entity& entity, Math::Vec3& goal, Math::Vec3& dir) const;
+    void vFormation(Entity& entity, Math::Vec3& goal, Math::Vec3& dir) const;
+    void circle(Entity& entity, Math::Vec3& goal, Math::Vec3& dir) const;
 
     float mGoalRadius;
     float mFormationRadius;
@@ -58,10 +58,10 @@ private:
     SquadEntity* mSquadLeader = nullptr; // non-owning
     SquadEntity* mPointMan = nullptr;    // non-owning
 
-    glm::vec3 mPointManLook;
-    glm::vec3 mPointManRight;
-    glm::vec3 mLeaderLook;
-    glm::vec3 mLeaderRight;
+    Math::Vec3 mPointManLook;
+    Math::Vec3 mPointManRight;
+    Math::Vec3 mLeaderLook;
+    Math::Vec3 mLeaderRight;
 };
 
 } // namespace Radion::AI

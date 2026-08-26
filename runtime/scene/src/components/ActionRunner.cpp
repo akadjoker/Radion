@@ -17,37 +17,37 @@ ActionRunner& ActionRunner::wait(f32 seconds)
     return append(ActionType::Wait, seconds);
 }
 
-ActionRunner& ActionRunner::moveTo(const glm::vec3& position, f32 seconds)
+ActionRunner& ActionRunner::moveTo(const Math::Vec3& position, f32 seconds)
 {
-    return append(ActionType::MoveTo, seconds, glm::vec4(position, 0.0f));
+    return append(ActionType::MoveTo, seconds, Math::Vec4(position, 0.0f));
 }
 
-ActionRunner& ActionRunner::moveBy(const glm::vec3& offset, f32 seconds)
+ActionRunner& ActionRunner::moveBy(const Math::Vec3& offset, f32 seconds)
 {
-    return append(ActionType::MoveBy, seconds, glm::vec4(offset, 0.0f));
+    return append(ActionType::MoveBy, seconds, Math::Vec4(offset, 0.0f));
 }
 
 ActionRunner& ActionRunner::projectile(const Ray& ray, f32 speed, f32 lifetime)
 {
     const f32 duration = glm::max(0.0f, lifetime);
-    const f32 directionLength = glm::length(ray.direction);
-    const glm::vec3 direction =
-        directionLength > 0.000001f ? ray.direction / directionLength : glm::vec3(0.0f);
-    append(ActionType::SetPosition, 0.0f, glm::vec4(ray.origin, 0.0f));
+    const f32 directionLength = ray.direction.Length();
+    const Math::Vec3 direction =
+        directionLength > 0.000001f ? Math::Vec3(ray.direction.x, ray.direction.y, ray.direction.z) / directionLength : Math::Vec3(0.0f);
+    append(ActionType::SetPosition, 0.0f, Math::Vec4(ray.origin.x, ray.origin.y, ray.origin.z, 0.0f));
     moveBy(direction * glm::max(0.0f, speed) * duration, duration);
     return dispose();
 }
 
-ActionRunner& ActionRunner::rotateTo(const glm::quat& rotation, f32 seconds)
+ActionRunner& ActionRunner::rotateTo(const Math::Quaternion& rotation, f32 seconds)
 {
-    const glm::quat value = glm::normalize(rotation);
-    return append(ActionType::RotateTo, seconds, glm::vec4(value.x, value.y, value.z, value.w));
+    const Math::Quaternion value = glm::normalize(rotation);
+    return append(ActionType::RotateTo, seconds, Math::Vec4(value.x, value.y, value.z, value.w));
 }
 
-ActionRunner& ActionRunner::rotateBy(const glm::vec3& degrees, f32 seconds)
+ActionRunner& ActionRunner::rotateBy(const Math::Vec3& degrees, f32 seconds)
 {
-    const glm::quat value = glm::quat(glm::radians(degrees));
-    return append(ActionType::RotateBy, seconds, glm::vec4(value.x, value.y, value.z, value.w));
+    const Math::Quaternion value = Math::Quaternion(glm::radians(degrees));
+    return append(ActionType::RotateBy, seconds, Math::Vec4(value.x, value.y, value.z, value.w));
 }
 
 ActionRunner& ActionRunner::dispose()
@@ -118,12 +118,12 @@ void ActionRunner::begin(const Command& command)
     mStartRotation = owner()->rotation();
     mTarget = command.value;
     if (command.type == ActionType::MoveBy)
-        mTarget = glm::vec4(mStartPosition + glm::vec3(command.value), 0.0f);
+        mTarget = Math::Vec4(mStartPosition + Math::Vec3(command.value), 0.0f);
     else if (command.type == ActionType::RotateBy)
     {
-        const glm::quat offset(command.value.w, command.value.x, command.value.y, command.value.z);
-        const glm::quat target = glm::normalize(mStartRotation * offset);
-        mTarget = glm::vec4(target.x, target.y, target.z, target.w);
+        const Math::Quaternion offset(command.value.w, command.value.x, command.value.y, command.value.z);
+        const Math::Quaternion target = glm::normalize(mStartRotation * offset);
+        mTarget = Math::Vec4(target.x, target.y, target.z, target.w);
     }
 }
 
@@ -132,16 +132,16 @@ void ActionRunner::apply(const Command& command, f32 amount)
     switch (command.type)
     {
     case ActionType::SetPosition:
-        owner()->setPosition(glm::vec3(command.value));
+        owner()->setPosition(Math::Vec3(command.value));
         break;
     case ActionType::MoveTo:
     case ActionType::MoveBy:
-        owner()->setPosition(glm::mix(mStartPosition, glm::vec3(mTarget), amount));
+        owner()->setPosition(glm::mix(mStartPosition, Math::Vec3(mTarget), amount));
         break;
     case ActionType::RotateTo:
     case ActionType::RotateBy:
     {
-        const glm::quat target(mTarget.w, mTarget.x, mTarget.y, mTarget.z);
+        const Math::Quaternion target(mTarget.w, mTarget.x, mTarget.y, mTarget.z);
         owner()->setRotation(glm::slerp(mStartRotation, target, amount));
         break;
     }
@@ -150,7 +150,7 @@ void ActionRunner::apply(const Command& command, f32 amount)
     }
 }
 
-ActionRunner& ActionRunner::append(ActionType type, f32 duration, const glm::vec4& value)
+ActionRunner& ActionRunner::append(ActionType type, f32 duration, const Math::Vec4& value)
 {
     if (empty())
         clear();

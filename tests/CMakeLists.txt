@@ -128,6 +128,22 @@ target_precompile_headers(radion_physics_bench PRIVATE
 )
 target_link_libraries(radion_physics_bench PRIVATE radion_physics)
 
+# Kept outside CTest: this reports timings and validates the generated scene,
+# while CTest remains the deterministic correctness suite.
+add_executable(radion_scene_bench SceneBench.cpp)
+target_precompile_headers(radion_scene_bench PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_scene_bench PRIVATE radion_scene)
+
+add_executable(radion_math_utils_tests MathUtilsTests.cpp)
+target_precompile_headers(radion_math_utils_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_math_utils_tests PRIVATE radion_core)
+add_test(NAME math_utils COMMAND radion_math_utils_tests)
+set_tests_properties(math_utils PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_hull_mesh_tests HullMeshTests.cpp)
 target_precompile_headers(radion_hull_mesh_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"

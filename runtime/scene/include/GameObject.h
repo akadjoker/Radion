@@ -165,38 +165,38 @@ public:
         return removeComponent(T::Type);
     }
 
-    const glm::vec3& position() const;
-    const glm::quat& rotation() const;
-    const glm::vec3& scale() const;
-    void setPosition(const glm::vec3& position);
-    void setRotation(const glm::quat& rotation);
-    void setRotationDegrees(const glm::vec3& rotation);
-    void setScale(const glm::vec3& scale);
-    void setGlobalPosition(const glm::vec3& position);
-    void setGlobalRotation(const glm::quat& rotation);
-    void translate(const glm::vec3& offset, TransformSpace space = TransformSpace::Local);
+    const Math::Vec3& position() const;
+    const Math::Quaternion& rotation() const;
+    const Math::Vec3& scale() const;
+    void setPosition(const Math::Vec3& position);
+    void setRotation(const Math::Quaternion& rotation);
+    void setRotationDegrees(const Math::Vec3& rotation);
+    void setScale(const Math::Vec3& scale);
+    void setGlobalPosition(const Math::Vec3& position);
+    void setGlobalRotation(const Math::Quaternion& rotation);
+    void translate(const Math::Vec3& offset, TransformSpace space = TransformSpace::Local);
     void moveForward(f32 distance);
     void moveRight(f32 distance);
     void moveUp(f32 distance);
-    void rotate(const glm::quat& rotation, TransformSpace space = TransformSpace::Local);
-    void rotate(const glm::vec3& axis, f32 degrees, TransformSpace space = TransformSpace::Local);
+    void rotate(const Math::Quaternion& rotation, TransformSpace space = TransformSpace::Local);
+    void rotate(const Math::Vec3& axis, f32 degrees, TransformSpace space = TransformSpace::Local);
     void yaw(f32 degrees, TransformSpace space = TransformSpace::Local);
     void pitch(f32 degrees, TransformSpace space = TransformSpace::Local);
     void roll(f32 degrees, TransformSpace space = TransformSpace::Local);
-    void lookAt(const glm::vec3& target, const glm::vec3& up = glm::vec3(0, 1, 0));
-    bool rotateTowards(const glm::vec3& target, f32 maxDegreesDelta,
-                       const glm::vec3& up = glm::vec3(0, 1, 0));
-    const glm::mat4& localTransform() const;
-    const glm::mat4& globalTransform() const;
-    const glm::mat4& previousGlobalTransform() const;
-    glm::vec3 globalPosition() const;
-    glm::quat globalRotation() const;
-    glm::vec3 globalScale() const;
-    glm::vec3 right() const;
-    glm::vec3 up() const;
-    glm::vec3 forward() const;
+    void lookAt(const Math::Vec3& target, const Math::Vec3& up = Math::Vec3(0, 1, 0));
+    bool rotateTowards(const Math::Vec3& target, f32 maxDegreesDelta,
+                       const Math::Vec3& up = Math::Vec3(0, 1, 0));
+    const Math::Mat4& localTransform() const;
+    const Math::Mat4& globalTransform() const;
+    const Math::Mat4& previousGlobalTransform() const;
+    Math::Vec3 globalPosition() const;
+    Math::Quaternion globalRotation() const;
+    Math::Vec3 globalScale() const;
+    Math::Vec3 right() const;
+    Math::Vec3 up() const;
+    Math::Vec3 forward() const;
     f32 distanceTo(const GameObject& other) const;
-    glm::vec3 directionTo(const GameObject& other) const;
+    Math::Vec3 directionTo(const GameObject& other) const;
 
 private:
     friend class Scene;
@@ -248,15 +248,15 @@ private:
     // loop that might still be on this component's stack has finished.
     std::vector<Component*> mPendingComponentDeletes;
     u32 mComponentCallbackDepth = 0;
-    glm::vec3 mPosition = glm::vec3(0);
-    glm::quat mRotation = glm::quat(1, 0, 0, 0);
-    glm::vec3 mScale = glm::vec3(1);
-    mutable glm::mat4 mLocalTransform = glm::mat4(1);
-    mutable glm::mat4 mGlobalTransform = glm::mat4(1);
-    glm::mat4 mPreviousGlobalTransform = glm::mat4(1);
-    mutable glm::vec3 mGlobalPosition = glm::vec3(0);
-    mutable glm::quat mGlobalRotation = glm::quat(1, 0, 0, 0);
-    mutable glm::vec3 mGlobalScale = glm::vec3(1);
+    Math::Vec3 mPosition = Math::Vec3(0);
+    Math::Quaternion mRotation = Math::Quaternion(1, 0, 0, 0);
+    Math::Vec3 mScale = Math::Vec3(1);
+    mutable Math::Mat4 mLocalTransform = Math::Mat4(1);
+    mutable Math::Mat4 mGlobalTransform = Math::Mat4(1);
+    Math::Mat4 mPreviousGlobalTransform = Math::Mat4(1);
+    mutable Math::Vec3 mGlobalPosition = Math::Vec3(0);
+    mutable Math::Quaternion mGlobalRotation = Math::Quaternion(1, 0, 0, 0);
+    mutable Math::Vec3 mGlobalScale = Math::Vec3(1);
     mutable bool mLocalDirty = false;
     mutable bool mGlobalDirty = false;
     bool mPreviousGlobalTransformValid = false;

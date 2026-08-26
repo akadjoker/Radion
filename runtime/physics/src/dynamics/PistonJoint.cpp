@@ -10,22 +10,22 @@ namespace Radion::Physics
 namespace
 {
 
-glm::vec3 normalizedPerpendicular(const glm::vec3& v)
+Math::Vec3 normalizedPerpendicular(const Math::Vec3& v)
 {
     if (std::abs(v.x) > std::abs(v.y))
     {
         const f32 length = std::sqrt(v.x * v.x + v.z * v.z);
-        return glm::vec3(v.z, 0.0f, -v.x) / length;
+        return Math::Vec3(v.z, 0.0f, -v.x) / length;
     }
     const f32 length = std::sqrt(v.y * v.y + v.z * v.z);
-    return glm::vec3(0.0f, v.z, -v.y) / length;
+    return Math::Vec3(0.0f, v.z, -v.y) / length;
 }
 
-f32 rotationAngleAroundAxis(const glm::quat& q, const glm::vec3& axis)
+f32 rotationAngleAroundAxis(const Math::Quaternion& q, const Math::Vec3& axis)
 {
     if (q.w == 0.0f)
         return glm::pi<f32>();
-    return 2.0f * std::atan(glm::dot(glm::vec3(q.x, q.y, q.z), axis) / q.w);
+    return 2.0f * std::atan(glm::dot(Math::Vec3(q.x, q.y, q.z), axis) / q.w);
 }
 
 f32 centerAngleAroundZero(f32 angle)
@@ -37,20 +37,20 @@ f32 centerAngleAroundZero(f32 angle)
     return angle;
 }
 
-glm::quat invInitialOrientationXZ(const glm::vec3& xAxisA, const glm::vec3& zAxisA,
-                                  const glm::vec3& xAxisB, const glm::vec3& zAxisB)
+Math::Quaternion invInitialOrientationXZ(const Math::Vec3& xAxisA, const Math::Vec3& zAxisA,
+                                  const Math::Vec3& xAxisB, const Math::Vec3& zAxisB)
 {
     if (xAxisA == xAxisB && zAxisA == zAxisB)
-        return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    const glm::mat3 basisA(xAxisA, glm::cross(zAxisA, xAxisA), zAxisA);
-    const glm::mat3 basisB(xAxisB, glm::cross(zAxisB, xAxisB), zAxisB);
+        return Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    const Math::Mat3 basisA(xAxisA, glm::cross(zAxisA, xAxisA), zAxisA);
+    const Math::Mat3 basisB(xAxisB, glm::cross(zAxisB, xAxisB), zAxisB);
     return glm::quat_cast(basisB) * glm::conjugate(glm::quat_cast(basisA));
 }
 
 }
 
-PistonJoint::PistonJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
-                         const glm::vec3& worldAxis)
+PistonJoint::PistonJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor,
+                         const Math::Vec3& worldAxis)
     : PistonJoint(a, a.pointToLocal(worldAnchor), a.directionToLocal(glm::normalize(worldAxis)),
                  a.directionToLocal(normalizedPerpendicular(glm::normalize(worldAxis))), b,
                  b.pointToLocal(worldAnchor), b.directionToLocal(glm::normalize(worldAxis)),
@@ -58,10 +58,10 @@ PistonJoint::PistonJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAncho
 {
 }
 
-PistonJoint::PistonJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localAxisA,
-                         const glm::vec3& localNormalAxisA, RigidBody& b,
-                         const glm::vec3& localAnchorB, const glm::vec3& localAxisB,
-                         const glm::vec3& localNormalAxisB)
+PistonJoint::PistonJoint(RigidBody& a, const Math::Vec3& localAnchorA, const Math::Vec3& localAxisA,
+                         const Math::Vec3& localNormalAxisA, RigidBody& b,
+                         const Math::Vec3& localAnchorB, const Math::Vec3& localAxisB,
+                         const Math::Vec3& localNormalAxisB)
     : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
       mLocalAxisA(glm::normalize(localAxisA)), mLocalAxisB(glm::normalize(localAxisB)),
       mLocalNormalAxisA(glm::normalize(localNormalAxisA)),
@@ -98,15 +98,15 @@ void PistonJoint::setAngularLimits(f32 minAngle, f32 maxAngle)
 
 f32 PistonJoint::currentPosition() const
 {
-    const glm::vec3 armA = mBodyA->directionToWorld(mLocalAnchorA);
-    const glm::vec3 armB = mBodyB->directionToWorld(mLocalAnchorB);
-    const glm::vec3 offset = (mBodyB->position() - mBodyA->position()) + armB - armA;
+    const Math::Vec3 armA = mBodyA->directionToWorld(mLocalAnchorA);
+    const Math::Vec3 armB = mBodyB->directionToWorld(mLocalAnchorB);
+    const Math::Vec3 offset = (mBodyB->position() - mBodyA->position()) + armB - armA;
     return glm::dot(offset, mBodyA->directionToWorld(mLocalAxisA));
 }
 
 f32 PistonJoint::currentAngle() const
 {
-    const glm::quat diff = mBodyB->orientation() * mInverseInitialOrientation *
+    const Math::Quaternion diff = mBodyB->orientation() * mInverseInitialOrientation *
                            glm::conjugate(mBodyA->orientation());
     return rotationAngleAroundAxis(diff, mBodyA->directionToWorld(mLocalAxisA));
 }
@@ -153,11 +153,11 @@ void PistonJoint::calculatePositionLockProperties()
     mN1 = mBodyA->directionToWorld(mLocalNormalAxisA);
     mN2 = mBodyA->directionToWorld(mLocalNormalAxisA2);
 
-    const glm::vec3 armAPlusOffset = mArmA + mOffset;
-    const glm::vec3 r1x1 = glm::cross(armAPlusOffset, mN1);
-    const glm::vec3 r1x2 = glm::cross(armAPlusOffset, mN2);
-    const glm::vec3 r2x1 = glm::cross(mArmB, mN1);
-    const glm::vec3 r2x2 = glm::cross(mArmB, mN2);
+    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
+    const Math::Vec3 r1x1 = glm::cross(armAPlusOffset, mN1);
+    const Math::Vec3 r1x2 = glm::cross(armAPlusOffset, mN2);
+    const Math::Vec3 r2x1 = glm::cross(mArmB, mN1);
+    const Math::Vec3 r2x2 = glm::cross(mArmB, mN2);
 
     const f32 inverseMassSum = mBodyA->inverseMass() + mBodyB->inverseMass();
     glm::mat2 inverseEffectiveMass(0.0f);
@@ -176,19 +176,19 @@ void PistonJoint::calculatePositionLockProperties()
     else
     {
         mPositionLockEffectiveMass = glm::mat2(0.0f);
-        mTotalPositionLockImpulse = glm::vec2(0.0f);
+        mTotalPositionLockImpulse = Math::Vec2(0.0f);
     }
 }
 
 void PistonJoint::calculateRotationLockProperties()
 {
     mA1 = glm::normalize(mBodyA->directionToWorld(mLocalAxisA));
-    glm::vec3 a2 = glm::normalize(mBodyB->directionToWorld(mLocalAxisB));
+    Math::Vec3 a2 = glm::normalize(mBodyB->directionToWorld(mLocalAxisB));
 
     const f32 dot = glm::dot(mA1, a2);
     if (dot <= 1.0e-3f)
     {
-        glm::vec3 perpendicular = a2 - dot * mA1;
+        Math::Vec3 perpendicular = a2 - dot * mA1;
         if (glm::dot(perpendicular, perpendicular) < 1.0e-6f)
             perpendicular = normalizedPerpendicular(mA1);
         else
@@ -201,7 +201,7 @@ void PistonJoint::calculateRotationLockProperties()
     mB2xA1 = glm::cross(mB2, mA1);
     mC2xA1 = glm::cross(mC2, mA1);
 
-    const glm::mat3 inverseInertiaSum =
+    const Math::Mat3 inverseInertiaSum =
         mBodyA->inverseInertiaTensorWorld() + mBodyB->inverseInertiaTensorWorld();
     glm::mat2 inverseEffectiveMass;
     inverseEffectiveMass[0][0] = glm::dot(mB2xA1, inverseInertiaSum * mB2xA1);
@@ -215,14 +215,14 @@ void PistonJoint::calculateRotationLockProperties()
     else
     {
         mRotationLockEffectiveMass = glm::mat2(0.0f);
-        mTotalRotationLockImpulse = glm::vec2(0.0f);
+        mTotalRotationLockImpulse = Math::Vec2(0.0f);
     }
 }
 
 void PistonJoint::calculateAxisAndPosition()
 {
     mSlidePosition = glm::dot(mOffset, mA1);
-    const glm::quat diff = mBodyB->orientation() * mInverseInitialOrientation *
+    const Math::Quaternion diff = mBodyB->orientation() * mInverseInitialOrientation *
                            glm::conjugate(mBodyA->orientation());
     mTheta = rotationAngleAroundAxis(diff, mA1);
 }
@@ -237,7 +237,7 @@ void PistonJoint::calculateLinearLimitProperties()
         mTotalLinearLimitImpulse = 0.0f;
         return;
     }
-    const glm::vec3 armAPlusOffset = mArmA + mOffset;
+    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
     f32 inverseEffectiveMass = mBodyA->inverseMass() + mBodyB->inverseMass();
     inverseEffectiveMass +=
         glm::dot(mA1, mBodyA->inverseInertiaTensorWorld() * glm::cross(armAPlusOffset, mA1));
@@ -273,7 +273,7 @@ void PistonJoint::calculateLinearMotorProperties()
         mLinearMotorEffectiveMass = 0.0f;
         return;
     }
-    const glm::vec3 armAPlusOffset = mArmA + mOffset;
+    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
     f32 inverseEffectiveMass = mBodyA->inverseMass() + mBodyB->inverseMass();
     inverseEffectiveMass +=
         glm::dot(mA1, mBodyA->inverseInertiaTensorWorld() * glm::cross(armAPlusOffset, mA1));
@@ -318,8 +318,8 @@ void PistonJoint::setup(f32 duration)
     }
     else
     {
-        mTotalPositionLockImpulse = glm::vec2(0.0f);
-        mTotalRotationLockImpulse = glm::vec2(0.0f);
+        mTotalPositionLockImpulse = Math::Vec2(0.0f);
+        mTotalRotationLockImpulse = Math::Vec2(0.0f);
         mTotalLinearLimitImpulse = 0.0f;
         mTotalAngularLimitImpulse = 0.0f;
         mTotalLinearMotorImpulse = 0.0f;
@@ -332,9 +332,9 @@ void PistonJoint::setup(f32 duration)
     mPreviousDuration = duration;
 }
 
-void PistonJoint::applyLinearImpulse(const glm::vec3& impulse)
+void PistonJoint::applyLinearImpulse(const Math::Vec3& impulse)
 {
-    const glm::vec3 armAPlusOffset = mArmA + mOffset;
+    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
     if (mBodyA->isDynamic())
     {
         mBodyA->setVelocity(mBodyA->velocity() - impulse * mBodyA->inverseMass());
@@ -351,7 +351,7 @@ void PistonJoint::applyLinearImpulse(const glm::vec3& impulse)
     }
 }
 
-void PistonJoint::applyAngularImpulse(const glm::vec3& impulse)
+void PistonJoint::applyAngularImpulse(const Math::Vec3& impulse)
 {
     if (mBodyA->isDynamic())
         mBodyA->setAngularVelocity(mBodyA->angularVelocity() -
@@ -377,7 +377,7 @@ void PistonJoint::warmStart()
 
 void PistonJoint::solveVelocity()
 {
-    const glm::vec3 armAPlusOffset = mArmA + mOffset;
+    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
 
     if (mLinearMotorEnabled)
     {
@@ -402,21 +402,21 @@ void PistonJoint::solveVelocity()
         applyAngularImpulse(mA1 * (mTotalAngularMotorImpulse - previous));
     }
 
-    const glm::vec3 deltaLinear = mBodyA->velocity() - mBodyB->velocity();
-    glm::vec2 positionJv;
+    const Math::Vec3 deltaLinear = mBodyA->velocity() - mBodyB->velocity();
+    Math::Vec2 positionJv;
     positionJv.x = glm::dot(mN1, deltaLinear) +
                   glm::dot(glm::cross(armAPlusOffset, mN1), mBodyA->angularVelocity()) -
                   glm::dot(glm::cross(mArmB, mN1), mBodyB->angularVelocity());
     positionJv.y = glm::dot(mN2, deltaLinear) +
                   glm::dot(glm::cross(armAPlusOffset, mN2), mBodyA->angularVelocity()) -
                   glm::dot(glm::cross(mArmB, mN2), mBodyB->angularVelocity());
-    const glm::vec2 positionImpulse = mPositionLockEffectiveMass * positionJv;
+    const Math::Vec2 positionImpulse = mPositionLockEffectiveMass * positionJv;
     mTotalPositionLockImpulse += positionImpulse;
     applyLinearImpulse(mN1 * positionImpulse.x + mN2 * positionImpulse.y);
 
-    const glm::vec3 deltaAngular = mBodyA->angularVelocity() - mBodyB->angularVelocity();
-    const glm::vec2 rotationJv(glm::dot(mB2xA1, deltaAngular), glm::dot(mC2xA1, deltaAngular));
-    const glm::vec2 rotationImpulse = mRotationLockEffectiveMass * rotationJv;
+    const Math::Vec3 deltaAngular = mBodyA->angularVelocity() - mBodyB->angularVelocity();
+    const Math::Vec2 rotationJv(glm::dot(mB2xA1, deltaAngular), glm::dot(mC2xA1, deltaAngular));
+    const Math::Vec2 rotationImpulse = mRotationLockEffectiveMass * rotationJv;
     mTotalRotationLockImpulse += rotationImpulse;
     applyAngularImpulse(mB2xA1 * rotationImpulse.x + mC2xA1 * rotationImpulse.y);
 
@@ -465,32 +465,32 @@ void PistonJoint::solvePosition(f32 baumgarte)
 {
     calculateArmsAndOffset();
     calculatePositionLockProperties();
-    const glm::vec2 c(glm::dot(mOffset, mN1), glm::dot(mOffset, mN2));
-    if (c != glm::vec2(0.0f))
+    const Math::Vec2 c(glm::dot(mOffset, mN1), glm::dot(mOffset, mN2));
+    if (c != Math::Vec2(0.0f))
     {
-        const glm::vec2 lambda = -baumgarte * (mPositionLockEffectiveMass * c);
-        const glm::vec3 impulse = mN1 * lambda.x + mN2 * lambda.y;
-        const glm::vec3 armAPlusOffset = mArmA + mOffset;
+        const Math::Vec2 lambda = -baumgarte * (mPositionLockEffectiveMass * c);
+        const Math::Vec3 impulse = mN1 * lambda.x + mN2 * lambda.y;
+        const Math::Vec3 armAPlusOffset = mArmA + mOffset;
         mBodyA->applyPositionImpulseAtPoint(-impulse, mBodyA->position() + armAPlusOffset);
         mBodyB->applyPositionImpulseAtPoint(impulse, mBodyB->position() + mArmB);
     }
 
     calculateRotationLockProperties();
-    const glm::vec2 rc(glm::dot(mA1, mB2), glm::dot(mA1, mC2));
-    if (rc != glm::vec2(0.0f))
+    const Math::Vec2 rc(glm::dot(mA1, mB2), glm::dot(mA1, mC2));
+    if (rc != Math::Vec2(0.0f))
     {
-        const glm::vec2 lambda = -baumgarte * (mRotationLockEffectiveMass * rc);
-        const glm::vec3 impulse = mB2xA1 * lambda.x + mC2xA1 * lambda.y;
+        const Math::Vec2 lambda = -baumgarte * (mRotationLockEffectiveMass * rc);
+        const Math::Vec3 impulse = mB2xA1 * lambda.x + mC2xA1 * lambda.y;
         if (mBodyA->isDynamic())
         {
-            const glm::vec3 step = mBodyA->inverseInertiaTensorWorld() * -impulse;
-            const glm::quat spin(0.0f, step);
+            const Math::Vec3 step = mBodyA->inverseInertiaTensorWorld() * -impulse;
+            const Math::Quaternion spin(0.0f, step);
             mBodyA->setOrientation(mBodyA->orientation() + 0.5f * spin * mBodyA->orientation());
         }
         if (mBodyB->isDynamic())
         {
-            const glm::vec3 step = mBodyB->inverseInertiaTensorWorld() * impulse;
-            const glm::quat spin(0.0f, step);
+            const Math::Vec3 step = mBodyB->inverseInertiaTensorWorld() * impulse;
+            const Math::Quaternion spin(0.0f, step);
             mBodyB->setOrientation(mBodyB->orientation() + 0.5f * spin * mBodyB->orientation());
         }
     }
@@ -505,7 +505,7 @@ void PistonJoint::solvePosition(f32 baumgarte)
             f32 error = mSlidePosition <= mLinearLimitsMin ? mSlidePosition - mLinearLimitsMin
                                                             : mSlidePosition - mLinearLimitsMax;
             const f32 lambda = -mLinearLimitEffectiveMass * baumgarte * error;
-            const glm::vec3 armAPlusOffset = mArmA + mOffset;
+            const Math::Vec3 armAPlusOffset = mArmA + mOffset;
             mBodyA->applyPositionImpulseAtPoint(-(lambda * mA1), mBodyA->position() + armAPlusOffset);
             mBodyB->applyPositionImpulseAtPoint(lambda * mA1, mBodyB->position() + mArmB);
         }
@@ -524,14 +524,14 @@ void PistonJoint::solvePosition(f32 baumgarte)
             const f32 lambda = -mAngularLimitEffectiveMass * baumgarte * error;
             if (mBodyA->isDynamic())
             {
-                const glm::vec3 step = mBodyA->inverseInertiaTensorWorld() * mA1 * -lambda;
-                const glm::quat spin(0.0f, step);
+                const Math::Vec3 step = mBodyA->inverseInertiaTensorWorld() * mA1 * -lambda;
+                const Math::Quaternion spin(0.0f, step);
                 mBodyA->setOrientation(mBodyA->orientation() + 0.5f * spin * mBodyA->orientation());
             }
             if (mBodyB->isDynamic())
             {
-                const glm::vec3 step = mBodyB->inverseInertiaTensorWorld() * mA1 * lambda;
-                const glm::quat spin(0.0f, step);
+                const Math::Vec3 step = mBodyB->inverseInertiaTensorWorld() * mA1 * lambda;
+                const Math::Quaternion spin(0.0f, step);
                 mBodyB->setOrientation(mBodyB->orientation() + 0.5f * spin * mBodyB->orientation());
             }
         }

@@ -100,11 +100,11 @@ u32 CharacterController::maxIterations() const
 
 // ---------------------------------------------------------------- movement
 
-void CharacterController::setMoveInput(const glm::vec3& moveSpeed)
+void CharacterController::setMoveInput(const Math::Vec3& moveSpeed)
 {
-    mMoveInput = glm::vec3(moveSpeed.x, 0.0f, moveSpeed.z);
+    mMoveInput = Math::Vec3(moveSpeed.x, 0.0f, moveSpeed.z);
 }
-const glm::vec3& CharacterController::moveInput() const
+const Math::Vec3& CharacterController::moveInput() const
 {
     return mMoveInput;
 }
@@ -115,25 +115,25 @@ void CharacterController::jump(f32 speed)
     mGrounded = false;
 }
 
-void CharacterController::teleport(const glm::vec3& worldPosition)
+void CharacterController::teleport(const Math::Vec3& worldPosition)
 {
     if (GameObject* owner = this->owner())
         owner->setPosition(worldPosition);
-    mVerticalVelocity = glm::vec3(0.0f);
-    mVelocity = glm::vec3(0.0f);
+    mVerticalVelocity = Math::Vec3(0.0f);
+    mVelocity = Math::Vec3(0.0f);
     mGrounded = false;
-    mGroundNormal = glm::vec3(0.0f, 1.0f, 0.0f);
+    mGroundNormal = Math::Vec3(0.0f, 1.0f, 0.0f);
 }
 
 bool CharacterController::isGrounded() const
 {
     return mGrounded;
 }
-const glm::vec3& CharacterController::groundNormal() const
+const Math::Vec3& CharacterController::groundNormal() const
 {
     return mGroundNormal;
 }
-const glm::vec3& CharacterController::velocity() const
+const Math::Vec3& CharacterController::velocity() const
 {
     return mVelocity;
 }
@@ -141,7 +141,7 @@ const glm::vec3& CharacterController::velocity() const
 f32 CharacterController::slopeAngle() const
 {
     return glm::degrees(
-        std::acos(glm::clamp(glm::dot(mGroundNormal, glm::vec3(0.0f, 1.0f, 0.0f)), -1.0f, 1.0f)));
+        std::acos(glm::clamp(glm::dot(mGroundNormal, Math::Vec3(0.0f, 1.0f, 0.0f)), -1.0f, 1.0f)));
 }
 
 // ---------------------------------------------------------------- CollideAndSlide
@@ -152,8 +152,8 @@ f32 CharacterController::slopeAngle() const
 // every step of the loop below is the study's algorithm with the ellipsoid
 // bookkeeping moved into the query.
 
-CharacterController::Slide CharacterController::slide(const glm::vec3& startCenter,
-                                                      const glm::vec3& displacement) const
+CharacterController::Slide CharacterController::slide(const Math::Vec3& startCenter,
+                                                      const Math::Vec3& displacement) const
 {
     Slide out;
     out.center = startCenter;
@@ -165,11 +165,11 @@ CharacterController::Slide CharacterController::slide(const glm::vec3& startCent
         return out;
     }
 
-    const glm::vec3 radii(mRadius, mHeight * 0.5f, mRadius);
-    const glm::vec3 up(0.0f, 1.0f, 0.0f);
+    const Math::Vec3 radii(mRadius, mHeight * 0.5f, mRadius);
+    const Math::Vec3 up(0.0f, 1.0f, 0.0f);
     const f32 cosLimit = std::cos(glm::radians(mSlopeLimitDegrees));
-    glm::vec3 outputVelocity = displacement;
-    glm::vec3 endpoint = startCenter + displacement;
+    Math::Vec3 outputVelocity = displacement;
+    Math::Vec3 endpoint = startCenter + displacement;
 
     for (u32 i = 0; i < mMaxIterations; ++i)
     {
@@ -184,7 +184,7 @@ CharacterController::Slide CharacterController::slide(const glm::vec3& startCent
         }
 
         out.collided = true;
-        const glm::vec3 n = hit.normal;
+        const Math::Vec3 n = hit.normal;
         const f32 upDot = glm::dot(n, up);
         if (upDot >= cosLimit)
         {
@@ -218,7 +218,7 @@ CharacterController::Slide CharacterController::slide(const glm::vec3& startCent
     return out;
 }
 
-CharacterController::MoveResult CharacterController::move(const glm::vec3& displacement)
+CharacterController::MoveResult CharacterController::move(const Math::Vec3& displacement)
 {
     MoveResult result;
     GameObject* owner = this->owner();
@@ -233,19 +233,19 @@ CharacterController::MoveResult CharacterController::move(const glm::vec3& displ
     }
 
     const f32 halfHeight = mHeight * 0.5f;
-    const glm::vec3 radii(mRadius, halfHeight, mRadius);
-    const glm::vec3 up(0.0f, 1.0f, 0.0f);
+    const Math::Vec3 radii(mRadius, halfHeight, mRadius);
+    const Math::Vec3 up(0.0f, 1.0f, 0.0f);
     const f32 cosLimit = std::cos(glm::radians(mSlopeLimitDegrees));
 
-    const glm::vec3 start = owner->position();
-    const glm::vec3 center = start + glm::vec3(0.0f, halfHeight, 0.0f);
-    const glm::vec3 horizontal(displacement.x, 0.0f, displacement.z);
-    const glm::vec3 vertical(0.0f, displacement.y, 0.0f);
+    const Math::Vec3 start = owner->position();
+    const Math::Vec3 center = start + Math::Vec3(0.0f, halfHeight, 0.0f);
+    const Math::Vec3 horizontal(displacement.x, 0.0f, displacement.z);
+    const Math::Vec3 vertical(0.0f, displacement.y, 0.0f);
 
     // Primary pass: slide the whole displacement.
     Slide primary = slide(center, displacement);
-    glm::vec3 finalCenter = primary.center;
-    glm::vec3 finalDisplacement = primary.velocity;
+    Math::Vec3 finalCenter = primary.center;
+    Math::Vec3 finalDisplacement = primary.velocity;
     result.collided = primary.collided;
     result.grounded = primary.grounded;
     result.normal = primary.groundNormal;
@@ -255,18 +255,18 @@ CharacterController::MoveResult CharacterController::move(const glm::vec3& displ
     // we land back on something within the step height (no floating).
     if (mStepOffset > 0.0f && primary.steepBlock && glm::dot(horizontal, horizontal) > 1e-10f)
     {
-        const glm::vec3 upVec(0.0f, mStepOffset, 0.0f);
+        const Math::Vec3 upVec(0.0f, mStepOffset, 0.0f);
         TriangleOctree::SweepHit upHit;
         if (!mOctree->sweepEllipsoid(center, radii, upVec, upHit))
         {
             Slide across = slide(center + upVec, horizontal);
             if (!across.collided)
             {
-                const glm::vec3 downVec(0.0f, -mStepOffset, 0.0f);
+                const Math::Vec3 downVec(0.0f, -mStepOffset, 0.0f);
                 TriangleOctree::SweepHit downHit;
                 if (mOctree->sweepEllipsoid(across.center, radii, downVec, downHit))
                 {
-                    const glm::vec3 landed =
+                    const Math::Vec3 landed =
                         across.center + downVec * downHit.t + downHit.normal * mSkinWidth;
                     // Keep the vertical (gravity / jump) movement from the
                     // primary move, resolved at the stepped position.
@@ -286,7 +286,7 @@ CharacterController::MoveResult CharacterController::move(const glm::vec3& displ
         }
     }
 
-    owner->setPosition(finalCenter - glm::vec3(0.0f, halfHeight, 0.0f));
+    owner->setPosition(finalCenter - Math::Vec3(0.0f, halfHeight, 0.0f));
     result.displacement = finalDisplacement;
     return result;
 }
@@ -308,14 +308,14 @@ void CharacterController::onUpdate(f32 deltaTime)
     if (mVerticalVelocity.y < mMaxFallSpeed)
         mVerticalVelocity.y = mMaxFallSpeed;
 
-    const glm::vec3 displacement = mMoveInput * deltaTime + mVerticalVelocity * deltaTime;
+    const Math::Vec3 displacement = mMoveInput * deltaTime + mVerticalVelocity * deltaTime;
 
     const MoveResult result = move(displacement);
 
     mGrounded = result.grounded;
     if (result.grounded)
         mGroundNormal = result.normal;
-    mVelocity = deltaTime > 0.0f ? result.displacement / deltaTime : glm::vec3(0.0f);
+    mVelocity = deltaTime > 0.0f ? result.displacement / deltaTime : Math::Vec3(0.0f);
     // Fold the post-collision residual back in so gravity keeps the velocity
     // honest after a landing.
     mVerticalVelocity.y = mVelocity.y;

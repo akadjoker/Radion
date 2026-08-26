@@ -52,9 +52,9 @@ MeshData makeStrip()
 {
     MeshData mesh;
     for (u32 x = 0; x < 4; ++x)
-        mesh.positions.push_back(glm::vec3(static_cast<f32>(x), 0.0f, 0.0f));
+        mesh.positions.push_back(Math::Vec3(static_cast<f32>(x), 0.0f, 0.0f));
     for (u32 x = 0; x < 4; ++x)
-        mesh.positions.push_back(glm::vec3(static_cast<f32>(x), 0.0f, 1.0f));
+        mesh.positions.push_back(Math::Vec3(static_cast<f32>(x), 0.0f, 1.0f));
 
     for (u32 x = 0; x < 3; ++x)
     {
@@ -83,7 +83,7 @@ MeshData makeTwoIslands()
 
     MeshData second = makeStrip();
     for (usize i = 0; i < second.positions.size(); ++i)
-        mesh.positions.push_back(second.positions[i] + glm::vec3(0.0f, 0.0f, 10.0f));
+        mesh.positions.push_back(second.positions[i] + Math::Vec3(0.0f, 0.0f, 10.0f));
     for (usize i = 0; i < second.indices.size(); ++i)
         mesh.indices.push_back(second.indices[i] + base);
 

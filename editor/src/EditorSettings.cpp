@@ -53,11 +53,11 @@ bool EditorSettings::load(const std::string& filename)
     if (dockLayout != root.end() && dockLayout->is_number_integer())
         dockLayoutVersion = dockLayout->get<int>();
 
-    const auto readVec3 = [](const nlohmann::json& json, const char* key, glm::vec3& out)
+    const auto readVec3 = [](const nlohmann::json& json, const char* key, Math::Vec3& out)
     {
         const auto field = json.find(key);
         if (field != json.end() && field->is_array() && field->size() == 3)
-            out = glm::vec3((*field)[0].get<f32>(), (*field)[1].get<f32>(), (*field)[2].get<f32>());
+            out = Math::Vec3((*field)[0].get<f32>(), (*field)[1].get<f32>(), (*field)[2].get<f32>());
     };
     const auto readFloat = [](const nlohmann::json& json, const char* key, f32& out)
     {

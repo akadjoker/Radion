@@ -53,7 +53,7 @@ ViewportPanel::ViewportPanel(EditorApplication& app) : EditorPanel("Viewport", a
 
 void ViewportPanel::focusOnObject(const GameObject& object, s32 submeshIndex)
 {
-    glm::vec3 center = object.globalPosition();
+    Math::Vec3 center = object.globalPosition();
     f32 radius = 1.0f;
     if (MeshRenderer* renderer = object.getComponent<MeshRenderer>())
     {
@@ -112,10 +112,10 @@ void ViewportPanel::updateNavigation()
     // Pan runs along the camera's own axes, not the world's. A hardcoded
     // world up reads as a zoom the moment the view looks straight down:
     // moving the target along world Y is then moving it toward the camera.
-    const glm::vec3 navRight(glm::cos(mOrbitYaw), 0.0f, glm::sin(mOrbitYaw));
-    const glm::vec3 navForward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch), glm::sin(mOrbitPitch),
+    const Math::Vec3 navRight(glm::cos(mOrbitYaw), 0.0f, glm::sin(mOrbitYaw));
+    const Math::Vec3 navForward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch), glm::sin(mOrbitPitch),
                                -glm::cos(mOrbitYaw) * glm::cos(mOrbitPitch));
-    const glm::vec3 navUp = glm::normalize(glm::cross(navRight, navForward));
+    const Math::Vec3 navUp = glm::normalize(glm::cross(navRight, navForward));
     if (mPanning)
     {
         const f32 scale = mOrbitDistance * 0.001f;
@@ -148,9 +148,9 @@ void ViewportPanel::updateNavigation()
         }
     }
 
-    const glm::vec3 forward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch), glm::sin(mOrbitPitch),
+    const Math::Vec3 forward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch), glm::sin(mOrbitPitch),
                             -glm::cos(mOrbitYaw) * glm::cos(mOrbitPitch));
-    const glm::vec3 right(glm::cos(mOrbitYaw), 0.0f, glm::sin(mOrbitYaw));
+    const Math::Vec3 right(glm::cos(mOrbitYaw), 0.0f, glm::sin(mOrbitYaw));
     if (mLooking)
     {
         const f32 speed =
@@ -169,15 +169,15 @@ void ViewportPanel::updateNavigation()
             mOrbitTarget.y -= speed;
     }
     mCameraPosition = mPerspective ? mOrbitTarget - forward * mOrbitDistance
-                                   : mOrbitTarget + glm::vec3(0.0f, mOrbitDistance, 0.0f);
+                                   : mOrbitTarget + Math::Vec3(0.0f, mOrbitDistance, 0.0f);
 }
 
 void ViewportPanel::drawSceneGizmos(GameObject& object)
 {
-    const glm::vec3 position = object.globalPosition();
-    const glm::vec3 forward = object.forward();
-    const glm::vec3 right = object.right();
-    const glm::vec3 up = object.up();
+    const Math::Vec3 position = object.globalPosition();
+    const Math::Vec3 forward = object.forward();
+    const Math::Vec3 right = object.right();
+    const Math::Vec3 up = object.up();
 
     if (Camera* camera = object.getComponent<Camera>())
     {
@@ -188,9 +188,9 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
                 ? glm::tan(glm::radians(camera->fieldOfView() * 0.5f)) * farDistance
                 : camera->orthographicSize() * 0.5f;
         const f32 halfWidth = halfHeight * camera->aspect();
-        const glm::vec3 nearCenter = position + forward * nearDistance;
-        const glm::vec3 farCenter = position + forward * farDistance;
-        const glm::vec3 nearCorners[] = {
+        const Math::Vec3 nearCenter = position + forward * nearDistance;
+        const Math::Vec3 farCenter = position + forward * farDistance;
+        const Math::Vec3 nearCorners[] = {
             nearCenter - right * halfWidth * nearDistance / farDistance -
                 up * halfHeight * nearDistance / farDistance,
             nearCenter + right * halfWidth * nearDistance / farDistance -
@@ -199,7 +199,7 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
                 up * halfHeight * nearDistance / farDistance,
             nearCenter - right * halfWidth * nearDistance / farDistance +
                 up * halfHeight * nearDistance / farDistance};
-        const glm::vec3 farCorners[] = {farCenter - right * halfWidth - up * halfHeight,
+        const Math::Vec3 farCorners[] = {farCenter - right * halfWidth - up * halfHeight,
                                         farCenter + right * halfWidth - up * halfHeight,
                                         farCenter + right * halfWidth + up * halfHeight,
                                         farCenter - right * halfWidth + up * halfHeight};
@@ -214,7 +214,7 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
 
     if (Light* light = object.getComponent<Light>())
     {
-        const glm::vec3 color = light->color();
+        const Math::Vec3 color = light->color();
         const Color debugColor = Color::fromRGBFloat(color.r, color.g, color.b);
         switch (light->lightType())
         {
@@ -249,9 +249,9 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
             GameObject* point = road->point(i);
             if (!point)
                 continue;
-            const glm::vec3 pointPosition = point->globalPosition();
-            DebugDraw().circle(pointPosition, glm::vec3(1.0f, 0.0f, 0.0f),
-                               glm::vec3(0.0f, 1.0f, 0.0f), 0.35f, 12, Color::Orange);
+            const Math::Vec3 pointPosition = point->globalPosition();
+            DebugDraw().circle(pointPosition, Math::Vec3(1.0f, 0.0f, 0.0f),
+                               Math::Vec3(0.0f, 1.0f, 0.0f), 0.35f, 12, Color::Orange);
             if (i > 0)
             {
                 GameObject* previous = road->point(i - 1);
@@ -279,10 +279,10 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
         const bool selected = app().selection().selectedId() == object.id();
         for (u32 i = 0; i < count; ++i)
         {
-            const glm::vec3 world = waypoints->worldPosition(i);
+            const Math::Vec3 world = waypoints->worldPosition(i);
             // XZ, so the ring lies flat on the ground the point marks - the
             // XY plane would stand it up on edge, facing sideways.
-            DebugDraw().circle(world, glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f),
+            DebugDraw().circle(world, Math::Vec3(1.0f, 0.0f, 0.0f), Math::Vec3(0.0f, 0.0f, 1.0f),
                                waypoints->point(i).radius, 16,
                                selected ? Color::Yellow : Color::Green);
             // The links, drawn once per pair: they are stored only on the
@@ -296,8 +296,8 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
 
     if (NavMeshSurface* surface = object.getComponent<NavMeshSurface>())
     {
-        const std::vector<glm::vec3>& triangles = surface->navMesh().debugTriangles();
-        const glm::vec3 lift(0.0f, 0.05f, 0.0f);
+        const std::vector<Math::Vec3>& triangles = surface->navMesh().debugTriangles();
+        const Math::Vec3 lift(0.0f, 0.05f, 0.0f);
         const Color color(60, 170, 220, 130);
         for (usize i = 0; i + 2 < triangles.size(); i += 3)
         {
@@ -318,16 +318,16 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
 // on the object's ORIGIN, not its bounds: a rubber band over a level would
 // otherwise catch the level itself every time, since its box contains
 // everything else.
-static void collectInRect(GameObject& object, const glm::mat4& viewProjection,
-                          const glm::vec2& imageMin, const glm::vec2& imageSize,
-                          const glm::vec2& rectMin, const glm::vec2& rectMax,
+static void collectInRect(GameObject& object, const Math::Mat4& viewProjection,
+                          const Math::Vec2& imageMin, const Math::Vec2& imageSize,
+                          const Math::Vec2& rectMin, const Math::Vec2& rectMax,
                           std::vector<u64>& out)
 {
-    glm::vec4 clip = viewProjection * glm::vec4(object.globalPosition(), 1.0f);
+    Math::Vec4 clip = viewProjection * Math::Vec4(object.globalPosition(), 1.0f);
     if (clip.w > 0.0f)
     {
         clip /= clip.w;
-        const glm::vec2 screen(imageMin.x + (clip.x * 0.5f + 0.5f) * imageSize.x,
+        const Math::Vec2 screen(imageMin.x + (clip.x * 0.5f + 0.5f) * imageSize.x,
                                imageMin.y + (1.0f - (clip.y * 0.5f + 0.5f)) * imageSize.y);
         if (clip.z >= -1.0f && clip.z <= 1.0f && screen.x >= rectMin.x && screen.x <= rectMax.x &&
             screen.y >= rectMin.y && screen.y <= rectMax.y)
@@ -337,14 +337,14 @@ static void collectInRect(GameObject& object, const glm::mat4& viewProjection,
         collectInRect(*object.child(i), viewProjection, imageMin, imageSize, rectMin, rectMax, out);
 }
 
-void ViewportPanel::selectInRect(const glm::vec2& min, const glm::vec2& max, bool add)
+void ViewportPanel::selectInRect(const Math::Vec2& min, const Math::Vec2& max, bool add)
 {
-    const glm::vec2 imageSize = mImageMax - mImageMin;
+    const Math::Vec2 imageSize = mImageMax - mImageMin;
     if (imageSize.x <= 0.0f || imageSize.y <= 0.0f)
         return;
 
     std::vector<u64> hits;
-    const glm::mat4 viewProjection = mEditorProjection * mEditorView;
+    const Math::Mat4 viewProjection = mEditorProjection * mEditorView;
     for (usize i = 0; i < app().scene().root().childCount(); ++i)
         collectInRect(*app().scene().root().child(i), viewProjection, mImageMin, imageSize, min,
                       max, hits);
@@ -356,10 +356,10 @@ void ViewportPanel::selectInRect(const glm::vec2& min, const glm::vec2& max, boo
             app().selection().toggle(id);
 }
 
-void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& min,
-                                          const glm::vec2& max, bool subtract)
+void ViewportPanel::selectSubmeshesInRect(GameObject& object, const Math::Vec2& min,
+                                          const Math::Vec2& max, bool subtract)
 {
-    const glm::vec2 imageSize = mImageMax - mImageMin;
+    const Math::Vec2 imageSize = mImageMax - mImageMin;
     if (imageSize.x <= 0.0f || imageSize.y <= 0.0f)
         return;
 
@@ -372,7 +372,7 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& m
     // to be tested as one: an AABB drawn around that frustum spans from the
     // near plane to the far plane in every direction, so it swallows the
     // whole level and every submesh in it comes back selected.
-    const glm::mat4 inverseViewProjection = glm::inverse(mEditorProjection * mEditorView);
+    const Math::Mat4 inverseViewProjection = glm::inverse(mEditorProjection * mEditorView);
     const f32 ndcMinX = (min.x - mImageMin.x) / imageSize.x * 2.0f - 1.0f;
     const f32 ndcMaxX = (max.x - mImageMin.x) / imageSize.x * 2.0f - 1.0f;
     // Screen Y grows downward, NDC Y grows upward: the rectangle's top edge
@@ -380,16 +380,16 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& m
     const f32 ndcMaxY = 1.0f - (min.y - mImageMin.y) / imageSize.y * 2.0f;
     const f32 ndcMinY = 1.0f - (max.y - mImageMin.y) / imageSize.y * 2.0f;
 
-    glm::vec3 corner[8];
+    Math::Vec3 corner[8];
     u32 written = 0;
     for (u32 i = 0; i < 8; ++i)
     {
-        const glm::vec4 ndc((i & 1) ? ndcMaxX : ndcMinX, (i & 2) ? ndcMaxY : ndcMinY,
+        const Math::Vec4 ndc((i & 1) ? ndcMaxX : ndcMinX, (i & 2) ? ndcMaxY : ndcMinY,
                             (i & 4) ? 1.0f : -1.0f, 1.0f);
-        const glm::vec4 world = inverseViewProjection * ndc;
+        const Math::Vec4 world = inverseViewProjection * ndc;
         if (glm::abs(world.w) < 1e-6f)
             return;
-        corner[i] = glm::vec3(world) / world.w;
+        corner[i] = Math::Vec3(world) / world.w;
         ++written;
     }
     if (written != 8)
@@ -399,15 +399,15 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& m
     // Bit layout of the index above: 1 = maxX, 2 = maxY, 4 = far.
     struct Plane
     {
-        glm::vec3 normal;
+        Math::Vec3 normal;
         f32 distance;
     };
-    const auto makePlane = [](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
-                              const glm::vec3& inside)
+    const auto makePlane = [](const Math::Vec3& a, const Math::Vec3& b, const Math::Vec3& c,
+                              const Math::Vec3& inside)
     {
-        glm::vec3 normal = glm::cross(b - a, c - a);
+        Math::Vec3 normal = glm::cross(b - a, c - a);
         const f32 length = glm::length(normal);
-        Plane plane{glm::vec3(0.0f, 1.0f, 0.0f), 0.0f};
+        Plane plane{Math::Vec3(0.0f, 1.0f, 0.0f), 0.0f};
         if (length < 1e-8f)
             return plane;
         normal /= length;
@@ -420,8 +420,8 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& m
         return plane;
     };
 
-    glm::vec3 centre(0.0f);
-    for (const glm::vec3& point : corner)
+    Math::Vec3 centre(0.0f);
+    for (const Math::Vec3& point : corner)
         centre += point;
     centre /= 8.0f;
 
@@ -451,7 +451,7 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& m
     // rectangle from far outside it - so the box is only used to reject
     // cheaply, and anything it lets through is confirmed vertex by vertex.
     const MeshData* meshData = app().importedMeshData(renderer->mesh());
-    const glm::mat4 transform = object.globalTransform();
+    const Math::Mat4 transform = object.globalTransform();
     for (u32 i = 0; i < static_cast<u32>(mesh->submeshes.size()); ++i)
     {
         const AABB bounds = transformAABB(mesh->submeshes[i].bounds, transform);
@@ -461,7 +461,7 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& m
         bool outside = false;
         for (const Plane& plane : planes)
         {
-            const glm::vec3 furthest(plane.normal.x >= 0.0f ? bounds.max.x : bounds.min.x,
+            const Math::Vec3 furthest(plane.normal.x >= 0.0f ? bounds.max.x : bounds.min.x,
                                      plane.normal.y >= 0.0f ? bounds.max.y : bounds.min.y,
                                      plane.normal.z >= 0.0f ? bounds.max.z : bounds.min.z);
             if (glm::dot(plane.normal, furthest) + plane.distance < 0.0f)
@@ -484,8 +484,8 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& m
                 const u32 vertex = meshData->indices[index];
                 if (vertex >= meshData->positions.size())
                     continue;
-                const glm::vec3 world =
-                    glm::vec3(transform * glm::vec4(meshData->positions[vertex], 1.0f));
+                const Math::Vec3 world =
+                    Math::Vec3(transform * Math::Vec4(meshData->positions[vertex], 1.0f));
                 bool insideAll = true;
                 for (const Plane& plane : planes)
                     if (glm::dot(plane.normal, world) + plane.distance < 0.0f)
@@ -510,7 +510,7 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const glm::vec2& m
     }
 }
 
-void ViewportPanel::drawTransformGizmo(const glm::vec2& imageMin, const glm::vec2& imageSize)
+void ViewportPanel::drawTransformGizmo(const Math::Vec2& imageMin, const Math::Vec2& imageSize)
 {
     if (mTool < 2 || mTool > 4)
         return;
@@ -535,8 +535,8 @@ void ViewportPanel::drawTransformGizmo(const glm::vec2& imageMin, const glm::vec
         waypointIndex < static_cast<s32>(waypoints->pointCount()))
     {
         const u32 index = static_cast<u32>(waypointIndex);
-        glm::mat4 pointTransform =
-            glm::translate(glm::mat4(1.0f), waypoints->worldPosition(index));
+        Math::Mat4 pointTransform =
+            glm::translate(Math::Mat4(1.0f), waypoints->worldPosition(index));
         float pointSnap[3] = {1.0f, 1.0f, 1.0f};
         ImGuizmo::Manipulate(glm::value_ptr(mEditorView), glm::value_ptr(mEditorProjection),
                              operation, ImGuizmo::WORLD, glm::value_ptr(pointTransform), nullptr,
@@ -553,15 +553,15 @@ void ViewportPanel::drawTransformGizmo(const glm::vec2& imageMin, const glm::vec
         }
         // The gizmo works in world space; the point is stored local to its
         // owner, so it goes back through the inverse of that transform.
-        const glm::vec3 world = glm::vec3(pointTransform[3]);
-        const glm::vec3 local =
-            glm::vec3(glm::inverse(selected->globalTransform()) * glm::vec4(world, 1.0f));
+        const Math::Vec3 world = Math::Vec3(pointTransform[3]);
+        const Math::Vec3 local =
+            Math::Vec3(glm::inverse(selected->globalTransform()) * Math::Vec4(world, 1.0f));
         waypoints->setPointPosition(index, local);
         app().markDirty();
         return;
     }
 
-    glm::mat4 transform = selected->globalTransform();
+    Math::Mat4 transform = selected->globalTransform();
     const float snapAmount = mTool == 2 ? 1.0f : mTool == 3 ? 15.0f : 0.1f;
     float snapValues[3] = {snapAmount, snapAmount, snapAmount};
 
@@ -581,9 +581,9 @@ void ViewportPanel::drawTransformGizmo(const glm::vec2& imageMin, const glm::vec
         app().recordUndo();
     }
 
-    glm::vec3 translation, scale, skew;
-    glm::vec4 perspective;
-    glm::quat rotation;
+    Math::Vec3 translation, scale, skew;
+    Math::Vec4 perspective;
+    Math::Quaternion rotation;
     if (!glm::decompose(transform, scale, rotation, translation, skew, perspective))
         return;
 
@@ -597,9 +597,9 @@ void ViewportPanel::drawTransformGizmo(const glm::vec2& imageMin, const glm::vec
     }
     else
     {
-        const glm::vec3 parentScale =
-            selected->parent() ? selected->parent()->globalScale() : glm::vec3(1.0f);
-        selected->setScale(scale / glm::max(parentScale, glm::vec3(0.0001f)));
+        const Math::Vec3 parentScale =
+            selected->parent() ? selected->parent()->globalScale() : Math::Vec3(1.0f);
+        selected->setScale(scale / glm::max(parentScale, Math::Vec3(0.0001f)));
     }
     app().markDirty();
 }
@@ -611,7 +611,7 @@ void ViewportPanel::drawTransformGizmo(const glm::vec2& imageMin, const glm::vec
 // a bound, pose-edit-mode Animator - a stale target from a since-deselected
 // object draws nothing rather than a gizmo pointed at whatever is selected
 // now.
-void ViewportPanel::drawBonePoseGizmo(const glm::vec2& imageMin, const glm::vec2& imageSize)
+void ViewportPanel::drawBonePoseGizmo(const Math::Vec2& imageMin, const Math::Vec2& imageSize)
 {
     const EditorApplication::AnimationPoseTarget& target = app().animationPoseTarget();
     GameObject* selected = app().selection().resolve(app().scene());
@@ -627,12 +627,12 @@ void ViewportPanel::drawBonePoseGizmo(const glm::vec2& imageMin, const glm::vec2
     ImGuizmo::SetOrthographic(!mPerspective);
     ImGuizmo::SetDrawlist();
     ImGuizmo::SetRect(imageMin.x, imageMin.y, imageSize.x, imageSize.y);
-    const glm::mat4 ownerTransform = selected->globalTransform();
+    const Math::Mat4 ownerTransform = selected->globalTransform();
 
     if (target.bone >= 0 && static_cast<u32>(target.bone) < skeleton->boneCount())
     {
         const u32 bone = static_cast<u32>(target.bone);
-        glm::mat4 world = ownerTransform * animator->globalPose()[bone];
+        Math::Mat4 world = ownerTransform * animator->globalPose()[bone];
 
         ImGuizmo::Manipulate(glm::value_ptr(mEditorView), glm::value_ptr(mEditorProjection),
                              ImGuizmo::ROTATE, ImGuizmo::LOCAL, glm::value_ptr(world));
@@ -640,14 +640,14 @@ void ViewportPanel::drawBonePoseGizmo(const glm::vec2& imageMin, const glm::vec2
             return;
 
         const s32 parent = skeleton->bone(bone).parent;
-        const glm::mat4 parentWorld =
+        const Math::Mat4 parentWorld =
             parent >= 0 ? ownerTransform * animator->globalPose()[static_cast<u32>(parent)]
                         : ownerTransform;
-        const glm::mat4 local = glm::inverse(parentWorld) * world;
+        const Math::Mat4 local = glm::inverse(parentWorld) * world;
 
-        glm::vec3 translation, scale, skew;
-        glm::vec4 perspective;
-        glm::quat rotation;
+        Math::Vec3 translation, scale, skew;
+        Math::Vec4 perspective;
+        Math::Quaternion rotation;
         if (!glm::decompose(local, scale, rotation, translation, skew, perspective))
             return;
 
@@ -660,14 +660,14 @@ void ViewportPanel::drawBonePoseGizmo(const glm::vec2& imageMin, const glm::vec2
         IKChain* chain = animator->ikChain(static_cast<u32>(target.ikChain));
         if (!chain)
             return;
-        glm::mat4 world = glm::translate(glm::mat4(1.0f), chain->target);
+        Math::Mat4 world = glm::translate(Math::Mat4(1.0f), chain->target);
 
         ImGuizmo::Manipulate(glm::value_ptr(mEditorView), glm::value_ptr(mEditorProjection),
                              ImGuizmo::TRANSLATE, ImGuizmo::WORLD, glm::value_ptr(world));
         if (!ImGuizmo::IsUsing())
             return;
 
-        chain->target = glm::vec3(world[3]);
+        chain->target = Math::Vec3(world[3]);
     }
 }
 
@@ -940,10 +940,10 @@ void ViewportPanel::onImGui()
         }
     }
     const f32 cursorRadius = glm::max(0.1f, mOrbitDistance * 0.025f);
-    const glm::vec3 forward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch), glm::sin(mOrbitPitch),
+    const Math::Vec3 forward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch), glm::sin(mOrbitPitch),
                             -glm::cos(mOrbitYaw) * glm::cos(mOrbitPitch));
-    const glm::vec3 cameraRight = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
-    const glm::vec3 cameraUp = glm::normalize(glm::cross(cameraRight, forward));
+    const Math::Vec3 cameraRight = glm::normalize(glm::cross(forward, Math::Vec3(0.0f, 1.0f, 0.0f)));
+    const Math::Vec3 cameraUp = glm::normalize(glm::cross(cameraRight, forward));
     if (live)
         DebugDraw().cursor3D(app().cursor3D(), cameraRight, cameraUp, cursorRadius);
     // The observer's own view: a RenderView built straight from the orbit
@@ -958,7 +958,7 @@ void ViewportPanel::onImGui()
     view.position = mCameraPosition;
     if (mPerspective)
     {
-        view.view = glm::lookAt(mCameraPosition, mOrbitTarget, glm::vec3(0.0f, 1.0f, 0.0f));
+        view.view = glm::lookAt(mCameraPosition, mOrbitTarget, Math::Vec3(0.0f, 1.0f, 0.0f));
         view.fieldOfView = 60.0f;
         view.nearPlane = nearPlane;
         view.aspect = aspect;
@@ -967,7 +967,7 @@ void ViewportPanel::onImGui()
     }
     else
     {
-        view.view = glm::lookAt(mCameraPosition, mOrbitTarget, glm::vec3(0.0f, 0.0f, -1.0f));
+        view.view = glm::lookAt(mCameraPosition, mOrbitTarget, Math::Vec3(0.0f, 0.0f, -1.0f));
         view.nearPlane = nearPlane;
         view.aspect = aspect;
         const f32 halfHeight = mOrbitDistance * 0.5f;
@@ -1011,8 +1011,8 @@ void ViewportPanel::onImGui()
         const ImVec2 imageMin = ImGui::GetCursorScreenPos();
         ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(nativeId)), size,
                      ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
-        mImageMin = glm::vec2(imageMin.x, imageMin.y);
-        mImageMax = glm::vec2(imageMin.x + size.x, imageMin.y + size.y);
+        mImageMin = Math::Vec2(imageMin.x, imageMin.y);
+        mImageMax = Math::Vec2(imageMin.x + size.x, imageMin.y + size.y);
 
         // Picture-in-picture camera preview, without rendering anything new
         // for it: GamePanel already renders scene.activeCamera() every frame
@@ -1046,9 +1046,9 @@ void ViewportPanel::onImGui()
 
         ImGui::SetCursorScreenPos(imageMin);
         if (app().animationPoseTarget().active)
-            drawBonePoseGizmo(glm::vec2(imageMin.x, imageMin.y), glm::vec2(size.x, size.y));
+            drawBonePoseGizmo(Math::Vec2(imageMin.x, imageMin.y), Math::Vec2(size.x, size.y));
         else
-            drawTransformGizmo(glm::vec2(imageMin.x, imageMin.y), glm::vec2(size.x, size.y));
+            drawTransformGizmo(Math::Vec2(imageMin.x, imageMin.y), Math::Vec2(size.x, size.y));
 
         // ImGuizmo's own CanActivate() (ImGuizmo.cpp) refuses to start a
         // drag whenever ImGui::IsAnyItemHovered() is true - and that check
@@ -1078,20 +1078,20 @@ void ViewportPanel::onImGui()
         // "SetCursorScreenPos extends window boundaries" diagnostic.
         const ImVec2 navigationCenter(imageMin.x + size.x - 55.0f, imageMin.y + 55.0f);
         const ImVec2 mouse = ImGui::GetMousePos();
-        const glm::vec3 navigationForward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch),
+        const Math::Vec3 navigationForward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch),
                                           glm::sin(mOrbitPitch),
                                           -glm::cos(mOrbitYaw) * glm::cos(mOrbitPitch));
-        glm::vec3 navigationRight = glm::cross(navigationForward, glm::vec3(0.0f, 1.0f, 0.0f));
+        Math::Vec3 navigationRight = glm::cross(navigationForward, Math::Vec3(0.0f, 1.0f, 0.0f));
         if (glm::dot(navigationRight, navigationRight) < 0.001f)
-            navigationRight = glm::vec3(1.0f, 0.0f, 0.0f);
+            navigationRight = Math::Vec3(1.0f, 0.0f, 0.0f);
         else
             navigationRight = glm::normalize(navigationRight);
-        const glm::vec3 navigationUp =
+        const Math::Vec3 navigationUp =
             glm::normalize(glm::cross(navigationRight, navigationForward));
         constexpr f32 axisLength = 30.0f;
-        const glm::vec3 worldX(1.0f, 0.0f, 0.0f);
-        const glm::vec3 worldY(0.0f, 1.0f, 0.0f);
-        const glm::vec3 worldZ(0.0f, 0.0f, 1.0f);
+        const Math::Vec3 worldX(1.0f, 0.0f, 0.0f);
+        const Math::Vec3 worldY(0.0f, 1.0f, 0.0f);
+        const Math::Vec3 worldZ(0.0f, 0.0f, 1.0f);
         const ImVec2 xAxis(navigationCenter.x + glm::dot(worldX, navigationRight) * axisLength,
                            navigationCenter.y - glm::dot(worldX, navigationUp) * axisLength);
         const ImVec2 yAxis(navigationCenter.x + glm::dot(worldY, navigationRight) * axisLength,
@@ -1142,7 +1142,7 @@ void ViewportPanel::onImGui()
             if (!snapped && navigationDx * navigationDx + navigationDy * navigationDy < 2500.0f)
             {
                 mNavigationGizmoActive = true;
-                mNavigationGizmoStartMouse = glm::vec2(mouse.x, mouse.y);
+                mNavigationGizmoStartMouse = Math::Vec2(mouse.x, mouse.y);
                 mNavigationGizmoStartYaw = mOrbitYaw;
                 mNavigationGizmoStartPitch = mOrbitPitch;
                 navigationClicked = true;
@@ -1166,16 +1166,16 @@ void ViewportPanel::onImGui()
         {
             const f32 ndcX = (mouse.x - imageMin.x) / size.x * 2.0f - 1.0f;
             const f32 ndcY = 1.0f - (mouse.y - imageMin.y) / size.y * 2.0f;
-            const glm::mat4 inverseViewProjection =
+            const Math::Mat4 inverseViewProjection =
                 glm::inverse(mEditorProjection * mEditorView);
-            glm::vec4 nearPoint = inverseViewProjection * glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
-            glm::vec4 farPoint = inverseViewProjection * glm::vec4(ndcX, ndcY, 1.0f, 1.0f);
+            Math::Vec4 nearPoint = inverseViewProjection * Math::Vec4(ndcX, ndcY, -1.0f, 1.0f);
+            Math::Vec4 farPoint = inverseViewProjection * Math::Vec4(ndcX, ndcY, 1.0f, 1.0f);
             nearPoint /= nearPoint.w;
             farPoint /= farPoint.w;
             Ray ray;
-            ray.origin = glm::vec3(nearPoint);
-            ray.direction = glm::normalize(glm::vec3(farPoint - nearPoint));
-            glm::vec3 hit;
+            ray.origin = Math::Vec3(nearPoint);
+            ray.direction = glm::normalize(Math::Vec3(farPoint - nearPoint));
+            Math::Vec3 hit;
             if (selectedTerrain->raycast(ray, hit))
             {
                 const bool stroke = ImGui::IsMouseDown(ImGuiMouseButton_Left);
@@ -1263,14 +1263,14 @@ void ViewportPanel::onImGui()
             mSubmeshRectSelecting =
                 mTool == 5 && ImGui::GetIO().KeyShift && submeshRectTarget != nullptr;
             mRectSelecting = !mSubmeshRectSelecting;
-            mRectStart = glm::vec2(mouse.x, mouse.y);
+            mRectStart = Math::Vec2(mouse.x, mouse.y);
         }
         if (mSubmeshRectSelecting)
         {
-            const glm::vec2 current(mouse.x, mouse.y);
-            const glm::vec2 rectMin(glm::min(mRectStart.x, current.x),
+            const Math::Vec2 current(mouse.x, mouse.y);
+            const Math::Vec2 rectMin(glm::min(mRectStart.x, current.x),
                                     glm::min(mRectStart.y, current.y));
-            const glm::vec2 rectMax(glm::max(mRectStart.x, current.x),
+            const Math::Vec2 rectMax(glm::max(mRectStart.x, current.x),
                                     glm::max(mRectStart.y, current.y));
             const bool dragged = (rectMax.x - rectMin.x) > 4.0f || (rectMax.y - rectMin.y) > 4.0f;
             // Ctrl alongside Shift turns the rectangle into a subtract - red
@@ -1306,10 +1306,10 @@ void ViewportPanel::onImGui()
         }
         if (mRectSelecting)
         {
-            const glm::vec2 current(mouse.x, mouse.y);
-            const glm::vec2 rectMin(glm::min(mRectStart.x, current.x),
+            const Math::Vec2 current(mouse.x, mouse.y);
+            const Math::Vec2 rectMin(glm::min(mRectStart.x, current.x),
                                     glm::min(mRectStart.y, current.y));
-            const glm::vec2 rectMax(glm::max(mRectStart.x, current.x),
+            const Math::Vec2 rectMax(glm::max(mRectStart.x, current.x),
                                     glm::max(mRectStart.y, current.y));
             const bool dragged = (rectMax.x - rectMin.x) > 4.0f || (rectMax.y - rectMin.y) > 4.0f;
             if (dragged)
@@ -1337,12 +1337,12 @@ void ViewportPanel::onImGui()
         {
             const f32 x = (mouse.x - imageMin.x) / size.x * 2.0f - 1.0f;
             const f32 y = 1.0f - (mouse.y - imageMin.y) / size.y * 2.0f;
-            const glm::mat4 inverseViewProjection = glm::inverse(mEditorProjection * mEditorView);
-            glm::vec4 nearPoint = inverseViewProjection * glm::vec4(x, y, -1.0f, 1.0f);
-            glm::vec4 farPoint = inverseViewProjection * glm::vec4(x, y, 1.0f, 1.0f);
+            const Math::Mat4 inverseViewProjection = glm::inverse(mEditorProjection * mEditorView);
+            Math::Vec4 nearPoint = inverseViewProjection * Math::Vec4(x, y, -1.0f, 1.0f);
+            Math::Vec4 farPoint = inverseViewProjection * Math::Vec4(x, y, 1.0f, 1.0f);
             nearPoint /= nearPoint.w;
             farPoint /= farPoint.w;
-            const glm::vec3 direction = glm::normalize(glm::vec3(farPoint - nearPoint));
+            const Math::Vec3 direction = glm::normalize(Math::Vec3(farPoint - nearPoint));
 
             if (clickToSelect)
             {
@@ -1355,7 +1355,7 @@ void ViewportPanel::onImGui()
                 // was actually clicked. Only fall back to the ray when there
                 // is no surface under the cursor at all (sky, empty space).
                 GameObject* hit = nullptr;
-                glm::vec3 surfacePosition, surfaceNormal;
+                Math::Vec3 surfacePosition, surfaceNormal;
                 const bool hasSurfacePosition =
                     mOutput.valid() &&
                     Scene::pickSurface(mOutput.depth, mOutput.width, mOutput.height,
@@ -1375,12 +1375,12 @@ void ViewportPanel::onImGui()
                 }
                 if (selectedRoad && ImGui::GetIO().KeyCtrl)
                 {
-                    glm::vec3 pointPosition = hasSurfacePosition ? surfacePosition : app().cursor3D();
+                    Math::Vec3 pointPosition = hasSurfacePosition ? surfacePosition : app().cursor3D();
                     if (!hasSurfacePosition && glm::abs(direction.y) > 0.0001f)
                     {
                         const f32 t = -nearPoint.y / direction.y;
                         if (t >= 0.0f)
-                            pointPosition = glm::vec3(nearPoint) + direction * t;
+                            pointPosition = Math::Vec3(nearPoint) + direction * t;
                     }
                     app().recordUndo();
                     GameObject* point = app().scene().createGameObject("Road Point", roadObject);
@@ -1402,20 +1402,20 @@ void ViewportPanel::onImGui()
                     app().vegetationPlacementMode();
                 if (vegetationMode != EditorApplication::VegetationPlacementMode::None && selectedObject)
                 {
-                    glm::vec3 point = hasSurfacePosition ? surfacePosition : app().cursor3D();
-                    glm::vec3 normal(0.0f, 1.0f, 0.0f);
+                    Math::Vec3 point = hasSurfacePosition ? surfacePosition : app().cursor3D();
+                    Math::Vec3 normal(0.0f, 1.0f, 0.0f);
                     if (hasSurfacePosition)
                         normal = surfaceNormal;
                     else if (glm::abs(direction.y) > 0.0001f)
                     {
                         const f32 t = -nearPoint.y / direction.y;
                         if (t >= 0.0f)
-                            point = glm::vec3(nearPoint) + direction * t;
+                            point = Math::Vec3(nearPoint) + direction * t;
                     }
-                    const glm::mat4 inverseTransform = glm::inverse(selectedObject->globalTransform());
-                    const glm::vec3 local = glm::vec3(inverseTransform * glm::vec4(point, 1.0f));
-                    const glm::vec3 localNormal =
-                        glm::normalize(glm::vec3(inverseTransform * glm::vec4(normal, 0.0f)));
+                    const Math::Mat4 inverseTransform = glm::inverse(selectedObject->globalTransform());
+                    const Math::Vec3 local = Math::Vec3(inverseTransform * Math::Vec4(point, 1.0f));
+                    const Math::Vec3 localNormal =
+                        glm::normalize(Math::Vec3(inverseTransform * Math::Vec4(normal, 0.0f)));
                     if (vegetationMode == EditorApplication::VegetationPlacementMode::Tree)
                     {
                         Forest* forest = selectedObject->getComponent<Forest>();
@@ -1439,7 +1439,7 @@ void ViewportPanel::onImGui()
                 if (!hit)
                 {
                     Ray ray;
-                    ray.origin = glm::vec3(nearPoint);
+                    ray.origin = Math::Vec3(nearPoint);
                     ray.direction = direction;
                     hit = app().scene().pickObject(ray);
                 }
@@ -1503,7 +1503,7 @@ void ViewportPanel::onImGui()
                         probe.submesh = picked.index;
                         probe.materialSlot = pickedSlot;
                         probe.viewDepth =
-                            -(mEditorView * glm::vec4(surfacePosition, 1.0f)).z;
+                            -(mEditorView * Math::Vec4(surfacePosition, 1.0f)).z;
                     }
                 }
                 else
@@ -1518,7 +1518,7 @@ void ViewportPanel::onImGui()
             {
                 const f32 t = -nearPoint.y / direction.y;
                 if (t >= 0.0f)
-                    app().setCursor3D(glm::vec3(nearPoint) + direction * t);
+                    app().setCursor3D(Math::Vec3(nearPoint) + direction * t);
             }
         }
         // Delete removes every submesh the Shift-click batch above has

@@ -164,7 +164,7 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
     // RGB, not a single darkening scalar - every prior kind still only ever
     // wrote the same value into all three channels (grayscale), Blood is the
     // first that needs an actual hue.
-    std::vector<glm::vec3> tint(static_cast<usize>(n) * n, glm::vec3(1.0f));
+    std::vector<Math::Vec3> tint(static_cast<usize>(n) * n, Math::Vec3(1.0f));
     std::vector<f32> rough(static_cast<usize>(n) * n, 0.8f);
 
     for (s32 y = 0; y < n; ++y)
@@ -203,7 +203,7 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
                 else
                     height[i] = 0.55f * std::exp(-((r - rHole) * 6.0f) * ((r - rHole) * 6.0f));
 
-                tint[i] = glm::vec3(0.10f + 0.35f * glm::clamp((r - rHole) /
+                tint[i] = Math::Vec3(0.10f + 0.35f * glm::clamp((r - rHole) /
                                                                     glm::max(0.01f, rEdge - rHole),
                                                                 0.0f, 1.0f));
                 rough[i] = 0.95f;
@@ -218,7 +218,7 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
                 alpha[i] = a * a * (3.0f - 2.0f * a); // smoothstep
 
                 height[i] = 0.0f;
-                tint[i] = glm::vec3(0.06f + 0.20f * noise);
+                tint[i] = Math::Vec3(0.06f + 0.20f * noise);
                 rough[i] = 0.98f;
                 break;
             }
@@ -233,7 +233,7 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
 
                 alpha[i] = glm::clamp(line * fade * 1.4f, 0.0f, 1.0f);
                 height[i] = -alpha[i]; // V-shaped groove
-                tint[i] = glm::vec3(0.15f);
+                tint[i] = Math::Vec3(0.15f);
                 rough[i] = 0.9f;
                 break;
             }
@@ -258,7 +258,7 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
                 height[i] = 0.0f; // wet, not relief
                 // Darker where it pools deepest, at the centre.
                 const f32 depth = glm::clamp(1.0f - r / glm::max(rEdge, 0.01f), 0.0f, 1.0f);
-                tint[i] = glm::mix(glm::vec3(0.30f, 0.02f, 0.02f), glm::vec3(0.10f, 0.005f, 0.006f),
+                tint[i] = glm::mix(Math::Vec3(0.30f, 0.02f, 0.02f), Math::Vec3(0.10f, 0.005f, 0.006f),
                                    depth);
                 rough[i] = 0.35f; // wet sheen, unlike the others' matte damage
                 break;
@@ -289,8 +289,8 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
             // Relief scale. Without it neighbouring texels differ by almost
             // nothing and the normals come out nearly flat.
             const f32 scale = static_cast<f32>(n) * 0.02f;
-            const glm::vec3 normal =
-                glm::normalize(glm::vec3((hL - hR) * scale, (hD - hU) * scale, 1.0f));
+            const Math::Vec3 normal =
+                glm::normalize(Math::Vec3((hL - hR) * scale, (hD - hU) * scale, 1.0f));
 
             mapAlbedo[i * 4 + 0] = toByte(tint[i].r);
             mapAlbedo[i * 4 + 1] = toByte(tint[i].g);
@@ -418,7 +418,7 @@ s32 DecalSystem::addDecal(const Decal& decal)
     // point renders precisely nowhere, forever, with no error to see. Kept
     // well under 256 so real lights still have room in the same budget.
     // Erasing the front is O(n), but n stays at kMaxDecals, not the whole
-    // session's decal count - a few hundred glm::vec3/quat moves is nothing
+    // session's decal count - a few hundred Math::Vec3/quat moves is nothing
     // next to the GPU upload right after this.
     constexpr usize kMaxDecals = 200;
     if (mDecals.size() >= kMaxDecals)
@@ -429,15 +429,15 @@ s32 DecalSystem::addDecal(const Decal& decal)
 
 // --------------------------------------------------------------- projection
 
-glm::mat4 DecalSystem::makeProjection(const Decal& decal)
+Math::Mat4 DecalSystem::makeProjection(const Decal& decal)
 {
     // Box -> world, then inverted. The 0.5 is because the local box runs
     // -1..1: a decal 2 units wide has a half-extent of 1.
-    const glm::mat4 boxToWorld = glm::translate(glm::mat4(1.0f), decal.position) *
+    const Math::Mat4 boxToWorld = glm::translate(Math::Mat4(1.0f), decal.position) *
                                  glm::mat4_cast(decal.rotation) *
-                                 glm::scale(glm::mat4(1.0f), decal.size * 0.5f);
+                                 glm::scale(Math::Mat4(1.0f), decal.size * 0.5f);
 
-    glm::mat4 projection = glm::inverse(boxToWorld);
+    Math::Mat4 projection = glm::inverse(boxToWorld);
 
     // The layer index travels in the 4th ROW of the matrix.
     //
@@ -454,17 +454,17 @@ glm::mat4 DecalSystem::makeProjection(const Decal& decal)
     return projection;
 }
 
-s32 DecalSystem::placeOnSurface(const glm::vec3& position, const glm::vec3& normal, s32 layer,
+s32 DecalSystem::placeOnSurface(const Math::Vec3& position, const Math::Vec3& normal, s32 layer,
                                 f32 size, f32 thickness, f32 rotationRadians,
-                                const glm::vec3& color, f32 opacity)
+                                const Math::Vec3& color, f32 opacity)
 {
     Decal decal;
     // Rotates the box's +Z onto the surface normal - it is +Z the slope fade
     // compares the fragment's normal against.
-    const glm::quat aligned = glm::rotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::normalize(normal));
+    const Math::Quaternion aligned = glm::rotation(Math::Vec3(0.0f, 0.0f, 1.0f), glm::normalize(normal));
     // Spin around that same normal, so repeated stamps of the same texture do
     // not read as copies.
-    decal.rotation = aligned * glm::angleAxis(rotationRadians, glm::vec3(0.0f, 0.0f, 1.0f));
+    decal.rotation = aligned * glm::angleAxis(rotationRadians, Math::Vec3(0.0f, 0.0f, 1.0f));
 
     // The box is centred ON the surface, not pulled back. Centred, the
     // surface lands at box.z = 0, where the edge fade (1-|z|^8) is 1, and the
@@ -475,7 +475,7 @@ s32 DecalSystem::placeOnSurface(const glm::vec3& position, const glm::vec3& norm
     // flat ground, only partly visible on anything curved.
     decal.position = position;
 
-    decal.size = glm::vec3(size, size, thickness);
+    decal.size = Math::Vec3(size, size, thickness);
     decal.layer = layer;
     decal.color = color;
     decal.opacity = opacity;

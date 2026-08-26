@@ -35,7 +35,7 @@ bool near(f32 a, f32 b, f32 epsilon = 1e-3f)
     return std::abs(a - b) <= epsilon;
 }
 
-bool near(const glm::vec3& a, const glm::vec3& b, f32 epsilon = 1e-3f)
+bool near(const Math::Vec3& a, const Math::Vec3& b, f32 epsilon = 1e-3f)
 {
     return glm::length(a - b) <= epsilon;
 }
@@ -46,15 +46,15 @@ bool near(const glm::vec3& a, const glm::vec3& b, f32 epsilon = 1e-3f)
 void buildGroundOctree(TriangleOctree& octree)
 {
     CollisionMesh mesh;
-    mesh.positions = {glm::vec3(-5.0f, 0.0f, -5.0f), glm::vec3(5.0f, 0.0f, -5.0f),
-                      glm::vec3(5.0f, 0.0f, 5.0f), glm::vec3(-5.0f, 0.0f, 5.0f)};
+    mesh.positions = {Math::Vec3(-5.0f, 0.0f, -5.0f), Math::Vec3(5.0f, 0.0f, -5.0f),
+                      Math::Vec3(5.0f, 0.0f, 5.0f), Math::Vec3(-5.0f, 0.0f, 5.0f)};
     mesh.indices = {0, 3, 2, 0, 2, 1};
-    octree.addCollisionMesh(mesh, glm::mat4(1.0f));
+    octree.addCollisionMesh(mesh, Math::Mat4(1.0f));
     octree.build();
 }
 
-GameObject* makeBoxWall(Scene& scene, const char* name, const glm::vec3& center,
-                        const glm::vec3& halfExtents, u32 type)
+GameObject* makeBoxWall(Scene& scene, const char* name, const Math::Vec3& center,
+                        const Math::Vec3& halfExtents, u32 type)
 {
     GameObject* object = scene.createGameObject(name);
     object->setPosition(center);
@@ -64,7 +64,7 @@ GameObject* makeBoxWall(Scene& scene, const char* name, const glm::vec3& center,
     return object;
 }
 
-GameObject* makeSphereWall(Scene& scene, const char* name, const glm::vec3& center, f32 radius,
+GameObject* makeSphereWall(Scene& scene, const char* name, const Math::Vec3& center, f32 radius,
                            u32 type)
 {
     GameObject* object = scene.createGameObject(name);
@@ -75,7 +75,7 @@ GameObject* makeSphereWall(Scene& scene, const char* name, const glm::vec3& cent
     return object;
 }
 
-GameObject* makeCapsuleWall(Scene& scene, const char* name, const glm::vec3& center, f32 radius,
+GameObject* makeCapsuleWall(Scene& scene, const char* name, const Math::Vec3& center, f32 radius,
                             f32 height, u32 type)
 {
     GameObject* object = scene.createGameObject(name);
@@ -113,34 +113,34 @@ void testWorldBoundsFollowTransform()
     Scene scene;
     GameObject* box = scene.createGameObject("Box");
     Collider* boxCollider = box->addComponent<Collider>();
-    boxCollider->setBox(glm::vec3(0.5f, 0.5f, 0.5f));
+    boxCollider->setBox(Math::Vec3(0.5f, 0.5f, 0.5f));
 
     GameObject* ball = scene.createGameObject("Ball");
     Collider* ballCollider = ball->addComponent<Collider>();
     ballCollider->setSphere(0.5f);
     scene.update(1.0f / 60.0f);
 
-    CHECK(near(boxCollider->worldBounds().center(), glm::vec3(0.0f)));
-    CHECK(near(boxCollider->worldBounds().extents(), glm::vec3(0.5f)));
-    CHECK(near(ballCollider->worldBounds().extents(), glm::vec3(0.5f)));
+    CHECK(near(boxCollider->worldBounds().center(), Math::Vec3(0.0f)));
+    CHECK(near(boxCollider->worldBounds().extents(), Math::Vec3(0.5f)));
+    CHECK(near(ballCollider->worldBounds().extents(), Math::Vec3(0.5f)));
 
-    box->setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
-    box->setScale(glm::vec3(2.0f, 2.0f, 2.0f));
-    ball->setPosition(glm::vec3(-5.0f, 0.0f, 0.0f));
-    ball->setScale(glm::vec3(2.0f, 2.0f, 2.0f));
+    box->setPosition(Math::Vec3(5.0f, 0.0f, 0.0f));
+    box->setScale(Math::Vec3(2.0f, 2.0f, 2.0f));
+    ball->setPosition(Math::Vec3(-5.0f, 0.0f, 0.0f));
+    ball->setScale(Math::Vec3(2.0f, 2.0f, 2.0f));
     scene.update(1.0f / 60.0f);
 
     const AABB movedBox = boxCollider->worldBounds();
-    CHECK(near(movedBox.center(), glm::vec3(5.0f, 0.0f, 0.0f)));
-    CHECK(near(movedBox.extents(), glm::vec3(1.0f)));
+    CHECK(near(movedBox.center(), Math::Vec3(5.0f, 0.0f, 0.0f)));
+    CHECK(near(movedBox.extents(), Math::Vec3(1.0f)));
 
     const AABB movedBall = ballCollider->worldBounds();
-    CHECK(near(movedBall.center(), glm::vec3(-5.0f, 0.0f, 0.0f)));
-    CHECK(near(movedBall.extents(), glm::vec3(1.0f)));
+    CHECK(near(movedBall.center(), Math::Vec3(-5.0f, 0.0f, 0.0f)));
+    CHECK(near(movedBall.extents(), Math::Vec3(1.0f)));
 
-    ball->setScale(glm::vec3(3.0f, 1.0f, 1.0f));
+    ball->setScale(Math::Vec3(3.0f, 1.0f, 1.0f));
     scene.update(1.0f / 60.0f);
-    CHECK(near(ballCollider->worldBounds().extents(), glm::vec3(1.5f, 0.5f, 0.5f)));
+    CHECK(near(ballCollider->worldBounds().extents(), Math::Vec3(1.5f, 0.5f, 0.5f)));
 }
 
 // 3. Two overlapping spheres on an enabled pair produce one contact on each
@@ -150,7 +150,7 @@ void testOverlappingSpheresProduceDirectionalContacts()
     Scene scene;
     GameObject* a = scene.createGameObject("SphereA");
     GameObject* b = scene.createGameObject("SphereB");
-    b->setPosition(glm::vec3(1.5f, 0.0f, 0.0f));
+    b->setPosition(Math::Vec3(1.5f, 0.0f, 0.0f));
 
     Collider* colliderA = a->addComponent<Collider>();
     colliderA->setSphere(1.0f);
@@ -185,7 +185,7 @@ void testUnregisteredPairProducesNoContacts()
     Scene scene;
     GameObject* a = scene.createGameObject("SphereA");
     GameObject* b = scene.createGameObject("SphereB");
-    b->setPosition(glm::vec3(0.5f, 0.0f, 0.0f));
+    b->setPosition(Math::Vec3(0.5f, 0.0f, 0.0f));
 
     Collider* colliderA = a->addComponent<Collider>();
     colliderA->setSphere(1.0f);
@@ -208,7 +208,7 @@ void testDisableAfterEnableStopsContacts()
     Scene scene;
     GameObject* a = scene.createGameObject("SphereA");
     GameObject* b = scene.createGameObject("SphereB");
-    b->setPosition(glm::vec3(0.5f, 0.0f, 0.0f));
+    b->setPosition(Math::Vec3(0.5f, 0.0f, 0.0f));
 
     Collider* colliderA = a->addComponent<Collider>();
     colliderA->setSphere(1.0f);
@@ -237,11 +237,11 @@ void testSphereVsBoxAndCapsuleVsSphere()
 
     GameObject* box = scene.createGameObject("Box");
     Collider* boxCollider = box->addComponent<Collider>();
-    boxCollider->setBox(glm::vec3(1.0f, 1.0f, 1.0f));
+    boxCollider->setBox(Math::Vec3(1.0f, 1.0f, 1.0f));
     boxCollider->setType(10);
 
     GameObject* sphereNearBox = scene.createGameObject("SphereNearBox");
-    sphereNearBox->setPosition(glm::vec3(1.5f, 0.0f, 0.0f));
+    sphereNearBox->setPosition(Math::Vec3(1.5f, 0.0f, 0.0f));
     Collider* sphereBoxCollider = sphereNearBox->addComponent<Collider>();
     sphereBoxCollider->setSphere(1.0f);
     sphereBoxCollider->setType(11);
@@ -252,7 +252,7 @@ void testSphereVsBoxAndCapsuleVsSphere()
     capsuleCollider->setType(12);
 
     GameObject* sphereNearCapsule = scene.createGameObject("SphereNearCapsule");
-    sphereNearCapsule->setPosition(glm::vec3(0.0f, 1.0f, 0.0f));
+    sphereNearCapsule->setPosition(Math::Vec3(0.0f, 1.0f, 0.0f));
     Collider* sphereCapsuleCollider = sphereNearCapsule->addComponent<Collider>();
     sphereCapsuleCollider->setSphere(0.3f);
     sphereCapsuleCollider->setType(13);
@@ -282,7 +282,7 @@ void testMeshColliderReportsContactAgainstSphere()
     groundCollider->setType(20);
 
     GameObject* ball = scene.createGameObject("Ball");
-    ball->setPosition(glm::vec3(0.0f, 0.3f, 0.0f));
+    ball->setPosition(Math::Vec3(0.0f, 0.3f, 0.0f));
     Collider* ballCollider = ball->addComponent<Collider>();
     ballCollider->setSphere(0.5f); // reaches from y = -0.2 to y = 0.8, embeds the y = 0 plane
     ballCollider->setType(21);
@@ -310,7 +310,7 @@ void testContactsAreClearedBetweenSteps()
     Scene scene;
     GameObject* a = scene.createGameObject("SphereA");
     GameObject* b = scene.createGameObject("SphereB");
-    b->setPosition(glm::vec3(0.5f, 0.0f, 0.0f));
+    b->setPosition(Math::Vec3(0.5f, 0.0f, 0.0f));
 
     Collider* colliderA = a->addComponent<Collider>();
     colliderA->setSphere(1.0f);
@@ -325,7 +325,7 @@ void testContactsAreClearedBetweenSteps()
     CHECK(colliderA->contactCount() == 1);
     CHECK(colliderB->contactCount() == 1);
 
-    b->setPosition(glm::vec3(100.0f, 0.0f, 0.0f));
+    b->setPosition(Math::Vec3(100.0f, 0.0f, 0.0f));
     scene.update(1.0f / 60.0f);
     scene.collisions().step();
     CHECK(colliderA->contactCount() == 0);
@@ -348,7 +348,7 @@ void testSerializerRoundTripForEveryShapeKind()
 
     GameObject* boxObject = scene.createGameObject("BoxObj");
     Collider* boxCollider = boxObject->addComponent<Collider>();
-    boxCollider->setBox(glm::vec3(1.0f, 2.0f, 3.0f));
+    boxCollider->setBox(Math::Vec3(1.0f, 2.0f, 3.0f));
     boxCollider->setType(102);
     boxCollider->setResponse(CollisionResponse::Stop);
 
@@ -391,7 +391,7 @@ void testSerializerRoundTripForEveryShapeKind()
     if (reBox)
     {
         CHECK(reBox->shape() == ColliderShape::Box);
-        CHECK(near(reBox->halfExtents(), glm::vec3(1.0f, 2.0f, 3.0f)));
+        CHECK(near(reBox->halfExtents(), Math::Vec3(1.0f, 2.0f, 3.0f)));
         CHECK(reBox->type() == 102);
         CHECK(reBox->response() == CollisionResponse::Stop);
     }
@@ -426,8 +426,8 @@ void testFreeMoveReturnsDestinationUnchanged()
     Scene scene;
     scene.update(1.0f / 60.0f);
 
-    const glm::vec3 from(0.0f, 0.0f, 0.0f);
-    const glm::vec3 to(5.0f, 0.0f, 0.0f);
+    const Math::Vec3 from(0.0f, 0.0f, 0.0f);
+    const Math::Vec3 to(5.0f, 0.0f, 0.0f);
     CollisionWorld::MoveResult result = scene.collisions().moveSphere(from, to, 0.5f, 1);
 
     CHECK(near(result.position, to));
@@ -441,12 +441,12 @@ void testFreeMoveReturnsDestinationUnchanged()
 void testStopAgainstWallStaysAtStart()
 {
     Scene scene;
-    makeBoxWall(scene, "Wall", glm::vec3(3.0f, 0.0f, 0.0f), glm::vec3(0.1f, 2.0f, 2.0f), 2);
+    makeBoxWall(scene, "Wall", Math::Vec3(3.0f, 0.0f, 0.0f), Math::Vec3(0.1f, 2.0f, 2.0f), 2);
     scene.update(1.0f / 60.0f);
     scene.collisions().enable(1, 2, CollisionResponse::Stop);
 
-    const glm::vec3 from(0.0f, 0.0f, 0.0f);
-    const glm::vec3 to(5.0f, 0.0f, 0.0f);
+    const Math::Vec3 from(0.0f, 0.0f, 0.0f);
+    const Math::Vec3 to(5.0f, 0.0f, 0.0f);
     CollisionWorld::MoveResult result = scene.collisions().moveSphere(from, to, 0.5f, 1);
 
     CHECK(result.hitCount == 1);
@@ -463,17 +463,17 @@ void testStopAgainstWallStaysAtStart()
 void testSlideAlongWallKeepsTangentLosesNormal()
 {
     Scene scene;
-    makeBoxWall(scene, "Wall", glm::vec3(3.0f, 0.0f, 0.0f), glm::vec3(0.1f, 2.0f, 2.0f), 3);
+    makeBoxWall(scene, "Wall", Math::Vec3(3.0f, 0.0f, 0.0f), Math::Vec3(0.1f, 2.0f, 2.0f), 3);
     scene.update(1.0f / 60.0f);
     scene.collisions().enable(1, 3, CollisionResponse::Slide);
 
-    const glm::vec3 from(0.0f, 0.0f, 0.0f);
-    const glm::vec3 to(5.0f, 5.0f, 0.0f);
+    const Math::Vec3 from(0.0f, 0.0f, 0.0f);
+    const Math::Vec3 to(5.0f, 5.0f, 0.0f);
     CollisionWorld::MoveResult result = scene.collisions().moveSphere(from, to, 0.5f, 1);
 
     CHECK(result.hitCount == 1);
-    CHECK(near(result.position, glm::vec3(2.399f, 5.0f, 0.0f), 1e-3f));
-    CHECK(near(result.lastNormal, glm::vec3(-1.0f, 0.0f, 0.0f)));
+    CHECK(near(result.position, Math::Vec3(2.399f, 5.0f, 0.0f), 1e-3f));
+    CHECK(near(result.lastNormal, Math::Vec3(-1.0f, 0.0f, 0.0f)));
 }
 
 // 13. SlideXZ decides whether to clamp from the XZ length alone: a curved
@@ -486,25 +486,25 @@ void testSlideAlongWallKeepsTangentLosesNormal()
 void testSlideXZClampsHorizontallyNotVertically()
 {
     Scene scene;
-    makeSphereWall(scene, "Bulge", glm::vec3(1.0f, 3.0f, 0.0f), 1.2f, 4);
+    makeSphereWall(scene, "Bulge", Math::Vec3(1.0f, 3.0f, 0.0f), 1.2f, 4);
     scene.update(1.0f / 60.0f);
     scene.collisions().enable(1, 4, CollisionResponse::SlideXZ);
 
-    const glm::vec3 from(0.0f, 0.0f, 0.0f);
-    const glm::vec3 to(0.2f, 10.0f, 0.0f);
+    const Math::Vec3 from(0.0f, 0.0f, 0.0f);
+    const Math::Vec3 to(0.2f, 10.0f, 0.0f);
     CollisionWorld::MoveResult result = scene.collisions().moveSphere(from, to, 0.5f, 1);
 
     CHECK(result.hitCount == 1);
-    CHECK(near(result.position, glm::vec3(-0.2006f, 0.2235f, 0.0f), 2e-3f));
+    CHECK(near(result.position, Math::Vec3(-0.2006f, 0.2235f, 0.0f), 2e-3f));
 
     Scene plainScene;
-    makeSphereWall(plainScene, "Bulge", glm::vec3(1.0f, 3.0f, 0.0f), 1.2f, 4);
+    makeSphereWall(plainScene, "Bulge", Math::Vec3(1.0f, 3.0f, 0.0f), 1.2f, 4);
     plainScene.update(1.0f / 60.0f);
     plainScene.collisions().enable(1, 4, CollisionResponse::Slide);
     CollisionWorld::MoveResult plainResult = plainScene.collisions().moveSphere(from, to, 0.5f, 1);
 
     CHECK(plainResult.hitCount == 1);
-    CHECK(near(plainResult.position, glm::vec3(-3.7857f, 4.2455f, 0.0f), 2e-3f));
+    CHECK(near(plainResult.position, Math::Vec3(-3.7857f, 4.2455f, 0.0f), 2e-3f));
     CHECK(result.position.y < plainResult.position.y);
 }
 
@@ -516,14 +516,14 @@ void testSlideXZClampsHorizontallyNotVertically()
 void testCornerRestsWithoutOscillating()
 {
     Scene scene;
-    makeBoxWall(scene, "WallX", glm::vec3(3.5f, 0.0f, 0.0f), glm::vec3(0.5f, 5.0f, 5.0f), 5);
-    makeBoxWall(scene, "WallZ", glm::vec3(0.0f, 0.0f, 3.5f), glm::vec3(5.0f, 5.0f, 0.5f), 6);
+    makeBoxWall(scene, "WallX", Math::Vec3(3.5f, 0.0f, 0.0f), Math::Vec3(0.5f, 5.0f, 5.0f), 5);
+    makeBoxWall(scene, "WallZ", Math::Vec3(0.0f, 0.0f, 3.5f), Math::Vec3(5.0f, 5.0f, 0.5f), 6);
     scene.update(1.0f / 60.0f);
     scene.collisions().enable(1, 5, CollisionResponse::Slide);
     scene.collisions().enable(1, 6, CollisionResponse::Slide);
 
-    const glm::vec3 to(10.0f, 0.0f, 10.0f);
-    CollisionWorld::MoveResult first = scene.collisions().moveSphere(glm::vec3(0.0f), to, 0.5f, 1);
+    const Math::Vec3 to(10.0f, 0.0f, 10.0f);
+    CollisionWorld::MoveResult first = scene.collisions().moveSphere(Math::Vec3(0.0f), to, 0.5f, 1);
 
     CHECK(first.hitCount == 2);
     CHECK(first.position.x < 2.5f);
@@ -538,11 +538,11 @@ void testCornerRestsWithoutOscillating()
 void testUnenabledPairDoesNotStopTheMove()
 {
     Scene scene;
-    makeBoxWall(scene, "Wall", glm::vec3(3.0f, 0.0f, 0.0f), glm::vec3(0.1f, 2.0f, 2.0f), 2);
+    makeBoxWall(scene, "Wall", Math::Vec3(3.0f, 0.0f, 0.0f), Math::Vec3(0.1f, 2.0f, 2.0f), 2);
     scene.update(1.0f / 60.0f);
 
-    const glm::vec3 from(0.0f, 0.0f, 0.0f);
-    const glm::vec3 to(5.0f, 0.0f, 0.0f);
+    const Math::Vec3 from(0.0f, 0.0f, 0.0f);
+    const Math::Vec3 to(5.0f, 0.0f, 0.0f);
     CollisionWorld::MoveResult result = scene.collisions().moveSphere(from, to, 0.5f, 1);
 
     CHECK(near(result.position, to));
@@ -554,12 +554,12 @@ void testUnenabledPairDoesNotStopTheMove()
 // mesh - is reached and resolves the move.
 void testAllTargetShapesStopOrSlideCorrectly()
 {
-    const glm::vec3 from(0.0f, 0.0f, 0.0f);
-    const glm::vec3 to(5.0f, 0.0f, 0.0f);
+    const Math::Vec3 from(0.0f, 0.0f, 0.0f);
+    const Math::Vec3 to(5.0f, 0.0f, 0.0f);
 
     {
         Scene scene;
-        makeSphereWall(scene, "SphereWall", glm::vec3(3.0f, 0.0f, 0.0f), 1.0f, 2);
+        makeSphereWall(scene, "SphereWall", Math::Vec3(3.0f, 0.0f, 0.0f), 1.0f, 2);
         scene.update(1.0f / 60.0f);
         scene.collisions().enable(1, 2, CollisionResponse::Stop);
         CollisionWorld::MoveResult result = scene.collisions().moveSphere(from, to, 0.5f, 1);
@@ -568,7 +568,7 @@ void testAllTargetShapesStopOrSlideCorrectly()
     }
     {
         Scene scene;
-        makeBoxWall(scene, "BoxWall", glm::vec3(3.0f, 0.0f, 0.0f), glm::vec3(0.5f, 2.0f, 2.0f), 2);
+        makeBoxWall(scene, "BoxWall", Math::Vec3(3.0f, 0.0f, 0.0f), Math::Vec3(0.5f, 2.0f, 2.0f), 2);
         scene.update(1.0f / 60.0f);
         scene.collisions().enable(1, 2, CollisionResponse::Stop);
         CollisionWorld::MoveResult result = scene.collisions().moveSphere(from, to, 0.5f, 1);
@@ -577,7 +577,7 @@ void testAllTargetShapesStopOrSlideCorrectly()
     }
     {
         Scene scene;
-        makeCapsuleWall(scene, "CapsuleWall", glm::vec3(3.0f, 0.0f, 0.0f), 0.5f, 4.0f, 2);
+        makeCapsuleWall(scene, "CapsuleWall", Math::Vec3(3.0f, 0.0f, 0.0f), 0.5f, 4.0f, 2);
         scene.update(1.0f / 60.0f);
         scene.collisions().enable(1, 2, CollisionResponse::Stop);
         CollisionWorld::MoveResult result = scene.collisions().moveSphere(from, to, 0.5f, 1);
@@ -597,9 +597,9 @@ void testAllTargetShapesStopOrSlideCorrectly()
         scene.collisions().enable(1, 2, CollisionResponse::Slide);
 
         CollisionWorld::MoveResult result = scene.collisions().moveSphere(
-            glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, -5.0f, 0.0f), 0.5f, 1);
+            Math::Vec3(0.0f, 2.0f, 0.0f), Math::Vec3(0.0f, -5.0f, 0.0f), 0.5f, 1);
         CHECK(result.hitCount == 1);
-        CHECK(near(result.position, glm::vec3(0.0f, 0.501f, 0.0f), 1e-3f));
+        CHECK(near(result.position, Math::Vec3(0.0f, 0.501f, 0.0f), 1e-3f));
     }
 }
 
@@ -609,18 +609,18 @@ void testAllTargetShapesStopOrSlideCorrectly()
 void testMaxHitsReturnsLastSafePosition()
 {
     Scene scene;
-    makeBoxWall(scene, "WallX", glm::vec3(3.5f, 0.0f, 0.0f), glm::vec3(0.5f, 5.0f, 5.0f), 5);
-    makeBoxWall(scene, "WallZ", glm::vec3(0.0f, 0.0f, 3.5f), glm::vec3(5.0f, 5.0f, 0.5f), 6);
+    makeBoxWall(scene, "WallX", Math::Vec3(3.5f, 0.0f, 0.0f), Math::Vec3(0.5f, 5.0f, 5.0f), 5);
+    makeBoxWall(scene, "WallZ", Math::Vec3(0.0f, 0.0f, 3.5f), Math::Vec3(5.0f, 5.0f, 0.5f), 6);
     scene.update(1.0f / 60.0f);
     scene.collisions().enable(1, 5, CollisionResponse::Slide);
     scene.collisions().enable(1, 6, CollisionResponse::Slide);
 
-    const glm::vec3 from(0.0f, 0.0f, 0.0f);
-    const glm::vec3 to(10.0f, 0.0f, 10.0f);
+    const Math::Vec3 from(0.0f, 0.0f, 0.0f);
+    const Math::Vec3 to(10.0f, 0.0f, 10.0f);
     CollisionWorld::MoveResult capped = scene.collisions().moveSphere(from, to, 0.5f, 1, 1);
 
     CHECK(capped.hitCount == 1);
-    CHECK(near(capped.position, glm::vec3(-0.001f, 0.0f, 0.0f), 1e-3f));
+    CHECK(near(capped.position, Math::Vec3(-0.001f, 0.0f, 0.0f), 1e-3f));
     CHECK(capped.position.x < 3.0f);
     CHECK(capped.position.z < 3.0f);
 

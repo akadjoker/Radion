@@ -40,11 +40,11 @@ public:
 
         // Extract camera basis vectors from the view matrix. The columns of an
         // orthonormal view matrix are the camera axes in world space.
-        const glm::mat3 viewRotation(frame.view);
-        const glm::vec3 cameraRight = glm::normalize(glm::vec3(viewRotation[0][0],
+        const Math::Mat3 viewRotation(frame.view);
+        const Math::Vec3 cameraRight = glm::normalize(Math::Vec3(viewRotation[0][0],
                                                                viewRotation[1][0],
                                                                viewRotation[2][0]));
-        const glm::vec3 cameraUp = glm::normalize(glm::vec3(viewRotation[0][1],
+        const Math::Vec3 cameraUp = glm::normalize(Math::Vec3(viewRotation[0][1],
                                                             viewRotation[1][1],
                                                             viewRotation[2][1]));
 

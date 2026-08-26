@@ -144,7 +144,7 @@ usize vertexElementSize(u16 type)
     }
 }
 
-bool readVec3(ByteArray& r, usize end, glm::vec3& value)
+bool readVec3(ByteArray& r, usize end, Math::Vec3& value)
 {
     if (end > r.size() || r.tell() > end || end - r.tell() < sizeof(float) * 3)
         return false;
@@ -154,7 +154,7 @@ bool readVec3(ByteArray& r, usize end, glm::vec3& value)
     return true;
 }
 
-bool readQuat(ByteArray& r, usize end, glm::quat& value)
+bool readQuat(ByteArray& r, usize end, Math::Quaternion& value)
 {
     if (end > r.size() || r.tell() > end || end - r.tell() < sizeof(float) * 4)
         return false;
@@ -171,11 +171,11 @@ bool readQuat(ByteArray& r, usize end, glm::quat& value)
     return true;
 }
 
-glm::mat4 localMatrix(const glm::vec3& position, const glm::quat& rotation,
-                      const glm::vec3& scale)
+Math::Mat4 localMatrix(const Math::Vec3& position, const Math::Quaternion& rotation,
+                      const Math::Vec3& scale)
 {
-    return glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation) *
-           glm::scale(glm::mat4(1.0f), scale);
+    return glm::translate(Math::Mat4(1.0f), position) * glm::mat4_cast(rotation) *
+           glm::scale(Math::Mat4(1.0f), scale);
 }
 
 struct OgreBoneData
@@ -183,18 +183,18 @@ struct OgreBoneData
     std::string name;
     u16 handle = 0;
     s32 parent = -1;
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    glm::vec3 scale = glm::vec3(1.0f);
+    Math::Vec3 position = Math::Vec3(0.0f);
+    Math::Quaternion rotation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::Vec3 scale = Math::Vec3(1.0f);
 };
 
 struct PendingTrack
 {
     u16 handle = 0;
     std::vector<f32> times;
-    std::vector<glm::vec3> translations;
-    std::vector<glm::quat> rotations;
-    std::vector<glm::vec3> scales;
+    std::vector<Math::Vec3> translations;
+    std::vector<Math::Quaternion> rotations;
+    std::vector<Math::Vec3> scales;
 };
 
 struct PendingAnimation
@@ -245,9 +245,9 @@ bool readSkeletonAnimation(ByteArray& r, usize animationEnd, PendingAnimation& a
                 if (payload != required && payload != required + sizeof(f32) * 3)
                     return false;
                 const f32 time = r.readF32();
-                glm::quat rotation;
-                glm::vec3 translation;
-                glm::vec3 scale(1.0f);
+                Math::Quaternion rotation;
+                Math::Vec3 translation;
+                Math::Vec3 scale(1.0f);
                 if (!std::isfinite(time) || !readQuat(r, keyEnd, rotation) ||
                     !readVec3(r, keyEnd, translation))
                     return false;
@@ -357,7 +357,7 @@ bool loadOgreSkeletonBytes(const std::string& filename, ByteArray& r, Skeleton& 
         bones[child->second].parent = static_cast<s32>(parent->second);
     }
 
-    std::vector<glm::mat4> globals(bones.size(), glm::mat4(1.0f));
+    std::vector<Math::Mat4> globals(bones.size(), Math::Mat4(1.0f));
     std::vector<u8> state(bones.size(), 0);
     std::function<bool(usize)> buildGlobal = [&](usize index)
     {
@@ -369,7 +369,7 @@ bool loadOgreSkeletonBytes(const std::string& filename, ByteArray& r, Skeleton& 
         const s32 parent = bones[index].parent;
         if (parent >= 0 && (!buildGlobal(static_cast<usize>(parent))))
             return false;
-        const glm::mat4 local = localMatrix(bones[index].position, bones[index].rotation,
+        const Math::Mat4 local = localMatrix(bones[index].position, bones[index].rotation,
                                            bones[index].scale);
         globals[index] = parent >= 0 ? globals[static_cast<usize>(parent)] * local : local;
         state[index] = 2;
@@ -407,7 +407,7 @@ bool loadOgreSkeletonBytes(const std::string& filename, ByteArray& r, Skeleton& 
             for (usize key = 0; key < track.times.size(); ++key)
             {
                 track.positions.push_back(bind.position + sourceTrack.translations[key]);
-                glm::quat rotation = glm::normalize(bind.rotation * sourceTrack.rotations[key]);
+                Math::Quaternion rotation = glm::normalize(bind.rotation * sourceTrack.rotations[key]);
                 if (!track.rotations.empty() && glm::dot(track.rotations.back(), rotation) < 0.0f)
                     rotation = -rotation;
                 track.rotations.push_back(rotation);
@@ -471,7 +471,7 @@ void applyAssignments(MeshData& mesh, u32 vertexBase, usize vertexCount,
         MeshSkinVertex& skin = mesh.skin[vertexBase + vertex];
         if (total <= 1e-8f)
             continue; // explicit fallback remains joint 0 with weight 1
-        skin.weights = glm::vec4(0.0f);
+        skin.weights = Math::Vec4(0.0f);
         for (usize i = 0; i < count; ++i)
         {
             skin.joints[i] = static_cast<u8>(influences[i].bone);
@@ -747,12 +747,12 @@ u32 appendSubMesh(MeshData& mesh, const std::vector<OgreVertex>& verts,
     for (const OgreVertex& v : verts)
     {
         mesh.positions.emplace_back(v.x, v.y, v.z);
-        mesh.normals.emplace_back(layout.hasNormal ? glm::vec3(v.nx, v.ny, v.nz)
-                                                   : glm::vec3(0.0f, 1.0f, 0.0f));
-        mesh.tangents.emplace_back(layout.hasTangent ? glm::vec4(v.tx, v.ty, v.tz, v.tw)
-                                                     : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-        mesh.uvs.emplace_back(layout.hasUV0 ? glm::vec2(v.u, v.v) : glm::vec2(0.0f));
-        mesh.uvs2.emplace_back(layout.hasUV1 ? glm::vec2(v.u1, v.v1) : glm::vec2(0.0f));
+        mesh.normals.emplace_back(layout.hasNormal ? Math::Vec3(v.nx, v.ny, v.nz)
+                                                   : Math::Vec3(0.0f, 1.0f, 0.0f));
+        mesh.tangents.emplace_back(layout.hasTangent ? Math::Vec4(v.tx, v.ty, v.tz, v.tw)
+                                                     : Math::Vec4(1.0f, 0.0f, 0.0f, 1.0f));
+        mesh.uvs.emplace_back(layout.hasUV0 ? Math::Vec2(v.u, v.v) : Math::Vec2(0.0f));
+        mesh.uvs2.emplace_back(layout.hasUV1 ? Math::Vec2(v.u1, v.v1) : Math::Vec2(0.0f));
         mesh.colors.push_back(layout.hasColor
                                   ? (static_cast<u32>(v.color[0]) | (static_cast<u32>(v.color[1]) << 8) |
                                      (static_cast<u32>(v.color[2]) << 16) | (static_cast<u32>(v.color[3]) << 24))

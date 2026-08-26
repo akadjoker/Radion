@@ -152,7 +152,7 @@ void Text3D::rebuildGlyphs()
         if (code < 32 || code > 127)
             code = '?';
         MeshGlyph glyph;
-        glyph.offset = glm::vec2(penX, penY);
+        glyph.offset = Math::Vec2(penX, penY);
         glyph.uvRect = fontGlyphUVRect(code);
         mGlyphs.push_back(glyph);
         penX += advance;

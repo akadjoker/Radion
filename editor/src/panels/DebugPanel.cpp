@@ -452,7 +452,7 @@ void DebugPanel::drawCascadePreviews()
         }
         const DirectionalShadowRegion region = directionalShadowRegion(2, count, i);
         engine.debugDrawTexture(texture, false, 0, preview.target, size, size,
-                                glm::vec4(static_cast<f32>(region.width) * 0.5f,
+                                Math::Vec4(static_cast<f32>(region.width) * 0.5f,
                                           static_cast<f32>(region.height) * 0.5f,
                                           static_cast<f32>(region.x) * 0.5f,
                                           static_cast<f32>(region.y) * 0.5f));

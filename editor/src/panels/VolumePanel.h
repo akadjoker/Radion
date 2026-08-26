@@ -37,7 +37,7 @@ private:
 
     Volume::GridSource* mGrid = nullptr;
 
-    glm::vec3 mOrigin{-8.0f, -4.0f, -8.0f};
+    Math::Vec3 mOrigin{-8.0f, -4.0f, -8.0f};
     int mDimensions[3] = {96, 48, 96};
     f32 mCellSize = 0.25f;
     int mBaseFill = FillTerrain;
@@ -49,9 +49,9 @@ private:
 
     int mBrushShape = BrushSphere;
     int mBrushOperation = static_cast<int>(Volume::VolumeOperation::Difference);
-    glm::vec3 mBrushCenter{0.0f};
+    Math::Vec3 mBrushCenter{0.0f};
     f32 mBrushRadius = 1.5f;
-    glm::vec3 mBrushHalfExtents{1.0f};
+    Math::Vec3 mBrushHalfExtents{1.0f};
     bool mBrushAtCursor = true;
     bool mAutoRebuild = true;
 

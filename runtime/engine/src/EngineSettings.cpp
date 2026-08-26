@@ -31,15 +31,15 @@ void read(const Json& node, const char* key, T& value)
         value = found->get<T>();
 }
 
-void readVec3(const Json& node, const char* key, glm::vec3& value)
+void readVec3(const Json& node, const char* key, Math::Vec3& value)
 {
     const auto found = node.find(key);
     if (found == node.end() || !found->is_array() || found->size() != 3)
         return;
-    value = glm::vec3((*found)[0].get<f32>(), (*found)[1].get<f32>(), (*found)[2].get<f32>());
+    value = Math::Vec3((*found)[0].get<f32>(), (*found)[1].get<f32>(), (*found)[2].get<f32>());
 }
 
-Json writeVec3(const glm::vec3& value)
+Json writeVec3(const Math::Vec3& value)
 {
     return Json::array({value.x, value.y, value.z});
 }

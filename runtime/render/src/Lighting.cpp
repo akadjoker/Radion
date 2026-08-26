@@ -19,11 +19,11 @@ namespace
 // Matches the cubemap-face convention CubeFaceUV() in lit.frag decodes a
 // world-space direction with. The two tables have to agree, or a point
 // light's shadow samples the wrong face.
-const glm::vec3 kFaceDirection[6] = {
+const Math::Vec3 kFaceDirection[6] = {
     {1.0f, 0.0f, 0.0f},  {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
     {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},  {0.0f, 0.0f, -1.0f},
 };
-const glm::vec3 kFaceUp[6] = {
+const Math::Vec3 kFaceUp[6] = {
     {0.0f, -1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},
     {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, -1.0f, 0.0f},
 };
@@ -49,10 +49,10 @@ bool Lighting::setup()
     // Six matrices for every light, the point-light worst case: it is the
     // simplest bound that never needs to grow.
     BufferDesc matrixDesc;
-    matrixDesc.size = static_cast<u64>(RenderList::MaxLights) * 6 * sizeof(glm::mat4);
+    matrixDesc.size = static_cast<u64>(RenderList::MaxLights) * 6 * sizeof(Math::Mat4);
     matrixDesc.usage = BufferStorage;
     matrixDesc.residency = Residency::Stream;
-    matrixDesc.stride = sizeof(glm::mat4);
+    matrixDesc.stride = sizeof(Math::Mat4);
     matrixDesc.debugName = "lighting.matrices";
     mMatrixBuffer = gpu.createBuffer(matrixDesc);
 
@@ -192,7 +192,7 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
     {
         light.matrixIndex = -1;
         light.shadowFade = 0.0f;
-        light.shadowAtlasMulAdd = glm::vec4(0.0f);
+        light.shadowAtlasMulAdd = Math::Vec4(0.0f);
     }
 
     // frame.list never holds more than MaxLights to begin with (see
@@ -226,27 +226,27 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
         RenderLight& light = mEntities[tile.lightIndex];
         light.shadowFade = glm::smoothstep(0.0f, 0.25f, tile.importance);
         const f32 atlasRcp = 1.0f / static_cast<f32>(mAtlasSize);
-        light.shadowAtlasMulAdd = glm::vec4(static_cast<f32>(tile.size) * atlasRcp,
+        light.shadowAtlasMulAdd = Math::Vec4(static_cast<f32>(tile.size) * atlasRcp,
                                             static_cast<f32>(tile.size) * atlasRcp,
                                             static_cast<f32>(tile.x) * atlasRcp,
                                             static_cast<f32>(tile.y) * atlasRcp);
 
         FrameContext tileFrame = frame;
         tileFrame.target = mAtlasTarget;
-        tileFrame.clipPlane = glm::vec4(0.0f);
+        tileFrame.clipPlane = Math::Vec4(0.0f);
 
         if (light.type == RenderLightType::Point)
         {
             light.matrixIndex = static_cast<s32>(mMatrices.size());
-            const glm::mat4 projection =
+            const Math::Mat4 projection =
                 glm::perspective(glm::radians(90.0f), 1.0f, 0.05f, glm::max(0.5f, light.range));
             // Nothing outside the light's own range is ever lit, whichever
             // face is drawing - a sphere reject is cheaper than the 90-degree
             // frustum test and correct for all six faces at once.
-            const Sphere cullSphere{light.position, light.range};
+            const Sphere cullSphere{Math::Vec3(light.position.x, light.position.y, light.position.z), light.range};
             for (u32 face = 0; face < 6; ++face)
             {
-                const glm::mat4 viewProjection =
+                const Math::Mat4 viewProjection =
                     projection * glm::lookAt(light.position, light.position + kFaceDirection[face],
                                              kFaceUp[face]);
                 mMatrices.push_back(viewProjection);
@@ -274,8 +274,8 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
         else
         {
             light.matrixIndex = static_cast<s32>(mMatrices.size());
-            const glm::vec3 up = glm::abs(light.direction.y) > 0.99f ? glm::vec3(0.0f, 0.0f, 1.0f)
-                                                                     : glm::vec3(0.0f, 1.0f, 0.0f);
+            const Math::Vec3 up = glm::abs(light.direction.y) > 0.99f ? Math::Vec3(0.0f, 0.0f, 1.0f)
+                                                                     : Math::Vec3(0.0f, 1.0f, 0.0f);
             // Recovered from coneAngleCos: RenderLight keeps the cosine the
             // shading needs, not the degrees a shadow FOV is built from.
             const f32 outerDegrees =
@@ -283,7 +283,7 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
             const f32 fov = light.type == RenderLightType::Rectangle
                                ? glm::radians(120.0f)
                                : glm::radians(glm::clamp(outerDegrees * 2.0f, 5.0f, 170.0f));
-            const glm::mat4 viewProjection =
+            const Math::Mat4 viewProjection =
                 glm::perspective(fov, 1.0f, 0.05f, glm::max(0.5f, light.range)) *
                 glm::lookAt(light.position, light.position + light.direction, up);
             mMatrices.push_back(viewProjection);
@@ -349,7 +349,7 @@ void Lighting::submitDecals(const DecalSystem& decals)
         entity.matrixIndex = static_cast<s32>(mMatrices.size());
         entity.position = decal.position;
         entity.range = DecalSystem::boundingRadius(decal);
-        entity.direction = glm::normalize(decal.rotation * glm::vec3(0.0f, 0.0f, 1.0f));
+        entity.direction = glm::normalize(decal.rotation * Math::Vec3(0.0f, 0.0f, 1.0f));
         entity.coneAngleCos =
             decals.slopePowerOverride >= 0.0f ? decals.slopePowerOverride : decal.slopePower;
         entity.coneAngleScale = decal.opacity * decals.globalOpacity;
@@ -366,8 +366,8 @@ void Lighting::submitDecals(const DecalSystem& decals)
                          (mEntities.size() - entityStart) * sizeof(RenderLight),
                          mEntities.data() + entityStart);
     if (mMatrices.size() > matrixStart)
-        gpu.updateBuffer(mMatrixBuffer, matrixStart * sizeof(glm::mat4),
-                         (mMatrices.size() - matrixStart) * sizeof(glm::mat4),
+        gpu.updateBuffer(mMatrixBuffer, matrixStart * sizeof(Math::Mat4),
+                         (mMatrices.size() - matrixStart) * sizeof(Math::Mat4),
                          mMatrices.data() + matrixStart);
 }
 
@@ -381,7 +381,7 @@ void Lighting::prepare(ShadowCasterSource& casters, FrameContext& frame, DepthPa
         gpu.updateBuffer(mEntityBuffer, 0, mEntities.size() * sizeof(RenderLight),
                          mEntities.data());
     if (!mMatrices.empty())
-        gpu.updateBuffer(mMatrixBuffer, 0, mMatrices.size() * sizeof(glm::mat4),
+        gpu.updateBuffer(mMatrixBuffer, 0, mMatrices.size() * sizeof(Math::Mat4),
                          mMatrices.data());
 
     frame.entityBuffer = mEntityBuffer;
@@ -440,9 +440,9 @@ void Lighting::cull(FrameContext& frame, TextureHandle sceneDepth, u32 screenWid
         CullingBlock block;
         block.inverseProjection = glm::inverse(frame.projection);
         block.view = frame.view;
-        block.screenSize = glm::vec4(static_cast<f32>(screenWidth), static_cast<f32>(screenHeight),
+        block.screenSize = Math::Vec4(static_cast<f32>(screenWidth), static_cast<f32>(screenHeight),
                                      0.0f, 0.0f);
-        block.tileCountEtc = glm::vec4(static_cast<f32>(mTilesX), static_cast<f32>(mTilesY),
+        block.tileCountEtc = Math::Vec4(static_cast<f32>(mTilesX), static_cast<f32>(mTilesY),
                                        static_cast<f32>(mEntities.size()), use25D ? 1.0f : 0.0f);
         gpu.updateBuffer(mCullingBlock, 0, sizeof(block), &block);
         gpu.bindUniform(0, mCullingBlock);
@@ -453,9 +453,9 @@ void Lighting::cull(FrameContext& frame, TextureHandle sceneDepth, u32 screenWid
     }
 
     LightingBlock block;
-    block.counts = glm::vec4(static_cast<f32>(mEntities.size()), tiledActive ? 1.0f : 0.0f,
+    block.counts = Math::Vec4(static_cast<f32>(mEntities.size()), tiledActive ? 1.0f : 0.0f,
                              debugTiles ? 1.0f : 0.0f, static_cast<f32>(debugMode));
-    block.tileGrid = glm::vec4(static_cast<f32>(mTilesX), static_cast<f32>(mTilesY),
+    block.tileGrid = Math::Vec4(static_cast<f32>(mTilesX), static_cast<f32>(mTilesY),
                                decalsEnabled ? 1.0f : 0.0f, 0.0f);
     gpu.updateBuffer(mLightingBlock, 0, sizeof(block), &block);
 }

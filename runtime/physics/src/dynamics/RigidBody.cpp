@@ -18,47 +18,47 @@ f32 motionBias(f32 duration)
     return std::pow(0.5f, duration);
 }
 
-bool finiteVec(const glm::vec3& v)
+bool finiteVec(const Math::Vec3& v)
 {
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
 } // namespace
 
-glm::mat3 Inertia::box(f32 mass, const glm::vec3& halfExtents)
+Math::Mat3 Inertia::box(f32 mass, const Math::Vec3& halfExtents)
 {
-    const glm::vec3 size = glm::abs(halfExtents) * 2.0f;
+    const Math::Vec3 size = glm::abs(halfExtents) * 2.0f;
     const f32 factor = mass / 12.0f;
     const f32 x = size.x * size.x;
     const f32 y = size.y * size.y;
     const f32 z = size.z * size.z;
-    return glm::mat3(glm::vec3(factor * (y + z), 0.0f, 0.0f),
-                     glm::vec3(0.0f, factor * (x + z), 0.0f),
-                     glm::vec3(0.0f, 0.0f, factor * (x + y)));
+    return Math::Mat3(Math::Vec3(factor * (y + z), 0.0f, 0.0f),
+                     Math::Vec3(0.0f, factor * (x + z), 0.0f),
+                     Math::Vec3(0.0f, 0.0f, factor * (x + y)));
 }
 
-glm::mat3 Inertia::solidSphere(f32 mass, f32 radius)
+Math::Mat3 Inertia::solidSphere(f32 mass, f32 radius)
 {
     const f32 value = 0.4f * mass * radius * radius;
-    return glm::mat3(glm::vec3(value, 0.0f, 0.0f), glm::vec3(0.0f, value, 0.0f),
-                     glm::vec3(0.0f, 0.0f, value));
+    return Math::Mat3(Math::Vec3(value, 0.0f, 0.0f), Math::Vec3(0.0f, value, 0.0f),
+                     Math::Vec3(0.0f, 0.0f, value));
 }
 
-glm::mat3 Inertia::hollowSphere(f32 mass, f32 radius)
+Math::Mat3 Inertia::hollowSphere(f32 mass, f32 radius)
 {
     const f32 value = (2.0f / 3.0f) * mass * radius * radius;
-    return glm::mat3(glm::vec3(value, 0.0f, 0.0f), glm::vec3(0.0f, value, 0.0f),
-                     glm::vec3(0.0f, 0.0f, value));
+    return Math::Mat3(Math::Vec3(value, 0.0f, 0.0f), Math::Vec3(0.0f, value, 0.0f),
+                     Math::Vec3(0.0f, 0.0f, value));
 }
 
-glm::mat3 Inertia::cylinderY(f32 mass, f32 radius, f32 height)
+Math::Mat3 Inertia::cylinderY(f32 mass, f32 radius, f32 height)
 {
     const f32 radial = 0.5f * mass * radius * radius;
     const f32 lateral = (1.0f / 12.0f) * mass * (3.0f * radius * radius + height * height);
-    return glm::mat3(glm::vec3(lateral, 0.0f, 0.0f), glm::vec3(0.0f, radial, 0.0f),
-                     glm::vec3(0.0f, 0.0f, lateral));
+    return Math::Mat3(Math::Vec3(lateral, 0.0f, 0.0f), Math::Vec3(0.0f, radial, 0.0f),
+                     Math::Vec3(0.0f, 0.0f, lateral));
 }
 
-glm::mat3 Inertia::convexHull(f32 mass, const glm::vec3* vertices, u32 vertexCount,
+Math::Mat3 Inertia::convexHull(f32 mass, const Math::Vec3* vertices, u32 vertexCount,
                               const Radion::Geometry::ConvexHullComputer::Edge* edges,
                               u32 edgeCount, const int* faces, u32 faceCount)
 {
@@ -72,10 +72,10 @@ glm::mat3 Inertia::convexHull(f32 mass, const glm::vec3* vertices, u32 vertexCou
     // already uses to accumulate volume and centroid, extended here to also
     // accumulate the inertia terms.
     if (vertexCount < 4 || faceCount == 0 || mass <= 0.0f)
-        return glm::mat3(0.0f);
+        return Math::Mat3(0.0f);
 
     f32 volume6 = 0.0f;
-    glm::vec3 centroid(0.0f);
+    Math::Vec3 centroid(0.0f);
     for (u32 faceIndex = 0; faceIndex < faceCount; ++faceIndex)
     {
         const Edge* edge = &edges[static_cast<usize>(faces[faceIndex])];
@@ -94,7 +94,7 @@ glm::mat3 Inertia::convexHull(f32 mass, const glm::vec3* vertices, u32 vertexCou
         }
     }
     if (std::abs(volume6) < 1.0e-12f)
-        return glm::mat3(0.0f);
+        return Math::Mat3(0.0f);
     centroid /= volume6 * 4.0f;
     const f32 volume = volume6 / 6.0f;
 
@@ -104,11 +104,11 @@ glm::mat3 Inertia::convexHull(f32 mass, const glm::vec3* vertices, u32 vertexCou
     // u+v+w <= 1}: a!b!c!/(a+b+c+3)! gives 1/60 on the diagonal (a=2) and
     // 1/120 off it (a=b=1). Every actual tetrahedron below maps to this one
     // through its own Jacobian, so it is only computed once.
-    const glm::mat3 referenceMoment(glm::vec3(1.0f / 60.0f, 1.0f / 120.0f, 1.0f / 120.0f),
-                                    glm::vec3(1.0f / 120.0f, 1.0f / 60.0f, 1.0f / 120.0f),
-                                    glm::vec3(1.0f / 120.0f, 1.0f / 120.0f, 1.0f / 60.0f));
+    const Math::Mat3 referenceMoment(Math::Vec3(1.0f / 60.0f, 1.0f / 120.0f, 1.0f / 120.0f),
+                                    Math::Vec3(1.0f / 120.0f, 1.0f / 60.0f, 1.0f / 120.0f),
+                                    Math::Vec3(1.0f / 120.0f, 1.0f / 120.0f, 1.0f / 60.0f));
 
-    glm::mat3 secondMoment(0.0f);
+    Math::Mat3 secondMoment(0.0f);
     for (u32 faceIndex = 0; faceIndex < faceCount; ++faceIndex)
     {
         const Edge* edge = &edges[static_cast<usize>(faces[faceIndex])];
@@ -122,10 +122,10 @@ glm::mat3 Inertia::convexHull(f32 mass, const glm::vec3* vertices, u32 vertexCou
             // measuring from the centroid puts the apex at the local origin,
             // and the integral below is already the contribution to the
             // inertia about the centroid, with no parallel-axis shift needed.
-            const glm::vec3 a = vertices[v0] - centroid;
-            const glm::vec3 b = vertices[v1] - centroid;
-            const glm::vec3 c = vertices[v2] - centroid;
-            const glm::mat3 jacobian(a, b, c);
+            const Math::Vec3 a = vertices[v0] - centroid;
+            const Math::Vec3 b = vertices[v1] - centroid;
+            const Math::Vec3 c = vertices[v2] - centroid;
+            const Math::Mat3 jacobian(a, b, c);
             const f32 signedDeterminant = glm::dot(a, glm::cross(b, c));
             secondMoment += signedDeterminant * (jacobian * referenceMoment *
                                                  glm::transpose(jacobian));
@@ -136,7 +136,7 @@ glm::mat3 Inertia::convexHull(f32 mass, const glm::vec3* vertices, u32 vertexCou
     }
 
     const f32 density = mass / volume;
-    const glm::mat3 s = secondMoment * density;
+    const Math::Mat3 s = secondMoment * density;
     const f32 sxx = s[0][0];
     const f32 syy = s[1][1];
     const f32 szz = s[2][2];
@@ -144,11 +144,11 @@ glm::mat3 Inertia::convexHull(f32 mass, const glm::vec3* vertices, u32 vertexCou
     const f32 sxz = 0.5f * (s[0][2] + s[2][0]);
     const f32 syz = 0.5f * (s[1][2] + s[2][1]);
 
-    return glm::mat3(glm::vec3(syy + szz, -sxy, -sxz), glm::vec3(-sxy, sxx + szz, -syz),
-                     glm::vec3(-sxz, -syz, sxx + syy));
+    return Math::Mat3(Math::Vec3(syy + szz, -sxy, -sxz), Math::Vec3(-sxy, sxx + szz, -syz),
+                     Math::Vec3(-sxz, -syz, sxx + syy));
 }
 
-glm::mat3 Inertia::capsuleY(f32 mass, f32 radius, f32 cylinderHeight)
+Math::Mat3 Inertia::capsuleY(f32 mass, f32 radius, f32 cylinderHeight)
 {
     // Split the mass between the cylinder and the two hemispheres by volume,
     // then move each hemisphere's own tensor out to where it actually sits
@@ -171,8 +171,8 @@ glm::mat3 Inertia::capsuleY(f32 mass, f32 radius, f32 cylinderHeight)
     const f32 offset = cylinderHeight * 0.5f + 0.375f * radius;
     lateral += 0.4f * sphereMass * radiusSquared + sphereMass * offset * offset;
 
-    return glm::mat3(glm::vec3(lateral, 0.0f, 0.0f), glm::vec3(0.0f, radial, 0.0f),
-                     glm::vec3(0.0f, 0.0f, lateral));
+    return Math::Mat3(Math::Vec3(lateral, 0.0f, 0.0f), Math::Vec3(0.0f, radial, 0.0f),
+                     Math::Vec3(0.0f, 0.0f, lateral));
 }
 
 RigidBody::RigidBody()
@@ -195,7 +195,7 @@ void RigidBody::setBodyType(BodyType type)
     if (type != BodyType::Dynamic)
     {
         clearAccumulators();
-        mLastFrameAcceleration = glm::vec3(0.0f);
+        mLastFrameAcceleration = Math::Vec3(0.0f);
     }
     setAwake(true);
 }
@@ -213,7 +213,7 @@ void RigidBody::applyBodyTypeMass()
         // changes nothing, which is exactly what "a contact does not move
         // this" means to the solver - no special case anywhere else.
         mInverseMass = 0.0f;
-        mInverseInertiaTensor = glm::mat3(0.0f);
+        mInverseInertiaTensor = Math::Mat3(0.0f);
     }
     calculateDerivedData();
 }
@@ -248,7 +248,7 @@ void RigidBody::setInverseMass(f32 inverseMass)
         mInverseMass = inverseMass;
 }
 
-void RigidBody::setInertiaTensor(const glm::mat3& inertiaTensor)
+void RigidBody::setInertiaTensor(const Math::Mat3& inertiaTensor)
 {
     const f32 determinant = glm::determinant(inertiaTensor);
     if (!std::isfinite(determinant) || std::abs(determinant) < 1e-12f)
@@ -260,15 +260,15 @@ void RigidBody::setInertiaTensor(const glm::mat3& inertiaTensor)
     setInverseInertiaTensor(glm::inverse(inertiaTensor));
 }
 
-glm::mat3 RigidBody::inertiaTensor() const
+Math::Mat3 RigidBody::inertiaTensor() const
 {
     const f32 determinant = glm::determinant(mInverseInertiaTensor);
     if (std::abs(determinant) < 1e-12f)
-        return glm::mat3(0.0f);
+        return Math::Mat3(0.0f);
     return glm::inverse(mInverseInertiaTensor);
 }
 
-void RigidBody::setInverseInertiaTensor(const glm::mat3& inverseInertiaTensor)
+void RigidBody::setInverseInertiaTensor(const Math::Mat3& inverseInertiaTensor)
 {
     mDynamicInverseInertiaTensor = inverseInertiaTensor;
     if (mBodyType == BodyType::Dynamic)
@@ -284,7 +284,7 @@ void RigidBody::setDamping(f32 linear, f32 angular)
     mAngularDamping = glm::clamp(angular, 0.0f, 1.0f);
 }
 
-void RigidBody::setPosition(const glm::vec3& position)
+void RigidBody::setPosition(const Math::Vec3& position)
 {
     if (!finiteVec(position))
         return;
@@ -292,62 +292,62 @@ void RigidBody::setPosition(const glm::vec3& position)
     calculateDerivedData();
 }
 
-void RigidBody::setOrientation(const glm::quat& orientation)
+void RigidBody::setOrientation(const Math::Quaternion& orientation)
 {
-    if (!std::isfinite(orientation.w) || !finiteVec(glm::vec3(orientation.x, orientation.y,
+    if (!std::isfinite(orientation.w) || !finiteVec(Math::Vec3(orientation.x, orientation.y,
                                                               orientation.z)))
         return;
     mOrientation = orientation;
     calculateDerivedData();
 }
 
-void RigidBody::setVelocity(const glm::vec3& velocity)
+void RigidBody::setVelocity(const Math::Vec3& velocity)
 {
     if (!finiteVec(velocity))
         return;
     mVelocity = velocity;
 }
 
-void RigidBody::setAngularVelocity(const glm::vec3& angularVelocity)
+void RigidBody::setAngularVelocity(const Math::Vec3& angularVelocity)
 {
     if (!finiteVec(angularVelocity))
         return;
     mAngularVelocity = angularVelocity;
 }
 
-void RigidBody::setAcceleration(const glm::vec3& acceleration)
+void RigidBody::setAcceleration(const Math::Vec3& acceleration)
 {
     if (!finiteVec(acceleration))
         return;
     mAcceleration = acceleration;
 }
 
-glm::vec3 RigidBody::pointToWorld(const glm::vec3& local) const
+Math::Vec3 RigidBody::pointToWorld(const Math::Vec3& local) const
 {
-    return glm::vec3(mTransform * glm::vec4(local, 1.0f));
+    return Math::Vec3(mTransform * Math::Vec4(local, 1.0f));
 }
 
-glm::vec3 RigidBody::pointToLocal(const glm::vec3& world) const
+Math::Vec3 RigidBody::pointToLocal(const Math::Vec3& world) const
 {
     return glm::conjugate(mOrientation) * (world - mPosition);
 }
 
-glm::vec3 RigidBody::directionToWorld(const glm::vec3& local) const
+Math::Vec3 RigidBody::directionToWorld(const Math::Vec3& local) const
 {
     return mOrientation * local;
 }
 
-glm::vec3 RigidBody::directionToLocal(const glm::vec3& world) const
+Math::Vec3 RigidBody::directionToLocal(const Math::Vec3& world) const
 {
     return glm::conjugate(mOrientation) * world;
 }
 
-glm::vec3 RigidBody::velocityAtPoint(const glm::vec3& worldPoint) const
+Math::Vec3 RigidBody::velocityAtPoint(const Math::Vec3& worldPoint) const
 {
     return mVelocity + glm::cross(mAngularVelocity, worldPoint - mPosition);
 }
 
-void RigidBody::addForce(const glm::vec3& force)
+void RigidBody::addForce(const Math::Vec3& force)
 {
     if (!isDynamic() || !finiteVec(force))
         return;
@@ -355,7 +355,7 @@ void RigidBody::addForce(const glm::vec3& force)
     setAwake(true);
 }
 
-void RigidBody::addForceAtPoint(const glm::vec3& force, const glm::vec3& worldPoint)
+void RigidBody::addForceAtPoint(const Math::Vec3& force, const Math::Vec3& worldPoint)
 {
     if (!isDynamic() || !finiteVec(force) || !finiteVec(worldPoint))
         return;
@@ -367,12 +367,12 @@ void RigidBody::addForceAtPoint(const glm::vec3& force, const glm::vec3& worldPo
     setAwake(true);
 }
 
-void RigidBody::addForceAtBodyPoint(const glm::vec3& force, const glm::vec3& localPoint)
+void RigidBody::addForceAtBodyPoint(const Math::Vec3& force, const Math::Vec3& localPoint)
 {
     addForceAtPoint(force, pointToWorld(localPoint));
 }
 
-void RigidBody::addTorque(const glm::vec3& torque)
+void RigidBody::addTorque(const Math::Vec3& torque)
 {
     if (!isDynamic() || !finiteVec(torque))
         return;
@@ -382,11 +382,11 @@ void RigidBody::addTorque(const glm::vec3& torque)
 
 void RigidBody::clearAccumulators()
 {
-    mForceAccumulator = glm::vec3(0.0f);
-    mTorqueAccumulator = glm::vec3(0.0f);
+    mForceAccumulator = Math::Vec3(0.0f);
+    mTorqueAccumulator = Math::Vec3(0.0f);
 }
 
-void RigidBody::applyLinearImpulse(const glm::vec3& impulse)
+void RigidBody::applyLinearImpulse(const Math::Vec3& impulse)
 {
     if (!isDynamic() || !finiteVec(impulse))
         return;
@@ -394,7 +394,7 @@ void RigidBody::applyLinearImpulse(const glm::vec3& impulse)
     setAwake(true);
 }
 
-void RigidBody::applyAngularImpulse(const glm::vec3& impulse)
+void RigidBody::applyAngularImpulse(const Math::Vec3& impulse)
 {
     if (!isDynamic() || !finiteVec(impulse))
         return;
@@ -402,7 +402,7 @@ void RigidBody::applyAngularImpulse(const glm::vec3& impulse)
     setAwake(true);
 }
 
-void RigidBody::applyImpulseAtPoint(const glm::vec3& impulse, const glm::vec3& worldPoint)
+void RigidBody::applyImpulseAtPoint(const Math::Vec3& impulse, const Math::Vec3& worldPoint)
 {
     if (!isDynamic() || !finiteVec(impulse) || !finiteVec(worldPoint))
         return;
@@ -411,16 +411,16 @@ void RigidBody::applyImpulseAtPoint(const glm::vec3& impulse, const glm::vec3& w
     setAwake(true);
 }
 
-void RigidBody::applyPositionImpulseAtPoint(const glm::vec3& impulse,
-                                            const glm::vec3& worldPoint)
+void RigidBody::applyPositionImpulseAtPoint(const Math::Vec3& impulse,
+                                            const Math::Vec3& worldPoint)
 {
     if (!isDynamic() || !finiteVec(impulse) || !finiteVec(worldPoint))
         return;
-    const glm::vec3 arm = worldPoint - mPosition;
+    const Math::Vec3 arm = worldPoint - mPosition;
     mPosition += impulse * mInverseMass;
-    const glm::vec3 angularStep =
+    const Math::Vec3 angularStep =
         mInverseInertiaTensorWorld * glm::cross(arm, impulse);
-    const glm::quat spin(0.0f, angularStep);
+    const Math::Quaternion spin(0.0f, angularStep);
     mOrientation += 0.5f * spin * mOrientation;
     calculateDerivedData();
 }
@@ -436,8 +436,8 @@ void RigidBody::setAwake(bool awake)
         return;
     }
     mAwake = false;
-    mVelocity = glm::vec3(0.0f);
-    mAngularVelocity = glm::vec3(0.0f);
+    mVelocity = Math::Vec3(0.0f);
+    mAngularVelocity = Math::Vec3(0.0f);
 }
 
 void RigidBody::setCanSleep(bool canSleep)
@@ -461,9 +461,9 @@ void RigidBody::calculateDerivedData()
 {
     mOrientation = glm::normalize(mOrientation);
 
-    const glm::mat3 rotation = glm::mat3_cast(mOrientation);
-    mTransform = glm::mat4(rotation);
-    mTransform[3] = glm::vec4(mPosition, 1.0f);
+    const Math::Mat3 rotation = glm::mat3_cast(mOrientation);
+    mTransform = Math::Mat4(rotation);
+    mTransform[3] = Math::Vec4(mPosition, 1.0f);
 
     // The tensor is stored in body space because that is where it is
     // constant. Rotating it into world space is R * I * R^T, and it has to
@@ -480,7 +480,7 @@ void RigidBody::integrateForces(f32 duration)
         return;
 
     mLastFrameAcceleration = mAcceleration + mForceAccumulator * mInverseMass;
-    const glm::vec3 angularAcceleration = mInverseInertiaTensorWorld * mTorqueAccumulator;
+    const Math::Vec3 angularAcceleration = mInverseInertiaTensorWorld * mTorqueAccumulator;
     mVelocity += mLastFrameAcceleration * duration;
     mAngularVelocity += angularAcceleration * duration;
     mVelocity *= std::pow(mLinearDamping, duration);
@@ -497,7 +497,7 @@ void RigidBody::integrateVelocity(f32 duration)
         return;
 
     mPosition += mVelocity * duration;
-    const glm::quat spin(0.0f, mAngularVelocity * duration);
+    const Math::Quaternion spin(0.0f, mAngularVelocity * duration);
     mOrientation += 0.5f * spin * mOrientation;
     calculateDerivedData();
 

@@ -17,7 +17,7 @@ namespace Radion
 // is what a hand-authored walkable route means.
 struct WaypointNode
 {
-    glm::vec3 position = glm::vec3(0.0f);
+    Math::Vec3 position = Math::Vec3(0.0f);
     f32 radius = 1.5f;
     std::vector<u32> links;
 };
@@ -32,7 +32,7 @@ public:
     static constexpr ComponentType Type = ComponentType::Waypoints;
 
     // Returns the new node's index. Position is local to the owner.
-    u32 addPoint(const glm::vec3& localPosition, f32 radius = 1.5f);
+    u32 addPoint(const Math::Vec3& localPosition, f32 radius = 1.5f);
     // Also drops every link pointing at it and renumbers the ones above -
     // indices are the identity here, so a removal has to fix them up.
     void removePoint(u32 index);
@@ -42,12 +42,12 @@ public:
     const WaypointNode& point(u32 index) const;
     WaypointNode& point(u32 index);
 
-    void setPointPosition(u32 index, const glm::vec3& localPosition);
+    void setPointPosition(u32 index, const Math::Vec3& localPosition);
     void setPointRadius(u32 index, f32 radius);
 
     // Node position through the owner's world transform - what a demo
     // building an AI::WaypointNetwork wants, since A* runs in world space.
-    glm::vec3 worldPosition(u32 index) const;
+    Math::Vec3 worldPosition(u32 index) const;
 
     // Two-way. link() is a no-op for an index out of range, a self-link, or
     // a pair already linked.

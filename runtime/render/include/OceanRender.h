@@ -23,7 +23,7 @@ constexpr const char* kOceanSceneDepthDebugTargetName = "ocean.debug.scene_depth
 // w = amplitude. Matches uWaves[i] in ocean.vert/ocean.frag exactly.
 struct OceanWave
 {
-    glm::vec2 direction = glm::vec2(1.0f, 0.0f);
+    Math::Vec2 direction = Math::Vec2(1.0f, 0.0f);
     f32 wavelength = 20.0f;
     f32 amplitude = 0.35f;
 };
@@ -43,7 +43,7 @@ enum class OceanQuality : u8
 struct OceanDrawCommand
 {
     MeshHandle mesh;
-    glm::mat4 model = glm::mat4(1.0f);
+    Math::Mat4 model = Math::Mat4(1.0f);
 
     OceanQuality quality = OceanQuality::Reflection;
 
@@ -52,8 +52,8 @@ struct OceanDrawCommand
     f32 steepness = 0.55f;
     f32 timeScale = 1.0f;
 
-    glm::vec3 shallowColor = glm::vec3(0.28f, 0.55f, 0.55f);
-    glm::vec3 deepColor = glm::vec3(0.02f, 0.11f, 0.20f);
+    Math::Vec3 shallowColor = Math::Vec3(0.28f, 0.55f, 0.55f);
+    Math::Vec3 deepColor = Math::Vec3(0.02f, 0.11f, 0.20f);
     f32 absorptionDistance = 28.0f;
     f32 roughness = 0.06f;
     f32 specularStrength = 0.6f;
@@ -87,15 +87,15 @@ struct OceanDrawCommand
     f32 refractionStrength = 1.0f;
     f32 colorStrength = 1.0f;
 
-    glm::vec3 underwaterColor = glm::vec3(0.06f, 0.22f, 0.30f);
+    Math::Vec3 underwaterColor = Math::Vec3(0.06f, 0.22f, 0.30f);
 
     s32 debugMode = 0;
 
     // Defaults match Grass/ForwardPass: a fake sun until the sky/scene light
     // takes over.
-    glm::vec3 lightDirection = -glm::normalize(glm::vec3(0.4f, 0.8f, 0.3f));
-    glm::vec3 lightColor = glm::vec3(1.0f);
-    glm::vec3 ambient = glm::vec3(0.2f);
+    Math::Vec3 lightDirection = -glm::normalize(Math::Vec3(0.4f, 0.8f, 0.3f));
+    Math::Vec3 lightColor = Math::Vec3(1.0f);
+    Math::Vec3 ambient = Math::Vec3(0.2f);
     f32 skyIntensity = 1.0f;
 };
 
