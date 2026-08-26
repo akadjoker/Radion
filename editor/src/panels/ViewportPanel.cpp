@@ -5,6 +5,7 @@
 #include "Animation.h"
 #include "AssetManager.h"
 #include "Camera.h"
+#include "Color.h"
 #include "DebugDraw3D.h"
 #include "EditorApplication.h"
 #include "Engine.h"
@@ -215,7 +216,7 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
     if (Light* light = object.getComponent<Light>())
     {
         const Math::vec3 color = light->color();
-        const Color debugColor = Color::fromRGBFloat(color.r, color.g, color.b);
+        const Color debugColor = Color::fromRGBFloat(color.x, color.y, color.z);
         switch (light->lightType())
         {
         case LightType::Directional:
