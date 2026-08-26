@@ -1,13 +1,11 @@
 #include "PCH.h"
 #include "ViewportPanel.h"
 #include "../BlenderApplication.h"
+#include "Color.h"
 #include "MiniBatch.h"
 
 #include <glad.h>
-#include <glm/geometric.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/vec4.hpp>
+#include "Math.h"
 #include <IconsMaterialDesignIcons.h>
 #include <ImGuizmo.h>
 #include <imgui.h>
@@ -526,12 +524,12 @@ void ViewportPanel::updateCameraNavigation(usize index, CameraState& camera, Vie
     {
         camera.yaw -= io.MouseDelta.x * 0.005f;
         camera.pitch -= io.MouseDelta.y * 0.005f;
-        camera.pitch = glm::clamp(camera.pitch, -1.5f, 1.5f);
+        camera.pitch = Math::clamp(camera.pitch, -1.5f, 1.5f);
     }
     if (active && mPanning)
     {
-        const glm::vec3 right(glm::cos(camera.yaw), 0.0f, glm::sin(camera.yaw));
-        const glm::vec3 up(0.0f, 1.0f, 0.0f);
+        const Math::vec3 right(Math::cos(camera.yaw), 0.0f, Math::sin(camera.yaw));
+        const Math::vec3 up(0.0f, 1.0f, 0.0f);
         const f32 scale = camera.distance * 0.001f;
         camera.target -= right * (io.MouseDelta.x * scale);
         camera.target += up * (io.MouseDelta.y * scale);
@@ -539,45 +537,45 @@ void ViewportPanel::updateCameraNavigation(usize index, CameraState& camera, Vie
     if (hovered && io.MouseWheel != 0.0f)
     {
         camera.distance -= io.MouseWheel * camera.distance * 0.15f;
-        camera.distance = glm::clamp(camera.distance, 0.1f, 1000.0f);
+        camera.distance = Math::clamp(camera.distance, 0.1f, 1000.0f);
     }
 }
 
 void ViewportPanel::computeMatrices(const CameraState& camera, ViewMode mode, f32 aspect,
-                                    glm::mat4& view, glm::mat4& projection,
-                                    glm::vec3& cameraPos) const
+                                    Math::mat4& view, Math::mat4& projection,
+                                    Math::vec3& cameraPos) const
 {
     constexpr f32 kNear = 0.05f;
     constexpr f32 kFar = 1000.0f;
 
     if (mode == ViewMode::Perspective)
     {
-        const glm::vec3 forward(glm::sin(camera.yaw) * glm::cos(camera.pitch),
-                                glm::sin(camera.pitch),
-                                -glm::cos(camera.yaw) * glm::cos(camera.pitch));
+        const Math::vec3 forward(Math::sin(camera.yaw) * Math::cos(camera.pitch),
+                                Math::sin(camera.pitch),
+                                -Math::cos(camera.yaw) * Math::cos(camera.pitch));
         cameraPos = camera.target - forward * camera.distance;
-        view = glm::lookAt(cameraPos, camera.target, glm::vec3(0.0f, 1.0f, 0.0f));
-        projection = glm::perspective(glm::radians(60.0f), aspect, kNear, kFar);
+        view = Math::lookAt(cameraPos, camera.target, Math::vec3(0.0f, 1.0f, 0.0f));
+        projection = Math::perspective(Math::radians(60.0f), aspect, kNear, kFar);
         return;
     }
 
-    glm::vec3 offset(0.0f);
-    glm::vec3 up(0.0f, 1.0f, 0.0f);
+    Math::vec3 offset(0.0f);
+    Math::vec3 up(0.0f, 1.0f, 0.0f);
     switch (mode)
     {
-    case ViewMode::Top: offset = glm::vec3(0.0f, camera.distance, 0.0f); up = glm::vec3(0.0f, 0.0f, -1.0f); break;
-    case ViewMode::Bottom: offset = glm::vec3(0.0f, -camera.distance, 0.0f); up = glm::vec3(0.0f, 0.0f, 1.0f); break;
-    case ViewMode::Front: offset = glm::vec3(0.0f, 0.0f, camera.distance); break;
-    case ViewMode::Back: offset = glm::vec3(0.0f, 0.0f, -camera.distance); break;
-    case ViewMode::Left: offset = glm::vec3(-camera.distance, 0.0f, 0.0f); break;
-    case ViewMode::Right: offset = glm::vec3(camera.distance, 0.0f, 0.0f); break;
+    case ViewMode::Top: offset = Math::vec3(0.0f, camera.distance, 0.0f); up = Math::vec3(0.0f, 0.0f, -1.0f); break;
+    case ViewMode::Bottom: offset = Math::vec3(0.0f, -camera.distance, 0.0f); up = Math::vec3(0.0f, 0.0f, 1.0f); break;
+    case ViewMode::Front: offset = Math::vec3(0.0f, 0.0f, camera.distance); break;
+    case ViewMode::Back: offset = Math::vec3(0.0f, 0.0f, -camera.distance); break;
+    case ViewMode::Left: offset = Math::vec3(-camera.distance, 0.0f, 0.0f); break;
+    case ViewMode::Right: offset = Math::vec3(camera.distance, 0.0f, 0.0f); break;
     default: break;
     }
     cameraPos = camera.target + offset;
-    view = glm::lookAt(cameraPos, camera.target, up);
+    view = Math::lookAt(cameraPos, camera.target, up);
     const f32 halfHeight = camera.distance * 0.5f;
     const f32 halfWidth = halfHeight * aspect;
-    projection = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, kNear, kFar);
+    projection = Math::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, kNear, kFar);
 }
 
 void ViewportPanel::drawViewportWindow(usize index, const char* name, ViewMode mode)
@@ -596,8 +594,8 @@ void ViewportPanel::drawViewportWindow(usize index, const char* name, ViewMode m
         return;
     }
 
-    glm::mat4 view, projection;
-    glm::vec3 cameraPos;
+    Math::mat4 view, projection;
+    Math::vec3 cameraPos;
     computeMatrices(mCameras[index], mode, size.x / size.y, view, projection, cameraPos);
 
     GLint previousFbo = 0;
@@ -684,41 +682,41 @@ void ViewportPanel::drawViewportWindow(usize index, const char* name, ViewMode m
     }
 
     if (mode == ViewMode::Perspective && ImGui::IsWindowFocused())
-        drawNavigationGizmo(mCameras[index], view, glm::vec2(overlayPos.x, overlayPos.y),
-                            glm::vec2(size.x, size.y));
+        drawNavigationGizmo(mCameras[index], view, Math::vec2(overlayPos.x, overlayPos.y),
+                            Math::vec2(size.x, size.y));
 
-    drawTransformGizmo(index, mesh, view, projection, glm::vec2(overlayPos.x, overlayPos.y),
-                       glm::vec2(size.x, size.y), mode != ViewMode::Perspective);
+    drawTransformGizmo(index, mesh, view, projection, Math::vec2(overlayPos.x, overlayPos.y),
+                       Math::vec2(size.x, size.y), mode != ViewMode::Perspective);
 
-    updateSelectionInput(index, mesh, view, projection, cameraPos, glm::vec2(overlayPos.x, overlayPos.y),
-                         glm::vec2(size.x, size.y), target);
+    updateSelectionInput(index, mesh, view, projection, cameraPos, Math::vec2(overlayPos.x, overlayPos.y),
+                         Math::vec2(size.x, size.y), target);
 }
 
-void ViewportPanel::drawNavigationGizmo(CameraState& camera, const glm::mat4& view,
-                                        const glm::vec2& imageMin, const glm::vec2& imageSize)
+void ViewportPanel::drawNavigationGizmo(CameraState& camera, const Math::mat4& view,
+                                        const Math::vec2& imageMin, const Math::vec2& imageSize)
 {
     constexpr f32 kGizmoSize = 90.0f;
 
     ImGuizmo::SetDrawlist();
     ImGuizmo::SetRect(imageMin.x, imageMin.y, imageSize.x, imageSize.y);
 
-    glm::mat4 gizmoView = view;
+    Math::mat4 gizmoView = view;
     bool modified = false;
-    ImGuizmo::ViewManipulate(glm::value_ptr(gizmoView), camera.distance,
+    ImGuizmo::ViewManipulate(Math::value_ptr(gizmoView), camera.distance,
                              ImVec2(imageMin.x + imageSize.x - kGizmoSize - 8.0f, imageMin.y + 8.0f),
                              ImVec2(kGizmoSize, kGizmoSize), 0, modified);
     if (!modified)
         return;
 
-    const glm::mat4 cameraToWorld = glm::inverse(gizmoView);
-    const glm::vec3 forward = glm::normalize(-glm::vec3(cameraToWorld[2]));
-    camera.pitch = glm::asin(glm::clamp(forward.y, -1.0f, 1.0f));
-    camera.yaw = glm::atan(forward.x, -forward.z);
+    const Math::mat4 cameraToWorld = Math::inverse(gizmoView);
+    const Math::vec3 forward = Math::normalize(-Math::vec3(cameraToWorld[2]));
+    camera.pitch = Math::asin(Math::clamp(forward.y, -1.0f, 1.0f));
+    camera.yaw = Math::atan(forward.x, -forward.z);
 }
 
-void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const glm::mat4& view,
-                                       const glm::mat4& projection, const glm::vec2& imageMin,
-                                       const glm::vec2& imageSize, bool orthographic)
+void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const Math::mat4& view,
+                                       const Math::mat4& projection, const Math::vec2& imageMin,
+                                       const Math::vec2& imageSize, bool orthographic)
 {
     if (mTool == Tool::Select || !mesh || mesh->positions.empty())
     {
@@ -752,14 +750,14 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
     // Between drags the gizmo sits on the pivot with no rotation or scale of
     // its own, so the matrix it hands back is exactly what the drag did.
     if (!mGizmoDragging)
-        mGizmoMatrix = glm::translate(glm::mat4(1.0f), app().transformPivot());
+        mGizmoMatrix = Math::translate(Math::mat4(1.0f), app().transformPivot());
 
     const f32 snapAmount = mTool == Tool::Move ? 1.0f : mTool == Tool::Rotate ? 15.0f : 0.1f;
     f32 snapValues[3] = {snapAmount, snapAmount, snapAmount};
 
-    glm::mat4 manipulated = mGizmoMatrix;
-    ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection), operation,
-                         ImGuizmo::WORLD, glm::value_ptr(manipulated), nullptr,
+    Math::mat4 manipulated = mGizmoMatrix;
+    ImGuizmo::Manipulate(Math::value_ptr(view), Math::value_ptr(projection), operation,
+                         ImGuizmo::WORLD, Math::value_ptr(manipulated), nullptr,
                          mSnap ? snapValues : nullptr);
 
     if (!ImGuizmo::IsUsing())
@@ -782,7 +780,7 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
     }
 
     mGizmoMatrix = manipulated;
-    app().updateGizmoDrag(manipulated * glm::inverse(mGizmoStartMatrix));
+    app().updateGizmoDrag(manipulated * Math::inverse(mGizmoStartMatrix));
 }
 
 void ViewportPanel::uploadVertexSelection(const MeshData& mesh, const BlenderSelection& selection)
@@ -810,7 +808,7 @@ void ViewportPanel::uploadVertexSelection(const MeshData& mesh, const BlenderSel
     mUploadedSelectionMesh = &mesh;
 }
 
-void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& viewProjection)
+void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const Math::mat4& viewProjection)
 {
     if (!mesh || mesh->positions.empty())
         return;
@@ -832,7 +830,7 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& 
     if (drawSubmesh)
     {
         const SubMesh& submesh = mesh->submeshes[static_cast<usize>(selectedSubmesh)];
-        const glm::vec4 highlight(viewportSettings.submeshHighlightColor,
+        const Math::vec4 highlight(viewportSettings.submeshHighlightColor,
                                   viewportSettings.submeshHighlightAlpha);
         const u32 end = submesh.indexOffset + submesh.indexCount;
         for (u32 i = submesh.indexOffset; i + 2 < end && i + 2 < mesh->indices.size(); i += 3)
@@ -852,8 +850,8 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& 
     // its own, so a 150k vertex mesh costs nothing per frame.
     if (drawVertexFace && selection.mode() == BlenderSelection::SelectionMode::Face)
     {
-        const glm::vec4 highlight(viewportSettings.faceHighlightColor, viewportSettings.faceHighlightAlpha);
-        const glm::vec4 edgeHighlight(viewportSettings.faceEdgeHighlightColor, 1.0f);
+        const Math::vec4 highlight(viewportSettings.faceHighlightColor, viewportSettings.faceHighlightAlpha);
+        const Math::vec4 edgeHighlight(viewportSettings.faceEdgeHighlightColor, 1.0f);
         // Walking the selection, not every face in the mesh: the cost belongs
         // to what is highlighted, not to how big the model is.
         const std::vector<u32>& selectedFaces = selection.selectedFaces();
@@ -869,9 +867,9 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& 
             if (i0 >= mesh->positions.size() || i1 >= mesh->positions.size() ||
                 i2 >= mesh->positions.size())
                 continue;
-            const glm::vec3& p0 = mesh->positions[i0];
-            const glm::vec3& p1 = mesh->positions[i1];
-            const glm::vec3& p2 = mesh->positions[i2];
+            const Math::vec3& p0 = mesh->positions[i0];
+            const Math::vec3& p1 = mesh->positions[i1];
+            const Math::vec3& p2 = mesh->positions[i2];
             batch.triangle(p0, p1, p2, highlight);
             batch.line(p0, p1, edgeHighlight);
             batch.line(p1, p2, edgeHighlight);
@@ -882,7 +880,7 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& 
     batch.flush(viewProjection);
 }
 
-void ViewportPanel::drawDebugVectorOverlay(const MeshData* mesh, const glm::mat4& viewProjection)
+void ViewportPanel::drawDebugVectorOverlay(const MeshData* mesh, const Math::mat4& viewProjection)
 {
     if (!mesh || mesh->positions.empty())
         return;
@@ -896,7 +894,7 @@ void ViewportPanel::drawDebugVectorOverlay(const MeshData* mesh, const glm::mat4
         return;
 
     const BlenderSettings::ViewportSettings& viewportSettings = app().settings().viewport();
-    const glm::vec4 color(showNormals ? viewportSettings.normalVectorColor
+    const Math::vec4 color(showNormals ? viewportSettings.normalVectorColor
                                       : viewportSettings.tangentVectorColor,
                           1.0f);
     const f32 length = viewportSettings.debugVectorLength;
@@ -905,37 +903,37 @@ void ViewportPanel::drawDebugVectorOverlay(const MeshData* mesh, const glm::mat4
     batch.begin();
     for (usize i = 0; i < mesh->positions.size(); ++i)
     {
-        const glm::vec3& origin = mesh->positions[i];
-        const glm::vec3 direction =
-            showNormals ? mesh->normals[i] : glm::vec3(mesh->tangents[i]);
+        const Math::vec3& origin = mesh->positions[i];
+        const Math::vec3 direction =
+            showNormals ? mesh->normals[i] : Math::vec3(mesh->tangents[i]);
         batch.line(origin, origin + direction * length, color);
     }
     batch.flush(viewProjection);
 }
 
-void ViewportPanel::drawSkeletonOverlay(const glm::mat4& viewProjection)
+void ViewportPanel::drawSkeletonOverlay(const Math::mat4& viewProjection)
 {
     if (!app().hasSkeleton())
         return;
 
     const Skeleton& skeleton = app().skeleton();
-    const std::vector<glm::mat4>& globalPose = app().globalPose();
+    const std::vector<Math::mat4>& globalPose = app().globalPose();
     if (globalPose.size() != skeleton.boneCount())
         return;
 
     MiniBatch& batch = app().batch();
     batch.begin();
 
-    const glm::vec4 boneColor(0.2f, 1.0f, 0.4f, 1.0f);
-    const glm::vec4 jointColor(1.0f, 1.0f, 0.4f, 1.0f);
+    const Math::vec4 boneColor(0.2f, 1.0f, 0.4f, 1.0f);
+    const Math::vec4 jointColor(1.0f, 1.0f, 0.4f, 1.0f);
     for (u32 i = 0; i < skeleton.boneCount(); ++i)
     {
-        const glm::vec3 jointPos(globalPose[i][3]);
+        const Math::vec3 jointPos(globalPose[i][3]);
         batch.point(jointPos, jointColor, 6.0f);
 
         const s32 parent = skeleton.bone(i).parent;
         if (parent >= 0 && static_cast<u32>(parent) < globalPose.size())
-            batch.line(glm::vec3(globalPose[static_cast<u32>(parent)][3]), jointPos, boneColor);
+            batch.line(Math::vec3(globalPose[static_cast<u32>(parent)][3]), jointPos, boneColor);
     }
 
     batch.flush(viewProjection);
@@ -943,17 +941,19 @@ void ViewportPanel::drawSkeletonOverlay(const glm::mat4& viewProjection)
 
 namespace
 {
-glm::vec2 projectToScreen(const glm::vec3& worldPos, const glm::mat4& viewProjection,
-                          const glm::vec2& imageMin, const glm::vec2& imageSize, bool& inFront)
+::Radion::Math::vec2 projectToScreen(const ::Radion::Math::vec3& worldPos,
+                                     const ::Radion::Math::mat4& viewProjection,
+                                     const ::Radion::Math::vec2& imageMin,
+                                     const ::Radion::Math::vec2& imageSize, bool& inFront)
 {
-    const glm::vec4 clip = viewProjection * glm::vec4(worldPos, 1.0f);
+    const ::Radion::Math::vec4 clip = viewProjection * ::Radion::Math::vec4(worldPos, 1.0f);
     inFront = clip.w > 0.0001f;
     if (!inFront)
-        return glm::vec2(0.0f);
+        return ::Radion::Math::vec2(0.0f);
 
-    const glm::vec2 ndc(clip.x / clip.w, clip.y / clip.w);
-    return glm::vec2(imageMin.x + (ndc.x * 0.5f + 0.5f) * imageSize.x,
-                     imageMin.y + (1.0f - (ndc.y * 0.5f + 0.5f)) * imageSize.y);
+    const ::Radion::Math::vec2 ndc(clip.x / clip.w, clip.y / clip.w);
+    return ::Radion::Math::vec2(imageMin.x + (ndc.x * 0.5f + 0.5f) * imageSize.x,
+                                imageMin.y + (1.0f - (ndc.y * 0.5f + 0.5f)) * imageSize.y);
 }
 } // namespace
 
@@ -964,8 +964,8 @@ glm::vec2 projectToScreen(const glm::vec3& worldPos, const glm::mat4& viewProjec
 // perspective view and the orthographic Top/Front/etc ones), unlike
 // comparing raw window-space depth directly, whose non-linear precision
 // made every candidate read as "in front" regardless of true occlusion.
-bool ViewportPanel::readDepthRect(const RenderTarget& target, const glm::vec2& localMin,
-                                  const glm::vec2& localMax, DepthRect& out)
+bool ViewportPanel::readDepthRect(const RenderTarget& target, const Math::vec2& localMin,
+                                  const Math::vec2& localMax, DepthRect& out)
 {
     out.depth.clear();
     out.width = 0;
@@ -975,15 +975,15 @@ bool ViewportPanel::readDepthRect(const RenderTarget& target, const glm::vec2& l
         return false;
 
     // The rect arrives in the image's top-left origin; GL reads bottom-up.
-    const s32 x0 = static_cast<s32>(glm::floor(localMin.x));
-    const s32 x1 = static_cast<s32>(glm::ceil(localMax.x));
-    const s32 yTop = static_cast<s32>(glm::floor(localMin.y));
-    const s32 yBottom = static_cast<s32>(glm::ceil(localMax.y));
+    const s32 x0 = static_cast<s32>(Math::floor(localMin.x));
+    const s32 x1 = static_cast<s32>(Math::ceil(localMax.x));
+    const s32 yTop = static_cast<s32>(Math::floor(localMin.y));
+    const s32 yBottom = static_cast<s32>(Math::ceil(localMax.y));
 
-    const s32 x = glm::max(0, x0);
-    const s32 y = glm::max(0, target.height - 1 - yBottom);
-    const s32 right = glm::min(target.width, x1 + 1);
-    const s32 top = glm::min(target.height, target.height - yTop);
+    const s32 x = Math::max(0, x0);
+    const s32 y = Math::max(0, target.height - 1 - yBottom);
+    const s32 right = Math::min(target.width, x1 + 1);
+    const s32 top = Math::min(target.height, target.height - yTop);
 
     if (right <= x || top <= y)
         return false;
@@ -1004,10 +1004,10 @@ bool ViewportPanel::readDepthRect(const RenderTarget& target, const glm::vec2& l
     return true;
 }
 
-bool ViewportPanel::isScreenPointVisible(const DepthRect& depthRect, const glm::vec2& localPoint,
-                                         const glm::vec3& worldPos,
-                                         const glm::mat4& inverseViewProjection,
-                                         const glm::vec3& cameraPos, const RenderTarget& target)
+bool ViewportPanel::isScreenPointVisible(const DepthRect& depthRect, const Math::vec2& localPoint,
+                                         const Math::vec3& worldPos,
+                                         const Math::mat4& inverseViewProjection,
+                                         const Math::vec3& cameraPos, const RenderTarget& target)
 {
     const s32 px = static_cast<s32>(localPoint.x);
     const s32 py = target.height - 1 - static_cast<s32>(localPoint.y);
@@ -1030,19 +1030,19 @@ bool ViewportPanel::isScreenPointVisible(const DepthRect& depthRect, const glm::
     const f32 ndcY = 1.0f - (localPoint.y / static_cast<f32>(target.height)) * 2.0f;
     const f32 ndcZ = bufferDepth * 2.0f - 1.0f;
 
-    glm::vec4 surface4 = inverseViewProjection * glm::vec4(ndcX, ndcY, ndcZ, 1.0f);
+    Math::vec4 surface4 = inverseViewProjection * Math::vec4(ndcX, ndcY, ndcZ, 1.0f);
     surface4 /= surface4.w;
 
-    const f32 surfaceDistance = glm::length(glm::vec3(surface4) - cameraPos);
-    const f32 candidateDistance = glm::length(worldPos - cameraPos);
+    const f32 surfaceDistance = Math::length(Math::vec3(surface4) - cameraPos);
+    const f32 candidateDistance = Math::length(worldPos - cameraPos);
 
     constexpr f32 kEpsilon = 0.02f;
     return candidateDistance <= surfaceDistance + kEpsilon;
 }
 
-void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, const glm::mat4& view,
-                                         const glm::mat4& projection, const glm::vec3& cameraPos,
-                                         const glm::vec2& imageMin, const glm::vec2& imageSize,
+void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, const Math::mat4& view,
+                                         const Math::mat4& projection, const Math::vec3& cameraPos,
+                                         const Math::vec2& imageMin, const Math::vec2& imageSize,
                                          const RenderTarget& target)
 {
     if (!mesh || mesh->positions.empty() || mTool != Tool::Select)
@@ -1059,23 +1059,22 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
     {
         mBoxSelecting = true;
         mBoxSelectViewport = static_cast<s32>(index);
-        mBoxSelectStart = glm::vec2(io.MousePos.x, io.MousePos.y);
+        mBoxSelectStart = Math::vec2(io.MousePos.x, io.MousePos.y);
     }
 
     if (!mBoxSelecting || mBoxSelectViewport != static_cast<s32>(index))
         return;
 
-    const glm::vec2 current(io.MousePos.x, io.MousePos.y);
-    const f32 dragDistance = glm::length(current - mBoxSelectStart);
+    const Math::vec2 current(io.MousePos.x, io.MousePos.y);
+    const f32 dragDistance = Math::length(current - mBoxSelectStart);
     const bool isBox = dragDistance > 4.0f;
 
     if (isBox)
     {
-        const glm::vec3& boxColor = app().settings().viewport().boxSelectColor;
-        const ImU32 fillColor = IM_COL32(static_cast<int>(boxColor.r * 255.0f), static_cast<int>(boxColor.g * 255.0f),
-                                         static_cast<int>(boxColor.b * 255.0f), 35);
-        const ImU32 lineColor = IM_COL32(static_cast<int>(boxColor.r * 255.0f), static_cast<int>(boxColor.g * 255.0f),
-                                         static_cast<int>(boxColor.b * 255.0f), 220);
+        const Math::vec3& boxColor = app().settings().viewport().boxSelectColor;
+        const Color selectionColor = Color::fromRGBFloat(boxColor.x, boxColor.y, boxColor.z);
+        const ImU32 fillColor = IM_COL32(selectionColor.r(), selectionColor.g(), selectionColor.b(), 35);
+        const ImU32 lineColor = IM_COL32(selectionColor.r(), selectionColor.g(), selectionColor.b(), 220);
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         const ImVec2 a(mBoxSelectStart.x, mBoxSelectStart.y);
         const ImVec2 b(current.x, current.y);
@@ -1092,10 +1091,10 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
     if (!io.KeyShift)
         selection.clearAll();
 
-    const glm::mat4 viewProjection = projection * view;
-    const glm::mat4 inverseViewProjection = glm::inverse(viewProjection);
-    const glm::vec2 rectMin(glm::min(mBoxSelectStart.x, current.x), glm::min(mBoxSelectStart.y, current.y));
-    const glm::vec2 rectMax(glm::max(mBoxSelectStart.x, current.x), glm::max(mBoxSelectStart.y, current.y));
+    const Math::mat4 viewProjection = projection * view;
+    const Math::mat4 inverseViewProjection = Math::inverse(viewProjection);
+    const Math::vec2 rectMin(Math::min(mBoxSelectStart.x, current.x), Math::min(mBoxSelectStart.y, current.y));
+    const Math::vec2 rectMax(Math::max(mBoxSelectStart.x, current.x), Math::max(mBoxSelectStart.y, current.y));
 
     // One read for the whole operation, before any candidate is tested. A box
     // covers the dragged rectangle; a click tests only the winner, but that
@@ -1110,10 +1109,10 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
     DepthRect depthRect;
     if (mSelectVisibleOnly)
     {
-        const glm::vec2 readMin =
-            isBox ? rectMin - imageMin : current - imageMin - glm::vec2(kPickRadius);
-        const glm::vec2 readMax =
-            isBox ? rectMax - imageMin : current - imageMin + glm::vec2(kPickRadius);
+        const Math::vec2 readMin =
+            isBox ? rectMin - imageMin : current - imageMin - Math::vec2(kPickRadius);
+        const Math::vec2 readMax =
+            isBox ? rectMax - imageMin : current - imageMin + Math::vec2(kPickRadius);
         readDepthRect(target, readMin, readMax, depthRect);
     }
 
@@ -1121,7 +1120,7 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
     {
         u32 bestIndex = 0;
         f32 bestDistance = 1e9f;
-        glm::vec2 bestScreen(0.0f);
+        Math::vec2 bestScreen(0.0f);
         bool found = false;
 
         for (u32 i = 0; i < static_cast<u32>(mesh->positions.size()); ++i)
@@ -1130,7 +1129,7 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
                 continue;
 
             bool inFront = false;
-            const glm::vec2 screen = projectToScreen(mesh->positions[i], viewProjection, imageMin,
+            const Math::vec2 screen = projectToScreen(mesh->positions[i], viewProjection, imageMin,
                                                      imageSize, inFront);
             if (!inFront)
                 continue;
@@ -1146,7 +1145,7 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
             }
             else
             {
-                const f32 distance = glm::length(screen - current);
+                const f32 distance = Math::length(screen - current);
                 if (distance < bestDistance)
                 {
                     bestDistance = distance;
@@ -1225,10 +1224,10 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
                 i2 >= mesh->positions.size())
                 continue;
 
-            const glm::vec3 centroid =
+            const Math::vec3 centroid =
                 (mesh->positions[i0] + mesh->positions[i1] + mesh->positions[i2]) / 3.0f;
             bool inFront = false;
-            const glm::vec2 screen = projectToScreen(centroid, viewProjection, imageMin, imageSize, inFront);
+            const Math::vec2 screen = projectToScreen(centroid, viewProjection, imageMin, imageSize, inFront);
             if (!inFront)
                 continue;
 

@@ -27,7 +27,7 @@ struct AnimationClip {
 
 struct Keyframe {
     float time;                          // segundos desde frame 0
-    glm::vec3 value;                     // pos, rot, scale
+    Math::vec3 value;                     // pos, rot, scale
     int easeType = iam_ease_linear;
     float bezierParams[4];               // se cubic_bezier
 };
@@ -43,8 +43,8 @@ struct AnimationInstance {
     bool playing = false;
     float currentTime = 0.0f;
 
-    glm::vec3 getVertexOffset(u32 vertexIndex) const;
-    glm::quat getBoneRotation(u32 boneIndex) const;
+    Math::vec3 getVertexOffset(u32 vertexIndex) const;
+    Math::quat getBoneRotation(u32 boneIndex) const;
 };
 ```
 
@@ -58,8 +58,8 @@ private:
     std::map<std::string, AnimationClip> mClips;  // library
 
     // Deformation buffers
-    std::vector<glm::vec3> mMorphOffsets;         // vertex offsets animados
-    std::vector<glm::mat4> mBonePalette;          // transformações de bones
+    std::vector<Math::vec3> mMorphOffsets;         // vertex offsets animados
+    std::vector<Math::mat4> mBonePalette;          // transformações de bones
 
 public:
     // Timeline authoring
@@ -73,8 +73,8 @@ public:
     void seekAnimation(float time);
 
     // Deformation queries
-    glm::vec3 getAnimatedVertexPosition(u32 index) const;
-    glm::mat4 getAnimatedBoneTransform(u32 index) const;
+    Math::vec3 getAnimatedVertexPosition(u32 index) const;
+    Math::mat4 getAnimatedBoneTransform(u32 index) const;
 
     // Persistence
     bool saveAnimation(const std::string& path);
@@ -110,7 +110,7 @@ void BlenderApplication::insertKeyframe() {
         ImGuiID channel = makeChannelId("vertex", vIdx);
         
         // Registrar offset da posição original
-        glm::vec3 offset = mMeshData->positions[vIdx] - mMeshDataOriginal->positions[vIdx];
+        Math::vec3 offset = mMeshData->positions[vIdx] - mMeshDataOriginal->positions[vIdx];
         
         mCurrentClip.keyframes[channel].push_back({
             time,
@@ -176,7 +176,7 @@ void BlenderApplication::runFrame(f32 deltaTime) {
             if (iam_instance.get_float(makeChannelId("vertex.x", v), &x) &&
                 iam_instance.get_float(makeChannelId("vertex.y", v), &y) &&
                 iam_instance.get_float(makeChannelId("vertex.z", v), &z)) {
-                mMorphOffsets[v] = glm::vec3(x, y, z);
+                mMorphOffsets[v] = Math::vec3(x, y, z);
             }
         }
 

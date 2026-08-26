@@ -85,8 +85,8 @@ void PropertiesPanel::drawFaceUVTools()
 
     if (ImGui::SmallButton("Reset##uvfields"))
     {
-        mUVScale = glm::vec2(1.0f);
-        mUVOffset = glm::vec2(0.0f);
+        mUVScale = Math::vec2(1.0f);
+        mUVOffset = Math::vec2(0.0f);
         mUVRotation = 0.0f;
     }
     ImGui::SameLine();
@@ -104,8 +104,8 @@ void PropertiesPanel::drawFaceUVTools()
                       ImVec2(-1.0f, 0.0f)))
     {
         app().applyFaceUVTransform(mUVScale, mUVRotation, mUVOffset);
-        mUVScale = glm::vec2(1.0f);
-        mUVOffset = glm::vec2(0.0f);
+        mUVScale = Math::vec2(1.0f);
+        mUVOffset = Math::vec2(0.0f);
         mUVRotation = 0.0f;
     }
     if (wholeMesh && ImGui::IsItemHovered())

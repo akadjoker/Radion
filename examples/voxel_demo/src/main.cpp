@@ -40,7 +40,7 @@ constexpr const char* kTerrainAtlasFile = "terrain.png";
 
 // The world grows around this point. Streaming around a GameObject later is
 // the same loop with this read from playerObject->position() every frame.
-const glm::vec3 kWorldCenter(0.0f, 0.0f, 0.0f);
+const ::Radion::Math::vec3 kWorldCenter(0.0f, 0.0f, 0.0f);
 
 struct AtlasTile
 {
@@ -139,7 +139,7 @@ void addChunkMesh(Scene& scene, const char* name, ChunkCoord chunk, const MeshDa
 
     GameObject* object = scene.createGameObject(name);
     object->addComponent<MeshRenderer>(mesh);
-    object->setPosition(glm::vec3(static_cast<f32>(chunk.x * VoxelChunk::Size),
+    object->setPosition(::Radion::Math::vec3(static_cast<f32>(chunk.x * VoxelChunk::Size),
                                   static_cast<f32>(chunk.y * VoxelChunk::Size),
                                   static_cast<f32>(chunk.z * VoxelChunk::Size)));
 }
@@ -175,8 +175,8 @@ int main(int, char**)
     GameObject* cameraObject = scene->createGameObject("Camera");
     Camera* camera = cameraObject->addComponent<Camera>();
     camera->setPerspective(60.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
-    cameraObject->setPosition(kWorldCenter + glm::vec3(48.0f, 112.0f, -96.0f));
-    cameraObject->lookAt(kWorldCenter + glm::vec3(0.0f, 42.0f, 0.0f));
+    cameraObject->setPosition(kWorldCenter + ::Radion::Math::vec3(48.0f, 112.0f, -96.0f));
+    cameraObject->lookAt(kWorldCenter + ::Radion::Math::vec3(0.0f, 42.0f, 0.0f));
     FreeFly* fly = cameraObject->addComponent<FreeFly>();
     fly->setMoveSpeed(28.0f);
     fly->setSprintMultiplier(2.5f);
@@ -184,9 +184,9 @@ int main(int, char**)
 
     GameObject* sunObject = scene->createGameObject("Sun");
     DirectionalLight* sun = sunObject->addComponent<DirectionalLight>();
-    sun->setColor(glm::vec3(1.0f, 0.96f, 0.88f));
+    sun->setColor(::Radion::Math::vec3(1.0f, 0.96f, 0.88f));
     sun->setIntensity(1.2f);
-    sunObject->setPosition(kWorldCenter + glm::vec3(-60.0f, 80.0f, -40.0f));
+    sunObject->setPosition(kWorldCenter + ::Radion::Math::vec3(-60.0f, 80.0f, -40.0f));
     sunObject->lookAt(kWorldCenter);
 
     BlockRegistry blocks;

@@ -11,7 +11,7 @@
 #include "MiniRenderer.h"
 #include "Types.h"
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <string>
 #include <vector>
 
@@ -66,14 +66,14 @@ public:
 
     // Reworks the UVs of the selected faces, or of the whole mesh when
     // nothing is selected. One undo step per call.
-    void applyFaceUVTransform(const glm::vec2& scale, f32 rotationDegrees,
-                              const glm::vec2& offset);
+    void applyFaceUVTransform(const Math::vec2& scale, f32 rotationDegrees,
+                              const Math::vec2& offset);
 
     // -- gizmo drag
     //
     // Where the gizmo sits: the median of the selected vertices, or of the
     // whole mesh when nothing is selected. Origin for an empty mesh.
-    glm::vec3 transformPivot() const;
+    Math::vec3 transformPivot() const;
     // Takes the undo snapshot and remembers the geometry as it stands, so
     // every frame of the drag transforms the original rather than the last
     // frame's result - compounding a few hundred matrices visibly drifts.
@@ -81,7 +81,7 @@ public:
     bool beginGizmoDrag();
     // `worldDelta` maps a vertex's position at the start of the drag to where
     // it belongs now; it carries its own pivot.
-    void updateGizmoDrag(const glm::mat4& worldDelta);
+    void updateGizmoDrag(const Math::mat4& worldDelta);
     void endGizmoDrag();
     bool gizmoDragging() const
     {
@@ -131,11 +131,11 @@ public:
     {
         return mSkeleton;
     }
-    const std::vector<glm::mat4>& globalPose() const
+    const std::vector<Math::mat4>& globalPose() const
     {
         return mGlobalPose;
     }
-    const std::vector<glm::mat4>& bonePalette() const
+    const std::vector<Math::mat4>& bonePalette() const
     {
         return mBonePalette;
     }
@@ -180,11 +180,11 @@ public:
     }
 
     // 3D cursor position for operations
-    glm::vec3 cursor3D() const
+    Math::vec3 cursor3D() const
     {
         return mCursor3D;
     }
-    void setCursor3D(const glm::vec3& pos)
+    void setCursor3D(const Math::vec3& pos)
     {
         mCursor3D = pos;
     }
@@ -296,7 +296,7 @@ private:
     void drawTransformMenu();
     // Bakes `matrix` into the selected vertices, or the whole mesh when
     // nothing is selected, around their own median point.
-    void applyTransform(const glm::mat4& matrix, const char* verb);
+    void applyTransform(const Math::mat4& matrix, const char* verb);
     void drawMeshMenu();
     void drawToolPopups();
     void drawSaveInfoPopup();
@@ -357,8 +357,8 @@ private:
     std::vector<AnimationClip> mAnimationClips;
     s32 mActiveClip = -1;
     std::vector<LocalPose> mLocalPose;
-    std::vector<glm::mat4> mGlobalPose;
-    std::vector<glm::mat4> mBonePalette;
+    std::vector<Math::mat4> mGlobalPose;
+    std::vector<Math::mat4> mBonePalette;
 
     // State
     bool mDirty = false;
@@ -368,7 +368,7 @@ private:
     bool mSaveInfoRequested = false;
     bool mNewConfirmRequested = false;
     bool mPreferencesRequested = false;
-    glm::vec3 mCursor3D = glm::vec3(0.0f);
+    Math::vec3 mCursor3D = Math::vec3(0.0f);
     s32 mSelectedSubmesh = -1;
     std::vector<bool> mSubmeshVisible;
     std::string mSettingsPath;
@@ -386,7 +386,7 @@ private:
     f32 mSmoothingStrength = 0.5f;
     f32 mExtrudeDistance = 0.5f;
     PrimitiveType mPrimitiveType = PrimitiveType::Box;
-    glm::vec3 mPrimitiveSize = glm::vec3(1.0f);
+    Math::vec3 mPrimitiveSize = Math::vec3(1.0f);
     f32 mPrimitiveRadius = 0.5f;
     f32 mPrimitiveMinorRadius = 0.2f;
     f32 mPrimitiveHeight = 1.0f;
@@ -423,9 +423,9 @@ private:
     // by the drag and would be dead weight to copy every time.
     bool mGizmoDragging = false;
     std::vector<u32> mGizmoIndices;
-    std::vector<glm::vec3> mGizmoPositions;
-    std::vector<glm::vec3> mGizmoNormals;
-    std::vector<glm::vec4> mGizmoTangents;
+    std::vector<Math::vec3> mGizmoPositions;
+    std::vector<Math::vec3> mGizmoNormals;
+    std::vector<Math::vec4> mGizmoTangents;
     std::vector<u32> mGizmoWinding;
 
     bool mSmoothNormals = true;

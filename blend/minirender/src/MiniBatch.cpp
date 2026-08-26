@@ -4,7 +4,7 @@
 #include "Log.h"
 
 #include <glad.h>
-#include <glm/gtc/type_ptr.hpp>
+#include "Math.h"
 
 using namespace Radion;
 
@@ -148,19 +148,19 @@ void MiniBatch::begin()
     mPoints.clear();
 }
 
-void MiniBatch::line(const glm::vec3& a, const glm::vec3& b, const glm::vec4& color)
+void MiniBatch::line(const Math::vec3& a, const Math::vec3& b, const Math::vec4& color)
 {
     mLines.push_back({a, color});
     mLines.push_back({b, color});
 }
 
-void MiniBatch::point(const glm::vec3& p, const glm::vec4& color, f32 size)
+void MiniBatch::point(const Math::vec3& p, const Math::vec4& color, f32 size)
 {
     mPoints.push_back({p, color});
     mPointSize = size;
 }
 
-void MiniBatch::triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec4& color)
+void MiniBatch::triangle(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c, const Math::vec4& color)
 {
     mTriangles.push_back({a, color});
     mTriangles.push_back({b, color});
@@ -173,21 +173,21 @@ void MiniBatch::grid(f32 y, u32 slices, f32 spacing, bool axes)
         return;
 
     const f32 extent = static_cast<f32>(slices) * spacing;
-    const glm::vec4 minor(0.28f, 0.30f, 0.33f, 1.0f);
-    const glm::vec4 red(0.85f, 0.2f, 0.2f, 1.0f);
-    const glm::vec4 blue(0.25f, 0.4f, 0.9f, 1.0f);
+    const Math::vec4 minor(0.28f, 0.30f, 0.33f, 1.0f);
+    const Math::vec4 red(0.85f, 0.2f, 0.2f, 1.0f);
+    const Math::vec4 blue(0.25f, 0.4f, 0.9f, 1.0f);
 
     for (s32 i = -static_cast<s32>(slices); i <= static_cast<s32>(slices); ++i)
     {
         const f32 offset = static_cast<f32>(i) * spacing;
-        const glm::vec4& xColor = (axes && i == 0) ? red : minor;
-        const glm::vec4& zColor = (axes && i == 0) ? blue : minor;
-        line(glm::vec3(-extent, y, offset), glm::vec3(extent, y, offset), xColor);
-        line(glm::vec3(offset, y, -extent), glm::vec3(offset, y, extent), zColor);
+        const Math::vec4& xColor = (axes && i == 0) ? red : minor;
+        const Math::vec4& zColor = (axes && i == 0) ? blue : minor;
+        line(Math::vec3(-extent, y, offset), Math::vec3(extent, y, offset), xColor);
+        line(Math::vec3(offset, y, -extent), Math::vec3(offset, y, extent), zColor);
     }
 }
 
-void MiniBatch::flush(const glm::mat4& viewProjection)
+void MiniBatch::flush(const Math::mat4& viewProjection)
 {
     if (!mShaderProgram)
         return;
@@ -218,7 +218,7 @@ void MiniBatch::flush(const glm::mat4& viewProjection)
 
     glUseProgram(mShaderProgram);
     glUniformMatrix4fv(glGetUniformLocation(mShaderProgram, "uViewProjection"), 1, GL_FALSE,
-                        glm::value_ptr(viewProjection));
+                        Math::value_ptr(viewProjection));
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
