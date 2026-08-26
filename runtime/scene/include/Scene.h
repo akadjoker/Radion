@@ -605,6 +605,7 @@ private:
     // of objects times possible component types.
     std::vector<Component*> mUpdateComponents;
     std::vector<Component*> mLateUpdateComponents;
+    bool mComponentListsDirty = false;
     std::vector<Animator*> mAnimators;
     std::vector<BoneAttachment*> mBoneAttachments;
     std::vector<Camera*> mCameras;

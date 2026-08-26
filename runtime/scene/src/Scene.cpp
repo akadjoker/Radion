@@ -1724,11 +1724,18 @@ void Scene::componentRemoved(Component* component)
     const auto removeFromEventList = [component](std::vector<Component*>& components,
                                                  usize& index) {
         if (index < components.size() && components[index] == component)
+        {
             components[index] = nullptr;
+            return true;
+        }
         index = Component::InvalidSceneListIndex;
+        return false;
     };
-    removeFromEventList(mUpdateComponents, component->mSceneUpdateIndex);
-    removeFromEventList(mLateUpdateComponents, component->mSceneLateUpdateIndex);
+    const bool removedUpdate =
+        removeFromEventList(mUpdateComponents, component->mSceneUpdateIndex);
+    const bool removedLate =
+        removeFromEventList(mLateUpdateComponents, component->mSceneLateUpdateIndex);
+    mComponentListsDirty = mComponentListsDirty || removedUpdate || removedLate;
 
     switch (component->type())
     {
@@ -1790,6 +1797,9 @@ void Scene::componentRemoved(Component* component)
 
 void Scene::compactComponentLists()
 {
+    if (!mComponentListsDirty)
+        return;
+
     const auto compact = [](std::vector<Component*>& components, bool lateUpdate) {
         usize write = 0;
         for (usize read = 0; read < components.size(); ++read)
@@ -1808,6 +1818,7 @@ void Scene::compactComponentLists()
     };
     compact(mUpdateComponents, false);
     compact(mLateUpdateComponents, true);
+    mComponentListsDirty = false;
 }
 
 void Scene::registerBranch(GameObject* object)
