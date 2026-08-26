@@ -17,10 +17,22 @@ namespace Voxel
 class VoxelTerrain
 {
 public:
-    VoxelTerrain(const BlockRegistry& blocks, u32 seed);
+    struct Settings
+    {
+        s32 minWorldY = 0;
+        s32 maxWorldY = VoxelChunk::Size - 1;
+        s32 waterLevel = 13;
+        s32 minSurfaceHeight = 2;
+        s32 maxSurfaceHeight = 30;
+        f32 baseSurfaceHeight = 16.0f;
+        f32 continentalAmplitude = 9.0f;
+        f32 detailAmplitude = 3.0f;
+    };
 
-    // Fills one chunk. Only the y == 0 layer is generated; higher layers
-    // stay air, which keeps this first pass to one vertical chunk.
+    VoxelTerrain(const BlockRegistry& blocks, u32 seed);
+    VoxelTerrain(const BlockRegistry& blocks, u32 seed, const Settings& settings);
+
+    // Fills the part of one chunk within the configured vertical world bounds.
     void generate(VoxelWorld& world, ChunkCoord coordinate) const;
 
 private:
@@ -28,6 +40,7 @@ private:
 
     Noise::Perlin mContinental;
     Noise::Perlin mDetail;
+    Settings mSettings;
 
     BlockId mGrass = AirBlockId;
     BlockId mDirt = AirBlockId;

@@ -105,6 +105,11 @@ bool initializeGPUContext(const Platform::Window& window, GPUCaps& caps)
     {
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        // Keep a debug context useful without turning the terminal into a
+        // frame-time cost: only API errors reach the callback.
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_FALSE);
+        glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_ERROR, GL_DONT_CARE, 0, nullptr,
+                      GL_TRUE);
         glDebugMessageCallback(onDebugMessage, nullptr);
     }
 

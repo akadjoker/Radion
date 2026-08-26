@@ -207,6 +207,53 @@ void testTerrainGeneration()
                     hasSurface = true;
     CHECK(hasSurface);
 }
+
+void testTallTerrainGeneration()
+{
+    const BlockRegistry registry = makeTerrainRegistry();
+    VoxelTerrain::Settings settings;
+    settings.minWorldY = -64;
+    settings.maxWorldY = 127;
+    settings.minSurfaceHeight = 4;
+    settings.maxSurfaceHeight = 96;
+    settings.baseSurfaceHeight = 48.0f;
+    settings.continentalAmplitude = 28.0f;
+    settings.detailAmplitude = 8.0f;
+
+    VoxelWorld world;
+    VoxelTerrain terrain(registry, 12345, settings);
+    terrain.generate(world, {0, -2, 0});
+    terrain.generate(world, {0, 0, 0});
+    terrain.generate(world, {0, 3, 0});
+    terrain.generate(world, {0, -3, 0});
+
+    CHECK(world.findChunk({0, -2, 0}) != nullptr);
+    CHECK(world.findChunk({0, 0, 0}) != nullptr);
+    CHECK(world.findChunk({0, 3, 0}) != nullptr);
+    CHECK(world.findChunk({0, -3, 0}) == nullptr);
+    CHECK(world.block({0, -64, 0}) == registry.findId("bedrock"));
+}
+
+void testTallTerrainUsesWorldHeight()
+{
+    const BlockRegistry registry = makeTerrainRegistry();
+    VoxelTerrain::Settings settings;
+    settings.minWorldY = -32;
+    settings.maxWorldY = 95;
+    settings.minSurfaceHeight = 40;
+    settings.maxSurfaceHeight = 40;
+    settings.baseSurfaceHeight = 40.0f;
+    settings.continentalAmplitude = 0.0f;
+    settings.detailAmplitude = 0.0f;
+
+    VoxelWorld world;
+    VoxelTerrain terrain(registry, 12345, settings);
+    terrain.generate(world, {0, 1, 0});
+    terrain.generate(world, {0, 2, 0});
+
+    CHECK(world.block({0, 40, 0}) == registry.findId("grass"));
+    CHECK(world.block({0, 72, 0}) == AirBlockId);
+}
 } // namespace
 
 int main()
@@ -217,5 +264,7 @@ int main()
     testMeshing();
     testAtlasUvs();
     testTerrainGeneration();
+    testTallTerrainGeneration();
+    testTallTerrainUsesWorldHeight();
     return gFailures == 0 ? 0 : 1;
 }

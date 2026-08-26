@@ -84,10 +84,14 @@ void appendFace(MeshData& mesh, const VoxelCoord& local, const FaceInfo& face,
                            static_cast<f32>(local.z));
     const f32 tileWidth = 1.0f / std::max<u16>(settings.atlasColumns, 1);
     const f32 tileHeight = 1.0f / std::max<u16>(settings.atlasRows, 1);
-    const f32 u0 = static_cast<f32>(material.atlasX) * tileWidth;
-    const f32 v0 = static_cast<f32>(material.atlasY) * tileHeight;
-    const f32 u1 = u0 + tileWidth;
-    const f32 v1 = v0 + tileHeight;
+    const f32 inset = settings.atlasTilePixels == 0
+                          ? 0.0f
+                          : 0.5f / (static_cast<f32>(settings.atlasColumns) *
+                                    static_cast<f32>(settings.atlasTilePixels));
+    const f32 u0 = static_cast<f32>(material.atlasX) * tileWidth + inset;
+    const f32 v0 = static_cast<f32>(material.atlasY) * tileHeight + inset;
+    const f32 u1 = u0 + tileWidth - inset * 2.0f;
+    const f32 v1 = v0 + tileHeight - inset * 2.0f;
     const glm::vec2 uvs[] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
 
     for (u32 i = 0; i < 4; ++i)

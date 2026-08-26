@@ -7,14 +7,13 @@ namespace Radion
 {
 namespace Voxel
 {
-namespace
-{
-constexpr s32 WaterLevel = 13;
-constexpr s32 MinHeight = 2;
-constexpr s32 MaxHeight = 30;
-} // namespace
-
 VoxelTerrain::VoxelTerrain(const BlockRegistry& blocks, u32 seed)
+    : VoxelTerrain(blocks, seed, Settings())
+{
+}
+
+VoxelTerrain::VoxelTerrain(const BlockRegistry& blocks, u32 seed, const Settings& settings)
+    : mSettings(settings)
 {
     mContinental.initialise(seed);
     mDetail.initialise(seed ^ 0x9E3779B9u);
@@ -36,14 +35,17 @@ s32 VoxelTerrain::surfaceHeight(s32 x, s32 z) const
         mContinental.compute(static_cast<f32>(x) * 0.016f, static_cast<f32>(z) * 0.016f, 0.0f, 3);
     const f32 detail =
         mDetail.compute(static_cast<f32>(x) * 0.06f, static_cast<f32>(z) * 0.06f, 0.0f, 2);
-    const f32 height = 16.0f + continental * 9.0f + detail * 3.0f;
-    return static_cast<s32>(
-        std::clamp(std::round(height), static_cast<f32>(MinHeight), static_cast<f32>(MaxHeight)));
+    const f32 height = mSettings.baseSurfaceHeight + continental * mSettings.continentalAmplitude +
+                       detail * mSettings.detailAmplitude;
+    return static_cast<s32>(std::clamp(std::round(height),
+                                       static_cast<f32>(mSettings.minSurfaceHeight),
+                                       static_cast<f32>(mSettings.maxSurfaceHeight)));
 }
 
 void VoxelTerrain::generate(VoxelWorld& world, ChunkCoord coordinate) const
 {
-    if (coordinate.y != 0)
+    const s32 originY = coordinate.y * VoxelChunk::Size;
+    if (originY > mSettings.maxWorldY || originY + VoxelChunk::Size - 1 < mSettings.minWorldY)
         return;
 
     VoxelChunk& chunk = world.ensureChunk(coordinate);
@@ -57,20 +59,24 @@ void VoxelTerrain::generate(VoxelWorld& world, ChunkCoord coordinate) const
             const s32 worldX = originX + x;
             const s32 worldZ = originZ + z;
             const s32 surface = surfaceHeight(worldX, worldZ);
-            const bool beach = surface <= WaterLevel + 1;
+            const bool beach = surface <= mSettings.waterLevel + 1;
 
             for (s32 y = 0; y < VoxelChunk::Size; ++y)
             {
+                const s32 worldY = originY + y;
+                if (worldY < mSettings.minWorldY || worldY > mSettings.maxWorldY)
+                    continue;
+
                 BlockId block = AirBlockId;
-                if (y == 0)
+                if (worldY == mSettings.minWorldY)
                     block = mBedrock;
-                else if (y < surface - 3)
+                else if (worldY < surface - 3)
                     block = mStone;
-                else if (y < surface)
+                else if (worldY < surface)
                     block = beach ? mSand : mDirt;
-                else if (y == surface)
+                else if (worldY == surface)
                     block = beach ? mSand : mGrass;
-                else if (y <= WaterLevel)
+                else if (worldY <= mSettings.waterLevel)
                     block = mWater;
 
                 chunk.setBlock({x, y, z}, block);
