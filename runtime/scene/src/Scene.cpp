@@ -1,6 +1,7 @@
 #include "PCH.h"
 
 #include "Scene.h"
+#include "Thread.h"
 
 #include "AssetManager.h"
 #include "DebugDraw3D.h"
@@ -202,6 +203,12 @@ Scene::Scene() : mRoot("Scene")
 
 Scene::~Scene()
 {
+    if (mDynamicBuildPending)
+    {
+        Jobs().wait(mDynamicBuildJob);
+        mDynamicBuildPending = false;
+    }
+
     for (const PendingAdd& pending : mPendingAdd)
         delete pending.object;
     for (GameObject* object : mDetached)

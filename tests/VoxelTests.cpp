@@ -94,13 +94,25 @@ void testMeshing()
     world.setBlock({1, 0, 0}, stoneId);
     const VoxelMeshData adjacent =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
-    CHECK(adjacent.opaque.indices.size() == 60);
-    CHECK(adjacent.opaque.triangleCount() == 20);
+    CHECK(adjacent.opaque.indices.size() == 36);
+    CHECK(adjacent.opaque.triangleCount() == 12);
+    bool hasRepeatedUv = false;
+    for (const glm::vec2& uv : adjacent.opaque.uvs)
+        hasRepeatedUv = hasRepeatedUv || uv.x == 2.0f || uv.y == 2.0f;
+    CHECK(hasRepeatedUv);
 
     world.setBlock({32, 0, 0}, stoneId);
     const VoxelMeshData border =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
-    CHECK(border.opaque.indices.size() == 60);
+    CHECK(border.opaque.indices.size() == 36);
+
+    VoxelWorld solidWorld;
+    VoxelChunk& solidChunk = solidWorld.ensureChunk({0, 0, 0});
+    solidChunk.fill(stoneId);
+    const VoxelMeshData solidMesh = VoxelMesher::buildChunk(solidWorld, solidChunk, registry);
+    CHECK(solidMesh.opaque.positions.size() == 24);
+    CHECK(solidMesh.opaque.indices.size() == 36);
+    CHECK(solidMesh.opaque.triangleCount() == 12);
 
     BlockDefinition water;
     water.name = "water";
@@ -115,7 +127,7 @@ void testMeshing()
     const VoxelMeshData waterMesh =
         VoxelMesher::buildChunk(transparentWorld, *transparentWorld.findChunk({0, 0, 0}), registry);
     CHECK(waterMesh.opaque.indices.empty());
-    CHECK(waterMesh.transparent.indices.size() == 60);
+    CHECK(waterMesh.transparent.indices.size() == 36);
 }
 
 void testAtlasUvs()
@@ -140,13 +152,54 @@ void testAtlasUvs()
     const VoxelMeshData mesh =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry, settings);
 
-    // Tile (1,1) in a 4x2 atlas spans u in [0.25, 0.5] and v in [0.5, 1].
+    // UV0 repeats per voxel; UV1 identifies tile (1,1) in the engine atlas convention.
     CHECK(mesh.opaque.uvs.size() == 24);
-    for (const glm::vec2& uv : mesh.opaque.uvs)
+    CHECK(mesh.opaque.uvs2.size() == 24);
+    for (const glm::vec2& uv : mesh.opaque.uvs2)
     {
-        CHECK(uv.x >= 0.25f && uv.x <= 0.5f);
-        CHECK(uv.y >= 0.5f && uv.y <= 1.0f);
+        CHECK(uv.x == 0.25f);
+        CHECK(uv.y == 0.5f);
     }
+}
+
+void testAtlasRotation()
+{
+    BlockRegistry registry;
+    BlockDefinition block;
+    block.name = "rotated";
+    for (BlockFaceMaterial& face : block.faces)
+        face.rotation = BlockFaceRotation::Clockwise90;
+    const BlockId id = registry.registerBlock(block);
+
+    VoxelWorld world;
+    world.setBlock({0, 0, 0}, id);
+    const VoxelMeshData mesh =
+        VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
+
+    bool hasClockwiseCorner = false;
+    for (const glm::vec2& uv : mesh.opaque.uvs)
+        hasClockwiseCorner = hasClockwiseCorner || (uv.x == 0.0f && uv.y == 1.0f);
+    CHECK(hasClockwiseCorner);
+}
+
+void testAtlasVerticalFlip()
+{
+    BlockRegistry registry;
+    BlockDefinition block;
+    block.name = "flipped";
+    for (BlockFaceMaterial& face : block.faces)
+        face.flipVertical = true;
+    const BlockId id = registry.registerBlock(block);
+
+    VoxelWorld world;
+    world.setBlock({0, 0, 0}, id);
+    const VoxelMeshData mesh =
+        VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
+
+    bool hasFlippedCorner = false;
+    for (const glm::vec2& uv : mesh.opaque.uvs)
+        hasFlippedCorner = hasFlippedCorner || (uv.x == 0.0f && uv.y == 1.0f);
+    CHECK(hasFlippedCorner);
 }
 
 BlockRegistry makeTerrainRegistry()
@@ -263,6 +316,8 @@ int main()
     testChunkAndBoundaries();
     testMeshing();
     testAtlasUvs();
+    testAtlasRotation();
+    testAtlasVerticalFlip();
     testTerrainGeneration();
     testTallTerrainGeneration();
     testTallTerrainUsesWorldHeight();

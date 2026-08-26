@@ -80,6 +80,11 @@ enum MaterialFlags : u32
     // the ordinary Lit detail path reads. Only meaningful with
     // MaterialTerrain: alone it does nothing.
     MaterialTerrainClassic = 1 << 16,
+
+    // A voxel mesh stores repeated face coordinates in UV0 and the atlas tile
+    // origin in UV1. Lit reconstructs the sample UV within that tile so a
+    // greedy quad repeats its block texture instead of stretching it.
+    MaterialVoxelAtlas = 1 << 17,
 };
 
 struct MaterialFlagName
