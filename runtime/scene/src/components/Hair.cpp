@@ -31,13 +31,13 @@ struct WeightedJoint
     f32 weight = 0.0f;
 };
 
-void rootSkin(const MeshData& mesh, const glm::uvec3& triangle, const Math::Vec3& bary,
-              glm::uvec4& joints, Math::Vec4& weights)
+void rootSkin(const MeshData& mesh, const glm::uvec3& triangle, const glm::vec3& bary,
+              glm::uvec4& joints, glm::vec4& weights)
 {
     if (mesh.skin.size() != mesh.positions.size())
     {
         joints = glm::uvec4(0u);
-        weights = Math::Vec4(1.0f, 0.0f, 0.0f, 0.0f);
+        weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
 
@@ -65,7 +65,7 @@ void rootSkin(const MeshData& mesh, const glm::uvec3& triangle, const Math::Vec3
     });
 
     joints = glm::uvec4(0u);
-    weights = Math::Vec4(0.0f);
+    weights = glm::vec4(0.0f);
     const usize count = std::min<usize>(4, combined.size());
     f32 total = 0.0f;
     for (usize i = 0; i < count; ++i)
@@ -77,7 +77,7 @@ void rootSkin(const MeshData& mesh, const glm::uvec3& triangle, const Math::Vec3
     if (total > 0.000001f)
         weights /= total;
     else
-        weights = Math::Vec4(1.0f, 0.0f, 0.0f, 0.0f);
+        weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 }
 } // namespace
 
@@ -154,8 +154,8 @@ bool Hair::generate()
             const f32 fadeEnd = glm::min(1.0f, mMinimumGrowthNormalY + 0.18f);
             normalMask = glm::smoothstep(mMinimumGrowthNormalY, fadeEnd, averageNormalY);
         }
-        const Math::Vec3 e0 = mesh.positions[tri.y] - mesh.positions[tri.x];
-        const Math::Vec3 e1 = mesh.positions[tri.z] - mesh.positions[tri.x];
+        const glm::vec3 e0 = mesh.positions[tri.y] - mesh.positions[tri.x];
+        const glm::vec3 e1 = mesh.positions[tri.z] - mesh.positions[tri.x];
         const f32 weight = glm::length(glm::cross(e0, e1)) * 0.5f * mask * normalMask;
         if (weight <= 0.0000001f)
             continue;
@@ -182,24 +182,24 @@ bool Hair::generate()
 
         const f32 r0 = std::sqrt(random());
         const f32 r1 = random();
-        const Math::Vec3 bary(1.0f - r0, r0 * (1.0f - r1), r0 * r1);
-        const Math::Vec3 position = mesh.positions[tri.x] * bary.x +
+        const glm::vec3 bary(1.0f - r0, r0 * (1.0f - r1), r0 * r1);
+        const glm::vec3 position = mesh.positions[tri.x] * bary.x +
                                    mesh.positions[tri.y] * bary.y +
                                    mesh.positions[tri.z] * bary.z;
-        Math::Vec3 normal = mesh.normals[tri.x] * bary.x + mesh.normals[tri.y] * bary.y +
+        glm::vec3 normal = mesh.normals[tri.x] * bary.x + mesh.normals[tri.y] * bary.y +
                            mesh.normals[tri.z] * bary.z;
         normal = glm::dot(normal, normal) > 0.000001f ? glm::normalize(normal)
-                                                      : Math::Vec3(0.0f, 1.0f, 0.0f);
+                                                      : glm::vec3(0.0f, 1.0f, 0.0f);
         const f32 mask = glm::clamp(vertexMask(mesh, tri.x) * bary.x +
                                     vertexMask(mesh, tri.y) * bary.y +
                                     vertexMask(mesh, tri.z) * bary.z, 0.02f, 1.0f);
 
         HairRoot root;
         const f32 length = glm::mix(mMinimumLength, mMaximumLength, random()) * mask;
-        root.positionLength = Math::Vec4(position, length);
-        root.normalWidth = Math::Vec4(normal, mWidth * glm::mix(0.75f, 1.2f, random()));
+        root.positionLength = glm::vec4(position, length);
+        root.normalWidth = glm::vec4(normal, mWidth * glm::mix(0.75f, 1.2f, random()));
         rootSkin(mesh, tri, bary, root.joints, root.weights);
-        root.params = Math::Vec4(random() * glm::two_pi<f32>(), random(), random() - 0.5f, 0.0f);
+        root.params = glm::vec4(random() * glm::two_pi<f32>(), random(), random() - 0.5f, 0.0f);
         roots.push_back(root);
     }
 
@@ -247,7 +247,7 @@ void Hair::setRoughness(f32 v) { mRoughness = glm::clamp(v, 0.04f, 1.0f); }
 void Hair::setSpecularStrength(f32 v) { mSpecularStrength = glm::clamp(v, 0.0f, 2.0f); }
 void Hair::setSpecularTint(f32 v) { mSpecularTint = glm::clamp(v, 0.0f, 1.0f); }
 void Hair::setTransmission(f32 v) { mTransmission = glm::clamp(v, 0.0f, 2.0f); }
-void Hair::setColor(const Math::Vec3& v) { mColor = glm::max(v, Math::Vec3(0.0f)); }
+void Hair::setColor(const glm::vec3& v) { mColor = glm::max(v, glm::vec3(0.0f)); }
 void Hair::setSoftFringe(bool v) { mSoftFringe = v; }
 
 u32 Hair::strandCount() const { return mStrandCount; }
@@ -269,27 +269,27 @@ f32 Hair::roughness() const { return mRoughness; }
 f32 Hair::specularStrength() const { return mSpecularStrength; }
 f32 Hair::specularTint() const { return mSpecularTint; }
 f32 Hair::transmission() const { return mTransmission; }
-const Math::Vec3& Hair::color() const { return mColor; }
+const glm::vec3& Hair::color() const { return mColor; }
 bool Hair::softFringe() const { return mSoftFringe; }
 
 void Hair::clearColliders() { mColliders.clear(); }
-bool Hair::addSphereCollider(const Math::Vec3& centre, f32 radius)
+bool Hair::addSphereCollider(const glm::vec3& centre, f32 radius)
 {
     if (mColliders.size() >= kHairMaxColliders || radius <= 0.0f)
         return false;
     HairCollider collider;
-    collider.a = Math::Vec4(centre, radius);
+    collider.a = glm::vec4(centre, radius);
     collider.type = HairColliderType::Sphere;
     mColliders.push_back(collider);
     return true;
 }
-bool Hair::addCapsuleCollider(const Math::Vec3& a, const Math::Vec3& b, f32 radius)
+bool Hair::addCapsuleCollider(const glm::vec3& a, const glm::vec3& b, f32 radius)
 {
     if (mColliders.size() >= kHairMaxColliders || radius <= 0.0f)
         return false;
     HairCollider collider;
-    collider.a = Math::Vec4(a, radius);
-    collider.b = Math::Vec4(b, 0.0f);
+    collider.a = glm::vec4(a, radius);
+    collider.b = glm::vec4(b, 0.0f);
     collider.type = HairColliderType::Capsule;
     mColliders.push_back(collider);
     return true;

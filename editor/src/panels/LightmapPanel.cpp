@@ -28,7 +28,7 @@ namespace
 // World-space surface area of the mesh. The atlas has to hold every triangle
 // at `texelsPerUnit` texels per world unit, and area scales with the square
 // of that, so this is what turns "I want a 2048 atlas" into a number.
-f32 worldSurfaceArea(const MeshData& mesh, const Math::Mat4& transform)
+f32 worldSurfaceArea(const MeshData& mesh, const glm::mat4& transform)
 {
     f32 area = 0.0f;
     for (usize i = 0; i + 2 < mesh.indices.size(); i += 3)
@@ -38,9 +38,9 @@ f32 worldSurfaceArea(const MeshData& mesh, const Math::Mat4& transform)
         const u32 c = mesh.indices[i + 2];
         if (a >= mesh.positions.size() || b >= mesh.positions.size() || c >= mesh.positions.size())
             continue;
-        const Math::Vec3 p0 = Math::Vec3(transform * Math::Vec4(mesh.positions[a], 1.0f));
-        const Math::Vec3 p1 = Math::Vec3(transform * Math::Vec4(mesh.positions[b], 1.0f));
-        const Math::Vec3 p2 = Math::Vec3(transform * Math::Vec4(mesh.positions[c], 1.0f));
+        const glm::vec3 p0 = glm::vec3(transform * glm::vec4(mesh.positions[a], 1.0f));
+        const glm::vec3 p1 = glm::vec3(transform * glm::vec4(mesh.positions[b], 1.0f));
+        const glm::vec3 p2 = glm::vec3(transform * glm::vec4(mesh.positions[c], 1.0f));
         area += glm::length(glm::cross(p1 - p0, p2 - p0)) * 0.5f;
     }
     return area;
@@ -74,7 +74,7 @@ std::string lightmapPathFor(const MeshRenderer& renderer)
 
 } // namespace
 
-bool LightmapPanel::sceneSun(Math::Vec3& direction, Math::Vec3& color)
+bool LightmapPanel::sceneSun(glm::vec3& direction, glm::vec3& color)
 {
     DirectionalLight* sun = app().scene().electedSunLight();
     if (!sun || !sun->owner())
@@ -257,7 +257,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
     }
 }
 
-void LightmapPanel::applyPreset(bool draft, const MeshData& data, const Math::Mat4& transform)
+void LightmapPanel::applyPreset(bool draft, const MeshData& data, const glm::mat4& transform)
 {
     // The Final numbers are the ones tools/lightmapbake settled on for the
     // Bistro, not a guess: 8192 shadow against a 4096 map, 16 samples over a
@@ -278,7 +278,7 @@ void LightmapPanel::applyPreset(bool draft, const MeshData& data, const Math::Ma
         mBakeSettings.filterRadius = 2.0f;
     }
     mBakeSettings.sunAngularRadius = 2.0f;
-    mBakeSettings.ambient = Math::Vec3(0.12f, 0.16f, 0.24f);
+    mBakeSettings.ambient = glm::vec3(0.12f, 0.16f, 0.24f);
     mBakeSettings.ambientGround = 0.35f;
     mBakeSettings.biasTexels = 3.0f;
     mBakeSettings.bias = 0.0f;
@@ -302,7 +302,7 @@ void LightmapPanel::drawBakeSection(GameObject& object, MeshRenderer& renderer, 
     ImGui::TextDisabled("Renders the sun's shadow map and reads it back. Fast, one shot, with "
                        "real penumbra from the sun's angular size.");
 
-    const Math::Mat4 transform = object.globalTransform();
+    const glm::mat4 transform = object.globalTransform();
     if (ImGui::Button(ICON_MDI_FLASH " Draft"))
         applyPreset(true, data, transform);
     if (ImGui::IsItemHovered())
@@ -366,8 +366,8 @@ void LightmapPanel::drawBakeSection(GameObject& object, MeshRenderer& renderer, 
     mBakeFramesShown = 0;
 
     {
-        Math::Vec3 sunDirection(0.0f, -1.0f, 0.0f);
-        Math::Vec3 sunColor(1.0f);
+        glm::vec3 sunDirection(0.0f, -1.0f, 0.0f);
+        glm::vec3 sunColor(1.0f);
         if (!sceneSun(sunDirection, sunColor))
             Log::warning("LightmapPanel: no directional light in the scene, baking straight down");
 

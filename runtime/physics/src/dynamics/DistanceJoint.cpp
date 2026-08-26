@@ -7,8 +7,8 @@
 namespace Radion::Physics
 {
 
-DistanceJoint::DistanceJoint(RigidBody& a, const Math::Vec3& worldAnchorA, RigidBody& b,
-                             const Math::Vec3& worldAnchorB)
+DistanceJoint::DistanceJoint(RigidBody& a, const glm::vec3& worldAnchorA, RigidBody& b,
+                             const glm::vec3& worldAnchorB)
     : mBodyA(&a), mBodyB(&b), mLocalAnchorA(a.pointToLocal(worldAnchorA)),
       mLocalAnchorB(b.pointToLocal(worldAnchorB))
 {
@@ -17,8 +17,8 @@ DistanceJoint::DistanceJoint(RigidBody& a, const Math::Vec3& worldAnchorA, Rigid
     mMaxDistance = distance;
 }
 
-DistanceJoint::DistanceJoint(RigidBody& a, const Math::Vec3& localAnchorA, RigidBody& b,
-                             const Math::Vec3& localAnchorB, f32 minDistance, f32 maxDistance)
+DistanceJoint::DistanceJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
+                             const glm::vec3& localAnchorB, f32 minDistance, f32 maxDistance)
     : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB)
 {
     setDistance(minDistance, maxDistance);
@@ -34,22 +34,22 @@ RigidBody* DistanceJoint::bodyB() const
     return mBodyB;
 }
 
-const Math::Vec3& DistanceJoint::localAnchorA() const
+const glm::vec3& DistanceJoint::localAnchorA() const
 {
     return mLocalAnchorA;
 }
 
-const Math::Vec3& DistanceJoint::localAnchorB() const
+const glm::vec3& DistanceJoint::localAnchorB() const
 {
     return mLocalAnchorB;
 }
 
-Math::Vec3 DistanceJoint::worldAnchorA() const
+glm::vec3 DistanceJoint::worldAnchorA() const
 {
     return mBodyA->pointToWorld(mLocalAnchorA);
 }
 
-Math::Vec3 DistanceJoint::worldAnchorB() const
+glm::vec3 DistanceJoint::worldAnchorB() const
 {
     return mBodyB->pointToWorld(mLocalAnchorB);
 }
@@ -72,9 +72,9 @@ f32 DistanceJoint::maxDistance() const
 
 void DistanceJoint::calculateProperties()
 {
-    const Math::Vec3 pointA = worldAnchorA();
-    const Math::Vec3 pointB = worldAnchorB();
-    const Math::Vec3 delta = pointB - pointA;
+    const glm::vec3 pointA = worldAnchorA();
+    const glm::vec3 pointB = worldAnchorB();
+    const glm::vec3 delta = pointB - pointA;
     const f32 length = glm::length(delta);
     if (length > 1.0e-6f)
         mWorldNormal = delta / length;
@@ -175,8 +175,8 @@ void DistanceJoint::solvePosition(f32 baumgarte)
     calculateProperties();
     if (!mActive)
         return;
-    const Math::Vec3 pointA = worldAnchorA();
-    const Math::Vec3 pointB = worldAnchorB();
+    const glm::vec3 pointA = worldAnchorA();
+    const glm::vec3 pointB = worldAnchorB();
     const f32 distance = glm::dot(pointB - pointA, mWorldNormal);
     f32 error = 0.0f;
     if (distance < mMinDistance)

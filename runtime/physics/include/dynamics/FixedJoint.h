@@ -10,9 +10,9 @@ namespace Radion::Physics
 class FixedJoint final : public Joint
 {
 public:
-    FixedJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor);
-    FixedJoint(RigidBody& a, const Math::Vec3& localAnchorA, RigidBody& b,
-               const Math::Vec3& localAnchorB);
+    FixedJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor);
+    FixedJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
+               const glm::vec3& localAnchorB);
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -24,20 +24,20 @@ public:
 private:
     void calculatePositionProperties();
     void calculateRotationProperties();
-    void applyVelocityImpulse(const Math::Vec3& impulse);
-    void applyAngularVelocityImpulse(const Math::Vec3& impulse);
+    void applyVelocityImpulse(const glm::vec3& impulse);
+    void applyAngularVelocityImpulse(const glm::vec3& impulse);
 
     RigidBody* mBodyA;
     RigidBody* mBodyB;
-    Math::Vec3 mLocalAnchorA;
-    Math::Vec3 mLocalAnchorB;
-    Math::Quaternion mInverseInitialOrientation;
-    Math::Vec3 mArmA{0.0f};
-    Math::Vec3 mArmB{0.0f};
-    Math::Mat3 mPositionEffectiveMass{0.0f};
-    Math::Mat3 mRotationEffectiveMass{0.0f};
-    Math::Vec3 mTotalPositionImpulse{0.0f};
-    Math::Vec3 mTotalRotationImpulse{0.0f};
+    glm::vec3 mLocalAnchorA;
+    glm::vec3 mLocalAnchorB;
+    glm::quat mInverseInitialOrientation;
+    glm::vec3 mArmA{0.0f};
+    glm::vec3 mArmB{0.0f};
+    glm::mat3 mPositionEffectiveMass{0.0f};
+    glm::mat3 mRotationEffectiveMass{0.0f};
+    glm::vec3 mTotalPositionImpulse{0.0f};
+    glm::vec3 mTotalRotationImpulse{0.0f};
     f32 mPreviousDuration = 0.0f;
 };
 

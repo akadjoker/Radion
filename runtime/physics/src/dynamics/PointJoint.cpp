@@ -7,13 +7,13 @@
 namespace Radion::Physics
 {
 
-PointJoint::PointJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor)
+PointJoint::PointJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor)
     : PointJoint(a, a.pointToLocal(worldAnchor), b, b.pointToLocal(worldAnchor))
 {
 }
 
-PointJoint::PointJoint(RigidBody& a, const Math::Vec3& localAnchorA, RigidBody& b,
-                       const Math::Vec3& localAnchorB)
+PointJoint::PointJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
+                       const glm::vec3& localAnchorB)
     : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB)
 {
 }
@@ -28,27 +28,27 @@ RigidBody* PointJoint::bodyB() const
     return mBodyB;
 }
 
-const Math::Vec3& PointJoint::localAnchorA() const
+const glm::vec3& PointJoint::localAnchorA() const
 {
     return mLocalAnchorA;
 }
 
-const Math::Vec3& PointJoint::localAnchorB() const
+const glm::vec3& PointJoint::localAnchorB() const
 {
     return mLocalAnchorB;
 }
 
-Math::Vec3 PointJoint::worldAnchorA() const
+glm::vec3 PointJoint::worldAnchorA() const
 {
     return mBodyA->pointToWorld(mLocalAnchorA);
 }
 
-Math::Vec3 PointJoint::worldAnchorB() const
+glm::vec3 PointJoint::worldAnchorB() const
 {
     return mBodyB->pointToWorld(mLocalAnchorB);
 }
 
-void PointJoint::setMotor(const Math::Vec3& localAxisA, f32 targetVelocity, f32 maxTorque)
+void PointJoint::setMotor(const glm::vec3& localAxisA, f32 targetVelocity, f32 maxTorque)
 {
     const f32 length = glm::length(localAxisA);
     if (length <= 1.0e-6f || !std::isfinite(targetVelocity) || !std::isfinite(maxTorque))
@@ -69,12 +69,12 @@ void PointJoint::calculateProperties()
 {
     mArmA = mBodyA->directionToWorld(mLocalAnchorA);
     mArmB = mBodyB->directionToWorld(mLocalAnchorB);
-    Math::Mat3 inverseEffectiveMass(0.0f);
-    const Math::Vec3 axes[] = {Math::Vec3(1.0f, 0.0f, 0.0f), Math::Vec3(0.0f, 1.0f, 0.0f),
-                              Math::Vec3(0.0f, 0.0f, 1.0f)};
+    glm::mat3 inverseEffectiveMass(0.0f);
+    const glm::vec3 axes[] = {glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+                              glm::vec3(0.0f, 0.0f, 1.0f)};
     for (u32 axis = 0; axis < 3; ++axis)
     {
-        Math::Vec3 response = axes[axis] * (mBodyA->inverseMass() + mBodyB->inverseMass());
+        glm::vec3 response = axes[axis] * (mBodyA->inverseMass() + mBodyB->inverseMass());
         response += glm::cross(
             mBodyA->inverseInertiaTensorWorld() * glm::cross(mArmA, axes[axis]), mArmA);
         response += glm::cross(
@@ -86,8 +86,8 @@ void PointJoint::calculateProperties()
         mEffectiveMass = glm::inverse(inverseEffectiveMass);
     else
     {
-        mEffectiveMass = Math::Mat3(0.0f);
-        mTotalImpulse = Math::Vec3(0.0f);
+        mEffectiveMass = glm::mat3(0.0f);
+        mTotalImpulse = glm::vec3(0.0f);
     }
 }
 
@@ -108,14 +108,14 @@ void PointJoint::setup(f32 duration)
     }
     else
     {
-        mTotalImpulse = Math::Vec3(0.0f);
+        mTotalImpulse = glm::vec3(0.0f);
         mMotorTotalImpulse = 0.0f;
     }
     mMotorTotalImpulse = glm::clamp(mMotorTotalImpulse, -mMotorMaxImpulse, mMotorMaxImpulse);
     mPreviousDuration = duration;
 }
 
-void PointJoint::applyVelocityImpulse(const Math::Vec3& impulse)
+void PointJoint::applyVelocityImpulse(const glm::vec3& impulse)
 {
     if (mBodyA->isDynamic())
     {
@@ -142,7 +142,7 @@ void PointJoint::warmStart()
 
 void PointJoint::applyMotorImpulse(f32 impulse)
 {
-    const Math::Vec3 angularImpulse = mMotorWorldAxis * impulse;
+    const glm::vec3 angularImpulse = mMotorWorldAxis * impulse;
     if (mBodyA->isDynamic())
         mBodyA->setAngularVelocity(
             mBodyA->angularVelocity() - mBodyA->inverseInertiaTensorWorld() * angularImpulse);
@@ -153,10 +153,10 @@ void PointJoint::applyMotorImpulse(f32 impulse)
 
 void PointJoint::solveVelocity()
 {
-    const Math::Vec3 relativeVelocity =
+    const glm::vec3 relativeVelocity =
         mBodyB->velocity() + glm::cross(mBodyB->angularVelocity(), mArmB) -
         mBodyA->velocity() - glm::cross(mBodyA->angularVelocity(), mArmA);
-    const Math::Vec3 impulse = -(mEffectiveMass * relativeVelocity);
+    const glm::vec3 impulse = -(mEffectiveMass * relativeVelocity);
     mTotalImpulse += impulse;
     applyVelocityImpulse(impulse);
     if (mMotorEnabled && mMotorEffectiveMass > 0.0f)
@@ -174,9 +174,9 @@ void PointJoint::solveVelocity()
 void PointJoint::solvePosition(f32 baumgarte)
 {
     calculateProperties();
-    const Math::Vec3 pointA = mBodyA->position() + mArmA;
-    const Math::Vec3 pointB = mBodyB->position() + mArmB;
-    const Math::Vec3 impulse = -(mEffectiveMass * (pointB - pointA)) * baumgarte;
+    const glm::vec3 pointA = mBodyA->position() + mArmA;
+    const glm::vec3 pointB = mBodyB->position() + mArmB;
+    const glm::vec3 impulse = -(mEffectiveMass * (pointB - pointA)) * baumgarte;
     mBodyA->applyPositionImpulseAtPoint(-impulse, pointA);
     mBodyB->applyPositionImpulseAtPoint(impulse, pointB);
 }

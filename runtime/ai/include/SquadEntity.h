@@ -65,11 +65,11 @@ public:
         return mPath;
     }
 
-    void setGoal(const Math::Vec3& goal)
+    void setGoal(const glm::vec3& goal)
     {
         mGoalPosition = goal;
     }
-    const Math::Vec3& goal() const
+    const glm::vec3& goal() const
     {
         return mGoalPosition;
     }
@@ -208,7 +208,7 @@ protected:
     WaypointNetwork* mWaypointNetwork = nullptr;
     WaypointID mNextWaypoint = 0;
     WaypointID mCurrentWaypoint = 0;
-    Math::Vec3 mGoalPosition = Math::Vec3(0.0f);
+    glm::vec3 mGoalPosition = glm::vec3(0.0f);
     Path mPath;
     StateMachine* mStateMachine = nullptr; // non-owning
     SquadCommand mCommand = SquadCommand::PatrolPointsOfInterest;

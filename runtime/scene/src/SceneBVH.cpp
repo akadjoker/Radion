@@ -16,8 +16,8 @@ Containment classifyPlanes(const AABB& box, const std::vector<Plane>* planes)
 {
     if (!planes || planes->empty())
         return Containment::Inside;
-    const Math::Vec3 center = box.center();
-    const Math::Vec3 extents = box.extents();
+    const glm::vec3 center = box.center();
+    const glm::vec3 extents = box.extents();
     bool intersects = false;
     for (const Plane& plane : *planes)
     {
@@ -70,7 +70,7 @@ void SceneBVH::build(const std::vector<MeshRenderer*>& renderers)
         if (!mesh || mesh->isSkinned())
             continue;
 
-        const Math::Mat4& model = object->globalTransform();
+        const glm::mat4& model = object->globalTransform();
         for (u32 s = 0; s < mesh->submeshes.size(); ++s)
             // Deliberately short of the occlusion fields: their own default
             // initialisers are what "never measured" means, and the `true`

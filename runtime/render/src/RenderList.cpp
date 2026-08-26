@@ -49,13 +49,13 @@ u64 transparentKey(const RenderPacket& packet)
 
 } // namespace
 
-const std::vector<Math::Mat4>& RenderList::identityPalette()
+const std::vector<glm::mat4>& RenderList::identityPalette()
 {
-    static const std::vector<Math::Mat4> identity(256, Math::Mat4(1.0f));
+    static const std::vector<glm::mat4> identity(256, glm::mat4(1.0f));
     return identity;
 }
 
-void RenderList::setCamera(const Math::Mat4& viewProjection, const Math::Vec3& position)
+void RenderList::setCamera(const glm::mat4& viewProjection, const glm::vec3& position)
 {
     mFrustum.update(viewProjection);
     mCameraPosition = position;
@@ -108,10 +108,10 @@ const RenderLight* RenderList::sun() const
     return nullptr;
 }
 
-u32 RenderList::submit(MeshHandle handle, const Mesh& mesh, const Math::Mat4& model,
+u32 RenderList::submit(MeshHandle handle, const Mesh& mesh, const glm::mat4& model,
                        const Material* overrides, u32 overrideCount,
-                       const std::vector<Math::Mat4>* palette, const RenderProbe* probe,
-                       const Math::Mat4* prevModel, const std::vector<Math::Mat4>* prevPalette)
+                       const std::vector<glm::mat4>* palette, const RenderProbe* probe,
+                       const glm::mat4* prevModel, const std::vector<glm::mat4>* prevPalette)
 {
     ++mStats.submitted;
 
@@ -154,10 +154,10 @@ u32 RenderList::submit(MeshHandle handle, const Mesh& mesh, const Math::Mat4& mo
 }
 
 u32 RenderList::submitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIndex,
-                              const Math::Mat4& model, const Material* overrides, u32 overrideCount,
-                              const std::vector<Math::Mat4>* palette, const RenderProbe* probe,
-                              const Math::Mat4* prevModel,
-                              const std::vector<Math::Mat4>* prevPalette)
+                              const glm::mat4& model, const Material* overrides, u32 overrideCount,
+                              const std::vector<glm::mat4>* palette, const RenderProbe* probe,
+                              const glm::mat4* prevModel,
+                              const std::vector<glm::mat4>* prevPalette)
 {
     if (submeshIndex >= mesh.submeshes.size() || !mesh.submeshes[submeshIndex].visible)
         return 0;
@@ -187,10 +187,10 @@ u32 RenderList::submitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIn
 }
 
 bool RenderList::emitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIndex,
-                             const Math::Mat4& model, const AABB& bounds, const Material* overrides,
-                             u32 overrideCount, const std::vector<Math::Mat4>* palette,
-                             const RenderProbe* probe, const Math::Mat4* prevModel,
-                             const std::vector<Math::Mat4>* prevPalette)
+                             const glm::mat4& model, const AABB& bounds, const Material* overrides,
+                             u32 overrideCount, const std::vector<glm::mat4>* palette,
+                             const RenderProbe* probe, const glm::mat4* prevModel,
+                             const std::vector<glm::mat4>* prevPalette)
 {
     const SubMesh& submesh = mesh.submeshes[submeshIndex];
 
@@ -217,8 +217,7 @@ bool RenderList::emitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshInd
     packet.instance = static_cast<u32>(mInstances.size());
     packet.mesh = handle.index;
     packet.sortBits = instance.pipeline.index;
-    const Math::Vec3 center = bounds.center();
-    packet.distance = quantizeDepth(glm::length(Math::Vec3(center.x, center.y, center.z) - mCameraPosition));
+    packet.distance = quantizeDepth(glm::length(bounds.center() - mCameraPosition));
     packet.textureKey = static_cast<u16>(material->textures[SlotAlbedo].texture.index);
 
     mInstances.push_back(instance);

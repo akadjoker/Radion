@@ -45,20 +45,20 @@ enum RenderLightFlags : u32
 // about a GPU backend.
 struct alignas(16) RenderLight
 {
-    Math::Vec3 position = Math::Vec3(0.0f);
+    glm::vec3 position = glm::vec3(0.0f);
     f32 range = 0.0f;
-    Math::Vec3 direction = Math::Vec3(0.0f, -1.0f, 0.0f);
+    glm::vec3 direction = glm::vec3(0.0f, -1.0f, 0.0f);
     f32 coneAngleCos = 0.0f;
-    Math::Vec3 color = Math::Vec3(1.0f);
+    glm::vec3 color = glm::vec3(1.0f);
     f32 coneAngleScale = 0.0f;
     RenderLightType type = RenderLightType::Point;
     u32 flags = 0;
     s32 matrixIndex = -1;
     f32 shadowFade = 0.0f;
-    Math::Vec4 shadowAtlasMulAdd = Math::Vec4(0.0f);
-    Math::Vec3 rectangleRight = Math::Vec3(1.0f, 0.0f, 0.0f);
+    glm::vec4 shadowAtlasMulAdd = glm::vec4(0.0f);
+    glm::vec3 rectangleRight = glm::vec3(1.0f, 0.0f, 0.0f);
     f32 rectangleWidth = 0.0f;
-    Math::Vec3 rectangleUp = Math::Vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 rectangleUp = glm::vec3(0.0f, 1.0f, 0.0f);
     f32 rectangleHeight = 0.0f;
 };
 
@@ -75,8 +75,8 @@ struct RenderProbe
 {
     TextureHandle cubemap;
     SamplerHandle sampler;
-    Math::Vec3 position = Math::Vec3(0.0f);
-    Math::Vec3 extents = Math::Vec3(0.0f);
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::vec3 extents = glm::vec3(0.0f);
     u32 mipCount = 1;
     f32 intensity = 1.0f;
 };
@@ -90,8 +90,8 @@ struct RenderInstance
     PipelineHandle pipeline;
     MeshHandle mesh;
     u32 submesh = 0;
-    const std::vector<Math::Mat4>* palette = nullptr;
-    const std::vector<Math::Mat4>* prevPalette = nullptr;
+    const std::vector<glm::mat4>* palette = nullptr;
+    const std::vector<glm::mat4>* prevPalette = nullptr;
     RenderProbe probe;
 };
 
@@ -130,13 +130,13 @@ public:
     static constexpr usize CategoryCount = 4;
     static constexpr usize MaxLights = 256;
 
-    void setCamera(const Math::Mat4& viewProjection, const Math::Vec3& position);
+    void setCamera(const glm::mat4& viewProjection, const glm::vec3& position);
 
     const Frustum& frustum() const
     {
         return mFrustum;
     }
-    const Math::Vec3& cameraPosition() const
+    const glm::vec3& cameraPosition() const
     {
         return mCameraPosition;
     }
@@ -173,11 +173,11 @@ public:
     // appends a packet for each submesh that survives. Materials come from
     // `overrides` when given (indexed by SubMesh::materialSlot), otherwise
     // from the mesh's own. Returns the number of packets added.
-    u32 submit(MeshHandle handle, const Mesh& mesh, const Math::Mat4& model,
+    u32 submit(MeshHandle handle, const Mesh& mesh, const glm::mat4& model,
                const Material* overrides = nullptr, u32 overrideCount = 0,
-               const std::vector<Math::Mat4>* palette = nullptr, const RenderProbe* probe = nullptr,
-               const Math::Mat4* prevModel = nullptr,
-               const std::vector<Math::Mat4>* prevPalette = nullptr);
+               const std::vector<glm::mat4>* palette = nullptr, const RenderProbe* probe = nullptr,
+               const glm::mat4* prevModel = nullptr,
+               const std::vector<glm::mat4>* prevPalette = nullptr);
 
     // Same culling and packet emission as submit(), for exactly one submesh
     // instead of scanning every one in `mesh` - for a caller (SceneBVH) that
@@ -185,11 +185,11 @@ public:
     // many, where a big static one otherwise means testing hundreds of boxes
     // that have nothing to do with what got past the spatial index. Returns
     // 1 if the submesh survived culling, 0 otherwise.
-    u32 submitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIndex, const Math::Mat4& model,
+    u32 submitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIndex, const glm::mat4& model,
                       const Material* overrides = nullptr, u32 overrideCount = 0,
-                      const std::vector<Math::Mat4>* palette = nullptr,
-                      const RenderProbe* probe = nullptr, const Math::Mat4* prevModel = nullptr,
-                      const std::vector<Math::Mat4>* prevPalette = nullptr);
+                      const std::vector<glm::mat4>* palette = nullptr,
+                      const RenderProbe* probe = nullptr, const glm::mat4* prevModel = nullptr,
+                      const std::vector<glm::mat4>* prevPalette = nullptr);
 
     bool addLight(const RenderLight& light);
     const std::vector<RenderLight>& lights() const
@@ -218,11 +218,11 @@ public:
     }
 
     // Contiguous and in instance order, so it uploads as one block.
-    const Math::Mat4* models() const
+    const glm::mat4* models() const
     {
         return mModels.data();
     }
-    const Math::Mat4* prevModels() const
+    const glm::mat4* prevModels() const
     {
         return mPrevModels.data();
     }
@@ -247,26 +247,26 @@ public:
     // (== bind pose) a still-unposed skinned mesh should read as. 256 is the
     // same per-file bone cap the importers already enforce (see FbxImporter's
     // buildBoneMap), so every joint index a skin vertex can carry resolves.
-    static const std::vector<Math::Mat4>& identityPalette();
+    static const std::vector<glm::mat4>& identityPalette();
 
 private:
     // Material lookup + packet emission, the part submit()'s loop and
     // submitSubmesh() share - culling and the loop itself are the only
     // difference between them.
-    bool emitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIndex, const Math::Mat4& model,
+    bool emitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIndex, const glm::mat4& model,
                      const AABB& bounds, const Material* overrides, u32 overrideCount,
-                     const std::vector<Math::Mat4>* palette, const RenderProbe* probe,
-                     const Math::Mat4* prevModel, const std::vector<Math::Mat4>* prevPalette);
+                     const std::vector<glm::mat4>* palette, const RenderProbe* probe,
+                     const glm::mat4* prevModel, const std::vector<glm::mat4>* prevPalette);
 
     std::vector<RenderPacket> mPackets[CategoryCount];
     std::vector<RenderInstance> mInstances;
-    std::vector<Math::Mat4> mModels;
-    std::vector<Math::Mat4> mPrevModels;
+    std::vector<glm::mat4> mModels;
+    std::vector<glm::mat4> mPrevModels;
     std::vector<RenderLight> mLights;
     s32 mSunIndex = -1;
 
     Frustum mFrustum;
-    Math::Vec3 mCameraPosition = Math::Vec3(0.0f);
+    glm::vec3 mCameraPosition = glm::vec3(0.0f);
     u32 mFilter = 0;
     Sphere mCullSphere;
     RenderListStats mStats;
@@ -303,7 +303,7 @@ public:
     // than for a shadow view, which is the only thing that can honour a
     // per-object "keep me out of reflections" opt-out: the same object still
     // has to cast its shadow, so the flag cannot simply drop it everywhere.
-    virtual bool buildShadowList(RenderList& list, const Math::Mat4& viewProjection, u32 filter,
+    virtual bool buildShadowList(RenderList& list, const glm::mat4& viewProjection, u32 filter,
                                  const Sphere* cullSphere = nullptr,
                                  MeshHandle exclude = MeshHandle(), u64 excludeObjectId = 0,
                                  bool reflectionCapture = false,

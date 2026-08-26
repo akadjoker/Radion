@@ -18,7 +18,7 @@ namespace
 // Y or its equivalent. These are the conventional capture matrices; whether
 // the result lands mirrored is not something to reason about, it is what
 // Content::FaceColors is for.
-// Plain floats rather than Math::Vec3: this glm's vector constructors are not
+// Plain floats rather than glm::vec3: this glm's vector constructors are not
 // constexpr, so a constexpr table has to be built out of scalars.
 struct FaceBasis
 {
@@ -35,9 +35,9 @@ constexpr FaceBasis kFaces[EnvironmentProbe::FaceCount] = {
     {{0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}}, // -Z
 };
 
-Math::Vec3 toVector(const f32 (&values)[3])
+glm::vec3 toVector(const f32 (&values)[3])
 {
-    return Math::Vec3(values[0], values[1], values[2]);
+    return glm::vec3(values[0], values[1], values[2]);
 }
 
 // +X/+Y/+Z red/green/blue, and their opposites the complementary colours, so
@@ -258,16 +258,16 @@ u32 EnvironmentProbe::mipCount() const
     return mMipCount;
 }
 
-void EnvironmentProbe::faceViewProjections(Math::Mat4 out[6]) const
+void EnvironmentProbe::faceViewProjections(glm::mat4 out[6]) const
 {
     // 90 degrees, square aspect: six of them tile the whole sphere of
     // directions exactly, which is the entire point of a cube.
-    const Math::Mat4 projection =
+    const glm::mat4 projection =
         glm::perspective(glm::half_pi<f32>(), 1.0f, glm::max(nearPlane, 0.0001f),
                          glm::max(farPlane, nearPlane + 0.001f));
     for (u32 face = 0; face < FaceCount; ++face)
     {
-        const Math::Mat4 view = glm::lookAt(position, position + toVector(kFaces[face].forward),
+        const glm::mat4 view = glm::lookAt(position, position + toVector(kFaces[face].forward),
                                            toVector(kFaces[face].up));
         out[face] = projection * view;
     }

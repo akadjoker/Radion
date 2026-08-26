@@ -12,12 +12,12 @@ namespace Radion
 namespace
 {
 
-bool finite(const Math::Vec3& value)
+bool finite(const glm::vec3& value)
 {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
-bool valid(const Math::Quaternion& value)
+bool valid(const glm::quat& value)
 {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z) &&
            std::isfinite(value.w) && glm::dot(value, value) > 0.000001f;
@@ -417,22 +417,22 @@ bool GameObject::isAncestorOf(const GameObject* object) const
     return false;
 }
 
-const Math::Vec3& GameObject::position() const
+const glm::vec3& GameObject::position() const
 {
     return mPosition;
 }
 
-const Math::Quaternion& GameObject::rotation() const
+const glm::quat& GameObject::rotation() const
 {
     return mRotation;
 }
 
-const Math::Vec3& GameObject::scale() const
+const glm::vec3& GameObject::scale() const
 {
     return mScale;
 }
 
-void GameObject::setPosition(const Math::Vec3& position)
+void GameObject::setPosition(const glm::vec3& position)
 {
     if (!finite(position))
     {
@@ -443,7 +443,7 @@ void GameObject::setPosition(const Math::Vec3& position)
     invalidateTransform();
 }
 
-void GameObject::setRotation(const Math::Quaternion& rotation)
+void GameObject::setRotation(const glm::quat& rotation)
 {
     if (!valid(rotation))
     {
@@ -454,17 +454,17 @@ void GameObject::setRotation(const Math::Quaternion& rotation)
     invalidateTransform();
 }
 
-void GameObject::setRotationDegrees(const Math::Vec3& rotation)
+void GameObject::setRotationDegrees(const glm::vec3& rotation)
 {
     if (!finite(rotation))
     {
         Log::warning("GameObject '%s': rejected non-finite Euler rotation", name().c_str());
         return;
     }
-    setRotation(Math::Quaternion(glm::radians(rotation)));
+    setRotation(glm::quat(glm::radians(rotation)));
 }
 
-void GameObject::setScale(const Math::Vec3& scale)
+void GameObject::setScale(const glm::vec3& scale)
 {
     if (!finite(scale))
     {
@@ -489,7 +489,7 @@ void GameObject::setScale(const Math::Vec3& scale)
     invalidateTransform();
 }
 
-void GameObject::setGlobalPosition(const Math::Vec3& position)
+void GameObject::setGlobalPosition(const glm::vec3& position)
 {
     if (!finite(position))
     {
@@ -501,7 +501,7 @@ void GameObject::setGlobalPosition(const Math::Vec3& position)
         setPosition(position);
     else
     {
-        const Math::Vec3 parentScale = mParent->globalScale();
+        const glm::vec3 parentScale = mParent->globalScale();
         if (std::abs(parentScale.x) <= 0.000001f || std::abs(parentScale.y) <= 0.000001f ||
             std::abs(parentScale.z) <= 0.000001f)
         {
@@ -510,11 +510,11 @@ void GameObject::setGlobalPosition(const Math::Vec3& position)
             return;
         }
         setPosition(
-            Math::Vec3(glm::inverse(mParent->globalTransform()) * Math::Vec4(position, 1.0f)));
+            glm::vec3(glm::inverse(mParent->globalTransform()) * glm::vec4(position, 1.0f)));
     }
 }
 
-void GameObject::setGlobalRotation(const Math::Quaternion& rotation)
+void GameObject::setGlobalRotation(const glm::quat& rotation)
 {
     if (!valid(rotation))
     {
@@ -526,7 +526,7 @@ void GameObject::setGlobalRotation(const Math::Quaternion& rotation)
                         : rotation);
 }
 
-void GameObject::translate(const Math::Vec3& offset, TransformSpace space)
+void GameObject::translate(const glm::vec3& offset, TransformSpace space)
 {
     if (!finite(offset))
         return;
@@ -540,24 +540,24 @@ void GameObject::translate(const Math::Vec3& offset, TransformSpace space)
 
 void GameObject::moveForward(f32 distance)
 {
-    translate(Math::Vec3(0.0f, 0.0f, -distance), TransformSpace::Local);
+    translate(glm::vec3(0.0f, 0.0f, -distance), TransformSpace::Local);
 }
 
 void GameObject::moveRight(f32 distance)
 {
-    translate(Math::Vec3(distance, 0.0f, 0.0f), TransformSpace::Local);
+    translate(glm::vec3(distance, 0.0f, 0.0f), TransformSpace::Local);
 }
 
 void GameObject::moveUp(f32 distance)
 {
-    translate(Math::Vec3(0.0f, distance, 0.0f), TransformSpace::Local);
+    translate(glm::vec3(0.0f, distance, 0.0f), TransformSpace::Local);
 }
 
-void GameObject::rotate(const Math::Quaternion& rotation, TransformSpace space)
+void GameObject::rotate(const glm::quat& rotation, TransformSpace space)
 {
     if (!valid(rotation))
         return;
-    const Math::Quaternion normalized = glm::normalize(rotation);
+    const glm::quat normalized = glm::normalize(rotation);
     if (space == TransformSpace::Local)
         setRotation(mRotation * normalized);
     else if (space == TransformSpace::Parent)
@@ -566,7 +566,7 @@ void GameObject::rotate(const Math::Quaternion& rotation, TransformSpace space)
         setGlobalRotation(normalized * globalRotation());
 }
 
-void GameObject::rotate(const Math::Vec3& axis, f32 degrees, TransformSpace space)
+void GameObject::rotate(const glm::vec3& axis, f32 degrees, TransformSpace space)
 {
     if (!finite(axis) || !std::isfinite(degrees) || glm::dot(axis, axis) <= 0.000001f)
         return;
@@ -575,44 +575,44 @@ void GameObject::rotate(const Math::Vec3& axis, f32 degrees, TransformSpace spac
 
 void GameObject::yaw(f32 degrees, TransformSpace space)
 {
-    rotate(Math::Vec3(0.0f, 1.0f, 0.0f), degrees, space);
+    rotate(glm::vec3(0.0f, 1.0f, 0.0f), degrees, space);
 }
 
 void GameObject::pitch(f32 degrees, TransformSpace space)
 {
-    rotate(Math::Vec3(1.0f, 0.0f, 0.0f), degrees, space);
+    rotate(glm::vec3(1.0f, 0.0f, 0.0f), degrees, space);
 }
 
 void GameObject::roll(f32 degrees, TransformSpace space)
 {
-    rotate(Math::Vec3(0.0f, 0.0f, -1.0f), degrees, space);
+    rotate(glm::vec3(0.0f, 0.0f, -1.0f), degrees, space);
 }
 
-void GameObject::lookAt(const Math::Vec3& target, const Math::Vec3& up)
+void GameObject::lookAt(const glm::vec3& target, const glm::vec3& up)
 {
-    const Math::Vec3 origin = globalPosition();
-    const Math::Vec3 direction = target - origin;
+    const glm::vec3 origin = globalPosition();
+    const glm::vec3 direction = target - origin;
     if (glm::dot(direction, direction) <= 0.0f || glm::dot(up, up) <= 0.0f ||
         glm::dot(glm::cross(direction, up), glm::cross(direction, up)) <= 0.000001f)
         return;
 
-    const Math::Mat4 view = glm::lookAt(origin, target, glm::normalize(up));
+    const glm::mat4 view = glm::lookAt(origin, target, glm::normalize(up));
     setGlobalRotation(glm::normalize(glm::quat_cast(glm::inverse(view))));
 }
 
-bool GameObject::rotateTowards(const Math::Vec3& target, f32 maxDegreesDelta, const Math::Vec3& up)
+bool GameObject::rotateTowards(const glm::vec3& target, f32 maxDegreesDelta, const glm::vec3& up)
 {
-    const Math::Vec3 origin = globalPosition();
-    const Math::Vec3 direction = target - origin;
+    const glm::vec3 origin = globalPosition();
+    const glm::vec3 direction = target - origin;
     if (glm::dot(direction, direction) <= 0.0f || glm::dot(up, up) <= 0.0f ||
         glm::dot(glm::cross(direction, up), glm::cross(direction, up)) <= 0.000001f ||
         maxDegreesDelta < 0.0f)
         return false;
 
-    const Math::Quaternion desired = glm::normalize(
+    const glm::quat desired = glm::normalize(
         glm::quat_cast(glm::inverse(glm::lookAt(origin, target, glm::normalize(up)))));
-    Math::Quaternion current = globalRotation();
-    Math::Quaternion adjusted = desired;
+    glm::quat current = globalRotation();
+    glm::quat adjusted = desired;
     f32 cosine = glm::dot(current, adjusted);
     if (cosine < 0.0f)
     {
@@ -631,54 +631,54 @@ bool GameObject::rotateTowards(const Math::Vec3& target, f32 maxDegreesDelta, co
     return false;
 }
 
-const Math::Mat4& GameObject::localTransform() const
+const glm::mat4& GameObject::localTransform() const
 {
     updateLocalTransform();
     return mLocalTransform;
 }
 
-const Math::Mat4& GameObject::globalTransform() const
+const glm::mat4& GameObject::globalTransform() const
 {
     updateGlobalTransform();
     return mGlobalTransform;
 }
 
-const Math::Mat4& GameObject::previousGlobalTransform() const
+const glm::mat4& GameObject::previousGlobalTransform() const
 {
     return mPreviousGlobalTransformValid ? mPreviousGlobalTransform : globalTransform();
 }
 
-Math::Vec3 GameObject::globalPosition() const
+glm::vec3 GameObject::globalPosition() const
 {
     updateGlobalTransform();
     return mGlobalPosition;
 }
 
-Math::Quaternion GameObject::globalRotation() const
+glm::quat GameObject::globalRotation() const
 {
     updateGlobalTransform();
     return mGlobalRotation;
 }
 
-Math::Vec3 GameObject::globalScale() const
+glm::vec3 GameObject::globalScale() const
 {
     updateGlobalTransform();
     return mGlobalScale;
 }
 
-Math::Vec3 GameObject::right() const
+glm::vec3 GameObject::right() const
 {
-    return globalRotation() * Math::Vec3(1.0f, 0.0f, 0.0f);
+    return globalRotation() * glm::vec3(1.0f, 0.0f, 0.0f);
 }
 
-Math::Vec3 GameObject::up() const
+glm::vec3 GameObject::up() const
 {
-    return globalRotation() * Math::Vec3(0.0f, 1.0f, 0.0f);
+    return globalRotation() * glm::vec3(0.0f, 1.0f, 0.0f);
 }
 
-Math::Vec3 GameObject::forward() const
+glm::vec3 GameObject::forward() const
 {
-    return globalRotation() * Math::Vec3(0.0f, 0.0f, -1.0f);
+    return globalRotation() * glm::vec3(0.0f, 0.0f, -1.0f);
 }
 
 f32 GameObject::distanceTo(const GameObject& other) const
@@ -686,11 +686,11 @@ f32 GameObject::distanceTo(const GameObject& other) const
     return glm::length(other.globalPosition() - globalPosition());
 }
 
-Math::Vec3 GameObject::directionTo(const GameObject& other) const
+glm::vec3 GameObject::directionTo(const GameObject& other) const
 {
-    const Math::Vec3 direction = other.globalPosition() - globalPosition();
+    const glm::vec3 direction = other.globalPosition() - globalPosition();
     const f32 lengthSquared = glm::dot(direction, direction);
-    return lengthSquared > 0.0f ? direction / std::sqrt(lengthSquared) : Math::Vec3(0.0f);
+    return lengthSquared > 0.0f ? direction / std::sqrt(lengthSquared) : glm::vec3(0.0f);
 }
 
 void GameObject::invalidateTransform()
@@ -723,8 +723,8 @@ void GameObject::updateLocalTransform() const
 {
     if (!mLocalDirty)
         return;
-    mLocalTransform = glm::translate(Math::Mat4(1.0f), mPosition) * glm::mat4_cast(mRotation) *
-                      glm::scale(Math::Mat4(1.0f), mScale);
+    mLocalTransform = glm::translate(glm::mat4(1.0f), mPosition) * glm::mat4_cast(mRotation) *
+                      glm::scale(glm::mat4(1.0f), mScale);
     mLocalDirty = false;
 }
 
@@ -748,8 +748,8 @@ void GameObject::updateGlobalTransform() const
         mGlobalScale = mScale;
     }
 
-    mGlobalTransform = glm::translate(Math::Mat4(1.0f), mGlobalPosition) *
-                       glm::mat4_cast(mGlobalRotation) * glm::scale(Math::Mat4(1.0f), mGlobalScale);
+    mGlobalTransform = glm::translate(glm::mat4(1.0f), mGlobalPosition) *
+                       glm::mat4_cast(mGlobalRotation) * glm::scale(glm::mat4(1.0f), mGlobalScale);
     mGlobalDirty = false;
 }
 

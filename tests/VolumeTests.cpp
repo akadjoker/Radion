@@ -25,57 +25,57 @@ void check(bool condition, const char* expression, int line)
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
 bool near(f32 a, f32 b, f32 epsilon = 0.0001f) { return std::abs(a - b) <= epsilon; }
-bool near(const Math::Vec3& a, const Math::Vec3& b, f32 epsilon = 0.0001f)
+bool near(const glm::vec3& a, const glm::vec3& b, f32 epsilon = 0.0001f)
 {
     return glm::length(a - b) <= epsilon;
 }
 
 void testPrimitives()
 {
-    SphereSource sphere(Math::Vec3(1.0f, 2.0f, 3.0f), 2.0f);
-    CHECK(near(sphere.sampleDensity(Math::Vec3(1.0f, 2.0f, 3.0f)), 2.0f));
-    CHECK(near(sphere.sampleDensity(Math::Vec3(3.0f, 2.0f, 3.0f)), 0.0f));
-    CHECK(near(sphere.sample(Math::Vec3(3.0f, 2.0f, 3.0f)).gradient, Math::Vec3(1, 0, 0)));
+    SphereSource sphere(glm::vec3(1.0f, 2.0f, 3.0f), 2.0f);
+    CHECK(near(sphere.sampleDensity(glm::vec3(1.0f, 2.0f, 3.0f)), 2.0f));
+    CHECK(near(sphere.sampleDensity(glm::vec3(3.0f, 2.0f, 3.0f)), 0.0f));
+    CHECK(near(sphere.sample(glm::vec3(3.0f, 2.0f, 3.0f)).gradient, glm::vec3(1, 0, 0)));
 
-    PlaneSource plane(Math::Vec3(0, 2, 0), -2.0f);
-    CHECK(near(plane.sampleDensity(Math::Vec3(0, 3, 0)), 1.0f));
-    CHECK(near(plane.sample(Math::Vec3(0)).gradient, Math::Vec3(0, 1, 0)));
+    PlaneSource plane(glm::vec3(0, 2, 0), -2.0f);
+    CHECK(near(plane.sampleDensity(glm::vec3(0, 3, 0)), 1.0f));
+    CHECK(near(plane.sample(glm::vec3(0)).gradient, glm::vec3(0, 1, 0)));
 
-    BoxSource box(Math::Vec3(0), Math::Vec3(1));
-    CHECK(box.sampleDensity(Math::Vec3(0)) > 0.0f);
-    CHECK(box.sampleDensity(Math::Vec3(2, 0, 0)) < 0.0f);
+    BoxSource box(glm::vec3(0), glm::vec3(1));
+    CHECK(box.sampleDensity(glm::vec3(0)) > 0.0f);
+    CHECK(box.sampleDensity(glm::vec3(2, 0, 0)) < 0.0f);
 }
 
 void testOperationsAndNoise()
 {
-    const SphereSource a(Math::Vec3(-0.5f, 0, 0), 1.0f);
-    const SphereSource b(Math::Vec3(0.5f, 0, 0), 1.0f);
+    const SphereSource a(glm::vec3(-0.5f, 0, 0), 1.0f);
+    const SphereSource b(glm::vec3(0.5f, 0, 0), 1.0f);
     UnionSource united(a, b);
     IntersectionSource overlap(a, b);
     DifferenceSource difference(a, b);
     NegateSource negated(a);
     ScaleSource scaled(a, 2.0f);
-    CHECK(united.sampleDensity(Math::Vec3(-1.4f, 0, 0)) > 0.0f);
-    CHECK(overlap.sampleDensity(Math::Vec3(0, 0, 0)) > 0.0f);
-    CHECK(difference.sampleDensity(Math::Vec3(0.5f, 0, 0)) < 0.0f);
-    CHECK(near(negated.sampleDensity(Math::Vec3(-0.5f, 0, 0)), -1.0f));
-    CHECK(near(scaled.sampleDensity(Math::Vec3(-1.0f, 0, 0)), 2.0f));
+    CHECK(united.sampleDensity(glm::vec3(-1.4f, 0, 0)) > 0.0f);
+    CHECK(overlap.sampleDensity(glm::vec3(0, 0, 0)) > 0.0f);
+    CHECK(difference.sampleDensity(glm::vec3(0.5f, 0, 0)) < 0.0f);
+    CHECK(near(negated.sampleDensity(glm::vec3(-0.5f, 0, 0)), -1.0f));
+    CHECK(near(scaled.sampleDensity(glm::vec3(-1.0f, 0, 0)), 2.0f));
 
     NoiseSource first(42, 0.25f), second(42, 0.25f), other(43, 0.25f);
-    const Math::Vec3 point(1.2f, -0.7f, 3.4f);
+    const glm::vec3 point(1.2f, -0.7f, 3.4f);
     CHECK(near(first.sampleDensity(point), second.sampleDensity(point)));
     CHECK(!near(first.sampleDensity(point), other.sampleDensity(point), 1e-6f));
 }
 
 void testMesher()
 {
-    SphereSource sphere(Math::Vec3(0), 1.0f);
+    SphereSource sphere(glm::vec3(0), 1.0f);
     MeshingSettings settings;
-    settings.bounds.min = Math::Vec3(-1.5f);
-    settings.bounds.max = Math::Vec3(1.5f);
+    settings.bounds.min = glm::vec3(-1.5f);
+    settings.bounds.max = glm::vec3(1.5f);
     settings.voxelSize = 0.25f;
     MeshData mesh;
-    mesh.positions.push_back(Math::Vec3(99));
+    mesh.positions.push_back(glm::vec3(99));
     MeshingStats stats;
     CHECK(buildMesh(sphere, settings, mesh, &stats));
     CHECK(!mesh.positions.empty());
@@ -86,22 +86,22 @@ void testMesher()
     for (u32 index : mesh.indices) CHECK(index < mesh.positions.size());
 
     MeshData preserved;
-    preserved.positions.push_back(Math::Vec3(7));
+    preserved.positions.push_back(glm::vec3(7));
     MeshingSettings invalid = settings;
     invalid.voxelSize = 0.0f;
     CHECK(!buildMesh(sphere, invalid, preserved));
-    CHECK(preserved.positions.size() == 1 && near(preserved.positions[0], Math::Vec3(7)));
+    CHECK(preserved.positions.size() == 1 && near(preserved.positions[0], glm::vec3(7)));
 }
 
 void testCaveGeneration()
 {
-    SphereSource terrain(Math::Vec3(0.0f), 4.0f);
-    SphereSource cave(Math::Vec3(1.25f, 0.0f, 0.0f), 1.5f);
+    SphereSource terrain(glm::vec3(0.0f), 4.0f);
+    SphereSource cave(glm::vec3(1.25f, 0.0f, 0.0f), 1.5f);
     DifferenceSource terrainWithCave(terrain, cave);
 
     MeshingSettings settings;
-    settings.bounds.min = Math::Vec3(-4.5f);
-    settings.bounds.max = Math::Vec3(4.5f);
+    settings.bounds.min = glm::vec3(-4.5f);
+    settings.bounds.max = glm::vec3(4.5f);
     settings.voxelSize = 0.5f;
 
     MeshData mesh;
@@ -114,21 +114,21 @@ void testCaveGeneration()
 
     // The subtraction must be empty at the cave centre while the terrain
     // remains solid at a point away from the carved region.
-    CHECK(terrainWithCave.sampleDensity(Math::Vec3(1.25f, 0.0f, 0.0f)) < 0.0f);
-    CHECK(terrainWithCave.sampleDensity(Math::Vec3(-2.5f, 0.0f, 0.0f)) > 0.0f);
+    CHECK(terrainWithCave.sampleDensity(glm::vec3(1.25f, 0.0f, 0.0f)) < 0.0f);
+    CHECK(terrainWithCave.sampleDensity(glm::vec3(-2.5f, 0.0f, 0.0f)) > 0.0f);
 }
 
 void testGrid()
 {
-    GridSource grid(glm::uvec3(3, 3, 3), Math::Vec3(0), 1.0f, -1.0f);
+    GridSource grid(glm::uvec3(3, 3, 3), glm::vec3(0), 1.0f, -1.0f);
     CHECK(grid.valid());
-    CHECK(near(grid.bounds().min, Math::Vec3(0)));
-    CHECK(near(grid.bounds().max, Math::Vec3(2)));
-    CHECK(near(grid.voxelPosition(2, 1, 0), Math::Vec3(2, 1, 0)));
+    CHECK(near(grid.bounds().min, glm::vec3(0)));
+    CHECK(near(grid.bounds().max, glm::vec3(2)));
+    CHECK(near(grid.voxelPosition(2, 1, 0), glm::vec3(2, 1, 0)));
     glm::uvec3 voxel;
-    CHECK(grid.worldToVoxel(Math::Vec3(1.9f, 0.1f, 2.0f), voxel));
+    CHECK(grid.worldToVoxel(glm::vec3(1.9f, 0.1f, 2.0f), voxel));
     CHECK(voxel == glm::uvec3(1, 0, 2));
-    CHECK(!grid.worldToVoxel(Math::Vec3(3, 0, 0), voxel));
+    CHECK(!grid.worldToVoxel(glm::vec3(3, 0, 0), voxel));
     MeshData gridMesh;
     MeshingStats gridStats;
     CHECK(grid.buildMesh(gridMesh, &gridStats));
@@ -138,20 +138,20 @@ void testGrid()
     CHECK(!grid.setVoxel(3, 0, 0, 1.0f));
     CHECK(!grid.setVoxel(0, 0, 0, std::numeric_limits<f32>::quiet_NaN()));
     CHECK(std::isinf(grid.voxel(3, 0, 0)));
-    CHECK(near(grid.sampleDensity(Math::Vec3(1)), 1.0f));
-    CHECK(grid.sampleDensity(Math::Vec3(0)) < 0.0f);
+    CHECK(near(grid.sampleDensity(glm::vec3(1)), 1.0f));
+    CHECK(grid.sampleDensity(glm::vec3(0)) < 0.0f);
 
-    PlaneSource ramp(Math::Vec3(1, 0, 0), -1.0f);
+    PlaneSource ramp(glm::vec3(1, 0, 0), -1.0f);
     grid.fill(ramp);
     CHECK(near(grid.voxel(0, 1, 1), -1.0f));
     CHECK(near(grid.voxel(2, 1, 1), 1.0f));
-    CHECK(grid.sample(Math::Vec3(1, 1, 1)).gradient.x > 0.9f);
+    CHECK(grid.sample(glm::vec3(1, 1, 1)).gradient.x > 0.9f);
 
-    GridSource brushTarget(glm::uvec3(4, 4, 4), Math::Vec3(0), 1.0f, -1.0f);
-    SphereSource brush(Math::Vec3(1), 1.1f);
+    GridSource brushTarget(glm::uvec3(4, 4, 4), glm::vec3(0), 1.0f, -1.0f);
+    SphereSource brush(glm::vec3(1), 1.1f);
     AABB affected;
-    affected.min = Math::Vec3(0);
-    affected.max = Math::Vec3(2);
+    affected.min = glm::vec3(0);
+    affected.max = glm::vec3(2);
     const AABB changed = brushTarget.apply(VolumeOperation::Union, brush, affected);
     CHECK(!changed.empty());
     CHECK(changed.min.x >= 0.0f && changed.max.x <= 2.0f);
@@ -165,7 +165,7 @@ void testGrid()
     CHECK(brushTarget.save(encoded));
     CHECK(encoded.size() > 0);
     encoded.seek(0);
-    GridSource restored(glm::uvec3(1), Math::Vec3(99), 2.0f, 0.0f);
+    GridSource restored(glm::uvec3(1), glm::vec3(99), 2.0f, 0.0f);
     CHECK(GridSource::load(encoded, restored));
     CHECK(restored.dimensions() == brushTarget.dimensions());
     CHECK(near(restored.origin(), brushTarget.origin()));
@@ -175,31 +175,31 @@ void testGrid()
     ByteArray truncated;
     CHECK(truncated.writeString("RVOL"));
     truncated.seek(0);
-    GridSource unchanged(glm::uvec3(1), Math::Vec3(4), 3.0f, 7.0f);
+    GridSource unchanged(glm::uvec3(1), glm::vec3(4), 3.0f, 7.0f);
     CHECK(!GridSource::load(truncated, unchanged));
     CHECK(near(unchanged.voxel(0, 0, 0), 7.0f));
 }
 void testBoxDistance()
 {
-    const BoxSource box(Math::Vec3(0.0f), Math::Vec3(1.0f));
+    const BoxSource box(glm::vec3(0.0f), glm::vec3(1.0f));
 
-    CHECK(std::abs(box.sampleDensity(Math::Vec3(0.0f)) - 1.0f) < 1e-4f);
-    CHECK(std::abs(box.sampleDensity(Math::Vec3(1.0f, 0.0f, 0.0f))) < 1e-4f);
-    CHECK(std::abs(box.sampleDensity(Math::Vec3(0.5f, 0.0f, 0.0f)) - 0.5f) < 1e-4f);
+    CHECK(std::abs(box.sampleDensity(glm::vec3(0.0f)) - 1.0f) < 1e-4f);
+    CHECK(std::abs(box.sampleDensity(glm::vec3(1.0f, 0.0f, 0.0f))) < 1e-4f);
+    CHECK(std::abs(box.sampleDensity(glm::vec3(0.5f, 0.0f, 0.0f)) - 0.5f) < 1e-4f);
 
-    CHECK(std::abs(box.sampleDensity(Math::Vec3(3.0f, 0.0f, 0.0f)) + 2.0f) < 1e-4f);
-    CHECK(std::abs(box.sampleDensity(Math::Vec3(0.0f, -4.0f, 0.0f)) + 3.0f) < 1e-4f);
+    CHECK(std::abs(box.sampleDensity(glm::vec3(3.0f, 0.0f, 0.0f)) + 2.0f) < 1e-4f);
+    CHECK(std::abs(box.sampleDensity(glm::vec3(0.0f, -4.0f, 0.0f)) + 3.0f) < 1e-4f);
 
-    const f32 corner = box.sampleDensity(Math::Vec3(2.0f, 2.0f, 1.0f));
+    const f32 corner = box.sampleDensity(glm::vec3(2.0f, 2.0f, 1.0f));
     CHECK(std::abs(corner + std::sqrt(2.0f)) < 1e-4f);
 }
 
 void testWeldedAndClosed()
 {
-    const SphereSource sphere(Math::Vec3(0.0f), 2.0f);
+    const SphereSource sphere(glm::vec3(0.0f), 2.0f);
     MeshingSettings settings;
-    settings.bounds.min = Math::Vec3(-3.0f);
-    settings.bounds.max = Math::Vec3(3.0f);
+    settings.bounds.min = glm::vec3(-3.0f);
+    settings.bounds.max = glm::vec3(3.0f);
     settings.voxelSize = 0.25f;
 
     MeshData mesh;

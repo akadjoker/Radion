@@ -184,7 +184,7 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
     }
     reportSkip(ShadowSkipReason::None);
 
-    const Math::Vec3 sunDirection = glm::normalize(sun->direction);
+    const glm::vec3 sunDirection = glm::normalize(sun->direction);
     if (glm::dot(sunDirection, mCachedSunDirection) < 0.9999f || cascades.count != mCachedCount)
         for (bool& cached : mCascadeCached)
             cached = false;
@@ -220,7 +220,7 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
         block.shadowBias[i] = cascades.shadowBias[i];
         block.shadowNormalBias[i] = cascades.shadowNormalBias[i];
         block.rangeBegin[i] = cascades.rangeBegin[i];
-        block.uvScale[i] = Math::Vec4(cascades.uvScale[i], 0.0f, 0.0f);
+        block.uvScale[i] = glm::vec4(cascades.uvScale[i], 0.0f, 0.0f);
         mHalfExtents[i] = cascades.halfExtents[i];
         mSplits[i] = cascades.splits[i];
     }
@@ -230,17 +230,17 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
         block.penumbraKernel[i] = mPenumbraKernel[i];
     }
     block.directionAndCount =
-        Math::Vec4(sunDirection, static_cast<f32>(cascades.count));
+        glm::vec4(sunDirection, static_cast<f32>(cascades.count));
     const f32 tanAngle = mCalculator.settings.angularDiameter > 0.0f
                              ? std::tan(glm::radians(mCalculator.settings.angularDiameter))
                              : 0.0f;
-    block.sampling = Math::Vec4(1.0f / static_cast<f32>(mResolution), cascades.softShadowScale,
+    block.sampling = glm::vec4(1.0f / static_cast<f32>(mResolution), cascades.softShadowScale,
                                tanAngle, mCalculator.settings.blend ? 1.0f : 0.0f);
     block.sampling2 =
-        Math::Vec4(static_cast<f32>(mSoftSamples), static_cast<f32>(mPenumbraSamples),
+        glm::vec4(static_cast<f32>(mSoftSamples), static_cast<f32>(mPenumbraSamples),
                   glm::clamp(mCalculator.settings.opacity, 0.0f, 1.0f),
                   frame.temporalAA ? static_cast<f32>(mFrameIndex & 255u) : 0.0f);
-    block.sampling3 = Math::Vec4(cascades.fadeFrom, cascades.fadeTo, 0.0f, 0.0f);
+    block.sampling3 = glm::vec4(cascades.fadeFrom, cascades.fadeTo, 0.0f, 0.0f);
     GPU& gpu = GPU::getSingleton();
     gpu.updateBuffer(mBlock, 0, sizeof(block), &block);
 
@@ -252,7 +252,7 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
     frame.directionalShadowBlock = mBlock;
 
     FrameContext shadowFrame = frame;
-    shadowFrame.clipPlane = Math::Vec4(0.0f);
+    shadowFrame.clipPlane = glm::vec4(0.0f);
     ClearValue clear;
     clear.bits = ClearDepth;
     const bool fullClear = mAtlasNeedsClear;
@@ -326,17 +326,17 @@ void ShadowPass::rebuildKernels()
     default: mPenumbraSamples = 32; mSoftSamples = 32; break;
     }
 
-    auto buildVogel = [](Math::Vec4* kernel, u32 count)
+    auto buildVogel = [](glm::vec4* kernel, u32 count)
     {
         for (u32 i = 0; i < MaxShadowKernel; ++i)
-            kernel[i] = Math::Vec4(0.0f);
+            kernel[i] = glm::vec4(0.0f);
         const f32 goldenAngle = 2.4f;
         for (u32 i = 0; i < count; ++i)
         {
             const f32 r = std::sqrt(static_cast<f32>(i) + 0.5f) /
                           std::sqrt(static_cast<f32>(count));
             const f32 theta = static_cast<f32>(i) * goldenAngle;
-            kernel[i] = Math::Vec4(std::cos(theta) * r, std::sin(theta) * r, 0.0f, 0.0f);
+            kernel[i] = glm::vec4(std::cos(theta) * r, std::sin(theta) * r, 0.0f, 0.0f);
         }
     };
     buildVogel(mPenumbraKernel, mPenumbraSamples);

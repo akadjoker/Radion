@@ -7,22 +7,22 @@
 namespace Radion::Physics
 {
 
-AeroSurface::AeroSurface(const Math::Mat3& tensor, const Math::Vec3& position)
+AeroSurface::AeroSurface(const glm::mat3& tensor, const glm::vec3& position)
     : mTensor(tensor)
     , mPosition(position)
 {
 }
 
-void AeroSurface::applyTo(RigidBody& body, const Math::Vec3& windspeed) const
+void AeroSurface::applyTo(RigidBody& body, const glm::vec3& windspeed) const
 {
-    const Math::Vec3 velocity = body.velocity() + windspeed;
-    const Math::Vec3 bodyVelocity = body.directionToLocal(velocity);
-    const Math::Vec3 bodyForce = activeTensor() * bodyVelocity;
+    const glm::vec3 velocity = body.velocity() + windspeed;
+    const glm::vec3 bodyVelocity = body.directionToLocal(velocity);
+    const glm::vec3 bodyForce = activeTensor() * bodyVelocity;
     body.addForceAtBodyPoint(body.directionToWorld(bodyForce), mPosition);
 }
 
-AeroControlSurface::AeroControlSurface(const Math::Mat3& base, const Math::Mat3& minimum,
-                                       const Math::Mat3& maximum, const Math::Vec3& position)
+AeroControlSurface::AeroControlSurface(const glm::mat3& base, const glm::mat3& minimum,
+                                       const glm::mat3& maximum, const glm::vec3& position)
     : AeroSurface(base, position)
     , mMinimum(minimum)
     , mMaximum(maximum)
@@ -34,7 +34,7 @@ void AeroControlSurface::setControl(f32 control)
     mControl = glm::clamp(control, -1.0f, 1.0f);
 }
 
-Math::Mat3 AeroControlSurface::activeTensor() const
+glm::mat3 AeroControlSurface::activeTensor() const
 {
     if (mControl <= -1.0f)
         return mMinimum;
@@ -54,35 +54,35 @@ Airplane::Airplane()
 
 void Airplane::setDefaultSurfaces()
 {
-    // Math::Mat3 takes columns; the reference tensors are written row-major,
+    // glm::mat3 takes columns; the reference tensors are written row-major,
     // so each one below is transposed. The wings' -1 at row 1, column 0 maps
     // forward velocity onto upward force.
-    const Math::Mat3 wingBase = glm::transpose(Math::Mat3(0.0f, 0.0f, 0.0f,
+    const glm::mat3 wingBase = glm::transpose(glm::mat3(0.0f, 0.0f, 0.0f,
                                                         -1.0f, -0.5f, 0.0f,
                                                         0.0f, 0.0f, 0.0f));
-    const Math::Mat3 wingMin = glm::transpose(Math::Mat3(0.0f, 0.0f, 0.0f,
+    const glm::mat3 wingMin = glm::transpose(glm::mat3(0.0f, 0.0f, 0.0f,
                                                        -0.995f, -0.5f, 0.0f,
                                                        0.0f, 0.0f, 0.0f));
-    const Math::Mat3 wingMax = glm::transpose(Math::Mat3(0.0f, 0.0f, 0.0f,
+    const glm::mat3 wingMax = glm::transpose(glm::mat3(0.0f, 0.0f, 0.0f,
                                                        -1.005f, -0.5f, 0.0f,
                                                        0.0f, 0.0f, 0.0f));
 
-    mRightWing = AeroControlSurface(wingBase, wingMin, wingMax, Math::Vec3(-1.0f, 0.0f, 2.0f));
-    mLeftWing = AeroControlSurface(wingBase, wingMin, wingMax, Math::Vec3(-1.0f, 0.0f, -2.0f));
+    mRightWing = AeroControlSurface(wingBase, wingMin, wingMax, glm::vec3(-1.0f, 0.0f, 2.0f));
+    mLeftWing = AeroControlSurface(wingBase, wingMin, wingMax, glm::vec3(-1.0f, 0.0f, -2.0f));
 
-    const Math::Mat3 rudderBase(0.0f);
-    const Math::Mat3 rudderMin = glm::transpose(Math::Mat3(0.0f, 0.0f, 0.0f,
+    const glm::mat3 rudderBase(0.0f);
+    const glm::mat3 rudderMin = glm::transpose(glm::mat3(0.0f, 0.0f, 0.0f,
                                                          0.0f, 0.0f, 0.0f,
                                                          0.01f, 0.0f, 0.0f));
-    const Math::Mat3 rudderMax = glm::transpose(Math::Mat3(0.0f, 0.0f, 0.0f,
+    const glm::mat3 rudderMax = glm::transpose(glm::mat3(0.0f, 0.0f, 0.0f,
                                                          0.0f, 0.0f, 0.0f,
                                                          -0.01f, 0.0f, 0.0f));
-    mRudder = AeroControlSurface(rudderBase, rudderMin, rudderMax, Math::Vec3(2.0f, 0.5f, 0.0f));
+    mRudder = AeroControlSurface(rudderBase, rudderMin, rudderMax, glm::vec3(2.0f, 0.5f, 0.0f));
 
-    const Math::Mat3 tailTensor = glm::transpose(Math::Mat3(0.0f, 0.0f, 0.0f,
+    const glm::mat3 tailTensor = glm::transpose(glm::mat3(0.0f, 0.0f, 0.0f,
                                                           -1.0f, -0.5f, 0.0f,
                                                           0.0f, 0.0f, -0.1f));
-    mTail = AeroSurface(tailTensor, Math::Vec3(2.0f, 0.0f, 0.0f));
+    mTail = AeroSurface(tailTensor, glm::vec3(2.0f, 0.0f, 0.0f));
 }
 
 void Airplane::setRoll(f32 control)
@@ -108,7 +108,7 @@ void Airplane::applyForces()
     if (!mBody)
         return;
 
-    mBody->addForce(mBody->directionToWorld(Math::Vec3(-mThrust, 0.0f, 0.0f)));
+    mBody->addForce(mBody->directionToWorld(glm::vec3(-mThrust, 0.0f, 0.0f)));
 
     mLeftWing.applyTo(*mBody, mWindspeed);
     mRightWing.applyTo(*mBody, mWindspeed);

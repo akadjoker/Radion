@@ -7,7 +7,7 @@
 namespace Radion::Geometry
 {
 
-bool buildHullMesh(const std::vector<Math::Vec3>& vertices,
+bool buildHullMesh(const std::vector<glm::vec3>& vertices,
                    const std::vector<ConvexHullComputer::Edge>& edges,
                    const std::vector<int>& faces, MeshData& out)
 {
@@ -39,15 +39,15 @@ bool buildHullMesh(const std::vector<Math::Vec3>& vertices,
                 v2 >= vertexCount)
                 break;
 
-            const Math::Vec3& a = vertices[static_cast<usize>(v0)];
-            const Math::Vec3& b = vertices[static_cast<usize>(v1)];
-            const Math::Vec3& c = vertices[static_cast<usize>(v2)];
+            const glm::vec3& a = vertices[static_cast<usize>(v0)];
+            const glm::vec3& b = vertices[static_cast<usize>(v1)];
+            const glm::vec3& c = vertices[static_cast<usize>(v2)];
 
-            const Math::Vec3 cross = glm::cross(b - a, c - a);
+            const glm::vec3 cross = glm::cross(b - a, c - a);
             const f32 length = glm::length(cross);
             if (length > 1e-12f)
             {
-                const Math::Vec3 normal = cross / length;
+                const glm::vec3 normal = cross / length;
                 const u32 base = static_cast<u32>(out.positions.size());
 
                 out.positions.push_back(a);
@@ -56,9 +56,9 @@ bool buildHullMesh(const std::vector<Math::Vec3>& vertices,
                 out.normals.push_back(normal);
                 out.normals.push_back(normal);
                 out.normals.push_back(normal);
-                out.uvs.push_back(Math::Vec2(0.0f));
-                out.uvs.push_back(Math::Vec2(1.0f, 0.0f));
-                out.uvs.push_back(Math::Vec2(0.0f, 1.0f));
+                out.uvs.push_back(glm::vec2(0.0f));
+                out.uvs.push_back(glm::vec2(1.0f, 0.0f));
+                out.uvs.push_back(glm::vec2(0.0f, 1.0f));
 
                 out.indices.push_back(base);
                 out.indices.push_back(base + 1);
@@ -90,14 +90,14 @@ bool buildHullMesh(const std::vector<Math::Vec3>& vertices,
     return true;
 }
 
-bool buildConvexHullMesh(const std::vector<Math::Vec3>& points, MeshData& out)
+bool buildConvexHullMesh(const std::vector<glm::vec3>& points, MeshData& out)
 {
     out.clear();
     if (points.size() < 4)
         return false;
 
     ConvexHullComputer hull;
-    hull.compute(&points[0].x, static_cast<int>(sizeof(Math::Vec3)), static_cast<int>(points.size()),
+    hull.compute(&points[0].x, static_cast<int>(sizeof(glm::vec3)), static_cast<int>(points.size()),
                  0.0f, 0.0f);
 
     return buildHullMesh(hull.vertices, hull.edges, hull.faces, out);

@@ -176,7 +176,7 @@ bool WaypointNetwork::findPath(WaypointID fromWaypoint, WaypointID toWaypoint, P
     return false;
 }
 
-bool WaypointNetwork::findPath(const Math::Vec3& origin, const Math::Vec3& destination,
+bool WaypointNetwork::findPath(const glm::vec3& origin, const glm::vec3& destination,
                                const WaypointVisibility& visibility, Path& outPath) const
 {
     WaypointID closestToOrigin;
@@ -196,17 +196,17 @@ bool WaypointNetwork::findPath(const Math::Vec3& origin, const Math::Vec3& desti
     return findPath(closestToOrigin, closestToDestination, outPath);
 }
 
-bool WaypointNetwork::extents(Math::Vec3& minimum, Math::Vec3& maximum) const
+bool WaypointNetwork::extents(glm::vec3& minimum, glm::vec3& maximum) const
 {
     if (mWaypoints.empty())
         return false;
 
-    Math::Vec3 min(FLT_MAX);
-    Math::Vec3 max(-FLT_MAX);
+    glm::vec3 min(FLT_MAX);
+    glm::vec3 max(-FLT_MAX);
     for (const auto& kv : mWaypoints)
     {
         const Waypoint* wp = kv.second;
-        const Math::Vec3 radius(wp->radius());
+        const glm::vec3 radius(wp->radius());
         min = glm::min(min, wp->position() - radius);
         max = glm::max(max, wp->position() + radius);
     }
@@ -215,7 +215,7 @@ bool WaypointNetwork::extents(Math::Vec3& minimum, Math::Vec3& maximum) const
     return true;
 }
 
-bool WaypointNetwork::findClosestValidWaypoint(const Math::Vec3& origin,
+bool WaypointNetwork::findClosestValidWaypoint(const glm::vec3& origin,
                                                const WaypointVisibility& visibility,
                                                WaypointID& outWaypointID) const
 {
@@ -227,7 +227,7 @@ bool WaypointNetwork::findClosestValidWaypoint(const Math::Vec3& origin,
         const Waypoint* wp = kv.second;
         if (wp && visibility.isVisible(origin, wp->position()))
         {
-            Math::Vec3 delta = origin - wp->position();
+            glm::vec3 delta = origin - wp->position();
             float distSq = glm::dot(delta, delta);
             if (distSq < closestDistanceSq)
             {

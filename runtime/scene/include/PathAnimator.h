@@ -18,9 +18,9 @@ namespace Radion
 struct PathKeyframe
 {
     f32 time = 0.0f;
-    Math::Vec3 position = Math::Vec3(0.0f);
-    Math::Quaternion rotation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
-    Math::Vec3 scale = Math::Vec3(1.0f);
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec3 scale = glm::vec3(1.0f);
 };
 
 // What evaluate() hands back: a full transform, not just a point, so a
@@ -28,9 +28,9 @@ struct PathKeyframe
 // it flies it.
 struct PathPose
 {
-    Math::Vec3 position = Math::Vec3(0.0f);
-    Math::Quaternion rotation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
-    Math::Vec3 scale = Math::Vec3(1.0f);
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec3 scale = glm::vec3(1.0f);
 };
 
 // A named set of keyframes, built once and bound to as many PathAnimator
@@ -41,9 +41,9 @@ struct PathPose
 class PathTrack
 {
 public:
-    void addKeyframe(f32 time, const Math::Vec3& position,
-                     const Math::Quaternion& rotation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f),
-                     const Math::Vec3& scale = Math::Vec3(1.0f));
+    void addKeyframe(f32 time, const glm::vec3& position,
+                     const glm::quat& rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+                     const glm::vec3& scale = glm::vec3(1.0f));
     void clear();
     bool empty() const;
     usize keyframeCount() const;

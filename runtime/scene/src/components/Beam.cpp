@@ -12,17 +12,17 @@ namespace
 // drawn bright at the top fading to nothing at the bottom, so the image's
 // own long axis is V, not U. Mapping length to U instead runs the sprite
 // sideways across the bolt's width rather than along its length.
-void buildBeamQuad(const Math::Vec3& tail, const Math::Vec3& head, const Math::Vec3& perp,
+void buildBeamQuad(const glm::vec3& tail, const glm::vec3& head, const glm::vec3& perp,
                    Color colorTail, Color colorHead, TrailVertex* out)
 {
-    const Math::Vec3 p0 = tail - perp, p1 = tail + perp;
-    const Math::Vec3 p2 = head - perp, p3 = head + perp;
-    out[0] = {p0, Math::Vec2(0.0f, 1.0f), colorTail};
-    out[1] = {p1, Math::Vec2(1.0f, 1.0f), colorTail};
-    out[2] = {p2, Math::Vec2(0.0f, 0.0f), colorHead};
-    out[3] = {p1, Math::Vec2(1.0f, 1.0f), colorTail};
-    out[4] = {p3, Math::Vec2(1.0f, 0.0f), colorHead};
-    out[5] = {p2, Math::Vec2(0.0f, 0.0f), colorHead};
+    const glm::vec3 p0 = tail - perp, p1 = tail + perp;
+    const glm::vec3 p2 = head - perp, p3 = head + perp;
+    out[0] = {p0, glm::vec2(0.0f, 1.0f), colorTail};
+    out[1] = {p1, glm::vec2(1.0f, 1.0f), colorTail};
+    out[2] = {p2, glm::vec2(0.0f, 0.0f), colorHead};
+    out[3] = {p1, glm::vec2(1.0f, 1.0f), colorTail};
+    out[4] = {p3, glm::vec2(1.0f, 0.0f), colorHead};
+    out[5] = {p2, glm::vec2(0.0f, 0.0f), colorHead};
 }
 } // namespace
 
@@ -31,16 +31,16 @@ Beam::Beam() : Component(Type, ComponentEventLateUpdate)
     mColorTail = Color(255, 255, 255, 0);
 }
 
-void Beam::setPoints(const Math::Vec3& start, const Math::Vec3& end)
+void Beam::setPoints(const glm::vec3& start, const glm::vec3& end)
 {
     mStart = start;
     mEnd = end;
 }
-const Math::Vec3& Beam::start() const
+const glm::vec3& Beam::start() const
 {
     return mStart;
 }
-const Math::Vec3& Beam::end() const
+const glm::vec3& Beam::end() const
 {
     return mEnd;
 }
@@ -128,25 +128,25 @@ void Beam::onLateUpdate(f32 deltaTime)
         return;
     }
 
-    const Math::Vec3 axis = mEnd - mStart;
+    const glm::vec3 axis = mEnd - mStart;
     const f32 totalLength = glm::length(axis);
-    const Math::Vec3 dir = totalLength > 0.0001f ? axis / totalLength : Math::Vec3(0.0f, 0.0f, 1.0f);
+    const glm::vec3 dir = totalLength > 0.0001f ? axis / totalLength : glm::vec3(0.0f, 0.0f, 1.0f);
 
     const f32 t = mElapsed / mTravelTime;
-    const Math::Vec3 head = mStart + axis * t;
+    const glm::vec3 head = mStart + axis * t;
     // The tail trails mSegmentLength behind the head, but never past start -
     // a bolt that has only travelled half its own segment length yet is
     // shorter than usual, not spawning part of itself behind where it began.
     const f32 travelled = totalLength * t;
     const f32 tailDistance = glm::min(mSegmentLength, travelled);
-    const Math::Vec3 tail = head - dir * tailDistance;
+    const glm::vec3 tail = head - dir * tailDistance;
 
-    const Math::Vec3 worldUp(0.0f, 1.0f, 0.0f);
-    Math::Vec3 perpA = glm::cross(dir, worldUp);
+    const glm::vec3 worldUp(0.0f, 1.0f, 0.0f);
+    glm::vec3 perpA = glm::cross(dir, worldUp);
     if (glm::length(perpA) < 0.0001f)
-        perpA = glm::cross(dir, Math::Vec3(1.0f, 0.0f, 0.0f));
+        perpA = glm::cross(dir, glm::vec3(1.0f, 0.0f, 0.0f));
     perpA = glm::normalize(perpA) * (mWidth * 0.5f);
-    const Math::Vec3 perpB = glm::normalize(glm::cross(dir, perpA)) * (mWidth * 0.5f);
+    const glm::vec3 perpB = glm::normalize(glm::cross(dir, perpA)) * (mWidth * 0.5f);
 
     buildBeamQuad(tail, head, perpA, mColorTail, mColorHead, &mVertices[0]);
     buildBeamQuad(tail, head, perpB, mColorTail, mColorHead, &mVertices[6]);

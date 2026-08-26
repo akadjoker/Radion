@@ -19,7 +19,7 @@ namespace Radion
 namespace
 {
 
-Math::Quaternion nlerp(const Math::Quaternion& from, Math::Quaternion to, f32 amount)
+glm::quat nlerp(const glm::quat& from, glm::quat to, f32 amount)
 {
     if (glm::dot(from, to) < 0.0f)
         to = -to;
@@ -60,7 +60,7 @@ f32 lowestTrackHeight(const AnimationClip& clip, s32 boneIndex)
         if (track.bone != boneIndex || track.positions.empty())
             continue;
         f32 lowest = track.positions.front().y;
-        for (const Math::Vec3& position : track.positions)
+        for (const glm::vec3& position : track.positions)
             lowest = glm::min(lowest, position.y);
         return lowest;
     }
@@ -124,8 +124,8 @@ s32 Skeleton::findBone(const char* name) const
     return -1;
 }
 
-bool Skeleton::addBone(const std::string& name, s32 parent, const Math::Mat4& bindLocal,
-                       const Math::Mat4& inverseBind)
+bool Skeleton::addBone(const std::string& name, s32 parent, const glm::mat4& bindLocal,
+                       const glm::mat4& inverseBind)
 {
     if (name.empty() || parent < -1 || parent >= 65535 || findBone(name.c_str()) >= 0)
         return false;
@@ -165,8 +165,8 @@ void Skeleton::bindPose(std::vector<LocalPose>& pose) const
     pose.resize(mBones.size());
     for (usize i = 0; i < mBones.size(); ++i)
     {
-        Math::Vec3 skew;
-        Math::Vec4 perspective;
+        glm::vec3 skew;
+        glm::vec4 perspective;
         if (!glm::decompose(mBones[i].bindLocal, pose[i].scale, pose[i].rotation, pose[i].position,
                             skew, perspective))
         {
@@ -177,8 +177,8 @@ void Skeleton::bindPose(std::vector<LocalPose>& pose) const
     }
 }
 
-void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<Math::Mat4>& globalPose,
-                        std::vector<Math::Mat4>& palette) const
+void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<glm::mat4>& globalPose,
+                        std::vector<glm::mat4>& palette) const
 {
     if (localPose.size() != mBones.size() || mOrder.size() != mBones.size())
         return;
@@ -187,9 +187,9 @@ void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<Mat
     for (u16 index : mOrder)
     {
         const LocalPose& pose = localPose[index];
-        const Math::Mat4 local = glm::translate(Math::Mat4(1.0f), pose.position) *
+        const glm::mat4 local = glm::translate(glm::mat4(1.0f), pose.position) *
                                 glm::mat4_cast(pose.rotation) *
-                                glm::scale(Math::Mat4(1.0f), pose.scale);
+                                glm::scale(glm::mat4(1.0f), pose.scale);
         const s32 parent = mBones[index].parent;
         globalPose[index] = parent >= 0 ? globalPose[static_cast<usize>(parent)] * local : local;
         palette[index] = globalPose[index] * mBones[index].inverseBind;
@@ -201,34 +201,34 @@ void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<Mat
 namespace
 {
 
-Math::Mat4 composeLocal(const LocalPose& pose)
+glm::mat4 composeLocal(const LocalPose& pose)
 {
     // The same composition Skeleton::evaluate() uses - the solver writes back
     // into localPose, so it has to rebuild world matrices exactly the way the
     // evaluate step would, or the pose it hands back would not match itself.
-    return glm::translate(Math::Mat4(1.0f), pose.position) * glm::mat4_cast(pose.rotation) *
-           glm::scale(Math::Mat4(1.0f), pose.scale);
+    return glm::translate(glm::mat4(1.0f), pose.position) * glm::mat4_cast(pose.rotation) *
+           glm::scale(glm::mat4(1.0f), pose.scale);
 }
 
-bool decomposeLocal(const Math::Mat4& matrix, LocalPose& out)
+bool decomposeLocal(const glm::mat4& matrix, LocalPose& out)
 {
-    Math::Vec3 skew;
-    Math::Vec4 perspective;
+    glm::vec3 skew;
+    glm::vec4 perspective;
     if (!glm::decompose(matrix, out.scale, out.rotation, out.position, skew, perspective))
         return false;
     out.rotation = glm::normalize(out.rotation);
     return true;
 }
 
-Math::Vec3 translationOf(const Math::Mat4& matrix)
+glm::vec3 translationOf(const glm::mat4& matrix)
 {
-    return Math::Vec3(matrix[3]);
+    return glm::vec3(matrix[3]);
 }
 
 // acos of the dot product, clamped - the reference's XMScalarACos does the
 // clamp itself, and without it a dot product a hair past 1.0 from rounding
 // returns NaN and poisons the whole chain.
-f32 angleBetweenNormals(const Math::Vec3& a, const Math::Vec3& b)
+f32 angleBetweenNormals(const glm::vec3& a, const glm::vec3& b)
 {
     return std::acos(glm::clamp(glm::dot(a, b), -1.0f, 1.0f));
 }
@@ -240,9 +240,9 @@ IKConstraint IKConstraint::thigh()
     // wiScene.cpp:3486-3491, verbatim.
     IKConstraint constraint;
     constraint.enabled = true;
-    constraint.minimum = Math::Vec3(glm::pi<f32>() * 0.6f, glm::pi<f32>() * 0.1f,
+    constraint.minimum = glm::vec3(glm::pi<f32>() * 0.6f, glm::pi<f32>() * 0.1f,
                                    glm::pi<f32>() * 0.1f);
-    constraint.maximum = Math::Vec3(glm::pi<f32>() * 0.1f, glm::pi<f32>() * 0.1f,
+    constraint.maximum = glm::vec3(glm::pi<f32>() * 0.1f, glm::pi<f32>() * 0.1f,
                                    glm::pi<f32>() * 0.1f);
     return constraint;
 }
@@ -253,8 +253,8 @@ IKConstraint IKConstraint::knee()
     // a hinge instead of a ball joint.
     IKConstraint constraint;
     constraint.enabled = true;
-    constraint.minimum = Math::Vec3(0.0f);
-    constraint.maximum = Math::Vec3(glm::pi<f32>() * 0.8f, 0.0f, 0.0f);
+    constraint.minimum = glm::vec3(0.0f);
+    constraint.maximum = glm::vec3(glm::pi<f32>() * 0.8f, 0.0f, 0.0f);
     return constraint;
 }
 
@@ -267,8 +267,8 @@ IKConstraint IKConstraint::inverted() const
 }
 
 void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
-                     const Math::Mat4& ownerTransform, std::vector<LocalPose>& localPose,
-                     std::vector<Math::Mat4>& globalPose)
+                     const glm::mat4& ownerTransform, std::vector<LocalPose>& localPose,
+                     std::vector<glm::mat4>& globalPose)
 {
     const u32 boneCount = skeleton.boneCount();
     if (!chain.enabled || chain.tipBone < 0 || static_cast<u32>(chain.tipBone) >= boneCount)
@@ -280,8 +280,8 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
 
     // The pose lives in the owner's space, the target arrives in world space -
     // one conversion here rather than at every call site.
-    const Math::Mat4 toPoseSpace = glm::inverse(ownerTransform);
-    const Math::Vec3 target = Math::Vec3(toPoseSpace * Math::Vec4(chain.target, 1.0f));
+    const glm::mat4 toPoseSpace = glm::inverse(ownerTransform);
+    const glm::vec3 target = glm::vec3(toPoseSpace * glm::vec4(chain.target, 1.0f));
 
     const u32 linkCount = glm::min(chain.length, IKChain::MaxLinks);
     s32 stack[IKChain::MaxLinks] = {};
@@ -300,58 +300,58 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
             if (parentBone < 0 || static_cast<u32>(parentBone) >= boneCount)
                 break;
 
-            const Math::Mat4& parentWorld = globalPose[static_cast<usize>(parentBone)];
-            const Math::Vec3 parentPosition = translationOf(parentWorld);
+            const glm::mat4& parentWorld = globalPose[static_cast<usize>(parentBone)];
+            const glm::vec3 parentPosition = translationOf(parentWorld);
 
             // The TIP, not the current child - CCD always aims the end
             // effector at the target, whichever link is being rotated.
-            const Math::Vec3 tipPosition =
+            const glm::vec3 tipPosition =
                 translationOf(globalPose[static_cast<usize>(chain.tipBone)]);
 
-            const Math::Vec3 toTip = tipPosition - parentPosition;
-            const Math::Vec3 toTarget = target - parentPosition;
+            const glm::vec3 toTip = tipPosition - parentPosition;
+            const glm::vec3 toTarget = target - parentPosition;
             if (glm::dot(toTip, toTip) <= 1e-12f || glm::dot(toTarget, toTarget) <= 1e-12f)
                 break; // the tip sits on the joint: no direction to rotate along
-            const Math::Vec3 directionToTip = glm::normalize(toTip);
-            const Math::Vec3 directionToTarget = glm::normalize(toTarget);
+            const glm::vec3 directionToTip = glm::normalize(toTip);
+            const glm::vec3 directionToTarget = glm::normalize(toTarget);
 
             const IKConstraint& constraint = chain.constraints[link];
-            Math::Quaternion rotation;
+            glm::quat rotation;
             if (constraint.enabled)
             {
                 // Constrained: one rotation PER AXIS rather than a single
                 // shortest one, each limited and each divided by the
                 // iteration count so the limit is a total spread over all
                 // the passes, not a per-pass allowance.
-                rotation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
-                Math::Mat4 axisFrame = parentWorld;
+                rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                glm::mat4 axisFrame = parentWorld;
                 const f32 iterationReciprocal = 1.0f / static_cast<f32>(chain.iterations);
                 for (u32 axisIndex = 0; axisIndex < 3; ++axisIndex)
                 {
-                    Math::Vec3 localAxis(0.0f);
+                    glm::vec3 localAxis(0.0f);
                     localAxis[static_cast<int>(axisIndex)] = 1.0f;
                     const f32 axisMinimum = constraint.minimum[static_cast<int>(axisIndex)] *
                                             iterationReciprocal;
                     const f32 axisMaximum = constraint.maximum[static_cast<int>(axisIndex)] *
                                             iterationReciprocal;
 
-                    const Math::Vec3 axisWorld = Math::Mat3(axisFrame) * localAxis;
+                    const glm::vec3 axisWorld = glm::mat3(axisFrame) * localAxis;
                     if (glm::dot(axisWorld, axisWorld) <= 1e-12f)
                         continue;
-                    const Math::Vec3 axis = glm::normalize(axisWorld);
+                    const glm::vec3 axis = glm::normalize(axisWorld);
 
                     // Both directions flattened onto the plane the axis is
                     // normal to: what is left is the part of the rotation
                     // this axis is allowed to answer for.
-                    const Math::Vec3 flatTip =
+                    const glm::vec3 flatTip =
                         directionToTip - axis * glm::dot(axis, directionToTip);
-                    const Math::Vec3 flatTarget =
+                    const glm::vec3 flatTarget =
                         directionToTarget - axis * glm::dot(axis, directionToTarget);
                     if (glm::dot(flatTip, flatTip) <= 1e-12f ||
                         glm::dot(flatTarget, flatTarget) <= 1e-12f)
                         continue;
-                    const Math::Vec3 projectedTip = glm::normalize(flatTip);
-                    const Math::Vec3 projectedTarget = glm::normalize(flatTarget);
+                    const glm::vec3 projectedTip = glm::normalize(flatTip);
+                    const glm::vec3 projectedTarget = glm::normalize(flatTarget);
 
                     f32 angle = angleBetweenNormals(projectedTip, projectedTarget);
                     if (glm::dot(glm::cross(projectedTip, projectedTarget), axis) < 0.0f)
@@ -359,7 +359,7 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
                     else
                         angle = glm::min(angle, axisMaximum);
 
-                    const Math::Quaternion axisRotation = glm::normalize(glm::angleAxis(angle, axis));
+                    const glm::quat axisRotation = glm::normalize(glm::angleAxis(angle, axis));
                     // The reference's own order (`W = R(Q1) * W`, row-vector,
                     // so R applies before W) written for glm's column-vector
                     // convention, where that same order is `W * R`. Left as
@@ -375,7 +375,7 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
             {
                 // Unconstrained: the shortest rotation that takes the tip
                 // direction onto the target direction.
-                const Math::Vec3 axis = glm::cross(directionToTip, directionToTarget);
+                const glm::vec3 axis = glm::cross(directionToTip, directionToTarget);
                 if (glm::dot(axis, axis) <= 1e-12f)
                     break; // already aligned, or exactly opposed
                 rotation = glm::normalize(
@@ -389,25 +389,25 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
             // order is reversed from the reference's XMQuaternionMultiply
             // (which reads "local first, then Q"), so the world rotation
             // goes on the left here.
-            Math::Vec3 parentScale;
-            Math::Quaternion parentRotation;
-            Math::Vec3 parentTranslation;
-            Math::Vec3 skew;
-            Math::Vec4 perspective;
+            glm::vec3 parentScale;
+            glm::quat parentRotation;
+            glm::vec3 parentTranslation;
+            glm::vec3 skew;
+            glm::vec4 perspective;
             if (!glm::decompose(parentWorld, parentScale, parentRotation, parentTranslation, skew,
                                 perspective))
                 break;
             parentRotation = glm::normalize(rotation * glm::normalize(parentRotation));
 
-            const Math::Mat4 rotatedWorld = glm::translate(Math::Mat4(1.0f), parentTranslation) *
+            const glm::mat4 rotatedWorld = glm::translate(glm::mat4(1.0f), parentTranslation) *
                                            glm::mat4_cast(parentRotation) *
-                                           glm::scale(Math::Mat4(1.0f), parentScale);
+                                           glm::scale(glm::mat4(1.0f), parentScale);
 
             // Back to local, against the grandparent - the reference's
             // MatrixTransform(inverse(parent_of_parent.world)) step, which it
             // skips when the parent is a root.
             const s32 grandParent = skeleton.bone(static_cast<u32>(parentBone)).parent;
-            const Math::Mat4 newLocal =
+            const glm::mat4 newLocal =
                 grandParent >= 0
                     ? glm::inverse(globalPose[static_cast<usize>(grandParent)]) * rotatedWorld
                     : rotatedWorld;
@@ -786,7 +786,7 @@ AnimationManager& Animations()
 namespace
 {
 
-bool readMatrix(AssetFormat::Reader& reader, Math::Mat4& matrix)
+bool readMatrix(AssetFormat::Reader& reader, glm::mat4& matrix)
 {
     for (u32 column = 0; column < 4; ++column)
         for (u32 row = 0; row < 4; ++row)
@@ -795,7 +795,7 @@ bool readMatrix(AssetFormat::Reader& reader, Math::Mat4& matrix)
     return true;
 }
 
-void writeMatrix(AssetFormat::Writer& writer, const Math::Mat4& matrix)
+void writeMatrix(AssetFormat::Writer& writer, const glm::mat4& matrix)
 {
     for (u32 column = 0; column < 4; ++column)
         for (u32 row = 0; row < 4; ++row)
@@ -828,7 +828,7 @@ bool RadionSkeletonIO::loadSkeleton(const std::string& filename, Skeleton& skele
             {
                 std::string name;
                 s32 parent = -1;
-                Math::Mat4 local(1.0f), inverse(1.0f);
+                glm::mat4 local(1.0f), inverse(1.0f);
                 if (!reader.string(name) || !reader.readS32(parent) || !readMatrix(reader, local) ||
                     !readMatrix(reader, inverse) || !loaded.addBone(name, parent, local, inverse))
                     return false;
@@ -908,9 +908,9 @@ bool RadionSkeletonIO::loadAnimation(const std::string& filename, const Skeleton
                 track.scales.resize(keyCount);
                 for (u32 key = 0; key < keyCount; ++key)
                 {
-                    Math::Vec3& p = track.positions[key];
-                    Math::Quaternion& q = track.rotations[key];
-                    Math::Vec3& s = track.scales[key];
+                    glm::vec3& p = track.positions[key];
+                    glm::quat& q = track.rotations[key];
+                    glm::vec3& s = track.scales[key];
                     if (!reader.readF32(track.times[key]) || !reader.readF32(p.x) ||
                         !reader.readF32(p.y) || !reader.readF32(p.z) || !reader.readF32(q.x) ||
                         !reader.readF32(q.y) || !reader.readF32(q.z) || !reader.readF32(q.w) ||
@@ -950,9 +950,9 @@ bool RadionSkeletonIO::saveAnimation(const std::string& filename, const Skeleton
         for (u32 key = 0; key < count; ++key)
         {
             writer.writeF32(track.times[key]);
-            const Math::Vec3& p = track.positions[key];
-            const Math::Quaternion& q = track.rotations[key];
-            const Math::Vec3& s = track.scales[key];
+            const glm::vec3& p = track.positions[key];
+            const glm::quat& q = track.rotations[key];
+            const glm::vec3& s = track.scales[key];
             writer.writeF32(p.x);
             writer.writeF32(p.y);
             writer.writeF32(p.z);

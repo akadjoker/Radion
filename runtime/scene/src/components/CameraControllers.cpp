@@ -22,28 +22,28 @@ void configureMovementKeys(KeyCode* keys)
     keys[static_cast<u8>(FPS::Action::Sprint)] = KEY_LEFT_SHIFT;
 }
 
-Math::Vec3 orbitOffset(f32 yaw, f32 pitch)
+glm::vec3 orbitOffset(f32 yaw, f32 pitch)
 {
     const f32 yawRadians = glm::radians(yaw);
     const f32 pitchRadians = glm::radians(pitch);
-    return Math::Vec3(glm::cos(pitchRadians) * glm::sin(yawRadians), glm::sin(pitchRadians),
+    return glm::vec3(glm::cos(pitchRadians) * glm::sin(yawRadians), glm::sin(pitchRadians),
                      glm::cos(pitchRadians) * glm::cos(yawRadians));
 }
 
-Math::Vec3 shoulderRight(f32 yaw)
+glm::vec3 shoulderRight(f32 yaw)
 {
     const f32 yawRadians = glm::radians(yaw);
-    return Math::Vec3(glm::cos(yawRadians), 0.0f, -glm::sin(yawRadians));
+    return glm::vec3(glm::cos(yawRadians), 0.0f, -glm::sin(yawRadians));
 }
 
-Math::Vec3 springDamp(const Math::Vec3& current, const Math::Vec3& target, Math::Vec3& velocity,
+glm::vec3 springDamp(const glm::vec3& current, const glm::vec3& target, glm::vec3& velocity,
                      f32 smoothTime, f32 dt)
 {
     const f32 omega = 2.0f / smoothTime;
     const f32 x = omega * dt;
     const f32 exponent = 1.0f / (1.0f + x + 0.48f * x * x + 0.235f * x * x * x);
-    const Math::Vec3 change = current - target;
-    const Math::Vec3 temp = (velocity + omega * change) * dt;
+    const glm::vec3 change = current - target;
+    const glm::vec3 temp = (velocity + omega * change) * dt;
     velocity = (velocity - omega * temp) * exponent;
     return target + (change + temp) * exponent;
 }
@@ -90,7 +90,7 @@ void FreeFly::onUpdate(f32 deltaTime)
     if (mRequireLookButton && !Input::isMouseDown(mLookButton))
         return;
 
-    const Math::Vec2 mouseDelta = Input::getMouseDelta();
+    const glm::vec2 mouseDelta = Input::getMouseDelta();
     const f32 yawDelta = -mouseDelta.x * mLookSpeed;
     f32 pitchDelta = (mInvertY ? mouseDelta.y : -mouseDelta.y) * mLookSpeed;
     const f32 nextPitch = glm::clamp(mPitch + pitchDelta, -mPitchLimit, mPitchLimit);
@@ -181,8 +181,8 @@ void FPS::onUpdate(f32 deltaTime)
     GameObject* object = owner();
     if (editingBlocksController(object))
         return;
-    Math::Vec3 forward = object->forward();
-    Math::Vec3 right = object->right();
+    glm::vec3 forward = object->forward();
+    glm::vec3 right = object->right();
     forward.y = 0.0f;
     right.y = 0.0f;
     if (glm::dot(forward, forward) > 0.000001f)
@@ -199,13 +199,13 @@ void FPS::onUpdate(f32 deltaTime)
                         (Input::isKeyDown(mKeys[static_cast<u8>(Action::Down)]) ? 1.0f : 0.0f);
     const f32 sprint =
         Input::isKeyDown(mKeys[static_cast<u8>(Action::Sprint)]) ? mSprintMultiplier : 1.0f;
-    object->translate((forward * forwardInput + right * rightInput + Math::Vec3(0, upInput, 0)) *
+    object->translate((forward * forwardInput + right * rightInput + glm::vec3(0, upInput, 0)) *
                           (mMoveSpeed * sprint * deltaTime),
                       TransformSpace::World);
 
     if (mRequireLookButton && !Input::isMouseDown(mLookButton))
         return;
-    const Math::Vec2 delta = Input::getMouseDelta();
+    const glm::vec2 delta = Input::getMouseDelta();
     const f32 yawDelta = -delta.x * mLookSpeed;
     const f32 requestedPitch = (mInvertY ? delta.y : -delta.y) * mLookSpeed;
     const f32 nextPitch = glm::clamp(mPitch + requestedPitch, -mPitchLimit, mPitchLimit);
@@ -293,14 +293,14 @@ void Orbit::onUpdate(f32)
         return;
     if (!mRequireOrbitButton || Input::isMouseDown(mOrbitButton))
     {
-        const Math::Vec2 delta = Input::getMouseDelta();
+        const glm::vec2 delta = Input::getMouseDelta();
         mYaw += delta.x * mOrbitSpeed;
         mPitch = glm::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mOrbitSpeed, -mPitchLimit,
                             mPitchLimit);
     }
     mDistance -= Input::getMouseWheelMoveV() * mZoomSpeed;
     clampDistance();
-    const Math::Vec3 point = currentTarget();
+    const glm::vec3 point = currentTarget();
     owner()->setGlobalPosition(point + orbitOffset(mYaw, mPitch) * mDistance);
     owner()->lookAt(point);
 }
@@ -312,12 +312,12 @@ GameObject* Orbit::target() const
 {
     return mTarget;
 }
-void Orbit::setTargetPoint(const Math::Vec3& point)
+void Orbit::setTargetPoint(const glm::vec3& point)
 {
     mTarget = nullptr;
     mTargetPoint = point;
 }
-const Math::Vec3& Orbit::targetPoint() const
+const glm::vec3& Orbit::targetPoint() const
 {
     return mTargetPoint;
 }
@@ -398,7 +398,7 @@ bool Orbit::invertY() const
 {
     return mInvertY;
 }
-Math::Vec3 Orbit::currentTarget() const
+glm::vec3 Orbit::currentTarget() const
 {
     return mTarget ? mTarget->globalPosition() : mTargetPoint;
 }
@@ -415,17 +415,17 @@ void Maya::onUpdate(f32)
 {
     if (editingBlocksController(owner()))
         return;
-    Math::Vec3 point = currentTarget();
+    glm::vec3 point = currentTarget();
     if (Input::isKeyDown(mModifierKey) && Input::isMouseDown(mOrbitButton))
     {
-        const Math::Vec2 delta = Input::getMouseDelta();
+        const glm::vec2 delta = Input::getMouseDelta();
         mYaw += delta.x * mOrbitSpeed;
         mPitch = glm::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mOrbitSpeed, -mPitchLimit,
                             mPitchLimit);
     }
     else if (Input::isKeyDown(mModifierKey) && Input::isMouseDown(mPanButton))
     {
-        const Math::Vec2 delta = Input::getMouseDelta();
+        const glm::vec2 delta = Input::getMouseDelta();
         point += owner()->right() * (-delta.x * mPanSpeed) + owner()->up() * (delta.y * mPanSpeed);
         setTargetPoint(point);
     }
@@ -445,12 +445,12 @@ GameObject* Maya::target() const
 {
     return mTarget;
 }
-void Maya::setTargetPoint(const Math::Vec3& point)
+void Maya::setTargetPoint(const glm::vec3& point)
 {
     mTarget = nullptr;
     mTargetPoint = point;
 }
-const Math::Vec3& Maya::targetPoint() const
+const glm::vec3& Maya::targetPoint() const
 {
     return mTargetPoint;
 }
@@ -555,7 +555,7 @@ bool Maya::invertY() const
 {
     return mInvertY;
 }
-Math::Vec3 Maya::currentTarget() const
+glm::vec3 Maya::currentTarget() const
 {
     return mTarget ? mTarget->globalPosition() : mTargetPoint;
 }
@@ -583,15 +583,15 @@ void ThirdPerson::onUpdate(f32 deltaTime)
     // pitch rises, which looks DOWN, the opposite of FreeFly's own pitch()
     // call. Matching FreeFly's raw sign here (as an earlier pass did) matched
     // the input math but inverted the actual view.
-    const Math::Vec2 delta = Input::getMouseDelta();
+    const glm::vec2 delta = Input::getMouseDelta();
     mYaw -= delta.x * mLookSpeed;
     mPitch = glm::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mLookSpeed, mMinPitch, mMaxPitch);
     mDistance = glm::clamp(mDistance - Input::getMouseWheelMoveV() * mZoomSpeed, mMinDistance,
                            mMaxDistance);
 
-    const Math::Vec3 anchor = aimPoint();
-    const Math::Vec3 target = mCollisionOctree ? collide(anchor, desiredPosition()) : desiredPosition();
-    const Math::Vec3 current = owner()->globalPosition();
+    const glm::vec3 anchor = aimPoint();
+    const glm::vec3 target = mCollisionOctree ? collide(anchor, desiredPosition()) : desiredPosition();
+    const glm::vec3 current = owner()->globalPosition();
     owner()->setGlobalPosition(springDamp(current, target, mVelocity, mSmoothTime, deltaTime));
     owner()->lookAt(aimPoint());
 }
@@ -702,18 +702,18 @@ f32 ThirdPerson::pitch() const
 }
 void ThirdPerson::snap()
 {
-    const Math::Vec3 anchor = aimPoint();
+    const glm::vec3 anchor = aimPoint();
     owner()->setGlobalPosition(mCollisionOctree ? collide(anchor, desiredPosition())
                                                 : desiredPosition());
-    mVelocity = Math::Vec3(0.0f);
+    mVelocity = glm::vec3(0.0f);
 }
-Math::Vec3 ThirdPerson::desiredPosition() const
+glm::vec3 ThirdPerson::desiredPosition() const
 {
     return aimPoint() + orbitOffset(mYaw, mPitch) * mDistance + shoulderRight(mYaw) * mShoulderOffset;
 }
-Math::Vec3 ThirdPerson::aimPoint() const
+glm::vec3 ThirdPerson::aimPoint() const
 {
-    return mTarget ? mTarget->globalPosition() + Math::Vec3(0.0f, mHeightOffset, 0.0f) : Math::Vec3(0.0f);
+    return mTarget ? mTarget->globalPosition() + glm::vec3(0.0f, mHeightOffset, 0.0f) : glm::vec3(0.0f);
 }
 
 // One swept sphere from the anchor to the desired position - same shape as
@@ -724,9 +724,9 @@ Math::Vec3 ThirdPerson::aimPoint() const
 // camera stays at the anchor. The contact normal points away from the
 // surface, so nudging along it by the margin keeps the sphere clear instead
 // of grazing it.
-Math::Vec3 ThirdPerson::collide(const Math::Vec3& anchor, const Math::Vec3& desired) const
+glm::vec3 ThirdPerson::collide(const glm::vec3& anchor, const glm::vec3& desired) const
 {
-    const Math::Vec3 delta = desired - anchor;
+    const glm::vec3 delta = desired - anchor;
     if (glm::dot(delta, delta) < 1.0e-6f)
         return desired;
 
@@ -734,7 +734,7 @@ Math::Vec3 ThirdPerson::collide(const Math::Vec3& anchor, const Math::Vec3& desi
     if (mCollisionOctree->sweepSphere(anchor, mCollisionRadius, delta, hit))
     {
         const f32 t = glm::clamp(hit.t, 0.0f, 1.0f);
-        Math::Vec3 position = anchor + delta * t;
+        glm::vec3 position = anchor + delta * t;
         if (mCollisionMargin > 0.0f)
             position += hit.normal * mCollisionMargin;
         return position;

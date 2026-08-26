@@ -28,10 +28,10 @@ private:
     bool mFastRender = false;
     bool mGrid = true;
     bool mPerspective = true;
-    Math::Vec3 mOrbitTarget = Math::Vec3(0.0f);
-    Math::Vec3 mCameraPosition = Math::Vec3(0.0f, 2.5f, 9.5f);
-    Math::Mat4 mEditorView = Math::Mat4(1.0f);
-    Math::Mat4 mEditorProjection = Math::Mat4(1.0f);
+    glm::vec3 mOrbitTarget = glm::vec3(0.0f);
+    glm::vec3 mCameraPosition = glm::vec3(0.0f, 2.5f, 9.5f);
+    glm::mat4 mEditorView = glm::mat4(1.0f);
+    glm::mat4 mEditorProjection = glm::mat4(1.0f);
     float mOrbitDistance = 10.0f;
     float mOrbitYaw = 0.0f;
     float mOrbitPitch = -0.25f;
@@ -45,11 +45,11 @@ private:
     // The same drag with Ctrl held as it starts: gathers the selected
     // object's own submeshes instead. Never both at once.
     bool mSubmeshRectSelecting = false;
-    Math::Vec2 mRectStart = Math::Vec2(0.0f);
-    Math::Vec2 mImageMin = Math::Vec2(0.0f);
-    Math::Vec2 mImageMax = Math::Vec2(0.0f);
+    glm::vec2 mRectStart = glm::vec2(0.0f);
+    glm::vec2 mImageMin = glm::vec2(0.0f);
+    glm::vec2 mImageMax = glm::vec2(0.0f);
     bool mNavigationGizmoActive = false;
-    Math::Vec2 mNavigationGizmoStartMouse = Math::Vec2(0.0f);
+    glm::vec2 mNavigationGizmoStartMouse = glm::vec2(0.0f);
     f32 mNavigationGizmoStartYaw = 0.0f;
     f32 mNavigationGizmoStartPitch = 0.0f;
 
@@ -63,16 +63,16 @@ private:
     f32 mTerrainBrushStrength = 2.0f;
     bool mTerrainStrokeUndo = false;
 
-    void drawTransformGizmo(const Math::Vec2& imageMin, const Math::Vec2& imageSize);
+    void drawTransformGizmo(const glm::vec2& imageMin, const glm::vec2& imageSize);
     // Selects every object whose origin projects inside the screen-space
     // rectangle. Additive when `add` (Shift held), otherwise replaces.
-    void selectInRect(const Math::Vec2& min, const Math::Vec2& max, bool add);
+    void selectInRect(const glm::vec2& min, const glm::vec2& max, bool add);
     // Same rectangle, but over one object's own submeshes: the drag is
     // unprojected into a frustum and every submesh whose box meets it is
     // gathered. `subtract` removes those from the selection instead of
     // adding them - the way back from a rectangle that caught too much,
     // without starting the whole selection again.
-    void selectSubmeshesInRect(GameObject& object, const Math::Vec2& min, const Math::Vec2& max,
+    void selectSubmeshesInRect(GameObject& object, const glm::vec2& min, const glm::vec2& max,
                                bool subtract);
     // Undo has to be recorded once, on the press that starts a drag - not
     // every frame Manipulate() reports a change, or every frame of a single
@@ -83,7 +83,7 @@ private:
     // retargets the same ImGuizmo onto a bone (rotate, FK) or an IK chain's
     // target (translate) instead of the selected object's own transform,
     // driven by EditorApplication::animationPoseTarget().
-    void drawBonePoseGizmo(const Math::Vec2& imageMin, const Math::Vec2& imageSize);
+    void drawBonePoseGizmo(const glm::vec2& imageMin, const glm::vec2& imageSize);
 };
 
 } // namespace Radion

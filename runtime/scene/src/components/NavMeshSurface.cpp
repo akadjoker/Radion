@@ -40,13 +40,13 @@ f32 NavMeshSurface::lastBuildMilliseconds() const
     return mLastBuildMilliseconds;
 }
 
-void NavMeshSurface::setGroundSeed(const Math::Vec3& worldPosition)
+void NavMeshSurface::setGroundSeed(const glm::vec3& worldPosition)
 {
     mGroundSeed = worldPosition;
     mGroundSeedSet = true;
 }
 
-const Math::Vec3& NavMeshSurface::groundSeed() const
+const glm::vec3& NavMeshSurface::groundSeed() const
 {
     return mGroundSeed;
 }
@@ -96,14 +96,14 @@ bool NavMeshSurface::build()
     // Recast works in one space, and the level is drawn through its owner's
     // transform - baking the vertices through it here is what keeps the
     // surface under the geometry instead of at the origin.
-    const Math::Mat4 transform = object->globalTransform();
-    for (Math::Vec3& position : meshData.positions)
-        position = Math::Vec3(transform * Math::Vec4(position, 1.0f));
+    const glm::mat4 transform = object->globalTransform();
+    for (glm::vec3& position : meshData.positions)
+        position = glm::vec3(transform * glm::vec4(position, 1.0f));
 
     // Recast indexes with signed ints; meshes store unsigned.
     std::vector<s32> indices(meshData.indices.begin(), meshData.indices.end());
 
-    const Math::Vec3 seed = mGroundSeedSet ? mGroundSeed : object->globalPosition();
+    const glm::vec3 seed = mGroundSeedSet ? mGroundSeed : object->globalPosition();
     const bool ok =
         mNavMesh.build(&meshData.positions[0].x, static_cast<s32>(meshData.positions.size()),
                        indices.data(), static_cast<s32>(indices.size() / 3), mConfig, &seed);

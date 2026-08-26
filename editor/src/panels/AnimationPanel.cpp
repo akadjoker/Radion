@@ -224,10 +224,10 @@ void AnimationPanel::drawBonesAndChains(Animator& animator, const Skeleton& skel
     {
         IKChain chain;
         chain.tipBone = target.bone;
-        Math::Vec3 modelPosition;
+        glm::vec3 modelPosition;
         if (animator.boneGlobalPosition(target.bone, modelPosition) && animator.owner())
             chain.target =
-                Math::Vec3(animator.owner()->globalTransform() * Math::Vec4(modelPosition, 1.0f));
+                glm::vec3(animator.owner()->globalTransform() * glm::vec4(modelPosition, 1.0f));
         target.ikChain = static_cast<s32>(animator.addIKChain(chain));
         target.bone = -1;
     }

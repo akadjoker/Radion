@@ -144,35 +144,35 @@ public:
         return mCurrentGroup;
     }
 
-    const Math::Vec3& position() const
+    const glm::vec3& position() const
     {
         return mPosition;
     }
-    void setPosition(const Math::Vec3& position)
+    void setPosition(const glm::vec3& position)
     {
         mPosition = position;
     }
-    const Math::Vec3& velocity() const
+    const glm::vec3& velocity() const
     {
         return mVelocity;
     }
-    void setVelocity(const Math::Vec3& velocity)
+    void setVelocity(const glm::vec3& velocity)
     {
         mVelocity = velocity;
     }
-    const Math::Quaternion& orientation() const
+    const glm::quat& orientation() const
     {
         return mOrientation;
     }
-    void setOrientation(const Math::Quaternion& orientation)
+    void setOrientation(const glm::quat& orientation)
     {
         mOrientation = orientation;
     }
-    const Math::Vec3& desiredMove() const
+    const glm::vec3& desiredMove() const
     {
         return mDesiredMoveVector;
     }
-    void setDesiredMove(const Math::Vec3& move)
+    void setDesiredMove(const glm::vec3& move)
     {
         mDesiredMoveVector = move;
     }
@@ -217,15 +217,15 @@ public:
     // wires an Entity's orientation() directly to a GameObject must apply a
     // 180 degree turn around up() first.
 
-    Math::Vec3 forward() const
+    glm::vec3 forward() const
     {
         return glm::mat3_cast(mOrientation)[2];
     }
-    Math::Vec3 side() const
+    glm::vec3 side() const
     {
         return glm::mat3_cast(mOrientation)[0];
     }
-    Math::Vec3 up() const
+    glm::vec3 up() const
     {
         return glm::mat3_cast(mOrientation)[1];
     }
@@ -260,16 +260,16 @@ public:
 
     // Predicted position in `predictionTime` seconds (straight-line
     // extrapolation).
-    Math::Vec3 predictFuturePosition(float predictionTime) const
+    glm::vec3 predictFuturePosition(float predictionTime) const
     {
         return mPosition + (mVelocity * predictionTime);
     }
 
     // Transform helpers in the vehicle's local frame.
-    Math::Vec3 localizeDirection(const Math::Vec3& globalDirection) const;
-    Math::Vec3 localizePosition(const Math::Vec3& globalPosition) const;
-    Math::Vec3 globalizePosition(const Math::Vec3& localPosition) const;
-    Math::Vec3 globalizeDirection(const Math::Vec3& localDirection) const;
+    glm::vec3 localizeDirection(const glm::vec3& globalDirection) const;
+    glm::vec3 localizePosition(const glm::vec3& globalPosition) const;
+    glm::vec3 globalizePosition(const glm::vec3& localPosition) const;
+    glm::vec3 globalizeDirection(const glm::vec3& localDirection) const;
 
     // Rotate the orientation so forward() points along the current velocity,
     // keeping up as close as possible.
@@ -292,10 +292,10 @@ protected:
     EntityType mEnemyMask = ~EntityType(0);
     EntityType mEntityType = 0;
 
-    Math::Vec3 mPosition = Math::Vec3(0.0f);
-    Math::Vec3 mVelocity = Math::Vec3(0.0f);
-    Math::Quaternion mOrientation = Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
-    Math::Vec3 mDesiredMoveVector = Math::Vec3(0.0f);
+    glm::vec3 mPosition = glm::vec3(0.0f);
+    glm::vec3 mVelocity = glm::vec3(0.0f);
+    glm::quat mOrientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec3 mDesiredMoveVector = glm::vec3(0.0f);
 
     float mSenseRange = 4.0f;
     float mMaxVelocityChange = 1.0f;

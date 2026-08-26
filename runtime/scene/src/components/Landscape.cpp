@@ -46,7 +46,7 @@ f32 sampleHeightmapPixel(const std::vector<u8>& data, u32 width, s32 px, s32 py)
 // One vertex's non-position attributes, interleaved: normal, uv, weights.
 // 36 bytes, matching the stride landscape.vert's stream 1 declares. Built as
 // raw floats rather than a struct so nothing here depends on how a compiler
-// happens to pad Math::Vec4 - the GPU reads exactly the bytes this writes.
+// happens to pad glm::vec4 - the GPU reads exactly the bytes this writes.
 constexpr u32 kAttribFloats = 3 + 2 + 4;
 
 // ---------------------------------------------------------------------------
@@ -269,7 +269,7 @@ private:
         state.buffer = gpu.createBuffer(desc);
 
         state.layout.streamCount = 2;
-        state.layout.streams[0].stride = sizeof(Math::Vec3);
+        state.layout.streams[0].stride = sizeof(glm::vec3);
         state.layout.streams[1].stride = kAttribFloats * sizeof(f32);
         state.layout.attribCount = 4;
         state.layout.attribs[0] = {0, 0, 0, AttribFormat::Float3}; // position
@@ -333,7 +333,7 @@ void Landscape::restart()
     mSeeded = true;
 }
 
-f32 Landscape::sampleHeight(const Math::Vec2& worldPosition) const
+f32 Landscape::sampleHeight(const glm::vec2& worldPosition) const
 {
     // Height accumulates in [0,1] through the modifier stack and only goes
     // to world units at the very end.
@@ -347,7 +347,7 @@ f32 Landscape::sampleHeight(const Math::Vec2& worldPosition) const
         {
         case Modifier::Kind::Perlin:
         {
-            const Math::Vec2 p = worldPosition * modifier.frequency;
+            const glm::vec2 p = worldPosition * modifier.frequency;
             const f32 value =
                 modifier.perlin.compute(p.x, p.y, 0.0f, modifier.octaves) * 0.5f + 0.5f;
             blendHeight(modifier.blend, modifier.weight, height, value);
@@ -355,7 +355,7 @@ f32 Landscape::sampleHeight(const Math::Vec2& worldPosition) const
         }
         case Modifier::Kind::Voronoi:
         {
-            Math::Vec2 p = worldPosition * modifier.frequency;
+            glm::vec2 p = worldPosition * modifier.frequency;
             // The perturbation displaces the sample with Perlin BEFORE
             // Voronoi evaluates it. Without this the cells look geometric and
             // give themselves away as Voronoi immediately; with it the ridges
@@ -380,8 +380,8 @@ f32 Landscape::sampleHeight(const Math::Vec2& worldPosition) const
                 modifier.heightmapHeight == 0)
                 break;
 
-            const Math::Vec2 p = worldPosition * modifier.frequency;
-            const Math::Vec2 pixel(p.x + static_cast<f32>(modifier.heightmapWidth) * 0.5f,
+            const glm::vec2 p = worldPosition * modifier.frequency;
+            const glm::vec2 pixel(p.x + static_cast<f32>(modifier.heightmapWidth) * 0.5f,
                                   p.y + static_cast<f32>(modifier.heightmapHeight) * 0.5f);
 
             // Outside the image: the modifier does nothing. That is what lets
@@ -460,7 +460,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
 
     const f32 scale = config.chunkScale;
     const f32 chunkSpan = static_cast<f32>(ChunkWidth - 1) * scale;
-    chunk.position = Math::Vec3(static_cast<f32>(key.x) * chunkSpan, 0.0f,
+    chunk.position = glm::vec3(static_cast<f32>(key.x) * chunkSpan, 0.0f,
                                static_cast<f32>(key.z) * chunkSpan);
 
     // Height grid WITH PADDING: 68x68 instead of 67x67. Normals need the
@@ -476,11 +476,11 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
             const f32 x = (static_cast<f32>(cx) - ChunkHalfWidth) * scale;
             const f32 z = (static_cast<f32>(cz) - ChunkHalfWidth) * scale;
             padded[cx + cz * paddedWidth] =
-                sampleHeight(Math::Vec2(chunk.position.x + x, chunk.position.z + z));
+                sampleHeight(glm::vec2(chunk.position.x + x, chunk.position.z + z));
         }
     }
 
-    std::vector<Math::Vec3> positions(VertexCount);
+    std::vector<glm::vec3> positions(VertexCount);
     std::vector<f32> attribs(static_cast<usize>(VertexCount) * kAttribFloats);
     chunk.heights.resize(VertexCount);
 
@@ -500,13 +500,13 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
             // Normal and tangent from the two neighbours. Real spacing
             // (`scale`) rather than a literal +1, so this stays correct when
             // chunkScale is not 1 - with chunkScale = 1 the two agree anyway.
-            const Math::Vec3 c0(x, height, z);
-            const Math::Vec3 c1(x + scale, padded[(cx + 1) + cz * paddedWidth], z);
-            const Math::Vec3 c2(x, padded[cx + (cz + 1) * paddedWidth], z + scale);
+            const glm::vec3 c0(x, height, z);
+            const glm::vec3 c1(x + scale, padded[(cx + 1) + cz * paddedWidth], z);
+            const glm::vec3 c2(x, padded[cx + (cz + 1) * paddedWidth], z + scale);
 
-            const Math::Vec3 t = c1 - c2;
-            const Math::Vec3 b = c0 - c1;
-            const Math::Vec3 n = glm::normalize(glm::cross(t, b));
+            const glm::vec3 t = c1 - c2;
+            const glm::vec3 b = c0 - c1;
+            const glm::vec3 n = glm::normalize(glm::cross(t, b));
 
             const f32 slopeAmount = 1.0f - glm::clamp(n.y, 0.0f, 1.0f);
             // One sloped vertex is enough to put the whole chunk in the
@@ -536,7 +536,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
             regionLow = glm::clamp(regionLow - regionSlope, 0.0f, 1.0f);
             regionHigh = glm::clamp(regionHigh - regionSlope, 0.0f, 1.0f);
 
-            positions[index] = Math::Vec3(x, height, z);
+            positions[index] = glm::vec3(x, height, z);
 
             f32* attrib = &attribs[static_cast<usize>(index) * kAttribFloats];
             attrib[0] = n.x;
@@ -562,7 +562,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
     // Bounding sphere, in the chunk's OWN local space - see the note on
     // Landscape's owner transform in cull(). Reference formula: a box's
     // circumscribed sphere from its half-extents.
-    chunk.sphereCentre = chunk.position + Math::Vec3(0.0f, (minY + maxY) * 0.5f, 0.0f);
+    chunk.sphereCentre = chunk.position + glm::vec3(0.0f, (minY + maxY) * 0.5f, 0.0f);
     const f32 halfSpan = chunkSpan * 0.5f;
     const f32 halfY = (maxY - minY) * 0.5f;
     chunk.sphereRadius = std::sqrt(2.0f * halfSpan * halfSpan + halfY * halfY);
@@ -571,10 +571,10 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
 
     GPU& gpu = GPU::getSingleton();
     BufferDesc positionDesc;
-    positionDesc.size = positions.size() * sizeof(Math::Vec3);
+    positionDesc.size = positions.size() * sizeof(glm::vec3);
     positionDesc.usage = BufferVertex;
     positionDesc.residency = Residency::Static;
-    positionDesc.stride = sizeof(Math::Vec3);
+    positionDesc.stride = sizeof(glm::vec3);
     positionDesc.data = positions.data();
     positionDesc.debugName = "landscape.chunk.position";
     const BufferHandle positionBuffer = gpu.createBuffer(positionDesc);
@@ -610,7 +610,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
     submesh.indexOffset = indices.lods[0].indexOffset;
     submesh.indexCount = indices.lods[0].indexCount;
     submesh.materialSlot = 0;
-    for (const Math::Vec3& p : positions)
+    for (const glm::vec3& p : positions)
         submesh.bounds.expand(p);
     mesh.bounds = submesh.bounds;
     mesh.submeshes = {submesh};
@@ -648,7 +648,7 @@ bool Landscape::requestChunk(s32 offsetX, s32 offsetZ, Timer& buildTimer)
                                   buildTimer);
 }
 
-void Landscape::update(const Math::Vec3& cameraPosition)
+void Landscape::update(const glm::vec3& cameraPosition)
 {
     if (!mSeeded)
         restart();
@@ -779,7 +779,7 @@ void Landscape::cull(const Frustum& frustum)
     }
 }
 
-u32 Landscape::pickLod(const Chunk& chunk, const Math::Vec3& cameraPosition) const
+u32 Landscape::pickLod(const Chunk& chunk, const glm::vec3& cameraPosition) const
 {
     const LandscapeIndices& indices = LandscapeIndices::instance();
     const s32 maxLod = static_cast<s32>(indices.lods.size()) - 1;
@@ -797,8 +797,8 @@ u32 Landscape::pickLod(const Chunk& chunk, const Math::Vec3& cameraPosition) con
     return static_cast<u32>(glm::clamp(lod, 0, maxLod));
 }
 
-void Landscape::submitCamera(RenderList& list, const Math::Mat4& transform,
-                             const Math::Vec3& cameraPosition)
+void Landscape::submitCamera(RenderList& list, const glm::mat4& transform,
+                             const glm::vec3& cameraPosition)
 {
     const LandscapeIndices& indices = LandscapeIndices::instance();
     if (!indices.buffer.valid() || mChunks.empty())
@@ -835,15 +835,15 @@ void Landscape::submitCamera(RenderList& list, const Math::Mat4& transform,
         mesh->submeshes[0].indexOffset = range.indexOffset;
         mesh->submeshes[0].indexCount = range.indexCount;
 
-        const Math::Mat4 model = glm::translate(transform, chunk.position);
+        const glm::mat4 model = glm::translate(transform, chunk.position);
         list.submit(chunk.mesh, *mesh, model, &mMaterial, 1);
         triangles += range.indexCount / 3;
     }
     mTriangles = triangles;
 }
 
-void Landscape::submitShadow(RenderList& list, const Math::Mat4& transform,
-                             const Math::Vec3& cameraPosition)
+void Landscape::submitShadow(RenderList& list, const glm::mat4& transform,
+                             const glm::vec3& cameraPosition)
 {
     const LandscapeIndices& indices = LandscapeIndices::instance();
     if (!indices.buffer.valid() || mChunks.empty())
@@ -874,12 +874,12 @@ void Landscape::submitShadow(RenderList& list, const Math::Mat4& transform,
         mesh->submeshes[0].indexOffset = range.indexOffset;
         mesh->submeshes[0].indexCount = range.indexCount;
 
-        const Math::Mat4 model = glm::translate(transform, chunk.position);
+        const glm::mat4 model = glm::translate(transform, chunk.position);
         list.submit(chunk.mesh, *mesh, model, &mMaterial, 1);
     }
 }
 
-void Landscape::invalidateRegion(const Math::Vec2& centreXZ, f32 radius)
+void Landscape::invalidateRegion(const glm::vec2& centreXZ, f32 radius)
 {
     for (auto& entry : mChunks)
     {
@@ -889,7 +889,7 @@ void Landscape::invalidateRegion(const Math::Vec2& centreXZ, f32 radius)
 
         // A VERTICAL cylinder, not a sphere: the chunk's height is exactly
         // what is about to change, so it cannot be part of the test.
-        const Math::Vec2 centre(chunk.sphereCentre.x, chunk.sphereCentre.z);
+        const glm::vec2 centre(chunk.sphereCentre.x, chunk.sphereCentre.z);
         const f32 reach = radius + chunk.sphereRadius;
         if (glm::dot(centre - centreXZ, centre - centreXZ) > reach * reach)
             continue;
@@ -921,25 +921,25 @@ f32 Landscape::heightAt(f32 worldX, f32 worldZ) const
     // chunk's height grid - more expensive, but it works anywhere, even
     // where no chunk has been generated yet, which is what placing objects
     // needs.
-    return sampleHeight(Math::Vec2(worldX, worldZ));
+    return sampleHeight(glm::vec2(worldX, worldZ));
 }
 
-bool Landscape::sculptRaise(const Math::Vec3& worldCenter, f32 radius, f32 amount)
+bool Landscape::sculptRaise(const glm::vec3& worldCenter, f32 radius, f32 amount)
 {
     return sculpt(worldCenter, radius, amount, false);
 }
 
-bool Landscape::sculptLower(const Math::Vec3& worldCenter, f32 radius, f32 amount)
+bool Landscape::sculptLower(const glm::vec3& worldCenter, f32 radius, f32 amount)
 {
     return sculpt(worldCenter, radius, -amount, false);
 }
 
-bool Landscape::sculptSmooth(const Math::Vec3& worldCenter, f32 radius, f32 strength)
+bool Landscape::sculptSmooth(const glm::vec3& worldCenter, f32 radius, f32 strength)
 {
     return sculpt(worldCenter, radius, glm::clamp(strength, 0.0f, 1.0f), true);
 }
 
-bool Landscape::sculpt(const Math::Vec3& worldCenter, f32 radius, f32 amount, bool smoothing)
+bool Landscape::sculpt(const glm::vec3& worldCenter, f32 radius, f32 amount, bool smoothing)
 {
     if (radius <= 0.0f || amount == 0.0f)
         return false;
@@ -958,7 +958,7 @@ bool Landscape::sculpt(const Math::Vec3& worldCenter, f32 radius, f32 amount, bo
 
     // Same pixel conversion sampleHeight() uses for this modifier - keeps
     // the brush aligned with what it is actually painting.
-    const Math::Vec2 centerPixel(
+    const glm::vec2 centerPixel(
         worldCenter.x * target->frequency + static_cast<f32>(target->heightmapWidth) * 0.5f,
         worldCenter.z * target->frequency + static_cast<f32>(target->heightmapHeight) * 0.5f);
     const f32 pixelRadius = radius * target->frequency;
@@ -982,7 +982,7 @@ bool Landscape::sculpt(const Math::Vec3& worldCenter, f32 radius, f32 amount, bo
         for (s32 x = minX; x <= maxX; ++x)
         {
             const f32 distance =
-                glm::length(Math::Vec2(static_cast<f32>(x), static_cast<f32>(z)) - centerPixel);
+                glm::length(glm::vec2(static_cast<f32>(x), static_cast<f32>(z)) - centerPixel);
             if (distance > pixelRadius)
                 continue;
             const f32 falloff = 1.0f - glm::smoothstep(0.0f, pixelRadius, distance);
@@ -1021,11 +1021,11 @@ bool Landscape::sculpt(const Math::Vec3& worldCenter, f32 radius, f32 amount, bo
     if (!changed)
         return false;
 
-    invalidateRegion(Math::Vec2(worldCenter.x, worldCenter.z), radius);
+    invalidateRegion(glm::vec2(worldCenter.x, worldCenter.z), radius);
     return true;
 }
 
-bool Landscape::sculptFlatten(const Math::Vec3& worldCenter, f32 radius, f32 targetHeight,
+bool Landscape::sculptFlatten(const glm::vec3& worldCenter, f32 radius, f32 targetHeight,
                               f32 strength)
 {
     if (radius <= 0.0f || strength <= 0.0f)
@@ -1043,7 +1043,7 @@ bool Landscape::sculptFlatten(const Math::Vec3& worldCenter, f32 radius, f32 tar
     if (!target)
         return false;
 
-    const Math::Vec2 centerPixel(
+    const glm::vec2 centerPixel(
         worldCenter.x * target->frequency + static_cast<f32>(target->heightmapWidth) * 0.5f,
         worldCenter.z * target->frequency + static_cast<f32>(target->heightmapHeight) * 0.5f);
     const f32 pixelRadius = radius * target->frequency;
@@ -1064,7 +1064,7 @@ bool Landscape::sculptFlatten(const Math::Vec3& worldCenter, f32 radius, f32 tar
         for (s32 x = minX; x <= maxX; ++x)
         {
             const f32 distance =
-                glm::length(Math::Vec2(static_cast<f32>(x), static_cast<f32>(z)) - centerPixel);
+                glm::length(glm::vec2(static_cast<f32>(x), static_cast<f32>(z)) - centerPixel);
             if (distance > pixelRadius)
                 continue;
             const f32 falloff = 1.0f - glm::smoothstep(0.0f, pixelRadius, distance);
@@ -1080,7 +1080,7 @@ bool Landscape::sculptFlatten(const Math::Vec3& worldCenter, f32 radius, f32 tar
     if (!changed)
         return false;
 
-    invalidateRegion(Math::Vec2(worldCenter.x, worldCenter.z), radius);
+    invalidateRegion(glm::vec2(worldCenter.x, worldCenter.z), radius);
     return true;
 }
 

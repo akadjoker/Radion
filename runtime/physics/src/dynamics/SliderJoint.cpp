@@ -10,31 +10,31 @@ namespace Radion::Physics
 namespace
 {
 
-Math::Quaternion invInitialOrientationXY(const Math::Vec3& xAxisA, const Math::Vec3& yAxisA,
-                                  const Math::Vec3& xAxisB, const Math::Vec3& yAxisB)
+glm::quat invInitialOrientationXY(const glm::vec3& xAxisA, const glm::vec3& yAxisA,
+                                  const glm::vec3& xAxisB, const glm::vec3& yAxisB)
 {
     if (xAxisA == xAxisB && yAxisA == yAxisB)
-        return Math::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
-    const Math::Mat3 basisA(xAxisA, yAxisA, glm::cross(xAxisA, yAxisA));
-    const Math::Mat3 basisB(xAxisB, yAxisB, glm::cross(xAxisB, yAxisB));
+        return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    const glm::mat3 basisA(xAxisA, yAxisA, glm::cross(xAxisA, yAxisA));
+    const glm::mat3 basisB(xAxisB, yAxisB, glm::cross(xAxisB, yAxisB));
     return glm::quat_cast(basisB) * glm::conjugate(glm::quat_cast(basisA));
 }
 
-Math::Vec3 normalizedPerpendicular(const Math::Vec3& v)
+glm::vec3 normalizedPerpendicular(const glm::vec3& v)
 {
     if (std::abs(v.x) > std::abs(v.y))
     {
         const f32 length = std::sqrt(v.x * v.x + v.z * v.z);
-        return Math::Vec3(v.z, 0.0f, -v.x) / length;
+        return glm::vec3(v.z, 0.0f, -v.x) / length;
     }
     const f32 length = std::sqrt(v.y * v.y + v.z * v.z);
-    return Math::Vec3(0.0f, v.z, -v.y) / length;
+    return glm::vec3(0.0f, v.z, -v.y) / length;
 }
 
 }
 
-SliderJoint::SliderJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnchor,
-                         const Math::Vec3& worldSliderAxis)
+SliderJoint::SliderJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                         const glm::vec3& worldSliderAxis)
     : SliderJoint(a, a.pointToLocal(worldAnchor),
                  a.directionToLocal(glm::normalize(worldSliderAxis)),
                  a.directionToLocal(normalizedPerpendicular(glm::normalize(worldSliderAxis))), b,
@@ -44,10 +44,10 @@ SliderJoint::SliderJoint(RigidBody& a, RigidBody& b, const Math::Vec3& worldAnch
 {
 }
 
-SliderJoint::SliderJoint(RigidBody& a, const Math::Vec3& localAnchorA,
-                         const Math::Vec3& localSliderAxisA, const Math::Vec3& localNormalAxisA,
-                         RigidBody& b, const Math::Vec3& localAnchorB,
-                         const Math::Vec3& localSliderAxisB, const Math::Vec3& localNormalAxisB)
+SliderJoint::SliderJoint(RigidBody& a, const glm::vec3& localAnchorA,
+                         const glm::vec3& localSliderAxisA, const glm::vec3& localNormalAxisA,
+                         RigidBody& b, const glm::vec3& localAnchorB,
+                         const glm::vec3& localSliderAxisB, const glm::vec3& localNormalAxisB)
     : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
       mLocalSliderAxisA(glm::normalize(localSliderAxisA)),
       mLocalNormalAxisA(glm::normalize(localNormalAxisA)),
@@ -77,9 +77,9 @@ void SliderJoint::setLimits(f32 minDistance, f32 maxDistance)
 
 f32 SliderJoint::currentPosition() const
 {
-    const Math::Vec3 armA = mBodyA->directionToWorld(mLocalAnchorA);
-    const Math::Vec3 armB = mBodyB->directionToWorld(mLocalAnchorB);
-    const Math::Vec3 offset = (mBodyB->position() - mBodyA->position()) + armB - armA;
+    const glm::vec3 armA = mBodyA->directionToWorld(mLocalAnchorA);
+    const glm::vec3 armB = mBodyB->directionToWorld(mLocalAnchorB);
+    const glm::vec3 offset = (mBodyB->position() - mBodyA->position()) + armB - armA;
     return glm::dot(offset, mBodyA->directionToWorld(mLocalSliderAxisA));
 }
 
@@ -110,11 +110,11 @@ void SliderJoint::calculatePositionLockProperties()
     mN1 = mBodyA->directionToWorld(mLocalNormalAxisA);
     mN2 = mBodyA->directionToWorld(mLocalNormalAxisA2);
 
-    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
-    const Math::Vec3 r1x1 = glm::cross(armAPlusOffset, mN1);
-    const Math::Vec3 r1x2 = glm::cross(armAPlusOffset, mN2);
-    const Math::Vec3 r2x1 = glm::cross(mArmB, mN1);
-    const Math::Vec3 r2x2 = glm::cross(mArmB, mN2);
+    const glm::vec3 armAPlusOffset = mArmA + mOffset;
+    const glm::vec3 r1x1 = glm::cross(armAPlusOffset, mN1);
+    const glm::vec3 r1x2 = glm::cross(armAPlusOffset, mN2);
+    const glm::vec3 r2x1 = glm::cross(mArmB, mN1);
+    const glm::vec3 r2x2 = glm::cross(mArmB, mN2);
 
     glm::mat2 inverseEffectiveMass(0.0f);
     const f32 inverseMassSum = mBodyA->inverseMass() + mBodyB->inverseMass();
@@ -133,21 +133,21 @@ void SliderJoint::calculatePositionLockProperties()
     else
     {
         mPositionLockEffectiveMass = glm::mat2(0.0f);
-        mTotalPositionLockImpulse = Math::Vec2(0.0f);
+        mTotalPositionLockImpulse = glm::vec2(0.0f);
     }
 }
 
 void SliderJoint::calculateRotationProperties()
 {
-    const Math::Mat3 inverseInertiaSum =
+    const glm::mat3 inverseInertiaSum =
         mBodyA->inverseInertiaTensorWorld() + mBodyB->inverseInertiaTensorWorld();
     const f32 determinant = glm::determinant(inverseInertiaSum);
     if (std::abs(determinant) > 1.0e-9f && std::isfinite(determinant))
         mRotationEffectiveMass = glm::inverse(inverseInertiaSum);
     else
     {
-        mRotationEffectiveMass = Math::Mat3(0.0f);
-        mTotalRotationImpulse = Math::Vec3(0.0f);
+        mRotationEffectiveMass = glm::mat3(0.0f);
+        mTotalRotationImpulse = glm::vec3(0.0f);
     }
 }
 
@@ -166,7 +166,7 @@ void SliderJoint::calculateLimitProperties()
         mTotalLimitImpulse = 0.0f;
         return;
     }
-    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
+    const glm::vec3 armAPlusOffset = mArmA + mOffset;
     f32 inverseEffectiveMass = mBodyA->inverseMass() + mBodyB->inverseMass();
     inverseEffectiveMass += glm::dot(
         mWorldSliderAxis,
@@ -185,7 +185,7 @@ void SliderJoint::calculateMotorProperties()
         mMotorEffectiveMass = 0.0f;
         return;
     }
-    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
+    const glm::vec3 armAPlusOffset = mArmA + mOffset;
     f32 inverseEffectiveMass = mBodyA->inverseMass() + mBodyB->inverseMass();
     inverseEffectiveMass += glm::dot(
         mWorldSliderAxis,
@@ -214,8 +214,8 @@ void SliderJoint::setup(f32 duration)
     }
     else
     {
-        mTotalPositionLockImpulse = Math::Vec2(0.0f);
-        mTotalRotationImpulse = Math::Vec3(0.0f);
+        mTotalPositionLockImpulse = glm::vec2(0.0f);
+        mTotalRotationImpulse = glm::vec3(0.0f);
         mTotalLimitImpulse = 0.0f;
         mTotalMotorImpulse = 0.0f;
     }
@@ -223,9 +223,9 @@ void SliderJoint::setup(f32 duration)
     mPreviousDuration = duration;
 }
 
-void SliderJoint::applyVelocityImpulse(const Math::Vec3& impulse)
+void SliderJoint::applyVelocityImpulse(const glm::vec3& impulse)
 {
-    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
+    const glm::vec3 armAPlusOffset = mArmA + mOffset;
     if (mBodyA->isDynamic())
     {
         mBodyA->setVelocity(mBodyA->velocity() - impulse * mBodyA->inverseMass());
@@ -242,7 +242,7 @@ void SliderJoint::applyVelocityImpulse(const Math::Vec3& impulse)
     }
 }
 
-void SliderJoint::applyAngularVelocityImpulse(const Math::Vec3& impulse)
+void SliderJoint::applyAngularVelocityImpulse(const glm::vec3& impulse)
 {
     if (mBodyA->isDynamic())
         mBodyA->setAngularVelocity(mBodyA->angularVelocity() -
@@ -266,7 +266,7 @@ void SliderJoint::solveVelocity()
 {
     if (mMotorEnabled)
     {
-        const Math::Vec3 armAPlusOffset = mArmA + mOffset;
+        const glm::vec3 armAPlusOffset = mArmA + mOffset;
         const f32 jv = glm::dot(mWorldSliderAxis, mBodyA->velocity() - mBodyB->velocity()) +
                       glm::dot(glm::cross(armAPlusOffset, mWorldSliderAxis),
                                mBodyA->angularVelocity()) -
@@ -277,18 +277,18 @@ void SliderJoint::solveVelocity()
         applyVelocityImpulse(mWorldSliderAxis * (mTotalMotorImpulse - previous));
     }
 
-    const Math::Vec3 armAPlusOffset = mArmA + mOffset;
-    const Math::Vec3 deltaLinear = mBodyA->velocity() - mBodyB->velocity();
-    Math::Vec2 jv;
+    const glm::vec3 armAPlusOffset = mArmA + mOffset;
+    const glm::vec3 deltaLinear = mBodyA->velocity() - mBodyB->velocity();
+    glm::vec2 jv;
     jv.x = glm::dot(mN1, deltaLinear) + glm::dot(glm::cross(armAPlusOffset, mN1), mBodyA->angularVelocity()) -
           glm::dot(glm::cross(mArmB, mN1), mBodyB->angularVelocity());
     jv.y = glm::dot(mN2, deltaLinear) + glm::dot(glm::cross(armAPlusOffset, mN2), mBodyA->angularVelocity()) -
           glm::dot(glm::cross(mArmB, mN2), mBodyB->angularVelocity());
-    const Math::Vec2 lockImpulse = mPositionLockEffectiveMass * jv;
+    const glm::vec2 lockImpulse = mPositionLockEffectiveMass * jv;
     mTotalPositionLockImpulse += lockImpulse;
     applyVelocityImpulse(mN1 * lockImpulse.x + mN2 * lockImpulse.y);
 
-    const Math::Vec3 rotationImpulse =
+    const glm::vec3 rotationImpulse =
         mRotationEffectiveMass * (mBodyA->angularVelocity() - mBodyB->angularVelocity());
     mTotalRotationImpulse += rotationImpulse;
     applyAngularVelocityImpulse(rotationImpulse);
@@ -319,35 +319,35 @@ void SliderJoint::solvePosition(f32 baumgarte)
 {
     calculateArmsAndOffset();
     calculatePositionLockProperties();
-    const Math::Vec2 c(glm::dot(mOffset, mN1), glm::dot(mOffset, mN2));
-    if (c != Math::Vec2(0.0f))
+    const glm::vec2 c(glm::dot(mOffset, mN1), glm::dot(mOffset, mN2));
+    if (c != glm::vec2(0.0f))
     {
-        const Math::Vec2 lambda = -baumgarte * (mPositionLockEffectiveMass * c);
-        const Math::Vec3 impulse = mN1 * lambda.x + mN2 * lambda.y;
-        const Math::Vec3 armAPlusOffset = mArmA + mOffset;
+        const glm::vec2 lambda = -baumgarte * (mPositionLockEffectiveMass * c);
+        const glm::vec3 impulse = mN1 * lambda.x + mN2 * lambda.y;
+        const glm::vec3 armAPlusOffset = mArmA + mOffset;
         mBodyA->applyPositionImpulseAtPoint(-impulse, mBodyA->position() + armAPlusOffset);
         mBodyB->applyPositionImpulseAtPoint(impulse, mBodyB->position() + mArmB);
     }
 
     calculateRotationProperties();
-    Math::Quaternion diff =
+    glm::quat diff =
         mBodyB->orientation() * mInverseInitialOrientation * glm::conjugate(mBodyA->orientation());
     if (diff.w < 0.0f)
         diff = -diff;
-    const Math::Vec3 rotationError(2.0f * diff.x, 2.0f * diff.y, 2.0f * diff.z);
-    if (rotationError != Math::Vec3(0.0f))
+    const glm::vec3 rotationError(2.0f * diff.x, 2.0f * diff.y, 2.0f * diff.z);
+    if (rotationError != glm::vec3(0.0f))
     {
-        const Math::Vec3 lambda = -baumgarte * (mRotationEffectiveMass * rotationError);
+        const glm::vec3 lambda = -baumgarte * (mRotationEffectiveMass * rotationError);
         if (mBodyA->isDynamic())
         {
-            const Math::Vec3 step = mBodyA->inverseInertiaTensorWorld() * -lambda;
-            const Math::Quaternion spin(0.0f, step);
+            const glm::vec3 step = mBodyA->inverseInertiaTensorWorld() * -lambda;
+            const glm::quat spin(0.0f, step);
             mBodyA->setOrientation(mBodyA->orientation() + 0.5f * spin * mBodyA->orientation());
         }
         if (mBodyB->isDynamic())
         {
-            const Math::Vec3 step = mBodyB->inverseInertiaTensorWorld() * lambda;
-            const Math::Quaternion spin(0.0f, step);
+            const glm::vec3 step = mBodyB->inverseInertiaTensorWorld() * lambda;
+            const glm::quat spin(0.0f, step);
             mBodyB->setOrientation(mBodyB->orientation() + 0.5f * spin * mBodyB->orientation());
         }
     }
@@ -365,7 +365,7 @@ void SliderJoint::solvePosition(f32 baumgarte)
             else
                 error = mSlidePosition - mLimitsMax;
             const f32 lambda = -mLimitEffectiveMass * baumgarte * error;
-            const Math::Vec3 armAPlusOffset = mArmA + mOffset;
+            const glm::vec3 armAPlusOffset = mArmA + mOffset;
             mBodyA->applyPositionImpulseAtPoint(-(lambda * mWorldSliderAxis),
                                                 mBodyA->position() + armAPlusOffset);
             mBodyB->applyPositionImpulseAtPoint(lambda * mWorldSliderAxis,

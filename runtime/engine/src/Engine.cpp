@@ -380,7 +380,7 @@ TextureHandle Engine::directionalShadowTexture() const
 }
 
 void Engine::debugDrawTexture(TextureHandle texture, bool isArray, u32 layer, TargetHandle target,
-                              u32 width, u32 height, const Math::Vec4& sourceRect)
+                              u32 width, u32 height, const glm::vec4& sourceRect)
 {
     if (mRenderer && texture.valid() && width > 0 && height > 0)
         mRenderer->debugDrawTexture(texture, isArray, layer, target, width, height, sourceRect);
@@ -772,7 +772,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
         temporal.valid ? temporal.prevProjectionNoJitter : frame.projectionNoJitter;
     frame.prevViewProjectionNoJitter =
         temporal.valid ? temporal.prevViewProjectionNoJitter : frame.viewProjectionNoJitter;
-    frame.prevJitter = temporal.valid ? temporal.prevJitter : Math::Vec2(0.0f);
+    frame.prevJitter = temporal.valid ? temporal.prevJitter : glm::vec2(0.0f);
     const auto halton = [](u32 index, u32 base)
     {
         f32 result = 0.0f;
@@ -789,7 +789,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
     if (frame.temporalAA)
     {
         const u32 jitterSample = temporal.jitterPhase % 8u + 1u;
-        frame.jitter = Math::Vec2((halton(jitterSample, 2u) - 0.5f) * 2.0f /
+        frame.jitter = glm::vec2((halton(jitterSample, 2u) - 0.5f) * 2.0f /
                                      static_cast<f32>(renderWidth),
                                  (halton(jitterSample, 3u) - 0.5f) * 2.0f /
                                      static_cast<f32>(renderHeight));

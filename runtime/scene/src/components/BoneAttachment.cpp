@@ -53,15 +53,15 @@ void BoneAttachment::update()
 {
     if (!active() || !mAnimator || mBoneIndex < 0 || !owner())
         return;
-    const std::vector<Math::Mat4>& pose = mAnimator->globalPose();
+    const std::vector<glm::mat4>& pose = mAnimator->globalPose();
     if (mBoneIndex >= static_cast<s32>(pose.size()))
         return;
 
-    Math::Vec3 scale;
-    Math::Quaternion rotation;
-    Math::Vec3 position;
-    Math::Vec3 skew;
-    Math::Vec4 perspective;
+    glm::vec3 scale;
+    glm::quat rotation;
+    glm::vec3 position;
+    glm::vec3 skew;
+    glm::vec4 perspective;
     if (!glm::decompose(pose[static_cast<usize>(mBoneIndex)], scale, rotation, position, skew,
                         perspective))
         return;

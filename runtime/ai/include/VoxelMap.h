@@ -28,11 +28,11 @@ public:
     bool valid() const;
 
     const glm::uvec3& resolution() const;
-    const Math::Vec3& center() const;
-    void setCenter(const Math::Vec3& center);
-    const Math::Vec3& voxelSize() const;
+    const glm::vec3& center() const;
+    void setCenter(const glm::vec3& center);
+    const glm::vec3& voxelSize() const;
     void setVoxelSize(f32 size);
-    void setVoxelSize(const Math::Vec3& size);
+    void setVoxelSize(const glm::vec3& size);
     usize memorySize() const;
 
     AABB bounds() const;
@@ -40,25 +40,25 @@ public:
     // resolution spans it. Does not resize the grid.
     void fromBounds(const AABB& box);
 
-    glm::uvec3 worldToCoord(const Math::Vec3& worldPosition) const;
+    glm::uvec3 worldToCoord(const glm::vec3& worldPosition) const;
     // The same mapping without the unsigned wrap, for callers that have to
     // tell "before the grid" from "past the end of it".
-    glm::ivec3 worldToCoordSigned(const Math::Vec3& worldPosition) const;
-    Math::Vec3 coordToWorld(const glm::uvec3& coord) const;
-    Math::Vec3 coordToWorld(const glm::ivec3& coord) const;
+    glm::ivec3 worldToCoordSigned(const glm::vec3& worldPosition) const;
+    glm::vec3 coordToWorld(const glm::uvec3& coord) const;
+    glm::vec3 coordToWorld(const glm::ivec3& coord) const;
 
     bool validCoord(const glm::uvec3& coord) const;
     bool validCoord(const glm::ivec3& coord) const;
     bool voxel(const glm::uvec3& coord) const;
     bool voxel(const glm::ivec3& coord) const;
-    bool voxel(const Math::Vec3& worldPosition) const;
+    bool voxel(const glm::vec3& worldPosition) const;
     void setVoxel(const glm::uvec3& coord, bool value);
     void setVoxel(const glm::ivec3& coord, bool value);
-    void setVoxel(const Math::Vec3& worldPosition, bool value);
+    void setVoxel(const glm::vec3& worldPosition, bool value);
 
     // Marks every voxel the shape touches. Subtract clears them instead, so
     // the same call carves a doorway out of a wall already injected.
-    void injectTriangle(const Math::Vec3& a, const Math::Vec3& b, const Math::Vec3& c,
+    void injectTriangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
                         bool subtract = false);
     void injectBounds(const AABB& box, bool subtract = false);
     void injectSphere(const Sphere& sphere, bool subtract = false);
@@ -66,7 +66,7 @@ public:
     // directly. base and tip are the poles, so the shape spans exactly
     // base..tip - not the centres of the end spheres, which would make it a
     // radius longer at each end.
-    void injectCapsule(const Math::Vec3& base, const Math::Vec3& tip, f32 radius,
+    void injectCapsule(const glm::vec3& base, const glm::vec3& tip, f32 radius,
                        bool subtract = false);
 
     // Both grids must have the same resolution; a mismatch is ignored.
@@ -80,18 +80,18 @@ public:
     // Line of sight, stepped one voxel at a time. The subject's own voxel
     // does not block: reaching it is what "visible" means.
     bool visible(const glm::uvec3& start, const glm::uvec3& goal) const;
-    bool visible(const Math::Vec3& observer, const Math::Vec3& subject) const;
+    bool visible(const glm::vec3& observer, const glm::vec3& subject) const;
     // True as soon as any voxel of the box is reachable, so a target is seen
     // when any part of it is - not only its centre.
-    bool visible(const Math::Vec3& observer, const AABB& subject) const;
+    bool visible(const glm::vec3& observer, const AABB& subject) const;
 
 private:
     glm::uvec3 mResolution = glm::uvec3(0);
     glm::uvec3 mResolutionDiv4 = glm::uvec3(0);
-    Math::Vec3 mResolutionRcp = Math::Vec3(0.0f);
-    Math::Vec3 mCenter = Math::Vec3(0.0f);
-    Math::Vec3 mVoxelSize = Math::Vec3(0.25f);
-    Math::Vec3 mVoxelSizeRcp = Math::Vec3(4.0f);
+    glm::vec3 mResolutionRcp = glm::vec3(0.0f);
+    glm::vec3 mCenter = glm::vec3(0.0f);
+    glm::vec3 mVoxelSize = glm::vec3(0.25f);
+    glm::vec3 mVoxelSizeRcp = glm::vec3(4.0f);
     std::vector<u64> mVoxels; // one element is 4 * 4 * 4 = 64 voxels
 };
 

@@ -37,10 +37,10 @@ void NavMeshBehavior::iterate(float timeDelta, Entity& entity)
     // on its own.
     constrainToSurface(entity, route);
 
-    const Math::Vec3 position = entity.position();
-    const Math::Vec3 goal = squadmate->goal();
+    const glm::vec3 position = entity.position();
+    const glm::vec3 goal = squadmate->goal();
 
-    Math::Vec3 flatToGoal = goal - position;
+    glm::vec3 flatToGoal = goal - position;
     flatToGoal.y = 0.0f;
     if (glm::length(flatToGoal) < mSettings.goalRadius)
     {
@@ -63,7 +63,7 @@ void NavMeshBehavior::iterate(float timeDelta, Entity& entity)
     if ((route.sinceRepath >= mSettings.repathInterval && goalMoved) || outOfCorners)
     {
         route.sinceRepath = 0.0f;
-        std::vector<Math::Vec3> fresh;
+        std::vector<glm::vec3> fresh;
         if (mNavMesh.findPath(position, goal, fresh, mSettings.searchExtents) && fresh.size() > 1)
         {
             route.corners = std::move(fresh);
@@ -83,10 +83,10 @@ void NavMeshBehavior::iterate(float timeDelta, Entity& entity)
         }
     }
 
-    Math::Vec3 towards = flatToGoal;
+    glm::vec3 towards = flatToGoal;
     if (route.next < route.corners.size())
     {
-        Math::Vec3 toCorner = route.corners[route.next] - position;
+        glm::vec3 toCorner = route.corners[route.next] - position;
         toCorner.y = 0.0f;
         if (glm::length(toCorner) < mSettings.cornerRadius)
         {
@@ -101,7 +101,7 @@ void NavMeshBehavior::iterate(float timeDelta, Entity& entity)
             towards = toCorner;
     }
 
-    Math::Vec3 desired = entity.desiredMove();
+    glm::vec3 desired = entity.desiredMove();
     desired += safeNormalize(towards) * mSettings.turnRate * gain();
     entity.setDesiredMove(desired);
 
@@ -110,22 +110,22 @@ void NavMeshBehavior::iterate(float timeDelta, Entity& entity)
 
 void NavMeshBehavior::constrainToSurface(Entity& entity, Route& route)
 {
-    const Math::Vec3 wanted = entity.position();
+    const glm::vec3 wanted = entity.position();
 
     // First pass for this agent: it has no known-good position behind it, so
     // snap onto the surface instead of sliding across it.
     if (!route.onSurface)
     {
-        Math::Vec3 snapped;
+        glm::vec3 snapped;
         if (!mNavMesh.nearestPoint(wanted, snapped, mSettings.searchExtents))
             return;
         route.surfacePosition = snapped;
         route.onSurface = true;
-        entity.setPosition(Math::Vec3(snapped.x, wanted.y, snapped.z));
+        entity.setPosition(glm::vec3(snapped.x, wanted.y, snapped.z));
         return;
     }
 
-    Math::Vec3 slid;
+    glm::vec3 slid;
     if (!mNavMesh.moveAlongSurface(route.surfacePosition, wanted, slid, mSettings.searchExtents))
     {
         // The last good position stopped being on the mesh - the surface was
@@ -138,7 +138,7 @@ void NavMeshBehavior::constrainToSurface(Entity& entity, Route& route)
 
     // Height stays the caller's business: the demo places its characters on
     // its own ground offset, and overwriting y here would fight it.
-    entity.setPosition(Math::Vec3(slid.x, wanted.y, slid.z));
+    entity.setPosition(glm::vec3(slid.x, wanted.y, slid.z));
 }
 
 void NavMeshBehavior::applyAvoidance(Entity& entity)
@@ -149,8 +149,8 @@ void NavMeshBehavior::applyAvoidance(Entity& entity)
     // Same repulsion PathfindBehavior::applyAvoidance() applies: summed over
     // every neighbour inside the radius and weighted (1 - d/r), so it grows
     // as they close rather than switching on at the edge.
-    Math::Vec3 repulsion(0.0f);
-    const Math::Vec3 position = entity.position();
+    glm::vec3 repulsion(0.0f);
+    const glm::vec3 position = entity.position();
     const float avoidRadius = mSettings.avoidDistance;
 
     for (Group* group : entity.world().groups())
@@ -160,7 +160,7 @@ void NavMeshBehavior::applyAvoidance(Entity& entity)
             if (other == &entity)
                 continue;
 
-            Math::Vec3 away = position - other->position();
+            glm::vec3 away = position - other->position();
             away.y = 0.0f;
             const float distance = glm::length(away);
             if (distance >= avoidRadius)
@@ -179,14 +179,14 @@ void NavMeshBehavior::applyAvoidance(Entity& entity)
     if (repulsionLength <= 1e-5f)
         return;
 
-    Math::Vec3 desired = entity.desiredMove();
+    glm::vec3 desired = entity.desiredMove();
     const float desiredLength = glm::length(desired);
-    const Math::Vec3 escape = repulsion / repulsionLength;
+    const glm::vec3 escape = repulsion / repulsionLength;
     const float weight = glm::clamp(mSettings.turnRate, 0.0f, 1.0f);
 
     if (desiredLength > 1e-5f)
     {
-        Math::Vec3 direction = desired / desiredLength;
+        glm::vec3 direction = desired / desiredLength;
         direction = glm::normalize(direction * (1.0f - weight) + escape * weight);
         desired = direction * desiredLength;
     }

@@ -24,12 +24,12 @@ public:
 private:
     void drawUnwrapSection(MeshRenderer& renderer, MeshData& data);
     void drawBakeSection(GameObject& object, MeshRenderer& renderer, MeshData& data);
-    void applyPreset(bool draft, const MeshData& data, const Math::Mat4& transform);
+    void applyPreset(bool draft, const MeshData& data, const glm::mat4& transform);
     // The sun the scene is actually lit by, not the sky's: buildRenderList()
     // sends the renderer this object's own forward(), so a bake reading
     // anything else silently disagrees with the real-time lighting the moment
     // the light is moved directly.
-    bool sceneSun(Math::Vec3& direction, Math::Vec3& color);
+    bool sceneSun(glm::vec3& direction, glm::vec3& color);
     void applyBakedTexture(MeshRenderer& renderer, MeshData& data, const std::string& file);
 
     LightmapUnwrapSettings mUnwrapSettings;

@@ -15,7 +15,7 @@ namespace Radion
 
 Road::Road() : Component(Type, ComponentEventUpdate)
 {
-    mMaterial.params.baseColor = Math::Vec4(1.0f);
+    mMaterial.params.baseColor = glm::vec4(1.0f);
     mMaterial.params.custom1.z = 1.0f;
 }
 
@@ -116,7 +116,7 @@ bool Road::saveSpline(const std::string& path) const
     {
         if (!entry.object || entry.object->disposed())
             continue;
-        const Math::Vec3 position = entry.object->globalPosition();
+        const glm::vec3 position = entry.object->globalPosition();
         text << "point " << position.x << ' ' << position.y << ' ' << position.z << ' '
              << entry.width << '\n';
     }
@@ -137,7 +137,7 @@ bool Road::loadSpline(const std::string& path, Scene& scene)
 
     struct LoadedPoint
     {
-        Math::Vec3 position;
+        glm::vec3 position;
         f32 width;
     };
     std::vector<LoadedPoint> loaded;
@@ -222,7 +222,7 @@ void Road::onUpdate(f32)
     {
         if (!entry.object || entry.object->disposed())
             continue;
-        const Math::Vec3 current = entry.object->globalPosition();
+        const glm::vec3 current = entry.object->globalPosition();
         if (glm::length(current - entry.previous) > 0.0001f)
         {
             entry.previous = current;
@@ -247,10 +247,10 @@ Road::PathSample Road::evaluate(usize segment, f32 amount) const
     const usize i1 = segment;
     const usize i2 = glm::min(segment + 1, last);
     const usize i3 = glm::min(segment + 2, last);
-    const Math::Vec3 p0 = mPoints[i0].object->globalPosition();
-    const Math::Vec3 p1 = mPoints[i1].object->globalPosition();
-    const Math::Vec3 p2 = mPoints[i2].object->globalPosition();
-    const Math::Vec3 p3 = mPoints[i3].object->globalPosition();
+    const glm::vec3 p0 = mPoints[i0].object->globalPosition();
+    const glm::vec3 p1 = mPoints[i1].object->globalPosition();
+    const glm::vec3 p2 = mPoints[i2].object->globalPosition();
+    const glm::vec3 p3 = mPoints[i3].object->globalPosition();
     const f32 t2 = amount * amount;
     const f32 t3 = t2 * amount;
     PathSample result;
@@ -277,9 +277,9 @@ void Road::rebuild()
         if (!entry.object || entry.object->disposed())
             return;
 
-    const Math::Mat4 inverseOwner = glm::inverse(owner()->globalTransform());
-    Math::Mat4 terrainInverse(1.0f);
-    Math::Mat4 terrainTransform(1.0f);
+    const glm::mat4 inverseOwner = glm::inverse(owner()->globalTransform());
+    glm::mat4 terrainInverse(1.0f);
+    glm::mat4 terrainTransform(1.0f);
     if (mTerrain && mTerrain->owner())
     {
         terrainTransform = mTerrain->owner()->globalTransform();
@@ -308,32 +308,32 @@ void Road::rebuild()
     data.uvs.reserve(path.size() * 2);
     for (const PathSample& value : path)
     {
-        Math::Vec3 tangent = value.tangent;
+        glm::vec3 tangent = value.tangent;
         tangent.y = 0.0f;
         if (glm::dot(tangent, tangent) < 0.0001f)
-            tangent = Math::Vec3(0.0f, 0.0f, -1.0f);
+            tangent = glm::vec3(0.0f, 0.0f, -1.0f);
         tangent = glm::normalize(tangent);
-        const Math::Vec3 right = glm::normalize(glm::cross(Math::Vec3(0, 1, 0), tangent));
-        Math::Vec3 leftPosition = value.position - right * (value.width * 0.5f);
-        Math::Vec3 rightPosition = value.position + right * (value.width * 0.5f);
+        const glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), tangent));
+        glm::vec3 leftPosition = value.position - right * (value.width * 0.5f);
+        glm::vec3 rightPosition = value.position + right * (value.width * 0.5f);
         if (mConformTerrain && mTerrain)
         {
-            Math::Vec3 local = Math::Vec3(terrainInverse * Math::Vec4(leftPosition, 1.0f));
+            glm::vec3 local = glm::vec3(terrainInverse * glm::vec4(leftPosition, 1.0f));
             local.y = mTerrain->heightAt(local.x, local.z);
-            leftPosition = Math::Vec3(terrainTransform * Math::Vec4(local, 1.0f));
-            local = Math::Vec3(terrainInverse * Math::Vec4(rightPosition, 1.0f));
+            leftPosition = glm::vec3(terrainTransform * glm::vec4(local, 1.0f));
+            local = glm::vec3(terrainInverse * glm::vec4(rightPosition, 1.0f));
             local.y = mTerrain->heightAt(local.x, local.z);
-            rightPosition = Math::Vec3(terrainTransform * Math::Vec4(local, 1.0f));
+            rightPosition = glm::vec3(terrainTransform * glm::vec4(local, 1.0f));
             leftPosition.y += mSurfaceOffset;
             rightPosition.y += mSurfaceOffset;
         }
-        data.positions.push_back(Math::Vec3(inverseOwner * Math::Vec4(leftPosition, 1.0f)));
-        data.positions.push_back(Math::Vec3(inverseOwner * Math::Vec4(rightPosition, 1.0f)));
-        data.normals.push_back(Math::Vec3(0, 1, 0));
-        data.normals.push_back(Math::Vec3(0, 1, 0));
+        data.positions.push_back(glm::vec3(inverseOwner * glm::vec4(leftPosition, 1.0f)));
+        data.positions.push_back(glm::vec3(inverseOwner * glm::vec4(rightPosition, 1.0f)));
+        data.normals.push_back(glm::vec3(0, 1, 0));
+        data.normals.push_back(glm::vec3(0, 1, 0));
         const f32 v = value.distance / mTextureRepeat;
-        data.uvs.push_back(Math::Vec2(0.0f, v));
-        data.uvs.push_back(Math::Vec2(1.0f, v));
+        data.uvs.push_back(glm::vec2(0.0f, v));
+        data.uvs.push_back(glm::vec2(1.0f, v));
     }
     for (u32 i = 0; i + 1 < path.size(); ++i)
     {

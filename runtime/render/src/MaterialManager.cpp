@@ -285,7 +285,7 @@ const char* animationProperty(const MaterialAnim& animation)
     return "custom1";
 }
 
-void writeVec4(std::ostringstream& text, const Math::Vec4& value)
+void writeVec4(std::ostringstream& text, const glm::vec4& value)
 {
     text << '(' << value.x << ", " << value.y << ", " << value.z << ", " << value.w << ')';
 }
@@ -445,7 +445,7 @@ std::string withVariantDefines(const std::string& source, u32 variantFlags, u8 p
     return result;
 }
 
-Math::Vec4* paramField(MaterialParams& params, u8 index)
+glm::vec4* paramField(MaterialParams& params, u8 index)
 {
     switch (index)
     {
@@ -933,12 +933,12 @@ void MaterialManager::animate(Material& material, f32 time) const
     for (u8 i = 0; i < material.animCount; ++i)
     {
         const MaterialAnim& anim = material.anims[i];
-        Math::Vec4* field = paramField(material.params, anim.field);
+        glm::vec4* field = paramField(material.params, anim.field);
         if (!field)
             continue;
 
         const f32 t = evaluateCurve(anim.curve, time, anim.speed, anim.phase);
-        const Math::Vec4 value = anim.min + (anim.max - anim.min) * t;
+        const glm::vec4 value = anim.min + (anim.max - anim.min) * t;
 
         for (u8 component = 0; component < 4; ++component)
         {

@@ -62,11 +62,11 @@ public:
     {
         return mSupportingVolume;
     }
-    void setUp(const Math::Vec3& up)
+    void setUp(const glm::vec3& up)
     {
         mUp = glm::normalize(up);
     }
-    const Math::Vec3& up() const
+    const glm::vec3& up() const
     {
         return mUp;
     }
@@ -81,20 +81,20 @@ public:
         return mMask;
     }
 
-    void addToWorld(PhysicsWorld& world, const Math::Vec3& position);
+    void addToWorld(PhysicsWorld& world, const glm::vec3& position);
     void removeFromWorld();
     u32 bodyId() const
     {
         return mBodyId;
     }
 
-    void setLinearVelocity(const Math::Vec3& velocity);
-    const Math::Vec3& linearVelocity() const;
-    void addLinearVelocity(const Math::Vec3& velocity);
-    void addImpulse(const Math::Vec3& impulse);
+    void setLinearVelocity(const glm::vec3& velocity);
+    const glm::vec3& linearVelocity() const;
+    void addLinearVelocity(const glm::vec3& velocity);
+    void addImpulse(const glm::vec3& impulse);
 
-    const Math::Vec3& position() const;
-    Math::Mat4 transform() const;
+    const glm::vec3& position() const;
+    glm::mat4 transform() const;
 
     void postSimulation(f32 maxSeparationDistance);
 
@@ -102,15 +102,15 @@ public:
     {
         return mGroundState;
     }
-    const Math::Vec3& groundNormal() const
+    const glm::vec3& groundNormal() const
     {
         return mGroundNormal;
     }
-    const Math::Vec3& groundPosition() const
+    const glm::vec3& groundPosition() const
     {
         return mGroundPosition;
     }
-    const Math::Vec3& groundVelocity() const
+    const glm::vec3& groundVelocity() const
     {
         return mGroundVelocity;
     }
@@ -137,16 +137,16 @@ private:
     u32 mLayer = 1;
     u32 mMask = 0xFFFFFFFFu;
 
-    Math::Vec3 mUp{0.0f, 1.0f, 0.0f};
-    Plane mSupportingVolume{Math::Vec3(0.0f, 1.0f, 0.0f), -1.0e10f};
+    glm::vec3 mUp{0.0f, 1.0f, 0.0f};
+    Plane mSupportingVolume{glm::vec3(0.0f, 1.0f, 0.0f), -1.0e10f};
     f32 mMaxSlopeAngleDegrees = 50.0f;
     f32 mMaxSlopeAngleCosine = 0.64278759f;
 
     GroundState mGroundState = GroundState::InAir;
     u32 mGroundBodyId = kInvalidBodyId;
-    Math::Vec3 mGroundNormal{0.0f};
-    Math::Vec3 mGroundPosition{0.0f};
-    Math::Vec3 mGroundVelocity{0.0f};
+    glm::vec3 mGroundNormal{0.0f};
+    glm::vec3 mGroundPosition{0.0f};
+    glm::vec3 mGroundVelocity{0.0f};
     std::vector<u32> mCandidates;
     std::vector<ContactManifold> mManifolds;
 };

@@ -13,11 +13,11 @@ namespace Radion
 namespace
 {
 
-bool pointInTriangle(const Math::Vec3& p, const Math::Vec3& v1, const Math::Vec3& v2,
-                     const Math::Vec3& v3, const Math::Vec3& normal)
+bool pointInTriangle(const glm::vec3& p, const glm::vec3& v1, const glm::vec3& v2,
+                     const glm::vec3& v3, const glm::vec3& normal)
 {
-    Math::Vec3 e = v2 - v1;
-    Math::Vec3 d = v1 - p;
+    glm::vec3 e = v2 - v1;
+    glm::vec3 d = v1 - p;
     if (glm::dot(d, glm::cross(e, normal)) < 0.0f)
         return false;
     e = v3 - v2;
@@ -51,8 +51,8 @@ bool solveCollision(f32 a, f32 b, f32 c, f32& t)
 
 // tMax is in/out: the caller's current best, tightened to this plane's hit.
 // A negative tMax means the sphere already overlaps the plane (penetration).
-bool sphereIntersectPlane(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
-                          const Math::Vec3& planeNormal, const Math::Vec3& planePoint, f32& tMax)
+bool sphereIntersectPlane(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
+                          const glm::vec3& planeNormal, const glm::vec3& planePoint, f32& tMax)
 {
     const f32 numer = glm::dot(center - planePoint, planeNormal) - radius;
     const f32 denom = glm::dot(velocity, planeNormal);
@@ -82,10 +82,10 @@ bool sphereIntersectPlane(const Math::Vec3& center, f32 radius, const Math::Vec3
     return true;
 }
 
-bool sphereIntersectPoint(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
-                          const Math::Vec3& point, f32& tMax, Math::Vec3& normal)
+bool sphereIntersectPoint(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
+                          const glm::vec3& point, f32& tMax, glm::vec3& normal)
 {
-    const Math::Vec3 l = center - point;
+    const glm::vec3 l = center - point;
     const f32 l2 = glm::dot(l, l);
     const f32 a = glm::dot(velocity, velocity);
     const f32 b = 2.0f * glm::dot(velocity, l);
@@ -114,18 +114,18 @@ bool sphereIntersectPoint(const Math::Vec3& center, f32 radius, const Math::Vec3
     return true;
 }
 
-bool sphereIntersectSegment(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
-                            const Math::Vec3& v1, const Math::Vec3& v2, f32& tMax, Math::Vec3& normal)
+bool sphereIntersectSegment(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
+                            const glm::vec3& v1, const glm::vec3& v2, f32& tMax, glm::vec3& normal)
 {
-    Math::Vec3 e = v2 - v1;
-    const Math::Vec3 l = center - v1;
+    glm::vec3 e = v2 - v1;
+    const glm::vec3 l = center - v1;
     const f32 eLen = glm::length(e);
     if (eLen < 1e-5f)
         return false; // degenerate edge
     e /= eLen;
 
-    const Math::Vec3 x = glm::cross(l, e); // distance from segment line
-    const Math::Vec3 y = glm::cross(velocity, e);
+    const glm::vec3 x = glm::cross(l, e); // distance from segment line
+    const glm::vec3 y = glm::cross(velocity, e);
     const f32 a = glm::dot(y, y);
     const f32 b = 2.0f * glm::dot(x, y);
     const f32 c = glm::dot(x, x) - radius * radius;
@@ -137,7 +137,7 @@ bool sphereIntersectSegment(const Math::Vec3& center, f32 radius, const Math::Ve
             return sphereIntersectPoint(center, radius, velocity, v1, tMax, normal);
         if (d > eLen)
             return sphereIntersectPoint(center, radius, velocity, v2, tMax, normal);
-        const Math::Vec3 onEdge = v1 + e * d;
+        const glm::vec3 onEdge = v1 + e * d;
         normal = glm::normalize(center - onEdge);
         const f32 t = glm::length(center - onEdge) - radius;
         if (tMax < t)
@@ -154,7 +154,7 @@ bool sphereIntersectSegment(const Math::Vec3& center, f32 radius, const Math::Ve
     if (t > tMax)
         return false;
 
-    const Math::Vec3 collCenter = center + velocity * t;
+    const glm::vec3 collCenter = center + velocity * t;
     const f32 d = glm::dot(collCenter - v1, e);
     if (d < 0.0f)
         return sphereIntersectPoint(center, radius, velocity, v1, tMax, normal);
@@ -168,15 +168,15 @@ bool sphereIntersectSegment(const Math::Vec3& center, f32 radius, const Math::Ve
 
 // Swept sphere vs triangle; tMax is the running best and gets tightened on a
 // hit. Out-normal is the contact normal.
-bool sphereIntersectTriangle(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
-                             const Math::Vec3& v0, const Math::Vec3& v1, const Math::Vec3& v2,
-                             const Math::Vec3& normal, f32& tMax, Math::Vec3& outNormal)
+bool sphereIntersectTriangle(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
+                             const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2,
+                             const glm::vec3& normal, f32& tMax, glm::vec3& outNormal)
 {
     f32 t = tMax;
     if (!sphereIntersectPlane(center, radius, velocity, normal, v0, t))
         return false;
 
-    const Math::Vec3 collCenter = (t < 0.0f) ? center - normal * t : center + velocity * t;
+    const glm::vec3 collCenter = (t < 0.0f) ? center - normal * t : center + velocity * t;
     if (pointInTriangle(collCenter, v0, v1, v2, normal))
     {
         outNormal = normal;
@@ -209,7 +209,7 @@ void TriangleOctree::clear()
     mStats = Stats();
 }
 
-void TriangleOctree::addCollisionMesh(const CollisionMesh& mesh, const Math::Mat4& transform)
+void TriangleOctree::addCollisionMesh(const CollisionMesh& mesh, const glm::mat4& transform)
 {
     if (mesh.indices.size() < 3)
         return;
@@ -226,13 +226,13 @@ void TriangleOctree::addCollisionMesh(const CollisionMesh& mesh, const Math::Mat
             i2 >= mesh.positions.size())
             continue;
 
-        const Math::Vec3 v0 = Math::Vec3(transform * Math::Vec4(mesh.positions[i0], 1.0f));
-        const Math::Vec3 v1 = Math::Vec3(transform * Math::Vec4(mesh.positions[i1], 1.0f));
-        const Math::Vec3 v2 = Math::Vec3(transform * Math::Vec4(mesh.positions[i2], 1.0f));
+        const glm::vec3 v0 = glm::vec3(transform * glm::vec4(mesh.positions[i0], 1.0f));
+        const glm::vec3 v1 = glm::vec3(transform * glm::vec4(mesh.positions[i1], 1.0f));
+        const glm::vec3 v2 = glm::vec3(transform * glm::vec4(mesh.positions[i2], 1.0f));
 
-        const Math::Vec3 e1 = v1 - v0;
-        const Math::Vec3 e2 = v2 - v0;
-        const Math::Vec3 normal = glm::normalize(glm::cross(e1, e2));
+        const glm::vec3 e1 = v1 - v0;
+        const glm::vec3 e2 = v2 - v0;
+        const glm::vec3 normal = glm::normalize(glm::cross(e1, e2));
         // Skip degenerate (zero-area) triangles - they never collide and
         // would otherwise sit in the tree doing nothing but costing memory.
         if (!std::isfinite(normal.x) || !std::isfinite(normal.y) || !std::isfinite(normal.z))
@@ -298,7 +298,7 @@ bool TriangleOctree::nodeSplittable(const Node& node) const
     // A node with no extent (degenerate input) would subdivide forever into
     // empty boxes; depth alone can't stop that when the trigger is a triangle
     // count that never fits. Refuse to split a box that is effectively a point.
-    const Math::Vec3 ext = node.bounds.extents();
+    const glm::vec3 ext = node.bounds.extents();
     return ext.x > 1e-4f && ext.y > 1e-4f && ext.z > 1e-4f;
 }
 
@@ -312,15 +312,15 @@ void TriangleOctree::subdivide(u32 nodeIndex, u8 depth, u32 maxDepth, u32 maxTri
         return;
 
     const AABB bounds = mNodes[nodeIndex].bounds; // copy: createNode() may realloc
-    const Math::Vec3 c = bounds.center();
+    const glm::vec3 c = bounds.center();
 
     for (u32 i = 0; i < 8; ++i)
     {
         AABB child;
-        child.min = Math::Vec3((i & 1u) ? c.x : bounds.min.x, (i & 2u) ? c.y : bounds.min.y,
-                               (i & 4u) ? c.z : bounds.min.z);
-        child.max = Math::Vec3((i & 1u) ? bounds.max.x : c.x, (i & 2u) ? bounds.max.y : c.y,
-                               (i & 4u) ? bounds.max.z : c.z);
+        child.min = glm::vec3((i & 1u) ? c.x : bounds.min.x, (i & 2u) ? c.y : bounds.min.y,
+                              (i & 4u) ? c.z : bounds.min.z);
+        child.max = glm::vec3((i & 1u) ? bounds.max.x : c.x, (i & 2u) ? bounds.max.y : c.y,
+                              (i & 4u) ? bounds.max.z : c.z);
         mNodes[nodeIndex].children[i] = createNode(child, static_cast<u8>(depth + 1));
     }
 
@@ -419,8 +419,7 @@ void TriangleOctree::raycastNode(u32 nodeIndex, const Ray& ray, RayHit& best, bo
         if (ray.intersects(tri.v0, tri.v1, tri.v2, t) && (!hit || t < best.t))
         {
             best.t = t;
-            const Math::Vec3 point = ray.at(t);
-            best.point = Math::Vec3(point.x, point.y, point.z);
+            best.point = ray.at(t);
             best.normal = tri.normal;
             best.source = tri.source;
             best.triangle = tri.index;
@@ -445,9 +444,9 @@ bool TriangleOctree::raycast(const Ray& ray, RayHit& out) const
     return hit;
 }
 
-void TriangleOctree::sweepNode(u32 nodeIndex, const AABB& sweptBounds, const Math::Vec3& center,
-                               const Math::Vec3& radii, const Math::Vec3& invRadii,
-                               const Math::Vec3& velocity, f32& bestT, SweepHit& out, bool& hit,
+void TriangleOctree::sweepNode(u32 nodeIndex, const AABB& sweptBounds, const glm::vec3& center,
+                               const glm::vec3& radii, const glm::vec3& invRadii,
+                               const glm::vec3& velocity, f32& bestT, SweepHit& out, bool& hit,
                                u32& visited) const
 {
     const Node& node = mNodes[nodeIndex];
@@ -464,22 +463,22 @@ void TriangleOctree::sweepNode(u32 nodeIndex, const AABB& sweptBounds, const Mat
         // Transform the triangle into ellipsoid space (scale by 1/radii); the
         // sweep then tests a unit sphere, exactly like CCollision does. The
         // normal scales by `radii` before normalizing - see the study.
-        const Math::Vec3 e0 = tri.v0 * invRadii;
-        const Math::Vec3 e1 = tri.v1 * invRadii;
-        const Math::Vec3 e2 = tri.v2 * invRadii;
-        const Math::Vec3 eNormal = glm::normalize(tri.normal * radii);
-        const Math::Vec3 eCenter = center * invRadii;
-        const Math::Vec3 eVelocity = velocity * invRadii;
+        const glm::vec3 e0 = tri.v0 * invRadii;
+        const glm::vec3 e1 = tri.v1 * invRadii;
+        const glm::vec3 e2 = tri.v2 * invRadii;
+        const glm::vec3 eNormal = glm::normalize(tri.normal * radii);
+        const glm::vec3 eCenter = center * invRadii;
+        const glm::vec3 eVelocity = velocity * invRadii;
 
         f32 t = bestT;
-        Math::Vec3 eHitNormal;
+        glm::vec3 eHitNormal;
         if (sphereIntersectTriangle(eCenter, 1.0f, eVelocity, e0, e1, e2, eNormal, t, eHitNormal))
         {
             out.t = t;
             out.normal = glm::normalize(eHitNormal * invRadii);
             out.source = tri.source;
             out.triangle = tri.index;
-            const Math::Vec3 eCollCenter =
+            const glm::vec3 eCollCenter =
                 (t < 0.0f) ? eCenter - eHitNormal * t : eCenter + eVelocity * t;
             out.point = (eCollCenter - eHitNormal) * radii;
             out.collided = true;
@@ -494,8 +493,8 @@ void TriangleOctree::sweepNode(u32 nodeIndex, const AABB& sweptBounds, const Mat
                       hit, visited);
 }
 
-bool TriangleOctree::sweepEllipsoid(const Math::Vec3& center, const Math::Vec3& radii,
-                                    const Math::Vec3& velocity, SweepHit& out) const
+bool TriangleOctree::sweepEllipsoid(const glm::vec3& center, const glm::vec3& radii,
+                                    const glm::vec3& velocity, SweepHit& out) const
 {
     if (mNodes.empty())
         return false;
@@ -505,14 +504,14 @@ bool TriangleOctree::sweepEllipsoid(const Math::Vec3& center, const Math::Vec3& 
     // be touched, so whole subtrees are skipped without ever testing a
     // triangle (this is the octree's reason to exist).
     const f32 maxR = glm::max(radii.x, glm::max(radii.y, radii.z));
-    const Math::Vec3 pad(maxR + 0.01f);
+    const glm::vec3 pad(maxR + 0.01f);
     AABB swept;
     swept.expand(center - pad);
     swept.expand(center + pad);
     swept.expand(center + velocity - pad);
     swept.expand(center + velocity + pad);
 
-    const Math::Vec3 invRadii(1.0f / radii.x, 1.0f / radii.y, 1.0f / radii.z);
+    const glm::vec3 invRadii(1.0f / radii.x, 1.0f / radii.y, 1.0f / radii.z);
     // Same as the physics TrimeshShape sweep: the running best starts at 1.0,
     // so a hit beyond the end of the swept segment (t > 1) is rejected. The
     // SweepHit contract says t is "a fraction of the query velocity in [0,1]",
@@ -530,10 +529,10 @@ bool TriangleOctree::sweepEllipsoid(const Math::Vec3& center, const Math::Vec3& 
     return hit;
 }
 
-bool TriangleOctree::sweepSphere(const Math::Vec3& center, f32 radius, const Math::Vec3& velocity,
+bool TriangleOctree::sweepSphere(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
                                  SweepHit& out) const
 {
-    return sweepEllipsoid(center, Math::Vec3(radius), velocity, out);
+    return sweepEllipsoid(center, glm::vec3(radius), velocity, out);
 }
 
 // ------------------------------------------------------------------- debug

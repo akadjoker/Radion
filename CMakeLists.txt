@@ -61,21 +61,6 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(RadionOptions)
 include(RadionFormat)
 
-# Pinned Git submodules.  Keep their own test/benchmark CMake projects out of
-# Radion's build; the engine exposes just the dependency targets it consumes.
-add_library(radion_containers INTERFACE)
-target_include_directories(radion_containers SYSTEM INTERFACE
-    ${PROJECT_SOURCE_DIR}/vendor/containers/include
-)
-
-add_library(radion_math STATIC
-    ${PROJECT_SOURCE_DIR}/vendor/mathc/mathc.cpp
-)
-target_include_directories(radion_math SYSTEM PUBLIC
-    ${PROJECT_SOURCE_DIR}/vendor/mathc
-)
-target_link_libraries(radion_math PUBLIC radion_options)
-
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
 

@@ -20,26 +20,26 @@ namespace
 // each vec3's trailing float in its fourth slot, which is why they are paired.
 struct alignas(16) GrassUniforms
 {
-    Math::Mat4 viewProjection = Math::Mat4(1.0f);
-    Math::Mat4 viewProjectionNoJitter = Math::Mat4(1.0f);
-    Math::Mat4 prevViewProjectionNoJitter = Math::Mat4(1.0f);
+    glm::mat4 viewProjection = glm::mat4(1.0f);
+    glm::mat4 viewProjectionNoJitter = glm::mat4(1.0f);
+    glm::mat4 prevViewProjectionNoJitter = glm::mat4(1.0f);
 
-    Math::Vec3 cameraPosition = Math::Vec3(0.0f);
+    glm::vec3 cameraPosition = glm::vec3(0.0f);
     f32 time = 0.0f;
 
-    Math::Vec3 cameraUp = Math::Vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
     f32 height = 1.2f;
 
-    Math::Vec3 lightDirection = Math::Vec3(0.0f, -1.0f, 0.0f);
+    glm::vec3 lightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
     f32 width = 0.7f;
 
-    Math::Vec3 lightColor = Math::Vec3(1.0f);
+    glm::vec3 lightColor = glm::vec3(1.0f);
     f32 wind = 1.0f;
 
-    Math::Vec3 ambient = Math::Vec3(0.35f);
+    glm::vec3 ambient = glm::vec3(0.35f);
     f32 drawDistance = 120.0f;
 
-    Math::Vec3 viewPosition = Math::Vec3(0.0f);
+    glm::vec3 viewPosition = glm::vec3(0.0f);
     f32 alphaCut = 0.35f;
 
     f32 cameraBend = 0.55f;
@@ -57,16 +57,16 @@ struct alignas(16) GrassUniforms
     s32 pad0 = 0;
     s32 pad1 = 0;
 
-    Math::Vec4 influencers[kGrassMaxInfluencers];
+    glm::vec4 influencers[kGrassMaxInfluencers];
     // A float[8] in std140 is eight sixteen-byte slots, not thirty-two bytes.
-    Math::Vec4 influencerForces[kGrassMaxInfluencers];
+    glm::vec4 influencerForces[kGrassMaxInfluencers];
 };
 
 // The tip now and one step ago, per tuft. Matches Sim in the shaders.
 struct GrassSimState
 {
-    Math::Vec4 currentTail = Math::Vec4(0.0f);
-    Math::Vec4 previousTail = Math::Vec4(0.0f);
+    glm::vec4 currentTail = glm::vec4(0.0f);
+    glm::vec4 previousTail = glm::vec4(0.0f);
 };
 
 // What glMultiDrawArraysIndirect reads. The compute shader owns instanceCount;
@@ -356,7 +356,7 @@ private:
         uniforms.viewPosition = frame.cameraPosition;
         uniforms.time = frame.time;
         // The camera's up axis, straight out of the view matrix's second row.
-        uniforms.cameraUp = Math::Vec3(frame.view[0][1], frame.view[1][1], frame.view[2][1]);
+        uniforms.cameraUp = glm::vec3(frame.view[0][1], frame.view[1][1], frame.view[2][1]);
         uniforms.height = command.height;
         uniforms.width = command.width;
         uniforms.wind = command.wind;
@@ -368,9 +368,9 @@ private:
         // directional light in the scene overrides it, for a scene lit by one
         // instead of by a sky.
         const EnvironmentBlock environment = environmentForFrame(frame);
-        uniforms.lightDirection = Math::Vec3(environment.sunDirection);
-        uniforms.lightColor = Math::Vec3(environment.sunColor);
-        uniforms.ambient = Math::Vec3(environment.ambient);
+        uniforms.lightDirection = glm::vec3(environment.sunDirection);
+        uniforms.lightColor = glm::vec3(environment.sunColor);
+        uniforms.ambient = glm::vec3(environment.ambient);
         uniforms.stiffness = command.stiffness;
         uniforms.drag = command.drag;
         uniforms.deltaTime = command.deltaTime;
@@ -385,7 +385,7 @@ private:
         for (u32 i = 0; i < influencers; ++i)
         {
             const GrassInfluencer& influencer = command.influencers[i];
-            uniforms.influencers[i] = Math::Vec4(influencer.centre, influencer.radius);
+            uniforms.influencers[i] = glm::vec4(influencer.centre, influencer.radius);
             uniforms.influencerForces[i].x = influencer.force;
         }
 

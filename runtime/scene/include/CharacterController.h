@@ -37,30 +37,30 @@ public:
 
     // Desired horizontal movement per second (XZ). onUpdate() integrates it
     // with deltaTime; the vertical axis is driven by gravity and jump().
-    void setMoveInput(const Math::Vec3& moveSpeed);
-    const Math::Vec3& moveInput() const;
+    void setMoveInput(const glm::vec3& moveSpeed);
+    const glm::vec3& moveInput() const;
 
     void jump(f32 speed);
-    void teleport(const Math::Vec3& worldPosition);
+    void teleport(const glm::vec3& worldPosition);
 
     bool isGrounded() const;
-    const Math::Vec3& groundNormal() const;
+    const glm::vec3& groundNormal() const;
     f32 slopeAngle() const; // degrees of the current ground
     // Residual per-second velocity after the last move (what the slide left).
-    const Math::Vec3& velocity() const;
+    const glm::vec3& velocity() const;
 
     struct MoveResult
     {
         bool collided = false;
         bool grounded = false;
-        Math::Vec3 normal = Math::Vec3(0.0f, 1.0f, 0.0f);
-        Math::Vec3 displacement = Math::Vec3(0.0f); // residual after slides
+        glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
+        glm::vec3 displacement = glm::vec3(0.0f); // residual after slides
     };
 
     // CollideAndSlide `displacement` against the octree, moving the owner.
     // This is what onUpdate() calls internally; expose it for a caller that
     // wants to drive the controller by hand instead of through moveInput.
-    MoveResult move(const Math::Vec3& displacement);
+    MoveResult move(const glm::vec3& displacement);
 
 private:
     friend class GameObject;
@@ -70,18 +70,18 @@ private:
 
     struct Slide
     {
-        Math::Vec3 center = Math::Vec3(0.0f);
-        Math::Vec3 velocity = Math::Vec3(0.0f);
+        glm::vec3 center = glm::vec3(0.0f);
+        glm::vec3 velocity = glm::vec3(0.0f);
         bool collided = false;
         bool grounded = false;
-        Math::Vec3 groundNormal = Math::Vec3(0.0f, 1.0f, 0.0f);
+        glm::vec3 groundNormal = glm::vec3(0.0f, 1.0f, 0.0f);
         bool steepBlock = false; // a wall (steeper than slopeLimit) stopped us
     };
 
     // One CollideAndSlide pass: sweep the ellipsoid, slide the velocity off
     // every contact, up to mMaxIterations times. Returns the surviving center
     // and velocity plus grounding info.
-    Slide slide(const Math::Vec3& startCenter, const Math::Vec3& displacement) const;
+    Slide slide(const glm::vec3& startCenter, const glm::vec3& displacement) const;
 
     const TriangleOctree* mOctree = nullptr;
     f32 mRadius = 0.5f;
@@ -93,11 +93,11 @@ private:
     f32 mMaxFallSpeed = -50.0f;
     u32 mMaxIterations = 16;
 
-    Math::Vec3 mMoveInput = Math::Vec3(0.0f);
-    Math::Vec3 mVerticalVelocity = Math::Vec3(0.0f);
-    Math::Vec3 mVelocity = Math::Vec3(0.0f);
+    glm::vec3 mMoveInput = glm::vec3(0.0f);
+    glm::vec3 mVerticalVelocity = glm::vec3(0.0f);
+    glm::vec3 mVelocity = glm::vec3(0.0f);
     bool mGrounded = false;
-    Math::Vec3 mGroundNormal = Math::Vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 mGroundNormal = glm::vec3(0.0f, 1.0f, 0.0f);
 };
 
 } // namespace Radion

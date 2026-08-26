@@ -7,10 +7,10 @@ namespace Radion::Volume
 {
 namespace
 {
-struct GridSample { f32 density; Math::Vec3 gradient; };
-struct Hit { Math::Vec3 position; Math::Vec3 gradient; u64 edge; };
+struct GridSample { f32 density; glm::vec3 gradient; };
+struct Hit { glm::vec3 position; glm::vec3 gradient; u64 edge; };
 
-template <typename Vec> bool finiteVec(const Vec& v)
+bool finiteVec(const glm::vec3& v)
 {
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
@@ -21,7 +21,7 @@ u64 edgeKey(u64 a, u64 b)
 }
 
 u32 weldVertex(MeshData& mesh, HashMap<u64, u32>& weld, const Hit& hit,
-               const Math::Vec3& faceNormal, bool uvs)
+               const glm::vec3& faceNormal, bool uvs)
 {
     const auto found = weld.find(hit.edge);
     if (found != weld.end())
@@ -35,7 +35,7 @@ u32 weldVertex(MeshData& mesh, HashMap<u64, u32>& weld, const Hit& hit,
     mesh.positions.push_back(hit.position);
     mesh.normals.push_back(glm::length(hit.gradient) > 1e-6f ? glm::normalize(hit.gradient)
                                                             : faceNormal);
-    if (uvs) mesh.uvs.push_back(Math::Vec2(hit.position.x, hit.position.z));
+    if (uvs) mesh.uvs.push_back(glm::vec2(hit.position.x, hit.position.z));
     weld[hit.edge] = index;
     return index;
 }
@@ -43,8 +43,8 @@ u32 weldVertex(MeshData& mesh, HashMap<u64, u32>& weld, const Hit& hit,
 void emitTriangle(MeshData& mesh, HashMap<u64, u32>& weld, const Hit& a, const Hit& b,
                   const Hit& c, bool uvs)
 {
-    Math::Vec3 normal = glm::cross(b.position - a.position, c.position - a.position);
-    const Math::Vec3 gradient = a.gradient + b.gradient + c.gradient;
+    glm::vec3 normal = glm::cross(b.position - a.position, c.position - a.position);
+    const glm::vec3 gradient = a.gradient + b.gradient + c.gradient;
     if (glm::dot(normal, gradient) < 0.0f) normal = -normal;
     const u32 i0 = weldVertex(mesh, weld, a, normal, uvs);
     const u32 i1 = weldVertex(mesh, weld, b, normal, uvs);
@@ -52,7 +52,7 @@ void emitTriangle(MeshData& mesh, HashMap<u64, u32>& weld, const Hit& a, const H
     mesh.indices.insert(mesh.indices.end(), {i0, i1, i2});
 }
 
-Hit crossing(const Math::Vec3 positions[4], const GridSample samples[4], const u64 points[4],
+Hit crossing(const glm::vec3 positions[4], const GridSample samples[4], const u64 points[4],
              f32 iso, u8 a, u8 b)
 {
     const f32 da = samples[a].density; const f32 db = samples[b].density;
@@ -62,7 +62,7 @@ Hit crossing(const Math::Vec3 positions[4], const GridSample samples[4], const u
             edgeKey(points[a], points[b])};
 }
 
-void polygonizeTetra(const Math::Vec3 positions[4], const GridSample samples[4],
+void polygonizeTetra(const glm::vec3 positions[4], const GridSample samples[4],
                      const u64 points[4], f32 iso, MeshData& mesh, HashMap<u64, u32>& weld,
                      bool uvs)
 {
@@ -106,10 +106,7 @@ bool buildMesh(const Source& source, const MeshingSettings& settings,
         settings.bounds.min.x > settings.bounds.max.x || settings.bounds.min.y > settings.bounds.max.y ||
         settings.bounds.min.z > settings.bounds.max.z || !std::isfinite(settings.isoLevel)) return false;
 
-    const Math::Vec3 origin(settings.bounds.min.x, settings.bounds.min.y, settings.bounds.min.z);
-    const Math::Vec3 extent(settings.bounds.max.x - settings.bounds.min.x,
-                           settings.bounds.max.y - settings.bounds.min.y,
-                           settings.bounds.max.z - settings.bounds.min.z);
+    const glm::vec3 extent = settings.bounds.max - settings.bounds.min;
     const glm::uvec3 cells(static_cast<u32>(std::ceil(extent.x / settings.voxelSize)),
                            static_cast<u32>(std::ceil(extent.y / settings.voxelSize)),
                            static_cast<u32>(std::ceil(extent.z / settings.voxelSize)));
@@ -125,7 +122,7 @@ bool buildMesh(const Source& source, const MeshingSettings& settings,
     const f32 isoEpsilon = settings.voxelSize * 1e-4f;
     for (u32 z = 0; z < points.z; ++z) for (u32 y = 0; y < points.y; ++y) for (u32 x = 0; x < points.x; ++x)
     {
-        const Math::Vec3 p = origin + Math::Vec3(x, y, z) * settings.voxelSize;
+        const glm::vec3 p = settings.bounds.min + glm::vec3(x, y, z) * settings.voxelSize;
         const Sample sample = source.sample(p);
         f32 density = sample.density;
         if (std::abs(density - settings.isoLevel) < isoEpsilon) density = settings.isoLevel + isoEpsilon;
@@ -138,17 +135,17 @@ bool buildMesh(const Source& source, const MeshingSettings& settings,
                                             {0,2,6,7},{0,4,5,7},{0,4,6,7}};
     for (u32 z = 0; z < cells.z; ++z) for (u32 y = 0; y < cells.y; ++y) for (u32 x = 0; x < cells.x; ++x)
     {
-        Math::Vec3 p[8] = {}; GridSample s[8] = {}; u64 g[8] = {};
+        glm::vec3 p[8] = {}; GridSample s[8] = {}; u64 g[8] = {};
         for (u32 i = 0; i < 8; ++i)
         {
             const u32 dx = i & 1, dy = (i >> 1) & 1, dz = (i >> 2) & 1;
-            p[i] = origin + Math::Vec3(x+dx,y+dy,z+dz) * settings.voxelSize;
+            p[i] = settings.bounds.min + glm::vec3(x+dx,y+dy,z+dz) * settings.voxelSize;
             g[i] = index(x+dx,y+dy,z+dz);
             s[i] = grid[static_cast<usize>(g[i])];
         }
         for (const auto& tetra : tetrahedra)
         {
-            Math::Vec3 tp[4]; GridSample ts[4]; u64 tg[4];
+            glm::vec3 tp[4]; GridSample ts[4]; u64 tg[4];
             for (u32 i = 0; i < 4; ++i) { tp[i] = p[tetra[i]]; ts[i] = s[tetra[i]]; tg[i] = g[tetra[i]]; }
             const usize before = result.indices.size();
             polygonizeTetra(tp, ts, tg, settings.isoLevel, result, weld, settings.generateUVs);
@@ -156,9 +153,9 @@ bool buildMesh(const Source& source, const MeshingSettings& settings,
         }
         ++local.cells;
     }
-    for (Math::Vec3& n : result.normals)
-        n = glm::length(n) > 1e-6f ? glm::normalize(n) : Math::Vec3(0.0f, 1.0f, 0.0f);
-    for (const Math::Vec3& p : result.positions) result.bounds.expand(p);
+    for (glm::vec3& n : result.normals)
+        n = glm::length(n) > 1e-6f ? glm::normalize(n) : glm::vec3(0.0f, 1.0f, 0.0f);
+    for (const glm::vec3& p : result.positions) result.bounds.expand(p);
     if (!result.positions.empty()) result.submeshes.push_back({0, static_cast<u32>(result.indices.size()), 0, 0, result.bounds});
     out = std::move(result);
     if (stats) *stats = local;

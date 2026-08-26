@@ -54,7 +54,7 @@ bool Forest::buildSpecies(Species& species, const TreeParams& params, f32 height
     const f32 grown = data.bounds.max.y - data.bounds.min.y;
     if (grown > 0.0001f && height > 0.0f)
     {
-        Assets().scale(data, Math::Vec3(height / grown));
+        Assets().scale(data, glm::vec3(height / grown));
         Assets().computeBounds(data);
         Assets().computeSubMeshBounds(data);
     }
@@ -380,7 +380,7 @@ u32 Forest::pickSpecies()
     return static_cast<u32>(mSpecies.size() - 1);
 }
 
-bool Forest::plant(const Math::Vec3& position, u32 species, f32 scale, f32 yawDegrees)
+bool Forest::plant(const glm::vec3& position, u32 species, f32 scale, f32 yawDegrees)
 {
     if (species >= mSpecies.size() || scale <= 0.0f)
         return false;
@@ -393,7 +393,7 @@ bool Forest::plant(const Math::Vec3& position, u32 species, f32 scale, f32 yawDe
     return true;
 }
 
-u32 Forest::paint(const Math::Vec3& centre, f32 radius, u32 count)
+u32 Forest::paint(const glm::vec3& centre, f32 radius, u32 count)
 {
     if (mSpecies.empty() || radius <= 0.0f)
         return 0;
@@ -405,7 +405,7 @@ u32 Forest::paint(const Math::Vec3& centre, f32 radius, u32 count)
         // area grows with r², so a uniform r does not give a uniform scatter.
         const f32 angle = random() * 2.0f * glm::pi<f32>();
         const f32 distance = std::sqrt(random()) * radius;
-        const Math::Vec3 position = centre + Math::Vec3(std::cos(angle) * distance, 0.0f,
+        const glm::vec3 position = centre + glm::vec3(std::cos(angle) * distance, 0.0f,
                                                        std::sin(angle) * distance);
 
         const u32 species = pickSpecies();
@@ -428,9 +428,9 @@ u32 Forest::count() const
 }
 
 u32 Forest::instanceCount() const { return static_cast<u32>(mInstances.size()); }
-Math::Vec3 Forest::instancePosition(u32 index) const
+glm::vec3 Forest::instancePosition(u32 index) const
 {
-    return index < mInstances.size() ? mInstances[index].position : Math::Vec3(0.0f);
+    return index < mInstances.size() ? mInstances[index].position : glm::vec3(0.0f);
 }
 f32 Forest::instanceScale(u32 index) const
 {
@@ -504,7 +504,7 @@ u32 Forest::paintFromGrid()
     return planted;
 }
 
-void Forest::submit(RenderList& list, const Math::Mat4& transform, const Math::Vec3& cameraPosition)
+void Forest::submit(RenderList& list, const glm::mat4& transform, const glm::vec3& cameraPosition)
 {
     mVisible = 0;
     mImpostorsVisible = 0;
@@ -525,7 +525,7 @@ void Forest::submit(RenderList& list, const Math::Mat4& transform, const Math::V
     submitCamera(transform, cameraPosition);
 }
 
-void Forest::submitCamera(const Math::Mat4& transform, const Math::Vec3& cameraPosition)
+void Forest::submitCamera(const glm::mat4& transform, const glm::vec3& cameraPosition)
 {
     AssetManager& assets = Assets();
     const f32 cutoff = mDrawDistance * mDrawDistance;
@@ -556,7 +556,7 @@ void Forest::submitCamera(const Math::Mat4& transform, const Math::Vec3& cameraP
             if (instance.species != s)
                 continue;
 
-            const Math::Vec3 world = Math::Vec3(transform * Math::Vec4(instance.position, 1.0f));
+            const glm::vec3 world = glm::vec3(transform * glm::vec4(instance.position, 1.0f));
             const f32 distanceSquared = glm::dot(world - cameraPosition, world - cameraPosition);
             if (distanceSquared > cutoff)
                 continue;
@@ -564,7 +564,7 @@ void Forest::submitCamera(const Math::Mat4& transform, const Math::Vec3& cameraP
             TreeInstanceData data;
             data.position = world;
             data.scale = instance.scale;
-            data.normal = Math::Vec3(0.0f, 1.0f, 0.0f);
+            data.normal = glm::vec3(0.0f, 1.0f, 0.0f);
             data.rotation = instance.yaw;
 
             if (distanceSquared <= meshCutoff * meshCutoff)
@@ -605,8 +605,8 @@ void Forest::submitCamera(const Math::Mat4& transform, const Math::Vec3& cameraP
     }
 }
 
-void Forest::submitShadow(RenderList& list, const Math::Mat4& transform,
-                          const Math::Vec3& cameraPosition)
+void Forest::submitShadow(RenderList& list, const glm::mat4& transform,
+                          const glm::vec3& cameraPosition)
 {
     AssetManager& assets = Assets();
     MaterialManager& materials = MaterialManager::getSingleton();
@@ -632,13 +632,13 @@ void Forest::submitShadow(RenderList& list, const Math::Mat4& transform,
             if (instance.species != s)
                 continue;
 
-            const Math::Vec3 world = Math::Vec3(transform * Math::Vec4(instance.position, 1.0f));
+            const glm::vec3 world = glm::vec3(transform * glm::vec4(instance.position, 1.0f));
             if (glm::dot(world - cameraPosition, world - cameraPosition) > cutoff)
                 continue;
 
-            Math::Mat4 model = glm::translate(transform, instance.position);
-            model = glm::rotate(model, instance.yaw, Math::Vec3(0.0f, 1.0f, 0.0f));
-            model = glm::scale(model, Math::Vec3(instance.scale));
+            glm::mat4 model = glm::translate(transform, instance.position);
+            model = glm::rotate(model, instance.yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(instance.scale));
 
             // The list runs the frustum test itself, per submesh, so a tree
             // that is behind the camera costs one box transform and no packet.

@@ -16,13 +16,13 @@ public:
     {
         f32 distance = 0.0f;
         u32 triangle = 0;
-        Math::Vec3 position{0.0f};
-        Math::Vec3 normal{0.0f};
+        glm::vec3 position{0.0f};
+        glm::vec3 normal{0.0f};
     };
 
     void clear();
-    bool build(const MeshData& mesh, const Math::Mat4& transform = Math::Mat4(1.0f));
-    bool intersect(const Math::Vec3& origin, const Math::Vec3& direction,
+    bool build(const MeshData& mesh, const glm::mat4& transform = glm::mat4(1.0f));
+    bool intersect(const glm::vec3& origin, const glm::vec3& direction,
                    f32 maxDistance, Hit* hit = nullptr) const;
     usize triangleCount() const { return m_triangles.size(); }
     usize nodeCount() const { return m_nodes.size(); }
@@ -30,9 +30,9 @@ public:
 public:
     struct Triangle
     {
-        Math::Vec3 a, b, c;
+        glm::vec3 a, b, c;
         AABB bounds;
-        Math::Vec3 centroid;
+        glm::vec3 centroid;
     };
 private:
     struct Node
@@ -46,7 +46,7 @@ private:
     };
 
     u32 buildNode(u32 first, u32 count);
-    bool intersectNode(u32 node, const Math::Vec3& origin, const Math::Vec3& direction,
+    bool intersectNode(u32 node, const glm::vec3& origin, const glm::vec3& direction,
                        f32& closest, Hit& hit) const;
 
     std::vector<Triangle> m_triangles;

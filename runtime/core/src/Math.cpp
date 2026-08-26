@@ -10,36 +10,36 @@ bool AABB::empty() const
     return min.x > max.x || min.y > max.y || min.z > max.z;
 }
 
-Math::Vec3 AABB::center() const
+glm::vec3 AABB::center() const
 {
     return (min + max) * 0.5f;
 }
 
-Math::Vec3 AABB::extents() const
+glm::vec3 AABB::extents() const
 {
     return (max - min) * 0.5f;
 }
 
 float AABB::radius() const
 {
-    return extents().Length();
+    return glm::length(extents());
 }
 
-void AABB::expand(const Math::Vec3& point)
+void AABB::expand(const glm::vec3& point)
 {
-    min = Math::Vec3::Min(min, point);
-    max = Math::Vec3::Max(max, point);
+    min = glm::min(min, point);
+    max = glm::max(max, point);
 }
 
 void AABB::merge(const AABB& other)
 {
     if (other.empty())
         return;
-    min = Math::Vec3::Min(min, other.min);
-    max = Math::Vec3::Max(max, other.max);
+    min = glm::min(min, other.min);
+    max = glm::max(max, other.max);
 }
 
-bool AABB::contains(const Math::Vec3& point) const
+bool AABB::contains(const glm::vec3& point) const
 {
     return point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y &&
            point.z >= min.z && point.z <= max.z;
@@ -51,21 +51,21 @@ bool AABB::intersects(const AABB& other) const
            max.y >= other.min.y && min.z <= other.max.z && max.z >= other.min.z;
 }
 
-AABB transformAABB(const AABB& box, const Math::Mat4& matrix)
+AABB transformAABB(const AABB& box, const glm::mat4& matrix)
 {
     if (box.empty())
         return box;
 
-    const Math::Vec3 center = box.center();
-    const Math::Vec3 extents = box.extents();
+    const glm::vec3 center = box.center();
+    const glm::vec3 extents = box.extents();
 
-    const Math::Vec3 newCenter = (matrix * Math::Vec4(center, 1.0f)).xyz();
-    Math::Vec3 newExtents;
+    const glm::vec3 newCenter = glm::vec3(matrix * glm::vec4(center, 1.0f));
+    glm::vec3 newExtents;
     for (int axis = 0; axis < 3; ++axis)
     {
-        newExtents[axis] = std::abs(matrix[0][axis]) * extents.x +
-                           std::abs(matrix[1][axis]) * extents.y +
-                           std::abs(matrix[2][axis]) * extents.z;
+        newExtents[axis] = glm::abs(matrix[0][axis]) * extents.x +
+                           glm::abs(matrix[1][axis]) * extents.y +
+                           glm::abs(matrix[2][axis]) * extents.z;
     }
 
     AABB result;
@@ -76,17 +76,17 @@ AABB transformAABB(const AABB& box, const Math::Mat4& matrix)
 
 // ------------------------------------------------------------------- sphere
 
-bool Sphere::contains(const Math::Vec3& point) const
+bool Sphere::contains(const glm::vec3& point) const
 {
-    const Math::Vec3 delta = point - center;
-    return Math::Vec3::Dot(delta, delta) <= radius * radius;
+    const glm::vec3 delta = point - center;
+    return glm::dot(delta, delta) <= radius * radius;
 }
 
 bool Sphere::intersects(const Sphere& other) const
 {
-    const Math::Vec3 delta = other.center - center;
+    const glm::vec3 delta = other.center - center;
     const float reach = radius + other.radius;
-    return Math::Vec3::Dot(delta, delta) <= reach * reach;
+    return glm::dot(delta, delta) <= reach * reach;
 }
 
 bool Sphere::intersects(const AABB& box) const
@@ -94,9 +94,9 @@ bool Sphere::intersects(const AABB& box) const
     if (box.empty())
         return false;
 
-    const Math::Vec3 closest = Math::Vec3::Clamp(center, box.min, box.max);
-    const Math::Vec3 delta = center - closest;
-    return Math::Vec3::Dot(delta, delta) <= radius * radius;
+    const glm::vec3 closest = glm::clamp(center, box.min, box.max);
+    const glm::vec3 delta = center - closest;
+    return glm::dot(delta, delta) <= radius * radius;
 }
 
 Sphere sphereOfAABB(const AABB& box)
@@ -112,14 +112,14 @@ Sphere sphereOfAABB(const AABB& box)
 
 // -------------------------------------------------------------------- plane
 
-float Plane::distance(const Math::Vec3& point) const
+float Plane::distance(const glm::vec3& point) const
 {
-    return Math::Vec3::Dot(normal, point) + d;
+    return glm::dot(normal, point) + d;
 }
 
 void Plane::normalize()
 {
-    const float length = normal.Length();
+    const float length = glm::length(normal);
     if (length <= 0.0f)
         return;
 
@@ -130,7 +130,7 @@ void Plane::normalize()
 
 // ---------------------------------------------------------------------- ray
 
-Math::Vec3 Ray::at(float t) const
+glm::vec3 Ray::at(float t) const
 {
     return origin + direction * t;
 }
@@ -172,9 +172,9 @@ bool Ray::intersects(const AABB& box, float& t) const
 
 bool Ray::intersects(const Sphere& sphere, float& t) const
 {
-    const Math::Vec3 delta = origin - sphere.center;
-    const float b = Math::Vec3::Dot(delta, direction);
-    const float c = Math::Vec3::Dot(delta, delta) - sphere.radius * sphere.radius;
+    const glm::vec3 delta = origin - sphere.center;
+    const float b = glm::dot(delta, direction);
+    const float c = glm::dot(delta, delta) - sphere.radius * sphere.radius;
 
     const float discriminant = b * b - c;
     if (discriminant < 0.0f)
@@ -193,11 +193,11 @@ bool Ray::intersects(const Sphere& sphere, float& t) const
 
 bool Ray::intersects(const Plane& plane, float& t) const
 {
-    const float denominator = Math::Vec3::Dot(plane.normal, direction);
-    if (std::abs(denominator) < 1e-6f)
+    const float denominator = glm::dot(plane.normal, direction);
+    if (glm::abs(denominator) < 1e-6f)
         return false;
 
-    const float hit = -(Math::Vec3::Dot(plane.normal, origin) + plane.d) / denominator;
+    const float hit = -(glm::dot(plane.normal, origin) + plane.d) / denominator;
     if (hit < 0.0f)
         return false;
 
@@ -205,28 +205,28 @@ bool Ray::intersects(const Plane& plane, float& t) const
     return true;
 }
 
-bool Ray::intersects(const Math::Vec3& v0, const Math::Vec3& v1, const Math::Vec3& v2, float& t) const
+bool Ray::intersects(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2, float& t) const
 {
-    const Math::Vec3 edge1 = v1 - v0;
-    const Math::Vec3 edge2 = v2 - v0;
+    const glm::vec3 edge1 = v1 - v0;
+    const glm::vec3 edge2 = v2 - v0;
 
-    const Math::Vec3 h = Math::Vec3::Cross(direction, edge2);
-    const float a = Math::Vec3::Dot(edge1, h);
-    if (std::abs(a) < 1e-8f)
+    const glm::vec3 h = glm::cross(direction, edge2);
+    const float a = glm::dot(edge1, h);
+    if (glm::abs(a) < 1e-8f)
         return false;
 
     const float f = 1.0f / a;
-    const Math::Vec3 s = origin - v0;
-    const float u = f * Math::Vec3::Dot(s, h);
+    const glm::vec3 s = origin - v0;
+    const float u = f * glm::dot(s, h);
     if (u < 0.0f || u > 1.0f)
         return false;
 
-    const Math::Vec3 q = Math::Vec3::Cross(s, edge1);
-    const float v = f * Math::Vec3::Dot(direction, q);
+    const glm::vec3 q = glm::cross(s, edge1);
+    const float v = f * glm::dot(direction, q);
     if (v < 0.0f || u + v > 1.0f)
         return false;
 
-    const float hit = f * Math::Vec3::Dot(edge2, q);
+    const float hit = f * glm::dot(edge2, q);
     if (hit < 0.0f)
         return false;
 
@@ -235,7 +235,7 @@ bool Ray::intersects(const Math::Vec3& v0, const Math::Vec3& v1, const Math::Vec
 }
 
 Ray rayFromScreen(float screenX, float screenY, float viewportWidth, float viewportHeight,
-                  const Math::Mat4& inverseViewProjection)
+                  const glm::mat4& inverseViewProjection)
 {
     Ray ray;
     if (viewportWidth <= 0.0f || viewportHeight <= 0.0f)
@@ -244,8 +244,8 @@ Ray rayFromScreen(float screenX, float screenY, float viewportWidth, float viewp
     const float ndcX = (screenX / viewportWidth) * 2.0f - 1.0f;
     const float ndcY = 1.0f - (screenY / viewportHeight) * 2.0f;
 
-    Math::Vec4 nearPoint = inverseViewProjection * Math::Vec4(ndcX, ndcY, -1.0f, 1.0f);
-    Math::Vec4 farPoint = inverseViewProjection * Math::Vec4(ndcX, ndcY, 1.0f, 1.0f);
+    glm::vec4 nearPoint = inverseViewProjection * glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+    glm::vec4 farPoint = inverseViewProjection * glm::vec4(ndcX, ndcY, 1.0f, 1.0f);
 
     if (nearPoint.w == 0.0f || farPoint.w == 0.0f)
         return ray;
@@ -253,8 +253,8 @@ Ray rayFromScreen(float screenX, float screenY, float viewportWidth, float viewp
     nearPoint /= nearPoint.w;
     farPoint /= farPoint.w;
 
-    ray.origin = nearPoint.xyz();
-    ray.direction = (farPoint - nearPoint).xyz().Normalized();
+    ray.origin = glm::vec3(nearPoint);
+    ray.direction = glm::normalize(glm::vec3(farPoint - nearPoint));
     return ray;
 }
 
@@ -264,26 +264,26 @@ Frustum::Frustum()
 {
 }
 
-void Frustum::update(const Math::Mat4& m)
+void Frustum::update(const glm::mat4& m)
 {
     // Row i of the matrix, remembering glm indexes as m[column][row].
-    const Math::Vec4 row0(m[0][0], m[1][0], m[2][0], m[3][0]);
-    const Math::Vec4 row1(m[0][1], m[1][1], m[2][1], m[3][1]);
-    const Math::Vec4 row2(m[0][2], m[1][2], m[2][2], m[3][2]);
-    const Math::Vec4 row3(m[0][3], m[1][3], m[2][3], m[3][3]);
+    const glm::vec4 row0(m[0][0], m[1][0], m[2][0], m[3][0]);
+    const glm::vec4 row1(m[0][1], m[1][1], m[2][1], m[3][1]);
+    const glm::vec4 row2(m[0][2], m[1][2], m[2][2], m[3][2]);
+    const glm::vec4 row3(m[0][3], m[1][3], m[2][3], m[3][3]);
 
-    const Math::Vec4 sides[SideCount] = {row3 + row0, row3 - row0, row3 + row1,
+    const glm::vec4 sides[SideCount] = {row3 + row0, row3 - row0, row3 + row1,
                                         row3 - row1, row3 + row2, row3 - row2};
 
     for (int i = 0; i < SideCount; ++i)
     {
-        mPlanes[i].normal = sides[i].xyz();
+        mPlanes[i].normal = glm::vec3(sides[i]);
         mPlanes[i].d = sides[i].w;
         mPlanes[i].normalize();
     }
 }
 
-bool Frustum::contains(const Math::Vec3& point) const
+bool Frustum::contains(const glm::vec3& point) const
 {
     for (int i = 0; i < SideCount; ++i)
     {
@@ -308,16 +308,16 @@ bool Frustum::intersects(const AABB& box) const
     return classify(box) != Containment::Outside;
 }
 
-bool Frustum::intersects(const Math::Vec3& min, const Math::Vec3& max) const
+bool Frustum::intersects(const glm::vec3& min, const glm::vec3& max) const
 {
     for (int i = 0; i < SideCount; ++i)
     {
         const Plane& plane = mPlanes[i];
 
         // Projected radius of the box onto the plane normal.
-        const float reach = (max.x - min.x) * 0.5f * std::abs(plane.normal.x) +
-                            (max.y - min.y) * 0.5f * std::abs(plane.normal.y) +
-                            (max.z - min.z) * 0.5f * std::abs(plane.normal.z);
+        const float reach = (max.x - min.x) * 0.5f * glm::abs(plane.normal.x) +
+                            (max.y - min.y) * 0.5f * glm::abs(plane.normal.y) +
+                            (max.z - min.z) * 0.5f * glm::abs(plane.normal.z);
         const float distance = plane.distance((min + max) * 0.5f);
 
         if (distance < -reach)
@@ -331,8 +331,8 @@ Containment Frustum::classify(const AABB& box) const
     if (box.empty())
         return Containment::Outside;
 
-    const Math::Vec3 center = box.center();
-    const Math::Vec3 extents = box.extents();
+    const glm::vec3 center = box.center();
+    const glm::vec3 extents = box.extents();
     bool intersecting = false;
 
     for (int i = 0; i < SideCount; ++i)
@@ -340,9 +340,9 @@ Containment Frustum::classify(const AABB& box) const
         const Plane& plane = mPlanes[i];
 
         // Projected radius of the box onto the plane normal.
-        const float reach = extents.x * std::abs(plane.normal.x) +
-                            extents.y * std::abs(plane.normal.y) +
-                            extents.z * std::abs(plane.normal.z);
+        const float reach = extents.x * glm::abs(plane.normal.x) +
+                            extents.y * glm::abs(plane.normal.y) +
+                            extents.z * glm::abs(plane.normal.z);
         const float distance = plane.distance(center);
 
         if (distance < -reach)

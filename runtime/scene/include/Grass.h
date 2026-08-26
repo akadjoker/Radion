@@ -50,8 +50,8 @@ public:
     // Scatters `count` tufts in a disc on the centre's own y plane, upright.
     // Following terrain height and slope is the caller's job - plant() takes
     // whatever position and normal it is given.
-    u32 paint(const Math::Vec3& centre, f32 radius, u32 count);
-    bool plant(const Math::Vec3& position, const Math::Vec3& normal, f32 scale = 1.0f);
+    u32 paint(const glm::vec3& centre, f32 radius, u32 count);
+    bool plant(const glm::vec3& position, const glm::vec3& normal, f32 scale = 1.0f);
     bool plant(const GrassClump& clump);
     bool clump(u32 index, GrassClump& clump) const;
     void clear();
@@ -87,7 +87,7 @@ public:
     // Spheres that push the grass aside. Cleared and re-added each frame by
     // whatever is moving through the field; only the first eight are kept.
     void clearInfluencers();
-    bool addInfluencer(const Math::Vec3& centre, f32 radius, f32 force);
+    bool addInfluencer(const glm::vec3& centre, f32 radius, f32 force);
     u32 influencerCount() const;
 
     // How far the tip leans towards the camera's up. Zero shows what it is
@@ -120,8 +120,8 @@ private:
 
     // Hands the field to the grass pass for this frame. Nothing is copied -
     // the pass reads these arrays and uploads on a revision change.
-    void submit(const Math::Mat4& transform, f32 deltaTime);
-    void rebuildWorld(const Math::Mat4& transform);
+    void submit(const glm::mat4& transform, f32 deltaTime);
+    void rebuildWorld(const glm::mat4& transform);
 
     f32 random();
     static GrassAtlasRect computeRegion(u32 x, u32 y, u32 width, u32 height, f32 size,
@@ -129,7 +129,7 @@ private:
 
     std::vector<GrassClump> mClumps;      // as painted, in the owner's space
     std::vector<GrassClump> mWorldClumps; // what the pass reads
-    Math::Mat4 mTransform = Math::Mat4(1.0f);
+    glm::mat4 mTransform = glm::mat4(1.0f);
     std::vector<GrassAtlasRect> mRegions;
     std::vector<f32> mWeights;
     std::vector<GrassInfluencer> mInfluencers;
