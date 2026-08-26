@@ -37,37 +37,37 @@ public:
     // --- behaviors ----------------------------------------------------------
 
     // Steer toward a target (desired velocity - current velocity).
-    glm::vec3 seek(const glm::vec3& target) const;
+    Math::vec3 seek(const Math::vec3& target) const;
 
     // Steer away from a threat.
-    glm::vec3 flee(const glm::vec3& target) const;
+    Math::vec3 flee(const Math::vec3& target) const;
 
     // Random lateral wander (stateful; uses dt for the random-walk step).
-    glm::vec3 wander(float dt);
+    Math::vec3 wander(float dt);
 
     // Pursuit of another entity, with an optional ceiling on prediction time.
-    glm::vec3 pursuit(const Entity& quarry) const;
-    glm::vec3 pursuit(const Entity& quarry, float maxPredictionTime) const;
+    Math::vec3 pursuit(const Entity& quarry) const;
+    Math::vec3 pursuit(const Entity& quarry, float maxPredictionTime) const;
 
     // Evasion of a menace, with a ceiling on prediction time.
-    glm::vec3 evasion(const Entity& menace, float maxPredictionTime) const;
+    Math::vec3 evasion(const Entity& menace, float maxPredictionTime) const;
 
     // Flocking on the vehicle's sense lists (Entity::visibleGroupMembers).
-    glm::vec3 separation(float maxDistance, float cosMaxAngle,
+    Math::vec3 separation(float maxDistance, float cosMaxAngle,
                          const std::vector<EntityDist>& flock) const;
-    glm::vec3 alignment(float maxDistance, float cosMaxAngle,
+    Math::vec3 alignment(float maxDistance, float cosMaxAngle,
                         const std::vector<EntityDist>& flock) const;
-    glm::vec3 cohesion(float maxDistance, float cosMaxAngle,
+    Math::vec3 cohesion(float maxDistance, float cosMaxAngle,
                        const std::vector<EntityDist>& flock) const;
 
     // Obstacle avoidance over an ObstacleGroup.
-    glm::vec3 avoidObstacles(float minTimeToCollision, const ObstacleGroup& obstacles) const;
+    Math::vec3 avoidObstacles(float minTimeToCollision, const ObstacleGroup& obstacles) const;
 
     // Unaligned collision avoidance against a set of nearby entities.
-    glm::vec3 avoidNeighbors(float minTimeToCollision, const std::vector<EntityDist>& others);
+    Math::vec3 avoidNeighbors(float minTimeToCollision, const std::vector<EntityDist>& others);
 
     // Try to maintain a given speed, clipped to maxForce, along forward.
-    glm::vec3 targetSpeed(float targetSpeed) const;
+    Math::vec3 targetSpeed(float targetSpeed) const;
 
     // --- helpers ------------------------------------------------------------
 
@@ -83,20 +83,20 @@ public:
     bool inBoidNeighborhood(const Entity& other, float minDistance, float maxDistance,
                             float cosMaxAngle) const;
 
-    bool isAhead(const glm::vec3& target, float cosThreshold = 0.707f) const;
-    bool isAside(const glm::vec3& target, float cosThreshold = 0.707f) const;
-    bool isBehind(const glm::vec3& target, float cosThreshold = -0.707f) const;
+    bool isAhead(const Math::vec3& target, float cosThreshold = 0.707f) const;
+    bool isAside(const Math::vec3& target, float cosThreshold = 0.707f) const;
+    bool isBehind(const Math::vec3& target, float cosThreshold = -0.707f) const;
 
     // Wander state.
     float wanderSide = 0.0f;
     float wanderUp = 0.0f;
 
     // Nearest-approach positions, filled by computeNearestApproachPositions.
-    glm::vec3 hisPositionAtNearestApproach = glm::vec3(0.0f);
-    glm::vec3 ourPositionAtNearestApproach = glm::vec3(0.0f);
+    Math::vec3 hisPositionAtNearestApproach = Math::vec3(0.0f);
+    Math::vec3 ourPositionAtNearestApproach = Math::vec3(0.0f);
 
 private:
-    glm::vec3 avoidCloseNeighbors(float minSeparationDistance,
+    Math::vec3 avoidCloseNeighbors(float minSeparationDistance,
                                   const std::vector<EntityDist>& others) const;
 
     const Entity* mVehicle = nullptr;
@@ -107,10 +107,10 @@ private:
 class SeekBehavior final : public Behavior
 {
 public:
-    explicit SeekBehavior(const glm::vec3& target) : mTarget(target)
+    explicit SeekBehavior(const Math::vec3& target) : mTarget(target)
     {
     }
-    void setTarget(const glm::vec3& target)
+    void setTarget(const Math::vec3& target)
     {
         mTarget = target;
     }
@@ -122,17 +122,17 @@ public:
     void iterate(float timeDelta, Entity& entity) override;
 
 private:
-    glm::vec3 mTarget;
+    Math::vec3 mTarget;
     SteerLibrary mSteer;
 };
 
 class FleeBehavior final : public Behavior
 {
 public:
-    explicit FleeBehavior(const glm::vec3& threat) : mThreat(threat)
+    explicit FleeBehavior(const Math::vec3& threat) : mThreat(threat)
     {
     }
-    void setThreat(const glm::vec3& threat)
+    void setThreat(const Math::vec3& threat)
     {
         mThreat = threat;
     }
@@ -144,7 +144,7 @@ public:
     void iterate(float timeDelta, Entity& entity) override;
 
 private:
-    glm::vec3 mThreat;
+    Math::vec3 mThreat;
     SteerLibrary mSteer;
 };
 
@@ -190,7 +190,7 @@ private:
 class SteerBehavior final : public Behavior
 {
 public:
-    using SteerFunc = std::function<glm::vec3(SteerLibrary&, float)>;
+    using SteerFunc = std::function<Math::vec3(SteerLibrary&, float)>;
     explicit SteerBehavior(SteerFunc func) : mFunc(std::move(func))
     {
     }

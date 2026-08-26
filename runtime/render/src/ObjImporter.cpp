@@ -144,7 +144,7 @@ u32 hashName(const std::string& name)
 struct RawMaterial
 {
     std::string name;
-    glm::vec3 diffuse = glm::vec3(0.75f);
+    Math::vec3 diffuse = Math::vec3(0.75f);
     std::string albedo;
     std::string normalMap;
 
@@ -260,9 +260,9 @@ bool ObjImporter::import(const std::string& filename, ByteArray& data, FileSyste
 {
     mesh.clear();
     const std::string directory = directoryOf(filename);
-    std::vector<glm::vec3> sourcePositions;
-    std::vector<glm::vec3> sourceNormals;
-    std::vector<glm::vec2> sourceUvs;
+    std::vector<Math::vec3> sourcePositions;
+    std::vector<Math::vec3> sourceNormals;
+    std::vector<Math::vec2> sourceUvs;
     std::vector<RawMaterial> rawMaterials;
     HashMap<std::string, u32> materialIndices;
     HashMap<VertexKey, u32, VertexKeyHash> vertices;
@@ -404,11 +404,11 @@ bool ObjImporter::import(const std::string& filename, ByteArray& data, FileSyste
                     mesh.normals.push_back(normal >= 0 &&
                                                    normal < static_cast<int>(sourceNormals.size())
                                                ? sourceNormals[normal]
-                                               : glm::vec3(0.0f));
+                                               : Math::vec3(0.0f));
                     missingNormals.push_back(normal < 0 ? 1 : 0);
                     mesh.uvs.push_back(uv >= 0 && uv < static_cast<int>(sourceUvs.size())
                                            ? sourceUvs[uv]
-                                           : glm::vec2(0.0f));
+                                           : Math::vec2(0.0f));
                 }
 
                 if (corners == 0)
@@ -433,7 +433,7 @@ bool ObjImporter::import(const std::string& filename, ByteArray& data, FileSyste
     {
         mesh.materials[i].name = rawMaterials[i].name;
         mesh.materials[i].nameHash = hashName(rawMaterials[i].name);
-        mesh.materials[i].params.baseColor = glm::vec4(rawMaterials[i].diffuse, 1.0f);
+        mesh.materials[i].params.baseColor = Math::vec4(rawMaterials[i].diffuse, 1.0f);
         if (rawMaterials[i].cutout)
         {
             // AlphaTest is a category, not just a shader switch: it is what
@@ -464,7 +464,7 @@ bool ObjImporter::import(const std::string& filename, ByteArray& data, FileSyste
         const u32 a = mesh.indices[i];
         const u32 b = mesh.indices[i + 1];
         const u32 c = mesh.indices[i + 2];
-        const glm::vec3 face = glm::cross(mesh.positions[b] - mesh.positions[a],
+        const Math::vec3 face = Math::cross(mesh.positions[b] - mesh.positions[a],
                                           mesh.positions[c] - mesh.positions[a]);
         if (missingNormals[a])
             mesh.normals[a] += face;
@@ -475,12 +475,12 @@ bool ObjImporter::import(const std::string& filename, ByteArray& data, FileSyste
     }
     for (usize i = 0; i < mesh.normals.size(); ++i)
     {
-        if (missingNormals[i] && glm::dot(mesh.normals[i], mesh.normals[i]) > 0.0f)
-            mesh.normals[i] = glm::normalize(mesh.normals[i]);
+        if (missingNormals[i] && Math::dot(mesh.normals[i], mesh.normals[i]) > 0.0f)
+            mesh.normals[i] = Math::normalize(mesh.normals[i]);
     }
 
     mesh.bounds = AABB();
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::vec3& position : mesh.positions)
         mesh.bounds.expand(position);
     for (SubMesh& submesh : mesh.submeshes)
     {

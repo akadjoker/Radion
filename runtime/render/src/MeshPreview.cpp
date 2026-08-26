@@ -8,7 +8,7 @@
 #include "Material.h"
 #include "ShadowPass.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -23,8 +23,8 @@ namespace
 // for the layout to match what the shader declares.
 struct GPUInstance
 {
-    glm::mat4 model = glm::mat4(1.0f);
-    glm::mat4 prevModel = glm::mat4(1.0f);
+    Math::mat4 model = Math::mat4(1.0f);
+    Math::mat4 prevModel = Math::mat4(1.0f);
     u32 paletteOffset = 0;
     u32 prevPaletteOffset = 0;
     u32 padding[2] = {0, 0};
@@ -196,24 +196,24 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
     // Frame the mesh by its own bounds rather than a fixed distance: the
     // generator's trees range from a knee-high shrub to a sequoia, and one
     // distance cannot suit both.
-    const glm::vec3 centre = (mesh->bounds.min + mesh->bounds.max) * 0.5f;
-    const f32 radius = glm::max(mesh->bounds.radius(), 0.001f);
-    const f32 fieldOfView = glm::radians(40.0f);
-    const f32 distance = radius / glm::tan(fieldOfView * 0.5f) * 1.15f;
+    const Math::vec3 centre = (mesh->bounds.min + mesh->bounds.max) * 0.5f;
+    const f32 radius = Math::max(mesh->bounds.radius(), 0.001f);
+    const f32 fieldOfView = Math::radians(40.0f);
+    const f32 distance = radius / Math::tan(fieldOfView * 0.5f) * 1.15f;
 
-    const glm::vec3 eye = centre + glm::vec3(glm::cos(pitch) * glm::sin(yaw) * distance,
-                                             glm::sin(pitch) * distance,
-                                             glm::cos(pitch) * glm::cos(yaw) * distance);
+    const Math::vec3 eye = centre + Math::vec3(Math::cos(pitch) * Math::sin(yaw) * distance,
+                                             Math::sin(pitch) * distance,
+                                             Math::cos(pitch) * Math::cos(yaw) * distance);
 
     const f32 aspect = static_cast<f32>(mScene.width) / static_cast<f32>(mScene.height);
-    const glm::mat4 view = glm::lookAt(eye, centre, glm::vec3(0.0f, 1.0f, 0.0f));
-    const glm::mat4 projection =
-        glm::perspective(fieldOfView, aspect, distance - radius * 1.5f, distance + radius * 2.0f);
+    const Math::mat4 view = Math::lookAt(eye, centre, Math::vec3(0.0f, 1.0f, 0.0f));
+    const Math::mat4 projection =
+        Math::perspective(fieldOfView, aspect, distance - radius * 1.5f, distance + radius * 2.0f);
 
     CameraBlock camera;
     camera.viewProj = projection * view;
-    camera.clipPlane = glm::vec4(0.0f);
-    camera.cameraPos = glm::vec4(eye, 1.0f);
+    camera.clipPlane = Math::vec4(0.0f);
+    camera.cameraPos = Math::vec4(eye, 1.0f);
     camera.view = view;
     gpu.updateBuffer(mCameraBuffer, 0, sizeof(camera), &camera);
 
@@ -228,12 +228,12 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
     // mesh look like" view, not a lighting rehearsal - it should look the same
     // whatever time of day the scene is at.
     EnvironmentBlock environment;
-    const glm::vec3 toCentre = glm::normalize(centre - eye);
-    const glm::vec3 right = glm::normalize(glm::cross(toCentre, glm::vec3(0.0f, 1.0f, 0.0f)));
+    const Math::vec3 toCentre = Math::normalize(centre - eye);
+    const Math::vec3 right = Math::normalize(Math::cross(toCentre, Math::vec3(0.0f, 1.0f, 0.0f)));
     environment.sunDirection =
-        glm::vec4(glm::normalize(toCentre + right * 0.35f - glm::vec3(0.0f, 0.45f, 0.0f)), 0.0f);
-    environment.sunColor = glm::vec4(1.0f, 0.98f, 0.94f, 1.0f);
-    environment.ambient = glm::vec4(0.42f, 0.44f, 0.48f, 1.0f);
+        Math::vec4(Math::normalize(toCentre + right * 0.35f - Math::vec3(0.0f, 0.45f, 0.0f)), 0.0f);
+    environment.sunColor = Math::vec4(1.0f, 0.98f, 0.94f, 1.0f);
+    environment.ambient = Math::vec4(0.42f, 0.44f, 0.48f, 1.0f);
     gpu.updateBuffer(mEnvironmentBuffer, 0, sizeof(environment), &environment);
 
     // directionAndCount.w = 0 cascades: lit.frag returns unshadowed outright
@@ -242,7 +242,7 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
     // origin fell outside them and read as fully in shadow - which is what
     // made the preview black.
     DirectionalShadowBlock shadow;
-    shadow.directionAndCount = glm::vec4(glm::vec3(environment.sunDirection), 0.0f);
+    shadow.directionAndCount = Math::vec4(Math::vec3(environment.sunDirection), 0.0f);
     gpu.updateBuffer(mShadowBuffer, 0, sizeof(shadow), &shadow);
 
     ClearValue clear;

@@ -73,15 +73,15 @@ f32 Perlin::compute(f32 x, f32 y, f32 z) const
     const f32 p6 = gradient(state[(ab + 1) & 255], fx, fy - 1.0f, fz - 1.0f);
     const f32 p7 = gradient(state[(bb + 1) & 255], fx - 1.0f, fy - 1.0f, fz - 1.0f);
 
-    const f32 q0 = glm::mix(p0, p1, u);
-    const f32 q1 = glm::mix(p2, p3, u);
-    const f32 q2 = glm::mix(p4, p5, u);
-    const f32 q3 = glm::mix(p6, p7, u);
+    const f32 q0 = Math::mix(p0, p1, u);
+    const f32 q1 = Math::mix(p2, p3, u);
+    const f32 q2 = Math::mix(p4, p5, u);
+    const f32 q3 = Math::mix(p6, p7, u);
 
-    const f32 r0 = glm::mix(q0, q1, v);
-    const f32 r1 = glm::mix(q2, q3, v);
+    const f32 r0 = Math::mix(q0, q1, v);
+    const f32 r1 = Math::mix(q2, q3, v);
 
-    return glm::mix(r0, r1, w);
+    return Math::mix(r0, r1, w);
 }
 
 f32 Perlin::compute(f32 x, f32 y, f32 z, u32 octaves, f32 persistence) const
@@ -133,40 +133,40 @@ f32 computeSin(f32 x)
 namespace
 {
 
-glm::vec2 hash(glm::vec2 p)
+Math::vec2 hash(Math::vec2 p)
 {
-    glm::vec2 r(glm::dot(p, glm::vec2(127.1f, 311.7f)),
-                glm::dot(p, glm::vec2(269.5f, 183.3f)));
+    Math::vec2 r(Math::dot(p, Math::vec2(127.1f, 311.7f)),
+                Math::dot(p, Math::vec2(269.5f, 183.3f)));
     r.x = computeSin(r.x);
     r.y = computeSin(r.y);
     r *= 18.5453f;
-    return glm::vec2(r.x - std::floor(r.x), r.y - std::floor(r.y));
+    return Math::vec2(r.x - std::floor(r.x), r.y - std::floor(r.y));
 }
 
 } // namespace
 
 Result compute(f32 x, f32 y, f32 seed)
 {
-    const glm::vec2 p(x, y);
-    const glm::vec2 n(std::floor(p.x), std::floor(p.y));
-    const glm::vec2 f = p - n;
+    const Math::vec2 p(x, y);
+    const Math::vec2 n(std::floor(p.x), std::floor(p.y));
+    const Math::vec2 f = p - n;
 
-    glm::vec3 best(8.0f, 0.0f, 0.0f); // x = best squared distance
+    Math::vec3 best(8.0f, 0.0f, 0.0f); // x = best squared distance
     for (s32 j = -1; j <= 1; ++j)
     {
         for (s32 i = -1; i <= 1; ++i)
         {
-            const glm::vec2 g{static_cast<f32>(i), static_cast<f32>(j)};
-            const glm::vec2 o = hash(n + g);
+            const Math::vec2 g{static_cast<f32>(i), static_cast<f32>(j)};
+            const Math::vec2 o = hash(n + g);
             // The cell's point is not at its centre: it is displaced by the
             // hash, and the seed enters HERE, inside the sine, not in the hash.
             // That is what makes the same pattern of cells give different
             // terrains.
-            const glm::vec2 r(g.x - f.x + (0.5f + 0.5f * computeSin(seed * o.x)),
+            const Math::vec2 r(g.x - f.x + (0.5f + 0.5f * computeSin(seed * o.x)),
                               g.y - f.y + (0.5f + 0.5f * computeSin(seed * o.y)));
-            const f32 d = glm::dot(r, r);
+            const f32 d = Math::dot(r, r);
             if (d < best.x)
-                best = glm::vec3(d, o.x, o.y);
+                best = Math::vec3(d, o.x, o.y);
         }
     }
 

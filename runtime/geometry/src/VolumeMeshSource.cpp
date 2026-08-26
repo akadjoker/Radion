@@ -13,21 +13,21 @@ namespace
 // Real-Time Collision Detection, 5.1.5: the closest point is found by which
 // of the triangle's seven Voronoi regions the point falls in, rather than by
 // projecting onto the plane and hoping the result lands inside.
-glm::vec3 closestPointOnTriangle(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b,
-                                 const glm::vec3& c)
+Math::vec3 closestPointOnTriangle(const Math::vec3& p, const Math::vec3& a, const Math::vec3& b,
+                                 const Math::vec3& c)
 {
-    const glm::vec3 ab = b - a;
-    const glm::vec3 ac = c - a;
-    const glm::vec3 ap = p - a;
+    const Math::vec3 ab = b - a;
+    const Math::vec3 ac = c - a;
+    const Math::vec3 ap = p - a;
 
-    const f32 d1 = glm::dot(ab, ap);
-    const f32 d2 = glm::dot(ac, ap);
+    const f32 d1 = Math::dot(ab, ap);
+    const f32 d2 = Math::dot(ac, ap);
     if (d1 <= 0.0f && d2 <= 0.0f)
         return a;
 
-    const glm::vec3 bp = p - b;
-    const f32 d3 = glm::dot(ab, bp);
-    const f32 d4 = glm::dot(ac, bp);
+    const Math::vec3 bp = p - b;
+    const f32 d3 = Math::dot(ab, bp);
+    const f32 d4 = Math::dot(ac, bp);
     if (d3 >= 0.0f && d4 <= d3)
         return b;
 
@@ -35,9 +35,9 @@ glm::vec3 closestPointOnTriangle(const glm::vec3& p, const glm::vec3& a, const g
     if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f)
         return a + ab * (d1 / (d1 - d3));
 
-    const glm::vec3 cp = p - c;
-    const f32 d5 = glm::dot(ab, cp);
-    const f32 d6 = glm::dot(ac, cp);
+    const Math::vec3 cp = p - c;
+    const f32 d5 = Math::dot(ab, cp);
+    const f32 d6 = Math::dot(ac, cp);
     if (d6 >= 0.0f && d5 <= d6)
         return c;
 
@@ -55,10 +55,10 @@ glm::vec3 closestPointOnTriangle(const glm::vec3& p, const glm::vec3& a, const g
 
 // Three directions that share no plane, so a ray grazing an edge in one of
 // them is not grazing the same edge in the others.
-const glm::vec3 kParityDirections[3] = {
-    glm::vec3(0.5773502691896258f, 0.5773502691896258f, 0.5773502691896258f),
-    glm::vec3(-0.7071067811865475f, 0.3162277660168379f, 0.6324555320336759f),
-    glm::vec3(0.2672612419124244f, -0.8017837257372732f, 0.5345224838248488f),
+const Math::vec3 kParityDirections[3] = {
+    Math::vec3(0.5773502691896258f, 0.5773502691896258f, 0.5773502691896258f),
+    Math::vec3(-0.7071067811865475f, 0.3162277660168379f, 0.6324555320336759f),
+    Math::vec3(0.2672612419124244f, -0.8017837257372732f, 0.5345224838248488f),
 };
 
 } // namespace
@@ -110,9 +110,9 @@ bool MeshSource::build(const MeshData& mesh)
         if (i0 >= vertexCount || i1 >= vertexCount || i2 >= vertexCount)
             continue;
 
-        const glm::vec3& a = mesh.positions[i0];
-        const glm::vec3& b = mesh.positions[i1];
-        const glm::vec3& c = mesh.positions[i2];
+        const Math::vec3& a = mesh.positions[i0];
+        const Math::vec3& b = mesh.positions[i1];
+        const Math::vec3& c = mesh.positions[i2];
 
         AABB box;
         box.expand(a);
@@ -136,11 +136,11 @@ bool MeshSource::build(const MeshData& mesh)
     }
 
     mTree.build(triangleBounds.data(), static_cast<u32>(triangleBounds.size()));
-    mDiagonal = glm::length(mBounds.max - mBounds.min);
+    mDiagonal = Math::length(mBounds.max - mBounds.min);
     return mTree.valid();
 }
 
-f32 MeshSource::unsignedDistance(const glm::vec3& position) const
+f32 MeshSource::unsignedDistance(const Math::vec3& position) const
 {
     // A sphere query returns every triangle whose box meets it, so a
     // candidate found within the radius cannot be beaten by one outside it.
@@ -163,10 +163,10 @@ f32 MeshSource::unsignedDistance(const glm::vec3& position) const
         for (usize i = 0; i < mCandidates.size(); ++i)
         {
             const usize base = static_cast<usize>(mCandidates[i]) * 3;
-            const glm::vec3 closest = closestPointOnTriangle(position, mCorners[base],
+            const Math::vec3 closest = closestPointOnTriangle(position, mCorners[base],
                                                              mCorners[base + 1],
                                                              mCorners[base + 2]);
-            const f32 distance = glm::length(position - closest);
+            const f32 distance = Math::length(position - closest);
             if (distance < best)
                 best = distance;
         }
@@ -179,12 +179,12 @@ f32 MeshSource::unsignedDistance(const glm::vec3& position) const
 
         // Jump straight to whatever the nearest candidate turned out to be
         // rather than doubling blindly past it.
-        radius = best < std::numeric_limits<f32>::max() ? glm::min(best, limit)
-                                                        : glm::min(radius * 2.0f, limit);
+        radius = best < std::numeric_limits<f32>::max() ? Math::min(best, limit)
+                                                        : Math::min(radius * 2.0f, limit);
     }
 }
 
-bool MeshSource::isInside(const glm::vec3& position) const
+bool MeshSource::isInside(const Math::vec3& position) const
 {
     if (!mBounds.contains(position))
         return false;
@@ -218,7 +218,7 @@ bool MeshSource::isInside(const glm::vec3& position) const
     return votesInside >= 2;
 }
 
-f32 MeshSource::sampleDensity(const glm::vec3& position) const
+f32 MeshSource::sampleDensity(const Math::vec3& position) const
 {
     if (!valid())
         return -1.0f;

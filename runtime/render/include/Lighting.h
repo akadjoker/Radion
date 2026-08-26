@@ -19,17 +19,17 @@ class DecalSystem;
 // authored per-material.
 struct alignas(16) LightingBlock
 {
-    glm::vec4 counts = glm::vec4(0.0f);   // x=entities, y=tiled on, z=tile debug, w=shading debug
-    glm::vec4 tileGrid = glm::vec4(0.0f); // x=tiles across, y=tiles down
+    Math::vec4 counts = Math::vec4(0.0f);   // x=entities, y=tiled on, z=tile debug, w=shading debug
+    Math::vec4 tileGrid = Math::vec4(0.0f); // x=tiles across, y=tiles down
 };
 
 // Matches light_culling.comp's own Culling UBO.
 struct alignas(16) CullingBlock
 {
-    glm::mat4 inverseProjection = glm::mat4(1.0f);
-    glm::mat4 view = glm::mat4(1.0f);
-    glm::vec4 screenSize = glm::vec4(0.0f);       // xy used
-    glm::vec4 tileCountEtc = glm::vec4(0.0f);     // x,y=tiles, z=entity count, w=2.5D on
+    Math::mat4 inverseProjection = Math::mat4(1.0f);
+    Math::mat4 view = Math::mat4(1.0f);
+    Math::vec4 screenSize = Math::vec4(0.0f);       // xy used
+    Math::vec4 tileCountEtc = Math::vec4(0.0f);     // x,y=tiles, z=entity count, w=2.5D on
 };
 
 // What uDebugMode selects in lit.frag.
@@ -149,7 +149,7 @@ public:
     // The shadow view-projections entities() indexes into by matrixIndex.
     // Point lights use six consecutive entries (one per cube face); spot and
     // rect use one.
-    const std::vector<glm::mat4>& matrices() const
+    const std::vector<Math::mat4>& matrices() const
     {
         return mMatrices;
     }
@@ -163,7 +163,7 @@ private:
 
     ShadowAtlasLayout mAtlas;
     std::vector<RenderLight> mEntities;
-    std::vector<glm::mat4> mMatrices;
+    std::vector<Math::mat4> mMatrices;
     u32 mLightsWithoutTile = 0;
     u32 mDroppedDecals = 0;
     bool mExtraSunWarned = false;

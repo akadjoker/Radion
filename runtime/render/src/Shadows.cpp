@@ -7,19 +7,19 @@ namespace Radion
 
 DirectionalShadowRegion directionalShadowRegion(u32 atlasSize, u32 cascadeCount, u32 cascade)
 {
-    const u32 size = glm::max(atlasSize, 1u);
-    const u32 count = glm::clamp(cascadeCount, 1u, MaxShadowCascades);
-    cascade = glm::min(cascade, count - 1u);
+    const u32 size = Math::max(atlasSize, 1u);
+    const u32 count = Math::clamp(cascadeCount, 1u, MaxShadowCascades);
+    cascade = Math::min(cascade, count - 1u);
 
     if (count == 1)
         return {0, 0, size, size};
     if (count == 2)
     {
-        const u32 half = glm::max(size / 2u, 1u);
+        const u32 half = Math::max(size / 2u, 1u);
         return {0, cascade * half, size, half};
     }
 
-    const u32 half = glm::max(size / 2u, 1u);
+    const u32 half = Math::max(size / 2u, 1u);
     return {(cascade & 1u) * half, (cascade >> 1u) * half, half, half};
 }
 
@@ -48,7 +48,7 @@ struct ShelfPacker
         outputX = x;
         outputY = y;
         x += itemWidth;
-        rowHeight = glm::max(rowHeight, itemHeight);
+        rowHeight = Math::max(rowHeight, itemHeight);
         return true;
     }
 };
@@ -69,7 +69,7 @@ u32 floorPowerOfTwo(u32 value)
 }
 
 f32 cascadeZeroTexelsPerUnit(CascadeShadowSettings settings, const ShadowCamera& camera,
-                             const glm::vec3& lightDirection)
+                             const Math::vec3& lightDirection)
 {
     CascadeShadowCalculator calculator;
     calculator.settings = settings;
@@ -156,59 +156,59 @@ static const unsigned char kSilhouetteRing[64][8] = {
     { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
-glm::vec4 outwardPlane(const glm::vec4& row)
+Math::vec4 outwardPlane(const Math::vec4& row)
 {
-    const f32 length = glm::length(glm::vec3(row));
+    const f32 length = Math::length(Math::vec3(row));
     if (length < 0.000000000001f)
-        return glm::vec4(0.0f);
-    return glm::vec4(-glm::vec3(row) / length, row.w / length);
+        return Math::vec4(0.0f);
+    return Math::vec4(-Math::vec3(row) / length, row.w / length);
 }
 
-glm::vec4 planeFromTriangle(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3)
+Math::vec4 planeFromTriangle(const Math::vec3& p1, const Math::vec3& p2, const Math::vec3& p3)
 {
-    glm::vec3 normal = glm::cross(p1 - p3, p1 - p2);
-    const f32 length = glm::length(normal);
+    Math::vec3 normal = Math::cross(p1 - p3, p1 - p2);
+    const f32 length = Math::length(normal);
     if (length < 0.000000000001f)
-        return glm::vec4(0.0f);
+        return Math::vec4(0.0f);
     normal /= length;
-    return glm::vec4(normal, glm::dot(normal, p1));
+    return Math::vec4(normal, Math::dot(normal, p1));
 }
 
-void appendCullPlane(std::vector<Plane>& output, const glm::vec4& plane)
+void appendCullPlane(std::vector<Plane>& output, const Math::vec4& plane)
 {
-    if (glm::dot(glm::vec3(plane), glm::vec3(plane)) < 0.5f)
+    if (Math::dot(Math::vec3(plane), Math::vec3(plane)) < 0.5f)
         return;
-    output.push_back({-glm::vec3(plane), plane.w});
+    output.push_back({-Math::vec3(plane), plane.w});
 }
 
-void buildCasterCullPlanes(const glm::mat4& sliceViewProjection,
-                           const glm::vec3& lightDirection, std::vector<Plane>& output)
+void buildCasterCullPlanes(const Math::mat4& sliceViewProjection,
+                           const Math::vec3& lightDirection, std::vector<Plane>& output)
 {
     output.clear();
 
-    const glm::mat4& M = sliceViewProjection;
-    const glm::vec4 row0(M[0][0], M[1][0], M[2][0], M[3][0]);
-    const glm::vec4 row1(M[0][1], M[1][1], M[2][1], M[3][1]);
-    const glm::vec4 row2(M[0][2], M[1][2], M[2][2], M[3][2]);
-    const glm::vec4 row3(M[0][3], M[1][3], M[2][3], M[3][3]);
-    const glm::vec4 planes[6] = {
+    const Math::mat4& M = sliceViewProjection;
+    const Math::vec4 row0(M[0][0], M[1][0], M[2][0], M[3][0]);
+    const Math::vec4 row1(M[0][1], M[1][1], M[2][1], M[3][1]);
+    const Math::vec4 row2(M[0][2], M[1][2], M[2][2], M[3][2]);
+    const Math::vec4 row3(M[0][3], M[1][3], M[2][3], M[3][3]);
+    const Math::vec4 planes[6] = {
         outwardPlane(row3 + row2), outwardPlane(row3 - row2), outwardPlane(row3 + row0),
         outwardPlane(row3 - row1), outwardPlane(row3 - row0), outwardPlane(row3 + row1)};
 
-    static const glm::vec3 kCornersNdc[8] = {
+    static const Math::vec3 kCornersNdc[8] = {
         {-1.0f, 1.0f, 1.0f},  {-1.0f, -1.0f, 1.0f},  {1.0f, 1.0f, 1.0f},  {1.0f, -1.0f, 1.0f},
         {-1.0f, 1.0f, -1.0f}, {-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, -1.0f}, {1.0f, -1.0f, -1.0f}};
-    const glm::mat4 inverse = glm::inverse(M);
-    glm::vec3 points[8];
+    const Math::mat4 inverse = Math::inverse(M);
+    Math::vec3 points[8];
     for (u32 i = 0; i < 8; ++i)
     {
-        const glm::vec4 p = inverse * glm::vec4(kCornersNdc[i], 1.0f);
-        points[i] = glm::vec3(p) / p.w;
+        const Math::vec4 p = inverse * Math::vec4(kCornersNdc[i], 1.0f);
+        points[i] = Math::vec3(p) / p.w;
     }
 
     u32 lookup = 0;
     for (u32 n = 0; n < 6; ++n)
-        if (glm::dot(glm::vec3(planes[n]), lightDirection) > 0.0f)
+        if (Math::dot(Math::vec3(planes[n]), lightDirection) > 0.0f)
         {
             lookup |= 1u << n;
             appendCullPlane(output, planes[n]);
@@ -231,9 +231,9 @@ void buildCasterCullPlanes(const glm::mat4& sliceViewProjection,
 
     for (u32 e = 0; e < ringSize; ++e)
     {
-        const glm::vec3& pt0 = points[kSilhouetteRing[lookup][e]];
-        const glm::vec3& pt1 = points[kSilhouetteRing[lookup][(e + 1) % ringSize]];
-        const glm::vec3 pt2 = pt0 - lightDirection;
+        const Math::vec3& pt0 = points[kSilhouetteRing[lookup][e]];
+        const Math::vec3& pt1 = points[kSilhouetteRing[lookup][(e + 1) % ringSize]];
+        const Math::vec3 pt2 = pt0 - lightDirection;
         appendCullPlane(output, planeFromTriangle(pt0, pt1, pt2));
     }
 }
@@ -242,9 +242,9 @@ void buildCasterCullPlanes(const glm::mat4& sliceViewProjection,
 CascadeShadowSettings CascadeShadowSettings::sizedForScene(f32 sceneRadius)
 {
     CascadeShadowSettings settings;
-    const f32 radius = glm::max(sceneRadius, 1.0f);
+    const f32 radius = Math::max(sceneRadius, 1.0f);
 
-    settings.distance = glm::clamp(radius * 2.0f, settings.distance, 500.0f);
+    settings.distance = Math::clamp(radius * 2.0f, settings.distance, 500.0f);
     // Casters well outside the view still throw shadows into it - a column
     // behind the camera, sunlight low enough to rake in from the side - so
     // this reaches further than distance on purpose.
@@ -254,7 +254,7 @@ CascadeShadowSettings CascadeShadowSettings::sizedForScene(f32 sceneRadius)
     // subjects almost immediately in the final cascade.
     settings.lambda = 0.85f;
     settings.filterRadiusWorld =
-        settings.distance / static_cast<f32>(glm::max(settings.resolution, 1u)) * 6.0f;
+        settings.distance / static_cast<f32>(Math::max(settings.resolution, 1u)) * 6.0f;
     // Count and resolution stay at the struct's own defaults (4, 1024): both
     // are a straight cost multiplier on the shadow pass - one more cascade is
     // another whole pass over the caster list, double the resolution is four
@@ -270,7 +270,7 @@ CascadeShadowSettings CascadeShadowSettings::sizedForScene(f32 sceneRadius)
 CascadeShadowSettings CascadeShadowSettings::sizedForCamera(const CascadeShadowSettings& base,
                                                             f32 sceneRadius,
                                                             const ShadowCamera& camera,
-                                                            const glm::vec3& lightDirection,
+                                                            const Math::vec3& lightDirection,
                                                             f32 targetTexelsPerUnit)
 {
     CascadeShadowSettings settings = base;
@@ -295,54 +295,54 @@ CascadeShadowSettings CascadeShadowSettings::sizedForCamera(const CascadeShadowS
         }
     }
 
-    settings.distance = glm::clamp(best, 10.0f, 500.0f);
+    settings.distance = Math::clamp(best, 10.0f, 500.0f);
     settings.casterExtrusion = settings.distance * 1.5f;
     return settings;
 }
 
-bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3& lightDirection,
+bool CascadeShadowCalculator::update(const ShadowCamera& camera, const Math::vec3& lightDirection,
                                      CascadeShadowData& output) const
 {
     if (settings.count == 0 || settings.resolution == 0 || camera.nearPlane <= 0.0f ||
         camera.aspect <= 0.0f || camera.fieldOfView <= 0.0f)
         return false;
 
-    output.count = glm::clamp(settings.count, 1u, MaxShadowCascades);
+    output.count = Math::clamp(settings.count, 1u, MaxShadowCascades);
     const u32 splits = output.count;
-    const glm::vec3 direction = glm::dot(lightDirection, lightDirection) > 0.000000000001f
-                                    ? glm::normalize(lightDirection)
-                                    : glm::vec3(0.0f, -1.0f, 0.0f);
+    const Math::vec3 direction = Math::dot(lightDirection, lightDirection) > 0.000000000001f
+                                    ? Math::normalize(lightDirection)
+                                    : Math::vec3(0.0f, -1.0f, 0.0f);
 
-    const f32 maxDistance = glm::max(settings.distance, camera.nearPlane + 0.001f);
-    const f32 minDistance = glm::min(camera.nearPlane, maxDistance);
+    const f32 maxDistance = Math::max(settings.distance, camera.nearPlane + 0.001f);
+    const f32 minDistance = Math::min(camera.nearPlane, maxDistance);
     const f32 range = maxDistance - minDistance;
 
     f32 distances[MaxShadowCascades + 1];
     distances[0] = minDistance;
     for (u32 i = 0; i < splits; ++i)
         distances[i + 1] =
-            minDistance + settings.splitOffset[glm::min(i, 2u)] * range;
+            minDistance + settings.splitOffset[Math::min(i, 2u)] * range;
     distances[splits] = maxDistance;
 
     const u32 atlasResolution = splits >= 3 ? settings.resolution * 2u : settings.resolution;
 
     static constexpr f32 kQualityRadius[6] = {1.0f, 1.5f, 2.0f, 2.0f, 3.0f, 4.0f};
-    const f32 qualityRadius = kQualityRadius[glm::min(settings.quality, 5u)];
+    const f32 qualityRadius = kQualityRadius[Math::min(settings.quality, 5u)];
     const f32 tanAngle = settings.angularDiameter > 0.0f
-                             ? std::tan(glm::radians(settings.angularDiameter))
+                             ? std::tan(Math::radians(settings.angularDiameter))
                              : 0.0f;
     output.softShadowScale = settings.blur * (tanAngle > 0.0f ? 1.0f : qualityRadius);
 
-    const glm::vec3 zVec = -direction;
-    const glm::vec3 upHint =
-        glm::abs(zVec.y) > 0.99f ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
-    const glm::vec3 xVec = glm::normalize(glm::cross(upHint, zVec));
-    const glm::vec3 yVec = glm::cross(zVec, xVec);
+    const Math::vec3 zVec = -direction;
+    const Math::vec3 upHint =
+        Math::abs(zVec.y) > 0.99f ? Math::vec3(0.0f, 0.0f, 1.0f) : Math::vec3(0.0f, 1.0f, 0.0f);
+    const Math::vec3 xVec = Math::normalize(Math::cross(upHint, zVec));
+    const Math::vec3 yVec = Math::cross(zVec, xVec);
 
-    const glm::mat4 inverseView = glm::inverse(camera.view);
-    const glm::vec3 cameraPosition = glm::vec3(inverseView[3]);
+    const Math::mat4 inverseView = Math::inverse(camera.view);
+    const Math::vec3 cameraPosition = Math::vec3(inverseView[3]);
 
-    glm::mat4 biasMatrix(1.0f);
+    Math::mat4 biasMatrix(1.0f);
     biasMatrix[0][0] = 0.5f;
     biasMatrix[1][1] = 0.5f;
     biasMatrix[2][2] = 0.5f;
@@ -350,7 +350,7 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
     biasMatrix[3][1] = 0.5f;
     biasMatrix[3][2] = 0.5f;
 
-    const glm::vec2 corners[4] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    const Math::vec2 corners[4] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
 
     for (u32 cascade = 0; cascade < splits; ++cascade)
     {
@@ -358,35 +358,35 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
             distances[(cascade == 0 || !settings.blend) ? cascade : cascade - 1];
         const f32 sliceFar = distances[cascade + 1];
 
-        const glm::mat4 sliceProjection = glm::perspective(glm::radians(camera.fieldOfView),
+        const Math::mat4 sliceProjection = Math::perspective(Math::radians(camera.fieldOfView),
                                                            camera.aspect, sliceNear, sliceFar);
-        const glm::mat4 inverseVP = glm::inverse(sliceProjection * camera.view);
-        glm::vec3 points[8];
+        const Math::mat4 inverseVP = Math::inverse(sliceProjection * camera.view);
+        Math::vec3 points[8];
         for (u32 i = 0; i < 4; ++i)
         {
-            glm::vec4 a = inverseVP * glm::vec4(corners[i].x, corners[i].y, -1.0f, 1.0f);
-            glm::vec4 b = inverseVP * glm::vec4(corners[i].x, corners[i].y, 1.0f, 1.0f);
-            points[i] = glm::vec3(a) / a.w;
-            points[i + 4] = glm::vec3(b) / b.w;
+            Math::vec4 a = inverseVP * Math::vec4(corners[i].x, corners[i].y, -1.0f, 1.0f);
+            Math::vec4 b = inverseVP * Math::vec4(corners[i].x, corners[i].y, 1.0f, 1.0f);
+            points[i] = Math::vec3(a) / a.w;
+            points[i + 4] = Math::vec3(b) / b.w;
         }
         buildCasterCullPlanes(sliceProjection * camera.view, direction,
                               output.casterPlanes[cascade]);
 
         const DirectionalShadowRegion region =
             directionalShadowRegion(atlasResolution, splits, cascade);
-        const f32 textureSize = static_cast<f32>(glm::max(region.height, 1u));
+        const f32 textureSize = static_cast<f32>(Math::max(region.height, 1u));
 
-        glm::vec3 center(0.0f);
-        for (const glm::vec3& point : points)
+        Math::vec3 center(0.0f);
+        for (const Math::vec3& point : points)
             center += point;
         center /= 8.0f;
 
         f32 radius = 0.0f;
-        for (const glm::vec3& point : points)
-            radius = glm::max(radius, glm::distance(center, point));
-        radius *= textureSize / glm::max(textureSize - 2.0f, 1.0f);
+        for (const Math::vec3& point : points)
+            radius = Math::max(radius, Math::distance(center, point));
+        radius *= textureSize / Math::max(textureSize - 2.0f, 1.0f);
 
-        const f32 zDotCenter = glm::dot(zVec, center);
+        const f32 zDotCenter = Math::dot(zVec, center);
         const f32 zMinCam = zDotCenter - radius;
 
         f32 softShadowExpand = 0.0f;
@@ -396,10 +396,10 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
             softShadowExpand = tanAngle * zRange;
         }
 
-        f32 xMaxCam = glm::dot(xVec, center) + radius + softShadowExpand;
-        f32 xMinCam = glm::dot(xVec, center) - radius - softShadowExpand;
-        f32 yMaxCam = glm::dot(yVec, center) + radius + softShadowExpand;
-        f32 yMinCam = glm::dot(yVec, center) - radius - softShadowExpand;
+        f32 xMaxCam = Math::dot(xVec, center) + radius + softShadowExpand;
+        f32 xMinCam = Math::dot(xVec, center) - radius - softShadowExpand;
+        f32 yMaxCam = Math::dot(yVec, center) + radius + softShadowExpand;
+        f32 yMinCam = Math::dot(yVec, center) - radius - softShadowExpand;
         if (settings.stabilize)
         {
             const f32 unit = (radius + softShadowExpand) * 4.0f / textureSize;
@@ -414,25 +414,25 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
         const f32 halfY = (yMaxCam - yMinCam) * 0.5f;
         const f32 zFar = zMaxPancake - zMinCam;
 
-        const glm::mat4 projection = glm::ortho(-halfX, halfX, -halfY, halfY, 0.0f, zFar);
-        const glm::mat4 cullProjection =
-            glm::ortho(-halfX, halfX, -halfY, halfY, -10000000.0f, zFar);
+        const Math::mat4 projection = Math::ortho(-halfX, halfX, -halfY, halfY, 0.0f, zFar);
+        const Math::mat4 cullProjection =
+            Math::ortho(-halfX, halfX, -halfY, halfY, -10000000.0f, zFar);
 
-        const glm::vec3 origin =
+        const Math::vec3 origin =
             xVec * (xMinCam + halfX) + yVec * (yMinCam + halfY) + zVec * zMaxPancake;
-        glm::mat4 lightTransform(1.0f);
-        lightTransform[0] = glm::vec4(xVec, 0.0f);
-        lightTransform[1] = glm::vec4(yVec, 0.0f);
-        lightTransform[2] = glm::vec4(zVec, 0.0f);
-        lightTransform[3] = glm::vec4(origin, 1.0f);
-        const glm::mat4 view = glm::inverse(lightTransform);
+        Math::mat4 lightTransform(1.0f);
+        lightTransform[0] = Math::vec4(xVec, 0.0f);
+        lightTransform[1] = Math::vec4(yVec, 0.0f);
+        lightTransform[2] = Math::vec4(zVec, 0.0f);
+        lightTransform[3] = Math::vec4(origin, 1.0f);
+        const Math::mat4 view = Math::inverse(lightTransform);
 
         const f32 atlasSize = static_cast<f32>(atlasResolution);
-        const glm::vec4 rect(static_cast<f32>(region.x) / atlasSize,
+        const Math::vec4 rect(static_cast<f32>(region.x) / atlasSize,
                              static_cast<f32>(region.y) / atlasSize,
                              static_cast<f32>(region.width) / atlasSize,
                              static_cast<f32>(region.height) / atlasSize);
-        glm::mat4 rectMatrix(1.0f);
+        Math::mat4 rectMatrix(1.0f);
         rectMatrix[0][0] = rect.z;
         rectMatrix[1][1] = rect.w;
         rectMatrix[3][0] = rect.x;
@@ -442,16 +442,16 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
         output.cullViewProjection[cascade] = cullProjection * view;
         output.shadowMatrix[cascade] = rectMatrix * biasMatrix * projection * view;
         output.splits[cascade] = distances[cascade + 1];
-        output.halfExtents[cascade] = glm::max(halfX, halfY);
+        output.halfExtents[cascade] = Math::max(halfX, halfY);
         output.texelSize[cascade] = radius * 2.0f / textureSize;
         output.shadowBias[cascade] =
             settings.bias / 100.0f * zFar * output.softShadowScale;
         output.shadowNormalBias[cascade] = settings.normalBias * output.texelSize[cascade];
-        output.rangeBegin[cascade] = zMaxPancake - glm::dot(zVec, cameraPosition);
+        output.rangeBegin[cascade] = zMaxPancake - Math::dot(zVec, cameraPosition);
         output.uvScale[cascade] =
-            glm::vec2(1.0f / glm::max(xMaxCam - xMinCam, 0.000001f),
-                      1.0f / glm::max(yMaxCam - yMinCam, 0.000001f)) *
-            glm::vec2(rect.z, rect.w);
+            Math::vec2(1.0f / Math::max(xMaxCam - xMinCam, 0.000001f),
+                      1.0f / Math::max(yMaxCam - yMinCam, 0.000001f)) *
+            Math::vec2(rect.z, rect.w);
     }
 
     for (u32 i = splits; i < MaxShadowCascades; ++i)
@@ -469,12 +469,12 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
     }
 
     const f32 lastSplit = output.splits[splits - 1];
-    output.fadeFrom = lastSplit * glm::min(settings.fadeStart, 0.999f);
+    output.fadeFrom = lastSplit * Math::min(settings.fadeStart, 0.999f);
     output.fadeTo = lastSplit;
     return true;
 }
 
-void ShadowAtlasLayout::update(const glm::vec3& cameraPosition,
+void ShadowAtlasLayout::update(const Math::vec3& cameraPosition,
                                const std::vector<RenderLight>& lights)
 {
     mTiles.clear();
@@ -496,13 +496,13 @@ void ShadowAtlasLayout::update(const glm::vec3& cameraPosition,
             if ((light.type == RenderLightType::Spot || light.type == RenderLightType::Rectangle) &&
                 !settings.spot)
                 continue;
-            const f32 distance = glm::max(glm::distance(cameraPosition, light.position), 0.001f);
-            f32 importance = glm::min(1.0f, light.range / distance);
+            const f32 distance = Math::max(Math::distance(cameraPosition, light.position), 0.001f);
+            f32 importance = Math::min(1.0f, light.range / distance);
             if ((light.flags & RenderLightVolumetric) != 0)
-                importance = glm::min(1.0f, importance * settings.volumetricPriority);
+                importance = Math::min(1.0f, importance * settings.volumetricPriority);
             const u32 faceCount = light.type == RenderLightType::Point ? 6 : 1;
             if (faceCount == 6)
-                importance = glm::min(1.0f, importance * settings.pointPriority);
+                importance = Math::min(1.0f, importance * settings.pointPriority);
             const u32 tile =
                 floorPowerOfTwo(static_cast<u32>(settings.maximumTileSize * importance * mScale));
             if (tile < settings.minimumTileSize)

@@ -18,14 +18,14 @@ class SoftBody
 public:
     struct Particle
     {
-        glm::vec3 position{0.0f};
+        Math::vec3 position{0.0f};
 
-        glm::vec3 previousPosition{0.0f};
-        glm::vec3 velocity{0.0f};
+        Math::vec3 previousPosition{0.0f};
+        Math::vec3 velocity{0.0f};
         // Velocity as it stood before updateVelocities() rewrote it from the
         // positions - the reference decides restitution on this one, not on
         // the freshly derived velocity.
-        glm::vec3 previousVelocity{0.0f};
+        Math::vec3 previousVelocity{0.0f};
 
         f32 invMass = 0.0f;
     };
@@ -69,7 +69,7 @@ public:
     struct Contact
     {
         bool active = false;
-        glm::vec3 normal{0.0f, 1.0f, 0.0f};
+        Math::vec3 normal{0.0f, 1.0f, 0.0f};
         u32 bodyId = 0xFFFFFFFFu;
     };
     Contact contact(u32 index) const;
@@ -78,7 +78,7 @@ public:
 
     // Particles at `positions`, sharing `totalMass` equally. Any previous
     // topology is dropped.
-    void setParticles(const glm::vec3* positions, u32 count, f32 totalMass);
+    void setParticles(const Math::vec3* positions, u32 count, f32 totalMass);
 
     // Redistributes `totalMass` evenly across every particle that is not
     // currently pinned (pinned() is invMass 0 - see setPinned()), leaving
@@ -123,11 +123,11 @@ public:
     // read back. Sub-stepping, not iterating: see step()'s own note.
     void step(f32 dt, u32 substeps);
 
-    void setGravity(const glm::vec3& gravity)
+    void setGravity(const Math::vec3& gravity)
     {
         mGravity = gravity;
     }
-    const glm::vec3& gravity() const
+    const Math::vec3& gravity() const
     {
         return mGravity;
     }
@@ -144,13 +144,13 @@ public:
     // Maximum particle speed, matching Jolt's soft-body safety limit.
     void setMaxLinearVelocity(f32 velocity)
     {
-        mMaxLinearVelocity = glm::max(velocity, 0.0f);
+        mMaxLinearVelocity = Math::max(velocity, 0.0f);
     }
     f32 maxLinearVelocity() const
     {
         return mMaxLinearVelocity;
     }
-    void setWind(const glm::vec3& wind)
+    void setWind(const Math::vec3& wind)
     {
         mWind = wind;
     }
@@ -175,7 +175,7 @@ public:
     // own thickness against the collider it rests on.
     void setCollisionMargin(f32 margin)
     {
-        mCollisionMargin = glm::max(margin, 0.0f);
+        mCollisionMargin = Math::max(margin, 0.0f);
     }
     u32 particleCount() const
     {
@@ -214,7 +214,7 @@ private:
     // narrowphase with a fresh normal each substep.
     struct ContactPlane
     {
-        glm::vec3 normal{0.0f, 1.0f, 0.0f};
+        Math::vec3 normal{0.0f, 1.0f, 0.0f};
         f32 offset = 0.0f;
         u32 bodyId = 0;
         f32 friction = 0.0f;
@@ -239,8 +239,8 @@ private:
     QueryFilter mCollisionQuery;
     std::vector<u32> mCollisionCandidates;
     std::vector<ContactManifold> mCollisionManifolds;
-    glm::vec3 mGravity{0.0f, -9.81f, 0.0f};
-    glm::vec3 mWind{0.0f};
+    Math::vec3 mGravity{0.0f, -9.81f, 0.0f};
+    Math::vec3 mWind{0.0f};
     // Equivalent to Jolt's default linear damping of 0.1 / second:
     // exp(-0.1) retained over one second in this exponential API.
     f32 mDamping = 0.9048374f;

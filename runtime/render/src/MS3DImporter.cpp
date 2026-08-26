@@ -14,15 +14,15 @@ namespace
 
 struct MS3DVertex
 {
-    glm::vec3 pos = glm::vec3(0.0f);
+    Math::vec3 pos = Math::vec3(0.0f);
     s8 boneId = -1;
 };
 
 struct MS3DTriangle
 {
     u16 idx[3] = {0, 0, 0};
-    glm::vec3 normal[3] = {glm::vec3(0.0f), glm::vec3(0.0f), glm::vec3(0.0f)};
-    glm::vec2 uv[3] = {glm::vec2(0.0f), glm::vec2(0.0f), glm::vec2(0.0f)};
+    Math::vec3 normal[3] = {Math::vec3(0.0f), Math::vec3(0.0f), Math::vec3(0.0f)};
+    Math::vec2 uv[3] = {Math::vec2(0.0f), Math::vec2(0.0f), Math::vec2(0.0f)};
 };
 
 struct MS3DGroup
@@ -35,8 +35,8 @@ struct MS3DGroup
 struct MS3DMaterial
 {
     std::string name;
-    glm::vec3 diffuse = glm::vec3(1.0f);
-    glm::vec3 specular = glm::vec3(0.0f);
+    Math::vec3 diffuse = Math::vec3(1.0f);
+    Math::vec3 specular = Math::vec3(0.0f);
     f32 shininess = 32.0f;
     std::string textureFile;
 };
@@ -44,15 +44,15 @@ struct MS3DMaterial
 struct MS3DKeyframe
 {
     f32 time = 0.0f;
-    glm::vec3 param = glm::vec3(0.0f);
+    Math::vec3 param = Math::vec3(0.0f);
 };
 
 struct MS3DJoint
 {
     std::string name;
     std::string parentName;
-    glm::vec3 rotation = glm::vec3(0.0f);
-    glm::vec3 translation = glm::vec3(0.0f);
+    Math::vec3 rotation = Math::vec3(0.0f);
+    Math::vec3 translation = Math::vec3(0.0f);
     std::vector<MS3DKeyframe> rotKeys;
     std::vector<MS3DKeyframe> transKeys;
 };
@@ -129,7 +129,7 @@ MS3DFile parseMS3D(ByteArray& data)
         {
             const f32 u = data.readF32();
             const f32 v = data.readF32();
-            t.uv[i] = glm::vec2(u, 1.0f - v);
+            t.uv[i] = Math::vec2(u, 1.0f - v);
         }
         data.readU8();
         data.readU8();
@@ -272,7 +272,7 @@ f32 shininessToRoughness(f32 shininess)
     if (shininess <= 0.0f)
         return 1.0f;
     const f32 rough = std::sqrt(2.0f / (shininess + 2.0f));
-    return glm::clamp(rough, 0.05f, 1.0f);
+    return Math::clamp(rough, 0.05f, 1.0f);
 }
 
 } // namespace
@@ -319,7 +319,7 @@ bool MS3DImporter::import(const std::string& filename, ByteArray& data, FileSyst
                     skin.joints[1] = bone;
                     skin.joints[2] = bone;
                     skin.joints[3] = bone;
-                    skin.weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+                    skin.weights = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
                     mesh.skin.push_back(skin);
                 }
                 mesh.indices.push_back(static_cast<u32>(mesh.positions.size()) - 1);
@@ -363,14 +363,14 @@ bool MS3DImporter::import(const std::string& filename, ByteArray& data, FileSyst
             const MS3DMaterial& material = file.materials[i];
             mesh.materials[i].name = material.name;
             mesh.materials[i].nameHash = hashName(material.name);
-            mesh.materials[i].params.baseColor = glm::vec4(material.diffuse, 1.0f);
+            mesh.materials[i].params.baseColor = Math::vec4(material.diffuse, 1.0f);
             mesh.materials[i].params.surface.x = shininessToRoughness(material.shininess);
             mesh.materialTextureFiles[i] = joinPath(directory, material.textureFile);
         }
     }
 
     mesh.bounds = AABB();
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::vec3& position : mesh.positions)
         mesh.bounds.expand(position);
     for (SubMesh& submesh : mesh.submeshes)
     {
@@ -389,15 +389,15 @@ namespace
 struct Key
 {
     f32 time = 0.0f;
-    glm::vec3 param = glm::vec3(0.0f);
+    Math::vec3 param = Math::vec3(0.0f);
 };
 
 struct JointData
 {
     std::string name;
     std::string parentName;
-    glm::vec3 rotation = glm::vec3(0.0f);
-    glm::vec3 translation = glm::vec3(0.0f);
+    Math::vec3 rotation = Math::vec3(0.0f);
+    Math::vec3 translation = Math::vec3(0.0f);
     std::vector<Key> rotKeys;
     std::vector<Key> transKeys;
 };
@@ -512,11 +512,11 @@ bool parseJoints(ByteArray& data, std::vector<JointData>& joints)
     return !joints.empty();
 }
 
-glm::quat eulerToQuat(const glm::vec3& e)
+Math::quat eulerToQuat(const Math::vec3& e)
 {
-    const glm::quat qx = glm::angleAxis(e.x, glm::vec3(1.0f, 0.0f, 0.0f));
-    const glm::quat qy = glm::angleAxis(e.y, glm::vec3(0.0f, 1.0f, 0.0f));
-    const glm::quat qz = glm::angleAxis(e.z, glm::vec3(0.0f, 0.0f, 1.0f));
+    const Math::quat qx = Math::angleAxis(e.x, Math::vec3(1.0f, 0.0f, 0.0f));
+    const Math::quat qy = Math::angleAxis(e.y, Math::vec3(0.0f, 1.0f, 0.0f));
+    const Math::quat qz = Math::angleAxis(e.z, Math::vec3(0.0f, 0.0f, 1.0f));
     return qz * qy * qx;
 }
 
@@ -537,34 +537,34 @@ bool buildSkeleton(const std::vector<JointData>& joints, Skeleton& skeleton)
         }
     }
 
-    std::vector<glm::mat4> world(joints.size());
+    std::vector<Math::mat4> world(joints.size());
     for (usize i = 0; i < joints.size(); ++i)
     {
-        const glm::mat4 local = glm::translate(glm::mat4(1.0f), joints[i].translation) *
-                                glm::mat4_cast(eulerToQuat(joints[i].rotation));
+        const Math::mat4 local = Math::translate(Math::mat4(1.0f), joints[i].translation) *
+                                Math::mat4_cast(eulerToQuat(joints[i].rotation));
         world[i] = parent[i] >= 0 ? world[static_cast<usize>(parent[i])] * local : local;
-        skeleton.addBone(joints[i].name, parent[i], local, glm::inverse(world[i]));
+        skeleton.addBone(joints[i].name, parent[i], local, Math::inverse(world[i]));
     }
     return skeleton.finalize();
 }
 
-LocalPose decompose(const glm::mat4& m)
+LocalPose decompose(const Math::mat4& m)
 {
     LocalPose pose;
-    pose.position = glm::vec3(m[3]);
-    const glm::vec3 sx(m[0].x, m[0].y, m[0].z);
-    const glm::vec3 sy(m[1].x, m[1].y, m[1].z);
-    const glm::vec3 sz(m[2].x, m[2].y, m[2].z);
-    pose.scale = glm::vec3(glm::length(sx), glm::length(sy), glm::length(sz));
-    glm::mat3 rot;
+    pose.position = Math::vec3(m[3]);
+    const Math::vec3 sx(m[0].x, m[0].y, m[0].z);
+    const Math::vec3 sy(m[1].x, m[1].y, m[1].z);
+    const Math::vec3 sz(m[2].x, m[2].y, m[2].z);
+    pose.scale = Math::vec3(Math::length(sx), Math::length(sy), Math::length(sz));
+    Math::mat3 rot;
     rot[0] = pose.scale.x > 1e-8f ? sx / pose.scale.x : sx;
     rot[1] = pose.scale.y > 1e-8f ? sy / pose.scale.y : sy;
     rot[2] = pose.scale.z > 1e-8f ? sz / pose.scale.z : sz;
-    pose.rotation = glm::quat_cast(rot);
+    pose.rotation = Math::quat_cast(rot);
     return pose;
 }
 
-glm::quat sampleRotation(const std::vector<Key>& keys, f32 t)
+Math::quat sampleRotation(const std::vector<Key>& keys, f32 t)
 {
     if (keys.size() == 1 || t <= keys.front().time)
         return eulerToQuat(keys.front().param);
@@ -579,10 +579,10 @@ glm::quat sampleRotation(const std::vector<Key>& keys, f32 t)
     usize k0 = k1 - 1;
     const f32 span = keys[k1].time - keys[k0].time;
     const f32 f = span > 1e-6f ? (t - keys[k0].time) / span : 0.0f;
-    return glm::slerp(eulerToQuat(keys[k0].param), eulerToQuat(keys[k1].param), f);
+    return Math::slerp(eulerToQuat(keys[k0].param), eulerToQuat(keys[k1].param), f);
 }
 
-glm::vec3 sampleTranslation(const std::vector<Key>& keys, f32 t)
+Math::vec3 sampleTranslation(const std::vector<Key>& keys, f32 t)
 {
     if (keys.size() == 1 || t <= keys.front().time)
         return keys.front().param;
@@ -600,7 +600,7 @@ glm::vec3 sampleTranslation(const std::vector<Key>& keys, f32 t)
     return keys[k0].param + (keys[k1].param - keys[k0].param) * f;
 }
 
-void buildTrack(s32 boneIndex, const JointData& joint, const glm::mat4& bindLocal, BoneTrack& track)
+void buildTrack(s32 boneIndex, const JointData& joint, const Math::mat4& bindLocal, BoneTrack& track)
 {
     track.bone = boneIndex;
     if (joint.rotKeys.empty() && joint.transKeys.empty())
@@ -626,12 +626,12 @@ void buildTrack(s32 boneIndex, const JointData& joint, const glm::mat4& bindLoca
     track.scales.reserve(times.size());
     for (f32 t : times)
     {
-        const glm::quat deltaRot = joint.rotKeys.empty() ? glm::quat(1.0f, 0.0f, 0.0f, 0.0f)
+        const Math::quat deltaRot = joint.rotKeys.empty() ? Math::quat(1.0f, 0.0f, 0.0f, 0.0f)
                                                          : sampleRotation(joint.rotKeys, t);
-        const glm::vec3 deltaTrans =
-            joint.transKeys.empty() ? glm::vec3(0.0f) : sampleTranslation(joint.transKeys, t);
-        const glm::mat4 delta =
-            glm::translate(glm::mat4(1.0f), deltaTrans) * glm::mat4_cast(deltaRot);
+        const Math::vec3 deltaTrans =
+            joint.transKeys.empty() ? Math::vec3(0.0f) : sampleTranslation(joint.transKeys, t);
+        const Math::mat4 delta =
+            Math::translate(Math::mat4(1.0f), deltaTrans) * Math::mat4_cast(deltaRot);
         const LocalPose pose = decompose(bindLocal * delta);
         track.times.push_back(t);
         track.positions.push_back(pose.position);

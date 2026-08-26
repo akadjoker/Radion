@@ -6,11 +6,11 @@
 #include "Log.h"
 #include "Pixmap.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 #define GLM_ENABLE_EXPERIMENTAL
 #include <cmath>
 #include <cstring>
-#include <glm/gtx/quaternion.hpp> // glm::rotation(from, to)
+#include "Math.h" // Math::rotation(from, to)
 
 namespace Radion
 {
@@ -62,7 +62,7 @@ f32 fbm(f32 x, f32 y, u32 seed, s32 octaves = 4)
 
 u8 toByte(f32 v)
 {
-    return static_cast<u8>(glm::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
+    return static_cast<u8>(Math::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
 }
 
 // Packs an int into a float's bit pattern, the way HLSL's asfloat()/asint()
@@ -164,7 +164,7 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
     // RGB, not a single darkening scalar - every prior kind still only ever
     // wrote the same value into all three channels (grayscale), Blood is the
     // first that needs an actual hue.
-    std::vector<glm::vec3> tint(static_cast<usize>(n) * n, glm::vec3(1.0f));
+    std::vector<Math::vec3> tint(static_cast<usize>(n) * n, Math::vec3(1.0f));
     std::vector<f32> rough(static_cast<usize>(n) * n, 0.8f);
 
     for (s32 y = 0; y < n; ++y)
@@ -189,13 +189,13 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
                 const f32 rEdge = 0.62f + (wobble - 0.5f) * 0.28f;
                 const f32 rHole = rEdge * 0.42f;
 
-                alpha[i] = 1.0f - glm::clamp((r - rEdge * 0.55f) / (rEdge * 0.45f), 0.0f, 1.0f);
+                alpha[i] = 1.0f - Math::clamp((r - rEdge * 0.55f) / (rEdge * 0.45f), 0.0f, 1.0f);
                 alpha[i] *= alpha[i]; // tighter edge
 
                 // Radial chips flying off the hole.
                 const f32 chips = fbm(std::cos(ang) * 9.0f, std::sin(ang) * 9.0f, seed + 31u, 2);
                 if (r > rHole && r < rEdge)
-                    alpha[i] = glm::clamp(alpha[i] + (chips - 0.45f) * 0.9f, 0.0f, 1.0f);
+                    alpha[i] = Math::clamp(alpha[i] + (chips - 0.45f) * 0.9f, 0.0f, 1.0f);
 
                 // Crater: deep floor, raised rim.
                 if (r < rHole)
@@ -203,8 +203,8 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
                 else
                     height[i] = 0.55f * std::exp(-((r - rHole) * 6.0f) * ((r - rHole) * 6.0f));
 
-                tint[i] = glm::vec3(0.10f + 0.35f * glm::clamp((r - rHole) /
-                                                                    glm::max(0.01f, rEdge - rHole),
+                tint[i] = Math::vec3(0.10f + 0.35f * Math::clamp((r - rHole) /
+                                                                    Math::max(0.01f, rEdge - rHole),
                                                                 0.0f, 1.0f));
                 rough[i] = 0.95f;
                 break;
@@ -214,11 +214,11 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
                 // Burn: soft smudge, no relief, very rough.
                 const f32 noise = fbm(u * 2.6f + 5.0f, v * 2.6f + 5.0f, seed, 5);
                 const f32 rr = r * (0.75f + noise * 0.55f);
-                f32 a = glm::clamp(1.0f - rr, 0.0f, 1.0f);
+                f32 a = Math::clamp(1.0f - rr, 0.0f, 1.0f);
                 alpha[i] = a * a * (3.0f - 2.0f * a); // smoothstep
 
                 height[i] = 0.0f;
-                tint[i] = glm::vec3(0.06f + 0.20f * noise);
+                tint[i] = Math::vec3(0.06f + 0.20f * noise);
                 rough[i] = 0.98f;
                 break;
             }
@@ -228,12 +228,12 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
                 // |noise-0.5| and inverting gives continuous lines instead of
                 // blobs, and they branch on their own.
                 const f32 noise = fbm(u * 3.2f, v * 3.2f, seed, 4);
-                const f32 line = 1.0f - glm::clamp(std::fabs(noise - 0.5f) * 14.0f, 0.0f, 1.0f);
-                const f32 fade = glm::clamp(1.0f - r, 0.0f, 1.0f);
+                const f32 line = 1.0f - Math::clamp(std::fabs(noise - 0.5f) * 14.0f, 0.0f, 1.0f);
+                const f32 fade = Math::clamp(1.0f - r, 0.0f, 1.0f);
 
-                alpha[i] = glm::clamp(line * fade * 1.4f, 0.0f, 1.0f);
+                alpha[i] = Math::clamp(line * fade * 1.4f, 0.0f, 1.0f);
                 height[i] = -alpha[i]; // V-shaped groove
-                tint[i] = glm::vec3(0.15f);
+                tint[i] = Math::vec3(0.15f);
                 rough[i] = 0.9f;
                 break;
             }
@@ -245,20 +245,20 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
                 const f32 wobble =
                     fbm(std::cos(ang) * 4.0f + 3.0f, std::sin(ang) * 4.0f + 3.0f, seed, 3);
                 const f32 rEdge = 0.55f + (wobble - 0.5f) * 0.5f;
-                f32 a = glm::clamp(1.0f - r / rEdge, 0.0f, 1.0f);
+                f32 a = Math::clamp(1.0f - r / rEdge, 0.0f, 1.0f);
                 a = a * a * (3.0f - 2.0f * a); // smoothstep, soft pool edge
 
                 const f32 speckle =
                     fbm(u * 10.0f + 20.0f, v * 10.0f + 20.0f, seed + 17u, 3);
                 if (r >= rEdge && r < rEdge * 2.2f && speckle > 0.62f)
-                    a = glm::max(a, (speckle - 0.62f) * 2.4f *
-                                        glm::clamp(1.0f - (r - rEdge) / rEdge, 0.0f, 1.0f));
+                    a = Math::max(a, (speckle - 0.62f) * 2.4f *
+                                        Math::clamp(1.0f - (r - rEdge) / rEdge, 0.0f, 1.0f));
 
-                alpha[i] = glm::clamp(a, 0.0f, 1.0f);
+                alpha[i] = Math::clamp(a, 0.0f, 1.0f);
                 height[i] = 0.0f; // wet, not relief
                 // Darker where it pools deepest, at the centre.
-                const f32 depth = glm::clamp(1.0f - r / glm::max(rEdge, 0.01f), 0.0f, 1.0f);
-                tint[i] = glm::mix(glm::vec3(0.30f, 0.02f, 0.02f), glm::vec3(0.10f, 0.005f, 0.006f),
+                const f32 depth = Math::clamp(1.0f - r / Math::max(rEdge, 0.01f), 0.0f, 1.0f);
+                tint[i] = Math::mix(Math::vec3(0.30f, 0.02f, 0.02f), Math::vec3(0.10f, 0.005f, 0.006f),
                                    depth);
                 rough[i] = 0.35f; // wet sheen, unlike the others' matte damage
                 break;
@@ -289,12 +289,12 @@ s32 DecalSystem::addProcedural(Procedural kind, u32 seed)
             // Relief scale. Without it neighbouring texels differ by almost
             // nothing and the normals come out nearly flat.
             const f32 scale = static_cast<f32>(n) * 0.02f;
-            const glm::vec3 normal =
-                glm::normalize(glm::vec3((hL - hR) * scale, (hD - hU) * scale, 1.0f));
+            const Math::vec3 normal =
+                Math::normalize(Math::vec3((hL - hR) * scale, (hD - hU) * scale, 1.0f));
 
-            mapAlbedo[i * 4 + 0] = toByte(tint[i].r);
-            mapAlbedo[i * 4 + 1] = toByte(tint[i].g);
-            mapAlbedo[i * 4 + 2] = toByte(tint[i].b);
+            mapAlbedo[i * 4 + 0] = toByte(tint[i].x);
+            mapAlbedo[i * 4 + 1] = toByte(tint[i].y);
+            mapAlbedo[i * 4 + 2] = toByte(tint[i].z);
             mapAlbedo[i * 4 + 3] = toByte(alpha[i]);
 
             // Tangent-space in [0,1]. Only RG is read: the shader puts z=1
@@ -418,7 +418,7 @@ s32 DecalSystem::addDecal(const Decal& decal)
     // point renders precisely nowhere, forever, with no error to see. Kept
     // well under 256 so real lights still have room in the same budget.
     // Erasing the front is O(n), but n stays at kMaxDecals, not the whole
-    // session's decal count - a few hundred glm::vec3/quat moves is nothing
+    // session's decal count - a few hundred Math::vec3/quat moves is nothing
     // next to the GPU upload right after this.
     constexpr usize kMaxDecals = 200;
     if (mDecals.size() >= kMaxDecals)
@@ -429,22 +429,22 @@ s32 DecalSystem::addDecal(const Decal& decal)
 
 // --------------------------------------------------------------- projection
 
-glm::mat4 DecalSystem::makeProjection(const Decal& decal)
+Math::mat4 DecalSystem::makeProjection(const Decal& decal)
 {
     // Box -> world, then inverted. The 0.5 is because the local box runs
     // -1..1: a decal 2 units wide has a half-extent of 1.
-    const glm::mat4 boxToWorld = glm::translate(glm::mat4(1.0f), decal.position) *
-                                 glm::mat4_cast(decal.rotation) *
-                                 glm::scale(glm::mat4(1.0f), decal.size * 0.5f);
+    const Math::mat4 boxToWorld = Math::translate(Math::mat4(1.0f), decal.position) *
+                                 Math::mat4_cast(decal.rotation) *
+                                 Math::scale(Math::mat4(1.0f), decal.size * 0.5f);
 
-    glm::mat4 projection = glm::inverse(boxToWorld);
+    Math::mat4 projection = Math::inverse(boxToWorld);
 
     // The layer index travels in the 4th ROW of the matrix.
     //
     // Why there and not a field of its own: the transform only ever uses rows
     // 0..2 (the shader stops at the result's .xyz), so row 3 is dead space
     // that is already in place - it reaches the shader with the matrix, at no
-    // extra cost. In glm, projection[c][r] is column c, row r, same as GLSL,
+    // extra cost. In Mathc, projection[c][r] is column c, row r, same as GLSL,
     // so writing projection[c][3] only touches the result's .w, which nothing
     // reads.
     projection[0][3] = intAsFloat(decal.layer);
@@ -454,17 +454,17 @@ glm::mat4 DecalSystem::makeProjection(const Decal& decal)
     return projection;
 }
 
-s32 DecalSystem::placeOnSurface(const glm::vec3& position, const glm::vec3& normal, s32 layer,
+s32 DecalSystem::placeOnSurface(const Math::vec3& position, const Math::vec3& normal, s32 layer,
                                 f32 size, f32 thickness, f32 rotationRadians,
-                                const glm::vec3& color, f32 opacity)
+                                const Math::vec3& color, f32 opacity)
 {
     Decal decal;
     // Rotates the box's +Z onto the surface normal - it is +Z the slope fade
     // compares the fragment's normal against.
-    const glm::quat aligned = glm::rotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::normalize(normal));
+    const Math::quat aligned = Math::rotation(Math::vec3(0.0f, 0.0f, 1.0f), Math::normalize(normal));
     // Spin around that same normal, so repeated stamps of the same texture do
     // not read as copies.
-    decal.rotation = aligned * glm::angleAxis(rotationRadians, glm::vec3(0.0f, 0.0f, 1.0f));
+    decal.rotation = aligned * Math::angleAxis(rotationRadians, Math::vec3(0.0f, 0.0f, 1.0f));
 
     // The box is centred ON the surface, not pulled back. Centred, the
     // surface lands at box.z = 0, where the edge fade (1-|z|^8) is 1, and the
@@ -475,7 +475,7 @@ s32 DecalSystem::placeOnSurface(const glm::vec3& position, const glm::vec3& norm
     // flat ground, only partly visible on anything curved.
     decal.position = position;
 
-    decal.size = glm::vec3(size, size, thickness);
+    decal.size = Math::vec3(size, size, thickness);
     decal.layer = layer;
     decal.color = color;
     decal.opacity = opacity;

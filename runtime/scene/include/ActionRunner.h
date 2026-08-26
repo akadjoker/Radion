@@ -4,8 +4,8 @@
 #include "Component.h"
 #include "Math.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include "Math.h"
+#include "Math.h"
 #include <vector>
 
 namespace Radion
@@ -28,11 +28,11 @@ public:
     static constexpr ComponentType Type = ComponentType::ActionRunner;
 
     ActionRunner& wait(f32 seconds);
-    ActionRunner& moveTo(const glm::vec3& position, f32 seconds);
-    ActionRunner& moveBy(const glm::vec3& offset, f32 seconds);
+    ActionRunner& moveTo(const Math::vec3& position, f32 seconds);
+    ActionRunner& moveBy(const Math::vec3& offset, f32 seconds);
     ActionRunner& projectile(const Ray& ray, f32 speed, f32 lifetime);
-    ActionRunner& rotateTo(const glm::quat& rotation, f32 seconds);
-    ActionRunner& rotateBy(const glm::vec3& degrees, f32 seconds);
+    ActionRunner& rotateTo(const Math::quat& rotation, f32 seconds);
+    ActionRunner& rotateBy(const Math::vec3& degrees, f32 seconds);
     ActionRunner& dispose();
 
     void clear();
@@ -45,7 +45,7 @@ private:
 
     struct Command
     {
-        glm::vec4 value = glm::vec4(0.0f);
+        Math::vec4 value = Math::vec4(0.0f);
         f32 duration = 0.0f;
         ActionType type = ActionType::Wait;
     };
@@ -55,14 +55,14 @@ private:
     void begin(const Command& command);
     void apply(const Command& command, f32 amount);
     ActionRunner& append(ActionType type, f32 duration = 0.0f,
-                         const glm::vec4& value = glm::vec4(0.0f));
+                         const Math::vec4& value = Math::vec4(0.0f));
 
     std::vector<Command> mCommands;
     usize mCurrent = 0;
     f32 mElapsed = 0.0f;
-    glm::vec3 mStartPosition = glm::vec3(0.0f);
-    glm::quat mStartRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    glm::vec4 mTarget = glm::vec4(0.0f);
+    Math::vec3 mStartPosition = Math::vec3(0.0f);
+    Math::quat mStartRotation = Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::vec4 mTarget = Math::vec4(0.0f);
     bool mStarted = false;
 };
 

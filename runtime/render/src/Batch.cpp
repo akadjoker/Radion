@@ -85,8 +85,8 @@ BatchRenderer::BatchRenderer()
 {
     memset(&mStats, 0, sizeof(mStats));
     memset(mCurrentTexcoord, 0, sizeof(mCurrentTexcoord));
-    mProjection = glm::mat4(1.0f);
-    mCurrentMatrix = glm::mat4(1.0f);
+    mProjection = Math::mat4(1.0f);
+    mCurrentMatrix = Math::mat4(1.0f);
 }
 
 BatchRenderer::~BatchRenderer()
@@ -207,30 +207,30 @@ void BatchRenderer::popMatrix()
     }
     else
     {
-        mCurrentMatrix = glm::mat4(1.0f);
+        mCurrentMatrix = Math::mat4(1.0f);
     }
 }
 
 void BatchRenderer::loadIdentity()
 {
-    mCurrentMatrix = glm::mat4(1.0f);
+    mCurrentMatrix = Math::mat4(1.0f);
 }
 
 void BatchRenderer::translate(float x, float y, float z)
 {
-    mCurrentMatrix = glm::translate(mCurrentMatrix, glm::vec3(x, y, z));
+    mCurrentMatrix = Math::translate(mCurrentMatrix, Math::vec3(x, y, z));
 }
 
 void BatchRenderer::rotate(float angleDeg, float axisX, float axisY, float axisZ)
 {
-    glm::vec3 axis(axisX, axisY, axisZ);
+    Math::vec3 axis(axisX, axisY, axisZ);
     float angleRad = angleDeg * (Pi / 180.0f);
-    mCurrentMatrix = glm::rotate(mCurrentMatrix, angleRad, axis);
+    mCurrentMatrix = Math::rotate(mCurrentMatrix, angleRad, axis);
 }
 
 void BatchRenderer::scale(float x, float y, float z)
 {
-    mCurrentMatrix = glm::scale(mCurrentMatrix, glm::vec3(x, y, z));
+    mCurrentMatrix = Math::scale(mCurrentMatrix, Math::vec3(x, y, z));
 }
 
 // ---------------------------------------------------------------------------
@@ -884,7 +884,7 @@ void BatchRenderer::drawLine3D(float x0, float y0, float z0, float x1, float y1,
     end();
 }
 
-void BatchRenderer::drawTriangle3D(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c)
+void BatchRenderer::drawTriangle3D(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c)
 {
     begin(ModeTriangles);
     vertex3(a.x, a.y, a.z);
@@ -893,8 +893,8 @@ void BatchRenderer::drawTriangle3D(const glm::vec3& a, const glm::vec3& b, const
     end();
 }
 
-void BatchRenderer::drawTriangle3D(const glm::vec3& a, const glm::vec2& uvA, const glm::vec3& b,
-                                   const glm::vec2& uvB, const glm::vec3& c, const glm::vec2& uvC)
+void BatchRenderer::drawTriangle3D(const Math::vec3& a, const Math::vec2& uvA, const Math::vec3& b,
+                                   const Math::vec2& uvB, const Math::vec3& c, const Math::vec2& uvC)
 {
     begin(ModeTriangles);
     setTexcoord(uvA.x, uvA.y);
@@ -906,9 +906,9 @@ void BatchRenderer::drawTriangle3D(const glm::vec3& a, const glm::vec2& uvA, con
     end();
 }
 
-void BatchRenderer::drawTriangle3D(const glm::vec3& a, const glm::vec2& uvA, u32 colorA,
-                                   const glm::vec3& b, const glm::vec2& uvB, u32 colorB,
-                                   const glm::vec3& c, const glm::vec2& uvC, u32 colorC)
+void BatchRenderer::drawTriangle3D(const Math::vec3& a, const Math::vec2& uvA, u32 colorA,
+                                   const Math::vec3& b, const Math::vec2& uvB, u32 colorB,
+                                   const Math::vec3& c, const Math::vec2& uvC, u32 colorC)
 {
     begin(ModeTriangles);
     mCurrentColor = colorA;
@@ -1419,7 +1419,7 @@ void BatchRenderer::printStats() const
 // Projection matrix
 // ---------------------------------------------------------------------------
 
-void BatchRenderer::setProjection(const glm::mat4& matrix)
+void BatchRenderer::setProjection(const Math::mat4& matrix)
 {
     mProjection = matrix;
 }
@@ -1450,7 +1450,7 @@ void BatchRenderer::unpackColor(unsigned int packed, unsigned char& r, unsigned 
 
 void BatchRenderer::updateProjection()
 {
-    mProjection = glm::ortho(0.0f, static_cast<float>(mWindowWidth),
+    mProjection = Math::ortho(0.0f, static_cast<float>(mWindowWidth),
                              static_cast<float>(mWindowHeight), 0.0f, -1.0f, 1.0f);
 }
 
@@ -1572,8 +1572,8 @@ PipelineHandle BatchRenderer::pipelineFor(const DrawCall& call)
 
 void BatchRenderer::applyDrawCalls()
 {
-    mGpu->updateBuffer(mUniformBuffer, 0, sizeof(glm::mat4), &mProjection[0][0]);
-    mGpu->bindUniform(0, mUniformBuffer, 0, sizeof(glm::mat4));
+    mGpu->updateBuffer(mUniformBuffer, 0, sizeof(Math::mat4), &mProjection[0][0]);
+    mGpu->bindUniform(0, mUniformBuffer, 0, sizeof(Math::mat4));
 
     usize vertexOffset = 0;
     u32 indexOffset = 0;
@@ -1632,7 +1632,7 @@ void BatchRenderer::setupBuffers()
     mIndexBuffer = mGpu->createBuffer(indexDesc);
 
     BufferDesc uniformDesc;
-    uniformDesc.size = sizeof(glm::mat4);
+    uniformDesc.size = sizeof(Math::mat4);
     uniformDesc.usage = BufferUniform;
     uniformDesc.residency = Residency::Stream;
     uniformDesc.debugName = "batch.uniforms";
@@ -1713,7 +1713,7 @@ void BatchRenderer::submitVertex(float x, float y, float z, float u, float v)
 
 void BatchRenderer::applyTransform(float& x, float& y, float& z)
 {
-    const glm::vec4 transformed = mCurrentMatrix * glm::vec4(x, y, z, 1.0f);
+    const Math::vec4 transformed = mCurrentMatrix * Math::vec4(x, y, z, 1.0f);
     x = transformed.x;
     y = transformed.y;
     z = transformed.z;
@@ -1723,16 +1723,16 @@ void BatchRenderer::applyTransform(float& x, float& y, float& z)
 // Text rendering with embedded 8x8 font
 // ---------------------------------------------------------------------------
 
-glm::vec4 fontGlyphUVRect(unsigned char code)
+Math::vec4 fontGlyphUVRect(unsigned char code)
 {
     if (code < 32 || code > 127 || code == ' ')
-        return glm::vec4(0.0f);
+        return Math::vec4(0.0f);
     const f32 cw = 8.f / (f32)FONT_ATLAS_W;
     const f32 ch = 8.f / (f32)FONT_ATLAS_H;
     const int g = code - 32;
     const f32 u0 = (f32)(g % FONT_COLS) * cw;
     const f32 v0 = (f32)(g / FONT_COLS) * ch;
-    return glm::vec4(u0, v0, cw, ch);
+    return Math::vec4(u0, v0, cw, ch);
 }
 
 void BatchRenderer::drawText(f32 x, f32 y, f32 size, const char* text)
@@ -1756,7 +1756,7 @@ void BatchRenderer::drawText(f32 x, f32 y, f32 size, const char* text)
         u8 code = (u8)*c;
         if (code < 32 || code > 127)
             code = '?';
-        const glm::vec4 rect = fontGlyphUVRect(code);
+        const Math::vec4 rect = fontGlyphUVRect(code);
         if (rect.z > 0.0f)
         {
             const f32 u0 = rect.x, v0 = rect.y, u1 = rect.x + rect.z, v1 = rect.y + rect.w;

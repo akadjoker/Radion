@@ -1,0 +1,3 @@
+[submodule "vendor/mathc"]
+	path = vendor/mathc
+	url = https://github.com/akadjoker/math.git

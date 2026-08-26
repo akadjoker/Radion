@@ -97,7 +97,7 @@ void testMeshing()
     CHECK(adjacent.opaque.indices.size() == 36);
     CHECK(adjacent.opaque.triangleCount() == 12);
     bool hasRepeatedUv = false;
-    for (const glm::vec2& uv : adjacent.opaque.uvs)
+    for (const Math::vec2& uv : adjacent.opaque.uvs)
         hasRepeatedUv = hasRepeatedUv || uv.x == 2.0f || uv.y == 2.0f;
     CHECK(hasRepeatedUv);
 
@@ -155,7 +155,7 @@ void testAtlasUvs()
     // UV0 repeats per voxel; UV1 identifies tile (1,1) in the engine atlas convention.
     CHECK(mesh.opaque.uvs.size() == 24);
     CHECK(mesh.opaque.uvs2.size() == 24);
-    for (const glm::vec2& uv : mesh.opaque.uvs2)
+    for (const Math::vec2& uv : mesh.opaque.uvs2)
     {
         CHECK(uv.x == 0.25f);
         CHECK(uv.y == 0.5f);
@@ -177,7 +177,7 @@ void testAtlasRotation()
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
 
     bool hasClockwiseCorner = false;
-    for (const glm::vec2& uv : mesh.opaque.uvs)
+    for (const Math::vec2& uv : mesh.opaque.uvs)
         hasClockwiseCorner = hasClockwiseCorner || (uv.x == 0.0f && uv.y == 1.0f);
     CHECK(hasClockwiseCorner);
 }
@@ -197,7 +197,7 @@ void testAtlasVerticalFlip()
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
 
     bool hasFlippedCorner = false;
-    for (const glm::vec2& uv : mesh.opaque.uvs)
+    for (const Math::vec2& uv : mesh.opaque.uvs)
         hasFlippedCorner = hasFlippedCorner || (uv.x == 0.0f && uv.y == 1.0f);
     CHECK(hasFlippedCorner);
 }

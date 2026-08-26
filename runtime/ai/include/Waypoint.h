@@ -8,8 +8,8 @@
 
 #include "Types.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include "Math.h"
+#include "Math.h"
 #include <vector>
 
 namespace Radion::AI
@@ -31,8 +31,8 @@ class WaypointNetwork;
 class Waypoint
 {
 public:
-    explicit Waypoint(const glm::vec3& position = glm::vec3(0.0f),
-                      const glm::quat& orientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+    explicit Waypoint(const Math::vec3& position = Math::vec3(0.0f),
+                      const Math::quat& orientation = Math::quat(1.0f, 0.0f, 0.0f, 0.0f),
                       float radius = 1.0f);
 
     WaypointID id() const
@@ -40,19 +40,19 @@ public:
         return mId;
     }
 
-    const glm::vec3& position() const
+    const Math::vec3& position() const
     {
         return mPosition;
     }
-    void setPosition(const glm::vec3& position)
+    void setPosition(const Math::vec3& position)
     {
         mPosition = position;
     }
-    const glm::quat& orientation() const
+    const Math::quat& orientation() const
     {
         return mOrientation;
     }
-    void setOrientation(const glm::quat& orientation)
+    void setOrientation(const Math::quat& orientation)
     {
         mOrientation = orientation;
     }
@@ -86,8 +86,8 @@ public:
 private:
     WaypointID mId;
     std::vector<NetworkEdge> mOutgoingEdges;
-    glm::vec3 mPosition;
-    glm::quat mOrientation;
+    Math::vec3 mPosition;
+    Math::quat mOrientation;
     float mRadius;
 };
 

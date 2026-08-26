@@ -57,11 +57,11 @@ struct Lump
 
 struct SourceVertex
 {
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec2 uv = glm::vec2(0.0f);
-    glm::vec2 lightmapUV = glm::vec2(0.0f);
-    glm::vec4 color = glm::vec4(1.0f);
+    Math::vec3 position = Math::vec3(0.0f);
+    Math::vec3 normal = Math::vec3(0.0f, 1.0f, 0.0f);
+    Math::vec2 uv = Math::vec2(0.0f);
+    Math::vec2 lightmapUV = Math::vec2(0.0f);
+    Math::vec4 color = Math::vec4(1.0f);
 };
 
 struct Face
@@ -89,7 +89,7 @@ struct ShaderInfo
     std::string image;
     std::vector<std::string> animationFrames;
     f32 animationFPS = 0.0f;
-    glm::vec2 scroll = glm::vec2(0.0f);
+    Math::vec2 scroll = Math::vec2(0.0f);
     f32 rotate = 0.0f;
     bool sky = false;
     bool fog = false;
@@ -586,7 +586,7 @@ bool writeMaterialFile(FileSystem& files, const std::string& filename, const Mes
                 output << "            type Static\n            file "
                        << quoted(portablePath(source.albedoFrames.front())) << "\n";
             }
-            if (material.params.uvAnim != glm::vec4(0.0f))
+            if (material.params.uvAnim != Math::vec4(0.0f))
                 output << "            uvAnimation\n            {\n"
                        << "                scrollSpeed (" << material.params.uvAnim.x << ", "
                        << material.params.uvAnim.y << ")\n"
@@ -629,11 +629,11 @@ template <typename T> T evaluatePatchValue(const T values[9], f32 u, f32 v)
 
 SourceVertex evaluatePatch(const SourceVertex control[9], f32 u, f32 v)
 {
-    glm::vec3 positions[9];
-    glm::vec3 normals[9];
-    glm::vec2 uvs[9];
-    glm::vec2 lightmapUVs[9];
-    glm::vec4 colors[9];
+    Math::vec3 positions[9];
+    Math::vec3 normals[9];
+    Math::vec2 uvs[9];
+    Math::vec2 lightmapUVs[9];
+    Math::vec4 colors[9];
     for (usize i = 0; i < 9; ++i)
     {
         positions[i] = control[i].position;
@@ -646,18 +646,18 @@ SourceVertex evaluatePatch(const SourceVertex control[9], f32 u, f32 v)
     SourceVertex result;
     result.position = evaluatePatchValue(positions, u, v);
     result.normal = evaluatePatchValue(normals, u, v);
-    const f32 normalLength = glm::length(result.normal);
+    const f32 normalLength = Math::length(result.normal);
     result.normal =
-        normalLength > 1e-6f ? result.normal / normalLength : glm::vec3(0.0f, 1.0f, 0.0f);
+        normalLength > 1e-6f ? result.normal / normalLength : Math::vec3(0.0f, 1.0f, 0.0f);
     result.uv = evaluatePatchValue(uvs, u, v);
     result.lightmapUV = evaluatePatchValue(lightmapUVs, u, v);
     result.color = evaluatePatchValue(colors, u, v);
     return result;
 }
 
-u32 packColor(const glm::vec4& color)
+u32 packColor(const Math::vec4& color)
 {
-    const glm::vec4 clamped = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
+    const Math::vec4 clamped = Math::clamp(color, Math::vec4(0.0f), Math::vec4(1.0f));
     const u32 r = static_cast<u32>(clamped.r * 255.0f + 0.5f);
     const u32 g = static_cast<u32>(clamped.g * 255.0f + 0.5f);
     const u32 b = static_cast<u32>(clamped.b * 255.0f + 0.5f);
@@ -768,7 +768,7 @@ bool appendPatch(const Face& face, const std::vector<SourceVertex>& vertices, u3
 void computeBounds(MeshData& mesh)
 {
     mesh.bounds = AABB();
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::vec3& position : mesh.positions)
         mesh.bounds.expand(position);
 
     for (SubMesh& submesh : mesh.submeshes)
@@ -887,16 +887,16 @@ bool BSPImporter::importMap(const std::string& filename, ByteArray& data, FileSy
         SourceVertex& vertex = vertices[i];
         // Quake 3 is Z-up. Swapping Y/Z matches the reference loader's Y-up
         // conversion and its established winding convention.
-        vertex.position = glm::vec3(readF32(bytes, offset + 0), readF32(bytes, offset + 8),
+        vertex.position = Math::vec3(readF32(bytes, offset + 0), readF32(bytes, offset + 8),
                                     readF32(bytes, offset + 4));
-        vertex.uv = glm::vec2(readF32(bytes, offset + 12), readF32(bytes, offset + 16));
-        vertex.lightmapUV = glm::vec2(readF32(bytes, offset + 20), readF32(bytes, offset + 24));
-        vertex.normal = glm::vec3(readF32(bytes, offset + 28), readF32(bytes, offset + 36),
+        vertex.uv = Math::vec2(readF32(bytes, offset + 12), readF32(bytes, offset + 16));
+        vertex.lightmapUV = Math::vec2(readF32(bytes, offset + 20), readF32(bytes, offset + 24));
+        vertex.normal = Math::vec3(readF32(bytes, offset + 28), readF32(bytes, offset + 36),
                                   readF32(bytes, offset + 32));
-        const f32 normalLength = glm::length(vertex.normal);
+        const f32 normalLength = Math::length(vertex.normal);
         vertex.normal =
-            normalLength > 1e-6f ? vertex.normal / normalLength : glm::vec3(0.0f, 1.0f, 0.0f);
-        vertex.color = glm::vec4(bytes[offset + 40], bytes[offset + 41], bytes[offset + 42],
+            normalLength > 1e-6f ? vertex.normal / normalLength : Math::vec3(0.0f, 1.0f, 0.0f);
+        vertex.color = Math::vec4(bytes[offset + 40], bytes[offset + 41], bytes[offset + 42],
                                  bytes[offset + 43]) /
                        255.0f;
         if (!std::isfinite(vertex.position.x) || !std::isfinite(vertex.position.y) ||
@@ -1026,16 +1026,16 @@ bool BSPImporter::importMap(const std::string& filename, ByteArray& data, FileSy
                 material.flags |= MaterialNoDepthWrite;
                 material.blend = shader->additive ? BlendMode::Additive : BlendMode::Alpha;
             }
-            if (shader->scroll != glm::vec2(0.0f) || shader->rotate != 0.0f)
+            if (shader->scroll != Math::vec2(0.0f) || shader->rotate != 0.0f)
             {
                 material.flags |= MaterialAnimated;
                 material.params.uvAnim =
-                    glm::vec4(shader->scroll, glm::radians(shader->rotate), 0.0f);
+                    Math::vec4(shader->scroll, Math::radians(shader->rotate), 0.0f);
             }
             if (albedoFrames.size() > 1 && shader->animationFPS > 0.0f)
             {
                 material.flags |= MaterialAnimated;
-                material.params.sequence = glm::vec4(static_cast<f32>(albedoFrames.size()),
+                material.params.sequence = Math::vec4(static_cast<f32>(albedoFrames.size()),
                                                      shader->animationFPS, 1.0f, 0.0f);
                 material.textures[SlotAlbedo].source = TextureSource::Sequence;
                 material.textures[SlotAlbedo].layers = static_cast<u16>(

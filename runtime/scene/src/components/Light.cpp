@@ -9,7 +9,7 @@ namespace
 {
 f32 validRange(f32 range)
 {
-    return std::isfinite(range) ? glm::max(0.01f, range) : 10.0f;
+    return std::isfinite(range) ? Math::max(0.01f, range) : 10.0f;
 }
 } // namespace
 
@@ -21,19 +21,19 @@ LightType Light::lightType() const
 {
     return mType;
 }
-void Light::setColor(const glm::vec3& color)
+void Light::setColor(const Math::vec3& color)
 {
     if (std::isfinite(color.x) && std::isfinite(color.y) && std::isfinite(color.z))
-        mColor = glm::max(color, glm::vec3(0.0f));
+        mColor = Math::max(color, Math::vec3(0.0f));
 }
-const glm::vec3& Light::color() const
+const Math::vec3& Light::color() const
 {
     return mColor;
 }
 void Light::setIntensity(f32 intensity)
 {
     if (std::isfinite(intensity))
-        mIntensity = glm::max(0.0f, intensity);
+        mIntensity = Math::max(0.0f, intensity);
 }
 f32 Light::intensity() const
 {
@@ -73,8 +73,8 @@ void SpotLight::setAngles(f32 innerDegrees, f32 outerDegrees)
 {
     if (!std::isfinite(innerDegrees) || !std::isfinite(outerDegrees))
         return;
-    mOuterAngle = glm::clamp(outerDegrees, 0.1f, 89.9f);
-    mInnerAngle = glm::clamp(innerDegrees, 0.0f, mOuterAngle);
+    mOuterAngle = Math::clamp(outerDegrees, 0.1f, 89.9f);
+    mInnerAngle = Math::clamp(innerDegrees, 0.0f, mOuterAngle);
 }
 f32 SpotLight::innerAngle() const
 {
@@ -100,8 +100,8 @@ void RectangleLight::setSize(f32 width, f32 height)
 {
     if (std::isfinite(width) && std::isfinite(height))
     {
-        mWidth = glm::max(0.01f, width);
-        mHeight = glm::max(0.01f, height);
+        mWidth = Math::max(0.01f, width);
+        mHeight = Math::max(0.01f, height);
     }
 }
 f32 RectangleLight::width() const

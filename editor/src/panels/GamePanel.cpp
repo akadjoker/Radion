@@ -12,7 +12,7 @@ namespace Radion
 {
 GamePanel::GamePanel(EditorApplication& app) : EditorPanel("Game", app)
 {
-    mResolutionPreset = glm::clamp(app.settings().gameResolutionPreset, 0, 6);
+    mResolutionPreset = Math::clamp(app.settings().gameResolutionPreset, 0, 6);
 }
 void GamePanel::onImGui()
 {
@@ -85,8 +85,8 @@ void GamePanel::onImGui()
     ImGui::Separator();
 
     ImVec2 available = ImGui::GetContentRegionAvail();
-    available.x = glm::max(available.x, 1.0f);
-    available.y = glm::max(available.y, 1.0f);
+    available.x = Math::max(available.x, 1.0f);
+    available.y = Math::max(available.y, 1.0f);
     const u32 width = presets[mResolutionPreset].width != 0 ? presets[mResolutionPreset].width
                                                             : static_cast<u32>(available.x);
     const u32 height = presets[mResolutionPreset].height != 0 ? presets[mResolutionPreset].height
@@ -107,7 +107,7 @@ void GamePanel::onImGui()
         // dimensions so a resize while paused does not stretch it.
         const f32 textureWidth = static_cast<f32>(mOutput.width);
         const f32 textureHeight = static_cast<f32>(mOutput.height);
-        const f32 scale = glm::min(available.x / textureWidth, available.y / textureHeight);
+        const f32 scale = Math::min(available.x / textureWidth, available.y / textureHeight);
         const ImVec2 size(textureWidth * scale, textureHeight * scale);
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (available.x - size.x) * 0.5f);
         const u32 nativeId = app().engine().getGPU().nativeTextureId(mOutput.color);

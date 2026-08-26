@@ -16,22 +16,22 @@ namespace
 
 constexpr f32 kInfinity = std::numeric_limits<f32>::infinity();
 
-glm::vec3 vecMin(const glm::vec3& a, const glm::vec3& b)
+Math::vec3 vecMin(const Math::vec3& a, const Math::vec3& b)
 {
-    return glm::vec3(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z));
+    return Math::vec3(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z));
 }
 
-glm::vec3 vecMax(const glm::vec3& a, const glm::vec3& b)
+Math::vec3 vecMax(const Math::vec3& a, const Math::vec3& b)
 {
-    return glm::vec3(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
+    return Math::vec3(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
 }
 
-int vecMinAxis(const glm::vec3& v)
+int vecMinAxis(const Math::vec3& v)
 {
     return (v.x < v.y) ? ((v.x < v.z) ? 0 : 2) : ((v.y < v.z) ? 1 : 2);
 }
 
-int vecMaxAxis(const glm::vec3& v)
+int vecMaxAxis(const Math::vec3& v)
 {
     return (v.x < v.y) ? ((v.y < v.z) ? 2 : 1) : ((v.x < v.z) ? 2 : 0);
 }
@@ -551,8 +551,8 @@ private:
         }
     };
 
-    glm::vec3 scaling;
-    glm::vec3 center;
+    Math::vec3 scaling;
+    Math::vec3 center;
     Pool<Vertex> vertexPool;
     Pool<Edge> edgePool;
     Pool<Face> facePool;
@@ -612,9 +612,9 @@ private:
 
     void merge(IntermediateHull& h0, IntermediateHull& h1);
 
-    glm::vec3 toVec3(const Point32& v);
+    Math::vec3 toVec3(const Point32& v);
 
-    glm::vec3 getNormal(Face* face);
+    Math::vec3 getNormal(Face* face);
 
     bool shiftFace(Face* face, f32 amount, std::vector<Vertex*> stack);
 
@@ -623,7 +623,7 @@ public:
 
     void compute(const void* coords, int stride, int count);
 
-    glm::vec3 getCoordinates(const Vertex* v);
+    Math::vec3 getCoordinates(const Vertex* v);
 
     f32 shrink(f32 amount, f32 clampAmount);
 };
@@ -1591,19 +1591,19 @@ public:
 
 void HullInternal::compute(const void* coords, int stride, int count)
 {
-    glm::vec3 minPoint(1e30f, 1e30f, 1e30f);
-    glm::vec3 maxPoint(-1e30f, -1e30f, -1e30f);
+    Math::vec3 minPoint(1e30f, 1e30f, 1e30f);
+    Math::vec3 maxPoint(-1e30f, -1e30f, -1e30f);
     const char* ptr = (const char*)coords;
     for (int i = 0; i < count; i++)
     {
         const float* v = (const float*)ptr;
-        glm::vec3 p(v[0], v[1], v[2]);
+        Math::vec3 p(v[0], v[1], v[2]);
         ptr += stride;
         minPoint = vecMin(minPoint, p);
         maxPoint = vecMax(maxPoint, p);
     }
 
-    glm::vec3 s = maxPoint - minPoint;
+    Math::vec3 s = maxPoint - minPoint;
     maxAxis = vecMaxAxis(s);
     minAxis = vecMinAxis(s);
     if (minAxis == maxAxis)
@@ -1640,7 +1640,7 @@ void HullInternal::compute(const void* coords, int stride, int count)
     for (int i = 0; i < count; i++)
     {
         const float* v = (const float*)ptr;
-        glm::vec3 p(v[0], v[1], v[2]);
+        Math::vec3 p(v[0], v[1], v[2]);
         ptr += stride;
         p = (p - center) * s;
         points[i].x = (std::int32_t)p[medAxis];
@@ -1677,23 +1677,23 @@ void HullInternal::compute(const void* coords, int stride, int count)
     vertexList = hull.minXy;
 }
 
-glm::vec3 HullInternal::toVec3(const Point32& v)
+Math::vec3 HullInternal::toVec3(const Point32& v)
 {
-    glm::vec3 p;
+    Math::vec3 p;
     p[medAxis] = f32(v.x);
     p[maxAxis] = f32(v.y);
     p[minAxis] = f32(v.z);
     return p * scaling;
 }
 
-glm::vec3 HullInternal::getNormal(Face* face)
+Math::vec3 HullInternal::getNormal(Face* face)
 {
-    return glm::normalize(glm::cross(toVec3(face->dir0), toVec3(face->dir1)));
+    return Math::normalize(Math::cross(toVec3(face->dir0), toVec3(face->dir1)));
 }
 
-glm::vec3 HullInternal::getCoordinates(const Vertex* v)
+Math::vec3 HullInternal::getCoordinates(const Vertex* v)
 {
-    glm::vec3 p;
+    Math::vec3 p;
     p[medAxis] = v->xvalue();
     p[maxAxis] = v->yvalue();
     p[minAxis] = v->zvalue();
@@ -1774,7 +1774,7 @@ f32 HullInternal::shrink(f32 amount, f32 clampAmount)
         return 0;
     }
 
-    glm::vec3 hullCenter;
+    Math::vec3 hullCenter;
     hullCenter[medAxis] = hullCenterX.toScalar();
     hullCenter[maxAxis] = hullCenterY.toScalar();
     hullCenter[minAxis] = hullCenterZ.toScalar();
@@ -1788,8 +1788,8 @@ f32 HullInternal::shrink(f32 amount, f32 clampAmount)
         f32 minDist = kInfinity;
         for (int i = 0; i < faceCount; i++)
         {
-            glm::vec3 normal = getNormal(faces[i]);
-            f32 dist = glm::dot(normal, toVec3(faces[i]->origin) - hullCenter);
+            Math::vec3 normal = getNormal(faces[i]);
+            f32 dist = Math::dot(normal, toVec3(faces[i]->origin) - hullCenter);
             if (dist < minDist)
             {
                 minDist = dist;
@@ -1823,7 +1823,7 @@ f32 HullInternal::shrink(f32 amount, f32 clampAmount)
 
 bool HullInternal::shiftFace(Face* face, f32 amount, std::vector<Vertex*> stack)
 {
-    glm::vec3 origShift = getNormal(face) * -amount;
+    Math::vec3 origShift = getNormal(face) * -amount;
     if (scaling[0] != 0)
     {
         origShift[0] /= scaling[0];

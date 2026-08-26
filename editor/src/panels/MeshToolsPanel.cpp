@@ -14,7 +14,7 @@
 
 #include <IconsMaterialDesignIcons.h>
 #include <filesystem>
-#include <glm/gtc/quaternion.hpp>
+#include "Math.h"
 #include <imgui.h>
 #include <limits>
 
@@ -106,21 +106,21 @@ void MeshToolsPanel::onImGui()
         ImGui::BeginDisabled(!data || skinned);
         if (ImGui::Button("Apply open cut"))
         {
-            const glm::vec3 worldNormal = glm::normalize(cutter->up());
-            const glm::vec3 worldPoint = cutter->globalPosition();
-            const glm::mat4 targetTransform = object->globalTransform();
-            const glm::vec3 localNormal =
-                glm::transpose(glm::mat3(targetTransform)) * worldNormal;
-            const f32 normalLength = glm::length(localNormal);
+            const Math::vec3 worldNormal = Math::normalize(cutter->up());
+            const Math::vec3 worldPoint = cutter->globalPosition();
+            const Math::mat4 targetTransform = object->globalTransform();
+            const Math::vec3 localNormal =
+                Math::transpose(Math::mat3(targetTransform)) * worldNormal;
+            const f32 normalLength = Math::length(localNormal);
             if (normalLength <= 1e-6f)
             {
                 mCutStatus = "Cut failed: target transform has a zero scale axis.";
             }
             else
             {
-                const glm::vec3 targetOrigin = glm::vec3(targetTransform[3]);
+                const Math::vec3 targetOrigin = Math::vec3(targetTransform[3]);
                 const f32 localOffset =
-                    glm::dot(worldNormal, targetOrigin - worldPoint) / normalLength;
+                    Math::dot(worldNormal, targetOrigin - worldPoint) / normalLength;
                 MeshData clipped;
                 if (!clipMeshByPlane(*data, localNormal / normalLength, localOffset,
                                      mKeepPlaneNormalSide, clipped))
@@ -388,7 +388,7 @@ void MeshToolsPanel::onImGui()
         // above is confirmed against the real vertices. A rotated or
         // diagonal piece has box corners well below any vertex it actually
         // owns, which alone would keep roofs that should have gone.
-        const glm::mat4 transform = object->globalTransform();
+        const Math::mat4 transform = object->globalTransform();
         std::vector<u32> doomed;
         for (u32 i = 0; i < static_cast<u32>(data->submeshes.size()); ++i)
         {
@@ -397,24 +397,24 @@ void MeshToolsPanel::onImGui()
             f32 lowestCorner = std::numeric_limits<f32>::max();
             for (u32 corner = 0; corner < 8; ++corner)
             {
-                const glm::vec3 local((corner & 1) ? bounds.max.x : bounds.min.x,
+                const Math::vec3 local((corner & 1) ? bounds.max.x : bounds.min.x,
                                       (corner & 2) ? bounds.max.y : bounds.min.y,
                                       (corner & 4) ? bounds.max.z : bounds.min.z);
-                lowestCorner = glm::min(lowestCorner, (transform * glm::vec4(local, 1.0f)).y);
+                lowestCorner = Math::min(lowestCorner, (transform * Math::vec4(local, 1.0f)).y);
             }
             if (lowestCorner <= stripHeight)
                 continue;
 
             f32 lowestVertex = std::numeric_limits<f32>::max();
             const usize end =
-                glm::min<usize>(submesh.indexOffset + submesh.indexCount, data->indices.size());
+                Math::min<usize>(submesh.indexOffset + submesh.indexCount, data->indices.size());
             for (usize index = submesh.indexOffset; index < end; ++index)
             {
                 const u32 vertex = data->indices[index];
                 if (vertex >= data->positions.size())
                     continue;
                 lowestVertex =
-                    glm::min(lowestVertex, (transform * glm::vec4(data->positions[vertex], 1.0f)).y);
+                    Math::min(lowestVertex, (transform * Math::vec4(data->positions[vertex], 1.0f)).y);
                 if (lowestVertex <= stripHeight)
                     break; // reaches the ground after all - keep it, stop looking
             }
@@ -450,24 +450,24 @@ void MeshToolsPanel::onImGui()
         ImGui::SetTooltip("Moves/rotates the vertices themselves, shared by every object using "
                           "this mesh - not this one object's own Transform in the Inspector. "
                           "Useful for an import that landed off-centre or on its side.");
-    static glm::vec3 bakeTranslate(0.0f);
+    static Math::vec3 bakeTranslate(0.0f);
     ImGui::DragFloat3("Translate##bake", &bakeTranslate.x, 0.01f);
     ImGui::SameLine();
     if (ImGui::Button("Apply##bakeTranslate"))
     {
         assets.translate(*data, bakeTranslate);
         app().applyMeshEdit(renderer->mesh());
-        bakeTranslate = glm::vec3(0.0f);
+        bakeTranslate = Math::vec3(0.0f);
     }
-    static glm::vec3 bakeRotateDegrees(0.0f);
+    static Math::vec3 bakeRotateDegrees(0.0f);
     ImGui::DragFloat3("Rotate##bake", &bakeRotateDegrees.x, 0.5f);
     ImGui::SameLine();
     if (ImGui::Button("Apply##bakeRotate"))
     {
-        const glm::mat4 rotation = glm::mat4_cast(glm::quat(glm::radians(bakeRotateDegrees)));
+        const Math::mat4 rotation = Math::mat4_cast(Math::quat(Math::radians(bakeRotateDegrees)));
         assets.transform(*data, rotation);
         app().applyMeshEdit(renderer->mesh());
-        bakeRotateDegrees = glm::vec3(0.0f);
+        bakeRotateDegrees = Math::vec3(0.0f);
     }
 
     ImGui::Separator();

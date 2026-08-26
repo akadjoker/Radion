@@ -8,7 +8,7 @@
 
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <unordered_map>
 #include <vector>
 
@@ -21,7 +21,7 @@ class PointOfInterest
 {
 public:
     PointOfInterest() = default;
-    PointOfInterest(const glm::vec3& position, float radius) : mPosition(position), mRadius(radius)
+    PointOfInterest(const Math::vec3& position, float radius) : mPosition(position), mRadius(radius)
     {
     }
 
@@ -29,11 +29,11 @@ public:
     // an id until they are actually registered.
     PointOfInterestID id() const;
 
-    const glm::vec3& position() const
+    const Math::vec3& position() const
     {
         return mPosition;
     }
-    void setPosition(const glm::vec3& position)
+    void setPosition(const Math::vec3& position)
     {
         mPosition = position;
     }
@@ -48,7 +48,7 @@ public:
 
 private:
     mutable PointOfInterestID mId = 0;
-    glm::vec3 mPosition = glm::vec3(0.0f);
+    Math::vec3 mPosition = Math::vec3(0.0f);
     float mRadius = 1.0f;
 };
 
@@ -74,7 +74,7 @@ public:
     PointOfInterest* selectRandom(PointOfInterestID current) const;
 
     // POI nearest to position.
-    PointOfInterest* findNearest(const glm::vec3& position) const;
+    PointOfInterest* findNearest(const Math::vec3& position) const;
 
     const Map& map() const
     {

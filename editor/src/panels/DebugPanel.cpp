@@ -23,7 +23,7 @@ namespace Radion
 DebugPanel::DebugPanel(EditorApplication& app) : EditorPanel("Debug", app)
 {
     mEnabled = app.settings().debugPreviewEnabled;
-    mView = glm::clamp(app.settings().debugPreviewView, 0, 6);
+    mView = Math::clamp(app.settings().debugPreviewView, 0, 6);
 }
 
 DebugPanel::~DebugPanel()
@@ -124,7 +124,7 @@ void DebugPanel::drawSurfaceProbeReadout()
         ImGui::TextDisabled("  material: (none resolved)");
 
     CascadeShadowSettings* shadows = app().engine().cascadeSettings();
-    const u32 count = shadows ? glm::clamp(shadows->count, 1u, MaxShadowCascades) : 0;
+    const u32 count = shadows ? Math::clamp(shadows->count, 1u, MaxShadowCascades) : 0;
     if (count > 0)
     {
         u32 cascade = count - 1;
@@ -253,7 +253,7 @@ void DebugPanel::onImGui()
     }
 
     ImVec2 available = ImGui::GetContentRegionAvail();
-    const f32 previewSize = glm::max(1.0f, glm::min(available.x, available.y));
+    const f32 previewSize = Math::max(1.0f, Math::min(available.x, available.y));
     TextureHandle previewTexture = texture;
     if (rawDepth)
     {
@@ -282,7 +282,7 @@ void DebugPanel::drawProbePreviews()
     Engine& engine = app().engine();
     const std::vector<ReflectionProbe*>& localProbes = app().scene().reflectionProbes();
     const int probeCount = 1 + static_cast<int>(localProbes.size());
-    mProbeIndex = glm::clamp(mProbeIndex, 0, probeCount - 1);
+    mProbeIndex = Math::clamp(mProbeIndex, 0, probeCount - 1);
 
     auto probeAt = [&](int index) -> EnvironmentProbe*
     {
@@ -340,8 +340,8 @@ void DebugPanel::drawProbePreviews()
         return;
     }
 
-    const int maximumMip = glm::max(static_cast<int>(probe->mipCount()) - 1, 0);
-    mProbeMip = glm::clamp(mProbeMip, 0, maximumMip);
+    const int maximumMip = Math::max(static_cast<int>(probe->mipCount()) - 1, 0);
+    mProbeMip = Math::clamp(mProbeMip, 0, maximumMip);
     ImGui::SetNextItemWidth(220.0f);
     ImGui::SliderInt("Mip", &mProbeMip, 0, maximumMip);
     ImGui::SameLine();
@@ -359,7 +359,7 @@ void DebugPanel::drawProbePreviews()
     const ImVec2 available = ImGui::GetContentRegionAvail();
     constexpr int columns = 3;
     constexpr f32 gap = 8.0f;
-    const f32 faceSize = glm::clamp((available.x - gap * (columns - 1)) / columns,
+    const f32 faceSize = Math::clamp((available.x - gap * (columns - 1)) / columns,
                                     64.0f, 256.0f);
     const u32 targetSize = static_cast<u32>(faceSize);
     bool refreshPreviews = mRenderedProbeIndex != mProbeIndex ||
@@ -427,12 +427,12 @@ void DebugPanel::drawCascadePreviews()
 
     CascadeShadowSettings* shadows = engine.cascadeSettings();
     const u32 count =
-        glm::clamp(shadows ? shadows->count : 1u, 1u, static_cast<u32>(MaxShadowCascades));
+        Math::clamp(shadows ? shadows->count : 1u, 1u, static_cast<u32>(MaxShadowCascades));
 
     const ImVec2 available = ImGui::GetContentRegionAvail();
     const f32 spacing = ImGui::GetStyle().ItemSpacing.x;
-    const f32 cell = glm::max(
-        1.0f, glm::min((available.x - spacing * static_cast<f32>(count - 1)) /
+    const f32 cell = Math::max(
+        1.0f, Math::min((available.x - spacing * static_cast<f32>(count - 1)) /
                            static_cast<f32>(count),
                        available.y - ImGui::GetTextLineHeightWithSpacing()));
     const u32 size = static_cast<u32>(cell);
@@ -452,7 +452,7 @@ void DebugPanel::drawCascadePreviews()
         }
         const DirectionalShadowRegion region = directionalShadowRegion(2, count, i);
         engine.debugDrawTexture(texture, false, 0, preview.target, size, size,
-                                glm::vec4(static_cast<f32>(region.width) * 0.5f,
+                                Math::vec4(static_cast<f32>(region.width) * 0.5f,
                                           static_cast<f32>(region.height) * 0.5f,
                                           static_cast<f32>(region.x) * 0.5f,
                                           static_cast<f32>(region.y) * 0.5f));

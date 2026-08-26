@@ -1,6 +1,6 @@
 # AI library: state machines, waypoint networks + A*, grid A*, flocking and
 # steering behaviors. Decoupled from the engine: radion_ai depends only on
-# radion_core, which provides glm and the Radion:: base types. It does not
+# radion_core, which provides Mathc and the Radion:: base types. It does not
 # touch render/gpu/scene/engine.
 
 set(RECAST_ROOT ${CMAKE_SOURCE_DIR}/vendor/recastnavigation)

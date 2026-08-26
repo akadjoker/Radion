@@ -383,10 +383,10 @@ private:
             runtimeTexture.source = texture.source;
             runtimeTexture.layers = static_cast<u16>(texture.frames.size());
             runtimeTexture.targetName = hashName(texture.target);
-            if (texture.scrollSpeed != glm::vec2(0.0f) || texture.rotateSpeed != 0.0f)
+            if (texture.scrollSpeed != Math::vec2(0.0f) || texture.rotateSpeed != 0.0f)
             {
                 definition.material.params.uvAnim =
-                    glm::vec4(texture.scrollSpeed, texture.rotateSpeed, 0.0f);
+                    Math::vec4(texture.scrollSpeed, texture.rotateSpeed, 0.0f);
                 definition.material.flags |= MaterialAnimated;
             }
             definition.textures.push_back(texture);
@@ -421,10 +421,10 @@ private:
             if (word("scrollSpeed"))
             {
                 next();
-                glm::vec4 value(0.0f);
+                Math::vec4 value(0.0f);
                 if (!parseVector(value, 2))
                     return false;
-                texture.scrollSpeed = glm::vec2(value);
+                texture.scrollSpeed = Math::vec2(value.x, value.y);
             }
             else if (word("rotateSpeed"))
             {
@@ -655,14 +655,14 @@ private:
         return true;
     }
 
-    bool parseVector(glm::vec4& value, u8 minimumComponents)
+    bool parseVector(Math::vec4& value, u8 minimumComponents)
     {
         if (mToken.kind != TokenKind::LeftParen)
         {
             f32 scalar;
             if (!parseNumber(scalar))
                 return false;
-            value = glm::vec4(scalar);
+            value = Math::vec4(scalar);
             return true;
         }
 
@@ -682,7 +682,7 @@ private:
             return fail("not enough vector components");
         if (!take(TokenKind::RightParen, "expected ')' after vector"))
             return false;
-        value = glm::vec4(components[0], components[1], components[2], components[3]);
+        value = Math::vec4(components[0], components[1], components[2], components[3]);
         return true;
     }
 

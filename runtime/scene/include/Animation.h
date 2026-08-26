@@ -4,7 +4,7 @@
 #include "Component.h"
 #include "Skeleton.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <string>
 #include <vector>
 
@@ -29,9 +29,9 @@ public:
 
     const Skeleton* skeleton() const;
     const std::vector<LocalPose>& localPose() const;
-    const std::vector<glm::mat4>& globalPose() const;
-    const std::vector<glm::mat4>& palette() const;
-    const std::vector<glm::mat4>& prevPalette() const;
+    const std::vector<Math::mat4>& globalPose() const;
+    const std::vector<Math::mat4>& palette() const;
+    const std::vector<Math::mat4>& prevPalette() const;
 
     // IK chains, solved every update() right after the pose is evaluated and
     // before the skinning palette is built - see IKSolver. Held by value and
@@ -46,7 +46,7 @@ public:
     // that needs to know where a foot IS before deciding where to put it.
     // Returns false for an out-of-range bone rather than an identity matrix
     // that would read as a real position at the origin.
-    bool boneGlobalPosition(s32 bone, glm::vec3& out) const;
+    bool boneGlobalPosition(s32 bone, Math::vec3& out) const;
 
     // Editor hand-posing: while on, update() leaves mLocalPose exactly as
     // last written instead of resampling bind pose + clip layers into it, so
@@ -73,9 +73,9 @@ private:
     std::vector<AnimationLayer> mLayers;
     std::vector<LocalPose> mLocalPose;
     std::vector<LocalPose> mScratch;
-    std::vector<glm::mat4> mGlobalPose;
-    std::vector<glm::mat4> mPalette;
-    std::vector<glm::mat4> mPrevPalette;
+    std::vector<Math::mat4> mGlobalPose;
+    std::vector<Math::mat4> mPalette;
+    std::vector<Math::mat4> mPrevPalette;
     std::vector<IKChain> mIKChains;
     bool mPoseEditMode = false;
 };

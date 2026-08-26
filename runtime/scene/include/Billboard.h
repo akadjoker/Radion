@@ -6,7 +6,7 @@
 #include "GPU.h"
 #include "TrailRender.h" // BillboardMode
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 #include <string>
 
@@ -23,8 +23,8 @@ public:
     static constexpr ComponentType Type = ComponentType::Billboard;
 
     void setSize(f32 width, f32 height);
-    void setSize(const glm::vec2& size);
-    const glm::vec2& size() const;
+    void setSize(const Math::vec2& size);
+    const Math::vec2& size() const;
     void setColor(Color color);
     Color color() const;
     void setMode(BillboardMode mode);
@@ -50,7 +50,7 @@ public:
     // Default (0,0,1,1) samples the whole texture. Turns off flip-book
     // animation if it was on.
     void setUVRect(f32 u0, f32 v0, f32 width, f32 height);
-    const glm::vec4& uvRect() const;
+    const Math::vec4& uvRect() const;
     // Convenience: an NxM grid, pick a fixed cell (col,row), 0-based and
     // clamped. Turns off flip-book animation if it was on.
     void setAtlasCell(u32 cols, u32 rows, u32 col, u32 row);
@@ -68,11 +68,11 @@ private:
 
     Billboard();
     void onLateUpdate(f32 deltaTime) override;
-    glm::vec4 currentUVRect() const;
+    Math::vec4 currentUVRect() const;
 
-    glm::vec2 mSize{1.0f, 1.0f};
+    Math::vec2 mSize{1.0f, 1.0f};
     Color mColor;
-    glm::vec4 mUVRect{0.0f, 0.0f, 1.0f, 1.0f};
+    Math::vec4 mUVRect{0.0f, 0.0f, 1.0f, 1.0f};
     BillboardMode mMode = BillboardMode::Free;
     TextureHandle mTexture;
     std::string mTextureFile;
