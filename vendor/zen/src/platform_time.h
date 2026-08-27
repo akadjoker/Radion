@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <ctime>
 
 #if defined(_WIN32)
@@ -43,7 +44,9 @@ inline double platform_monotonic_seconds()
 inline void platform_sleep_seconds(double seconds)
 {
     if (seconds <= 0.0)
+    {
         return;
+    }
 
 #if defined(_WIN32)
     const double milliseconds = seconds * 1000.0;

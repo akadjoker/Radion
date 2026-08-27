@@ -69,7 +69,7 @@ namespace zen
         return false;
     }
 
-    // find_sep — procura de substring portável
+    // find_sep — substitui memmem, portável
 
 
     /* =========================================================
