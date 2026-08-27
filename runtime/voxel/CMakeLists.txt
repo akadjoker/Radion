@@ -1,6 +1,7 @@
 add_library(radion_voxel
     src/VoxelBlock.cpp
     src/VoxelChunk.cpp
+    src/VoxelCollision.cpp
     src/VoxelEditHistory.cpp
     src/VoxelEditStore.cpp
     src/VoxelMesher.cpp

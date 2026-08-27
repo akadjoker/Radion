@@ -3,6 +3,7 @@
 
 #include "Component.h"
 #include "Material.h"
+#include "VoxelCollision.h"
 #include "VoxelRaycast.h"
 #include "VoxelStreamer.h"
 
@@ -140,11 +141,24 @@ public:
     // leaves `hit` untouched and returns false.
     bool raycast(const glm::vec3& origin, const glm::vec3& direction, f32 maxDistance,
                  Voxel::VoxelRaycastHit& hit) const;
+    // Adds a block in the empty cell against the face that was hit: aim at the
+    // top of one and it stacks, aim at a side and it butts against it.
     bool placeBlock(const Voxel::VoxelRaycastHit& hit, Voxel::BlockId block);
+    // Rewrites the block that was hit, adding nothing. What a builder wants
+    // for changing the material of a wall already standing.
+    bool replaceBlock(const Voxel::VoxelRaycastHit& hit, Voxel::BlockId block);
     bool removeBlock(const Voxel::VoxelRaycastHit& hit);
     Voxel::BlockId blockIdByName(const std::string& name) const;
     // World-space bounds of one block, for a selection outline or a hit test.
     static AABB blockBounds(Voxel::VoxelCoord block);
+
+    // Moves an axis-aligned body through the blocks, resolving one axis at a
+    // time. Nothing is meshed for this: the grid is the collision geometry,
+    // so breaking a block changes what the body can walk through in the same
+    // frame.
+    Voxel::VoxelMoveResult moveBox(const glm::vec3& position, const glm::vec3& halfExtents,
+                                   const glm::vec3& displacement) const;
+    bool boxOverlaps(const glm::vec3& position, const glm::vec3& halfExtents) const;
 
     usize loadedChunks() const { return mStreamer.loadedChunks(); }
     usize pendingGeneration() const { return mStreamer.pendingGeneration(); }

@@ -130,14 +130,25 @@ int main(int argc, char** argv)
         palette[index] = voxelWorld->blockIdByName(paletteNames[index]);
     usize selected = 2;
 
-    Log::info("Voxel demo: left click breaks, middle click places, 1-6 pick the block, "
+    Log::info("Voxel demo: left click breaks, middle click places, R swaps the block you aim "
+              "at, 1-6 pick the block, "
               "hold right to look, F1 hides the panels, F2 toggles ambient occlusion, "
               "F3 cycles the shadow cascade count, F4 toggles vsync, "
               "F5 saves the edited blocks, F9 loads them back, F6/F7 shrink and grow the "
-              "chunk radius");
+              "chunk radius, Tab walks or flies");
 
     f32 reportTimer = 0.0f;
     bool vsync = true;
+
+    // Walking body: half a metre wide, 1.8 tall, eyes near the top. The
+    // camera is the eye, so the body centre sits below it.
+    const glm::vec3 bodyHalfExtents(0.3f, 0.9f, 0.3f);
+    constexpr f32 kEyeHeight = 0.7f;
+    constexpr f32 kGravity = -26.0f;
+    constexpr f32 kJumpSpeed = 9.0f;
+    constexpr f32 kWalkSpeed = 6.0f;
+    bool walking = false;
+    f32 verticalSpeed = 0.0f;
 
     while (engine.update())
     {
@@ -174,6 +185,55 @@ int main(int argc, char** argv)
             voxelWorld->setAmbientOcclusion(enabled);
             Log::info("Voxel demo: ambient occlusion %s", enabled ? "on" : "off");
         }
+        if (Input::isKeyPressed(KEY_TAB))
+        {
+            walking = !walking;
+            fly->setActive(!walking);
+            verticalSpeed = 0.0f;
+            Log::info("Voxel demo: %s", walking ? "walking" : "flying");
+        }
+
+        if (walking)
+        {
+            const glm::vec3 eye = cameraObject->globalPosition();
+            glm::vec3 centre = eye - glm::vec3(0.0f, kEyeHeight, 0.0f);
+
+            const glm::vec3 forward = cameraObject->forward();
+            const glm::vec3 flatForward =
+                glm::normalize(glm::vec3(forward.x, 0.0f, forward.z) + glm::vec3(1e-5f, 0.0f, 0.0f));
+            const glm::vec3 right = glm::normalize(glm::cross(flatForward, glm::vec3(0, 1, 0)));
+
+            glm::vec3 wish(0.0f);
+            if (Input::isKeyDown(KEY_W)) wish += flatForward;
+            if (Input::isKeyDown(KEY_S)) wish -= flatForward;
+            if (Input::isKeyDown(KEY_D)) wish += right;
+            if (Input::isKeyDown(KEY_A)) wish -= right;
+            if (glm::dot(wish, wish) > 0.0f)
+                wish = glm::normalize(wish) * kWalkSpeed;
+
+            const bool onGround =
+                voxelWorld->moveBox(centre, bodyHalfExtents, glm::vec3(0.0f)).grounded;
+            if (onGround && verticalSpeed <= 0.0f)
+            {
+                verticalSpeed = Input::isKeyDown(KEY_SPACE) ? kJumpSpeed : 0.0f;
+            }
+            else
+            {
+                verticalSpeed += kGravity * deltaTime;
+            }
+
+            const glm::vec3 displacement(wish.x * deltaTime, verticalSpeed * deltaTime,
+                                         wish.z * deltaTime);
+            const VoxelMoveResult moved =
+                voxelWorld->moveBox(centre, bodyHalfExtents, displacement);
+            if (moved.grounded && verticalSpeed < 0.0f)
+                verticalSpeed = 0.0f;
+            if (moved.ceiling && verticalSpeed > 0.0f)
+                verticalSpeed = 0.0f;
+
+            cameraObject->setPosition(moved.position + glm::vec3(0.0f, kEyeHeight, 0.0f));
+        }
+
         if (Input::isKeyPressed(KEY_F6) || Input::isKeyPressed(KEY_F7))
         {
             const s32 step = Input::isKeyPressed(KEY_F7) ? 1 : -1;
@@ -237,6 +297,8 @@ int main(int argc, char** argv)
                 voxelWorld->removeBlock(hit);
             else if (Input::isMousePressed(MIDDLE))
                 voxelWorld->placeBlock(hit, palette[selected]);
+            else if (Input::isKeyPressed(KEY_R))
+                voxelWorld->replaceBlock(hit, palette[selected]);
         }
 
         scene->update(deltaTime);
