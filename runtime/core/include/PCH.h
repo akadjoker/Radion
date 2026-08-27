@@ -18,7 +18,7 @@
 // Expensive, stable, and used nearly everywhere. GL and SDL stay out: only
 // gpu/backends/gl and core need them, and putting them here would spread them
 // across the whole engine.
-#include "MathCompat.h"
+#include "Math.h"
 
 #include "Log.h"
 #include "Types.h"
