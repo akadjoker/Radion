@@ -1,5 +1,7 @@
 #include "VoxelWorld.h"
 
+#include <utility>
+
 namespace Radion
 {
 namespace Voxel
@@ -13,6 +15,11 @@ s32 floorDivide(s32 value, s32 divisor)
     return remainder < 0 ? quotient - 1 : quotient;
 }
 } // namespace
+
+VoxelWorld::~VoxelWorld()
+{
+    clear();
+}
 
 ChunkCoord VoxelWorld::chunkFor(VoxelCoord world)
 {
@@ -35,29 +42,83 @@ VoxelCoord VoxelWorld::worldFor(ChunkCoord chunk, VoxelCoord local)
 
 VoxelChunk& VoxelWorld::ensureChunk(ChunkCoord coordinate)
 {
-    const auto result = mChunks.emplace(coordinate, VoxelChunk(coordinate));
-    return result.first->second;
+    const auto it = mChunks.find(coordinate);
+    if (it != mChunks.end())
+        return *it->second;
+
+    VoxelChunk* chunk = new VoxelChunk(coordinate);
+    mChunks.emplace(coordinate, chunk);
+    return *chunk;
+}
+
+VoxelChunk& VoxelWorld::adopt(VoxelChunk* chunk)
+{
+    const ChunkCoord coordinate = chunk->coordinate();
+    const auto it = mChunks.find(coordinate);
+    if (it != mChunks.end())
+    {
+        delete it->second;
+        it->second = chunk;
+        return *chunk;
+    }
+    mChunks.emplace(coordinate, chunk);
+    return *chunk;
+}
+
+void VoxelWorld::collectCoordinates(std::vector<ChunkCoord>& coordinates) const
+{
+    coordinates.clear();
+    coordinates.reserve(mChunks.size());
+    for (const auto& entry : mChunks)
+        coordinates.push_back(entry.first);
 }
 
 VoxelChunk* VoxelWorld::findChunk(ChunkCoord coordinate)
 {
     const auto it = mChunks.find(coordinate);
-    return it == mChunks.end() ? nullptr : &it->second;
+    return it == mChunks.end() ? nullptr : it->second;
 }
 
 const VoxelChunk* VoxelWorld::findChunk(ChunkCoord coordinate) const
 {
     const auto it = mChunks.find(coordinate);
-    return it == mChunks.end() ? nullptr : &it->second;
+    return it == mChunks.end() ? nullptr : it->second;
 }
 
 bool VoxelWorld::removeChunk(ChunkCoord coordinate)
 {
-    return mChunks.erase(coordinate) != 0;
+    const auto it = mChunks.find(coordinate);
+    if (it == mChunks.end())
+        return false;
+
+    delete it->second;
+    mChunks.erase(it);
+    return true;
+}
+
+VoxelChunk* VoxelWorld::detachChunk(ChunkCoord coordinate)
+{
+    const auto it = mChunks.find(coordinate);
+    if (it == mChunks.end())
+        return nullptr;
+
+    VoxelChunk* chunk = it->second;
+    mChunks.erase(it);
+    return chunk;
+}
+
+usize VoxelWorld::memoryBytes() const
+{
+    usize bytes = 0;
+    for (const auto& entry : mChunks)
+        bytes += sizeof(VoxelChunk) + entry.second->memoryBytes();
+    return bytes;
 }
 
 void VoxelWorld::clear()
 {
+    for (auto& entry : mChunks)
+        delete entry.second;
     mChunks.clear();
 }
 

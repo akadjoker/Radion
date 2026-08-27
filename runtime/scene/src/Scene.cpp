@@ -469,7 +469,6 @@ void Scene::update(f32 deltaTime)
     mDeltaTime = std::isfinite(deltaTime) && deltaTime >= 0 ? deltaTime : 0;
     flushChanges();
     {
-        RADION_PROFILE_SCOPE("Previous transforms");
         for (GameObject* object : mObjects)
         {
             if (!object->disposed())
@@ -520,7 +519,6 @@ void Scene::update(f32 deltaTime)
     }
 
     {
-        RADION_PROFILE_SCOPE("Disposed objects");
         for (GameObject* object : mObjects)
             if (object->disposed() && (!object->parent() || !object->parent()->disposed()) &&
                 !object->mPendingDestroyQueued)
@@ -1338,7 +1336,9 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
     if (mDynamicCullingEnabled && !mDynamicRenderers.empty())
     {
         {
-            RADION_PROFILE_SCOPE("Dynamic tree update");
+            // Same name as the query below, so the two halves of the tree's
+            // work add up into one row instead of spending two slots.
+            RADION_PROFILE_SCOPE("Dynamic tree");
             refreshDynamicBounds();
             updateDynamicTree();
         }
@@ -1347,7 +1347,7 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
             occlusionView ? mDynamicHits : mBystanderDynamicHits;
         dynamicHits.clear();
         {
-            RADION_PROFILE_SCOPE("Dynamic tree query");
+            RADION_PROFILE_SCOPE("Dynamic tree");
             const Frustum& frustum = list.frustum();
             mDynamicTree.queryCandidates(frustum, mDynamicCandidates);
             // Candidates, not the answer: the tree returns everything sharing

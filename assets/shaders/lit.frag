@@ -1192,6 +1192,13 @@ void main()
     color += EvaluateEntityLights(vWorldPos, N, V, albedo, roughness, metallic);
 
     float ao = texture(uAOTex, gl_FragCoord.xy / uScreenSize).r;
+#ifdef VOXEL_ATLAS
+    // Ambient occlusion the voxel mesher baked per vertex, from the blocks
+    // around each corner. It belongs with the ambient rather than the sun: the
+    // corner is closed to light arriving from the surroundings, while the sun
+    // it can still see is already answered by the shadow map.
+    ao *= vColor.r;
+#endif
     // Occluded by AO like the ambient it belongs with: both are light arriving
     // from the surroundings rather than from a light the frame knows about.
     // Opt-in per material, through the Reflection flag. A probe is captured

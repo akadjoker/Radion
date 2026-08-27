@@ -34,13 +34,27 @@ usize VoxelChunk::localIndex(VoxelCoord local)
 
 BlockId VoxelChunk::block(VoxelCoord local) const
 {
-    return isLocal(local) ? mBlocks[localIndex(local)] : AirBlockId;
+    if (!isLocal(local))
+        return AirBlockId;
+    return mBlocks.empty() ? mUniform : mBlocks[localIndex(local)];
+}
+
+void VoxelChunk::expand()
+{
+    mBlocks.assign(Volume, mUniform);
 }
 
 bool VoxelChunk::setBlock(VoxelCoord local, BlockId block)
 {
     if (!isLocal(local))
         return false;
+
+    if (mBlocks.empty())
+    {
+        if (block == mUniform)
+            return false;
+        expand();
+    }
 
     BlockId& current = mBlocks[localIndex(local)];
     if (current == block)
@@ -52,9 +66,37 @@ bool VoxelChunk::setBlock(VoxelCoord local, BlockId block)
     return true;
 }
 
+void VoxelChunk::compact()
+{
+    if (mBlocks.empty())
+        return;
+
+    const BlockId first = mBlocks[0];
+    for (BlockId block : mBlocks)
+    {
+        if (block != first)
+            return;
+    }
+
+    mUniform = first;
+    mBlocks.clear();
+    mBlocks.shrink_to_fit();
+}
+
+void VoxelChunk::reset(ChunkCoord coordinate)
+{
+    mCoordinate = coordinate;
+    mBlocks.clear();
+    mUniform = AirBlockId;
+    mDirty = true;
+    mRevision = 0;
+}
+
 void VoxelChunk::fill(BlockId block)
 {
-    mBlocks.fill(block);
+    mBlocks.clear();
+    mBlocks.shrink_to_fit();
+    mUniform = block;
     mDirty = true;
     ++mRevision;
 }

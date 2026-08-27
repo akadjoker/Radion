@@ -72,6 +72,16 @@ void ImGuiLayer::update()
     ImGui::NewFrame();
 }
 
+bool ImGuiLayer::wantsMouse() const
+{
+    return mWindow && ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse;
+}
+
+bool ImGuiLayer::wantsKeyboard() const
+{
+    return mWindow && ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard;
+}
+
 void ImGuiLayer::endFrame()
 {
     ImGui::EndFrame();

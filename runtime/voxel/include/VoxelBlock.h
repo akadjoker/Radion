@@ -74,6 +74,9 @@ public:
     BlockRegistry();
 
     BlockId registerBlock(BlockDefinition definition);
+    // Rewrites a definition without moving its id, so every block already
+    // placed in a world keeps meaning what it meant. The name index follows.
+    bool replaceBlock(BlockId id, BlockDefinition definition);
 
     const BlockDefinition* find(BlockId id) const;
     BlockDefinition* find(BlockId id);

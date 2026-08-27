@@ -34,6 +34,21 @@ BlockId BlockRegistry::registerBlock(BlockDefinition definition)
     return id;
 }
 
+bool BlockRegistry::replaceBlock(BlockId id, BlockDefinition definition)
+{
+    if (id == AirBlockId || id >= mDefinitions.size() || definition.name.empty())
+        return false;
+
+    const auto existing = mIdsByName.find(definition.name);
+    if (existing != mIdsByName.end() && existing->second != id)
+        return false;
+
+    mIdsByName.erase(mDefinitions[id].name);
+    mIdsByName.emplace(definition.name, id);
+    mDefinitions[id] = std::move(definition);
+    return true;
+}
+
 const BlockDefinition* BlockRegistry::find(BlockId id) const
 {
     return id < mDefinitions.size() ? &mDefinitions[id] : nullptr;
