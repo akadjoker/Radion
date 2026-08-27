@@ -177,6 +177,11 @@ ScriptCache::ScriptCache()
 {
     gScriptCacheAlive = true;
     mScriptVM.registerModule(SceneScriptBindings::library());
+    // Passed directly rather than through getSingleton(): this constructor is
+    // still on the stack under the static local that getSingleton() guards,
+    // so calling back into it here would re-enter that guard before this
+    // object is fully constructed.
+    SceneScriptBindings::registerComponentClasses(*this);
     zen::GC& gc = mScriptVM.vm()->get_gc();
     gc.extra_mark = &ScriptCache::gcMarkExtraRoots;
     gc.extra_mark_ud = this;
@@ -412,6 +417,56 @@ void ScriptCache::unprotectInstance(zen::Value instance)
 usize ScriptCache::protectedInstanceCount() const
 {
     return mProtectedInstances.size();
+}
+
+zen::Value ScriptCache::instanceFor(zen::ObjClass* klass, void* pointer)
+{
+    if (!pointer)
+        return zen::val_nil();
+
+    auto found = mInstances.find(pointer);
+    if (found != mInstances.end() && found->second.klass == klass)
+        return found->second.value;
+
+    const zen::Value value = vm().make_instance(klass);
+    zen::as_instance(value)->native_data = pointer;
+
+    CachedInstance cached;
+    cached.key = pointer;
+    cached.klass = klass;
+    cached.value = value;
+    mInstances[pointer] = cached;
+    return value;
+}
+
+bool ScriptCache::hasCachedInstance(const void* pointer) const
+{
+    return mInstances.find(const_cast<void*>(pointer)) != mInstances.end();
+}
+
+void ScriptCache::forgetInstance(void* pointer)
+{
+    mInstances.erase(pointer);
+}
+
+void ScriptCache::setCameraClass(zen::ObjClass* klass)
+{
+    mCameraClass = klass;
+}
+
+zen::ObjClass* ScriptCache::cameraClass() const
+{
+    return mCameraClass;
+}
+
+void ScriptCache::setLightClass(zen::ObjClass* klass)
+{
+    mLightClass = klass;
+}
+
+zen::ObjClass* ScriptCache::lightClass() const
+{
+    return mLightClass;
 }
 
 } // namespace Radion

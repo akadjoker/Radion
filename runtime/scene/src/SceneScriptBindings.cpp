@@ -2,8 +2,12 @@
 
 #include "SceneScriptBindings.h"
 
+#include "Camera.h"
+#include "Component.h"
 #include "GameObject.h"
+#include "Light.h"
 #include "Scene.h"
+#include "ScriptCache.h"
 
 #include "zen/memory.h"
 #include "zen/module.h"
@@ -66,6 +70,25 @@ static Scene* selfScene(zen::Value* args)
     return static_cast<Scene*>(zen::as_instance(args[-1])->native_data);
 }
 
+// Component classes (Camera, Light, ...) are handed to instances through
+// ScriptCache::instanceFor() rather than makeGameObjectValue()'s bare "new
+// wrapper every call" - see registerComponentClasses() - so their self is a
+// zen_instance_data<T> cast, matching componentFromSelf in the reference.
+static Component* selfComponent(zen::Value* args)
+{
+    return zen::zen_instance_data<Component>(args[-1]);
+}
+
+static Camera* selfCamera(zen::Value* args)
+{
+    return zen::zen_instance_data<Camera>(args[-1]);
+}
+
+static Light* selfLight(zen::Value* args)
+{
+    return zen::zen_instance_data<Light>(args[-1]);
+}
+
 static int vec3Init(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -116,6 +139,24 @@ static int vec3Mul(zen::VM* vm, zen::Value* args, int nargs)
     const f32 scalar = static_cast<f32>(zen::to_number(args[1]));
     args[0] = makeVec3(vm, a * scalar);
     return 1;
+}
+
+static int componentGetActive(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Component* component = selfComponent(args);
+    args[0] = zen::val_bool(component && component->active());
+    return 1;
+}
+
+static int componentSetActive(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Component* component = selfComponent(args))
+        if (nargs >= 1)
+            component->setActive(zen::is_truthy(args[0]));
+    return 0;
 }
 
 static int goGetName(zen::VM* vm, zen::Value* args, int nargs)
@@ -221,6 +262,33 @@ static int goRoll(zen::VM* vm, zen::Value* args, int nargs)
     return 0;
 }
 
+// The Zen compiler lowers node.get_component<Camera>() to node.get_component(Camera),
+// so the first native argument is the requested host class, not a string -
+// matching natNodeGetComponent in the reference exactly.
+static int goGetComponent(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    GameObject* object = selfGameObject(args);
+    if (!object || !ScriptCache::alive() || nargs < 1 || !zen::is_class(args[0]))
+    {
+        args[0] = zen::val_nil();
+        return 1;
+    }
+
+    ScriptCache& cache = ScriptCache::getSingleton();
+    zen::ObjClass* requested = zen::as_class(args[0]);
+    const char* name = requested->name ? requested->name->chars : "";
+
+    if (!std::strcmp(name, "Camera"))
+        args[0] = cache.instanceFor(cache.cameraClass(), object->getComponent<Camera>());
+    else if (!std::strcmp(name, "Light") || !std::strcmp(name, "DirectionalLight"))
+        args[0] = cache.instanceFor(cache.lightClass(), object->getComponent<Light>());
+    else
+        args[0] = zen::val_nil();
+
+    return 1;
+}
+
 static int sceneFind(zen::VM* vm, zen::Value* args, int nargs)
 {
     Scene* scene = selfScene(args);
@@ -253,11 +321,15 @@ static void sceneScriptBindingsInit(zen::VM* vm)
 {
     // Match the script-side shape used by Kinetix2D without importing its
     // 2D API: Radion scripts derive from ScriptComponent and receive their
-    // 3D GameObject through self.node.  Component is intentionally only the
-    // common script handle base for now; concrete Radion component handles
-    // will derive from it as they are exposed to the VM.
+    // 3D GameObject through self.node. Concrete Radion component handles
+    // (Camera, Light, ...) derive from Component in
+    // registerComponentClasses(), each with its native_data pointing at the
+    // owning C++ component - the is_active/set_active pair below is theirs
+    // for free.
     auto component = vm->def_class("Component");
-    component.constructable(false).persistent(false).end();
+    component.method("is_active", componentGetActive, 0);
+    component.method("set_active", componentSetActive, 1);
+    component.persistent(true).constructable(false).end();
 
     auto scriptComponent = vm->def_class("ScriptComponent");
     scriptComponent.parent("Component");
@@ -296,6 +368,7 @@ static void sceneScriptBindingsInit(zen::VM* vm)
         .method("yaw", goYaw, 1)
         .method("pitch", goPitch, 1)
         .method("roll", goRoll, 1)
+        .method("get_component", goGetComponent, 1)
         .constructable(false)
         .persistent(false)
         .end();
@@ -306,6 +379,182 @@ static void sceneScriptBindingsInit(zen::VM* vm)
         .constructable(false)
         .persistent(false)
         .end();
+}
+
+static int cameraGetFieldOfView(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Camera* camera = selfCamera(args);
+    args[0] = zen::val_float(camera ? (f64)camera->fieldOfView() : 0.0);
+    return 1;
+}
+
+static int cameraSetPerspective(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Camera* camera = selfCamera(args))
+        if (nargs >= 4)
+            camera->setPerspective((f32)zen::to_number(args[0]), (f32)zen::to_number(args[1]),
+                                   (f32)zen::to_number(args[2]), (f32)zen::to_number(args[3]));
+    return 0;
+}
+
+static int cameraGetOrthographicSize(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Camera* camera = selfCamera(args);
+    args[0] = zen::val_float(camera ? (f64)camera->orthographicSize() : 0.0);
+    return 1;
+}
+
+static int cameraSetOrthographic(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Camera* camera = selfCamera(args))
+        if (nargs >= 4)
+            camera->setOrthographic((f32)zen::to_number(args[0]), (f32)zen::to_number(args[1]),
+                                    (f32)zen::to_number(args[2]), (f32)zen::to_number(args[3]));
+    return 0;
+}
+
+static int cameraGetAspect(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Camera* camera = selfCamera(args);
+    args[0] = zen::val_float(camera ? (f64)camera->aspect() : 0.0);
+    return 1;
+}
+
+static int cameraSetAspect(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Camera* camera = selfCamera(args))
+        if (nargs >= 1)
+            camera->setAspect((f32)zen::to_number(args[0]));
+    return 0;
+}
+
+static int cameraGetNearPlane(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Camera* camera = selfCamera(args);
+    args[0] = zen::val_float(camera ? (f64)camera->nearPlane() : 0.0);
+    return 1;
+}
+
+static int cameraGetFarPlane(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Camera* camera = selfCamera(args);
+    args[0] = zen::val_float(camera ? (f64)camera->farPlane() : 0.0);
+    return 1;
+}
+
+static int lightGetColor(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)nargs;
+    Light* light = selfLight(args);
+    args[0] = light ? makeVec3(vm, light->color()) : zen::val_nil();
+    return 1;
+}
+
+static int lightSetColor(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Light* light = selfLight(args))
+        if (nargs >= 1 && zen::is_instance(args[0]))
+            light->setColor(readVec3(args[0]));
+    return 0;
+}
+
+static int lightGetIntensity(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Light* light = selfLight(args);
+    args[0] = zen::val_float(light ? (f64)light->intensity() : 0.0);
+    return 1;
+}
+
+static int lightSetIntensity(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Light* light = selfLight(args))
+        if (nargs >= 1)
+            light->setIntensity((f32)zen::to_number(args[0]));
+    return 0;
+}
+
+static int lightGetCastsShadows(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Light* light = selfLight(args);
+    args[0] = zen::val_bool(light && light->castsShadows());
+    return 1;
+}
+
+static int lightSetCastShadows(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Light* light = selfLight(args))
+        if (nargs >= 1)
+            light->setCastShadows(zen::is_truthy(args[0]));
+    return 0;
+}
+
+static int lightGetVolumetric(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Light* light = selfLight(args);
+    args[0] = zen::val_bool(light && light->volumetric());
+    return 1;
+}
+
+static int lightSetVolumetric(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Light* light = selfLight(args))
+        if (nargs >= 1)
+            light->setVolumetric(zen::is_truthy(args[0]));
+    return 0;
+}
+
+void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
+{
+    zen::VM& vm = cache.vm();
+
+    auto camera = vm.def_class("Camera");
+    camera.parent("Component");
+    camera.method("get_field_of_view", cameraGetFieldOfView, 0);
+    camera.method("set_perspective", cameraSetPerspective, 4);
+    camera.method("get_orthographic_size", cameraGetOrthographicSize, 0);
+    camera.method("set_orthographic", cameraSetOrthographic, 4);
+    camera.method("get_aspect", cameraGetAspect, 0);
+    camera.method("set_aspect", cameraSetAspect, 1);
+    camera.method("get_near_plane", cameraGetNearPlane, 0);
+    camera.method("get_far_plane", cameraGetFarPlane, 0);
+    camera.persistent(true).constructable(false);
+    cache.setCameraClass(camera.end());
+
+    auto light = vm.def_class("Light");
+    light.parent("Component");
+    light.method("get_color", lightGetColor, 0);
+    light.method("set_color", lightSetColor, 1);
+    light.method("get_intensity", lightGetIntensity, 0);
+    light.method("set_intensity", lightSetIntensity, 1);
+    light.method("get_casts_shadows", lightGetCastsShadows, 0);
+    light.method("set_cast_shadows", lightSetCastShadows, 1);
+    light.method("get_volumetric", lightGetVolumetric, 0);
+    light.method("set_volumetric", lightSetVolumetric, 1);
+    light.persistent(true).constructable(false);
+    cache.setLightClass(light.end());
 }
 
 static const zen::NativeLib kSceneScriptLib = {

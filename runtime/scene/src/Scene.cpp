@@ -12,6 +12,7 @@
 #include "ParticleEffectPool.h"
 #include "GPUProfiler.h"
 #include "Profiler.h"
+#include "ScriptCache.h"
 #include "RenderList.h"
 
 #include <cmath>
@@ -1736,6 +1737,14 @@ void Scene::componentRemoved(Component* component)
     const bool removedLate =
         removeFromEventList(mLateUpdateComponents, component->mSceneLateUpdateIndex);
     mComponentListsDirty = mComponentListsDirty || removedUpdate || removedLate;
+
+    // A script that fetched this component holds a handle wrapping its
+    // address, and those handles are cached by pointer and never collected -
+    // the class is persistent. Left in the cache, the next component to be
+    // allocated at the same address inherits the handle, and a script calling
+    // through the old one reaches freed memory.
+    if (ScriptCache::alive())
+        ScriptCache::getSingleton().forgetInstance(component);
 
     switch (component->type())
     {
