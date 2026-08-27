@@ -30,6 +30,7 @@ add_library(radion_scene
     src/components/Text3D.cpp
     src/components/NavMeshSurface.cpp
     src/components/Waypoints.cpp
+    src/components/VoxelWorldComponent.cpp
     src/components/Landscape.cpp
     src/components/ZenBehaviour.cpp
     src/CollisionWorld.cpp
@@ -47,4 +48,4 @@ target_precompile_headers(radion_scene PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
 )
 target_include_directories(radion_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(radion_scene PUBLIC radion_render radion_ai radion_physics radion_script zen_static)
+target_link_libraries(radion_scene PUBLIC radion_render radion_ai radion_physics radion_script radion_voxel zen_static)

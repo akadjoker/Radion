@@ -31,6 +31,7 @@
 #include "ZenBehaviour.h"
 #include "Text3D.h"
 #include "Terrain.h"
+#include "VoxelWorldComponent.h"
 #include "Forest.h"
 #include "Grass.h"
 #include "Hair.h"
@@ -246,6 +247,7 @@ void removeComponentByType(GameObject& object, ComponentType type)
     case ComponentType::Hair: object.removeComponent<Hair>(); break;
     case ComponentType::Forest: object.removeComponent<Forest>(); break;
     case ComponentType::Ocean: object.removeComponent<Ocean>(); break;
+    case ComponentType::VoxelWorld: object.removeComponent<VoxelWorldComponent>(); break;
     case ComponentType::Script: object.removeComponent<ScriptComponent>(); break;
     case ComponentType::Collider: object.removeComponent<Collider>(); break;
     default: break;
@@ -976,6 +978,15 @@ void InspectorPanel::drawComponentList(GameObject& object)
             drawOceanComponent(*component);
         ImGui::PopID();
     }
+    if (VoxelWorldComponent* component = object.getComponent<VoxelWorldComponent>())
+    {
+        ImGui::PushID("VoxelWorld");
+        if (drawComponentHeader(app(), "Voxel World", *component))
+            toRemove = ComponentType::VoxelWorld;
+        else
+            drawVoxelWorldComponent(*component);
+        ImGui::PopID();
+    }
 
     if (toRemove != ComponentType::Count)
     {
@@ -1238,6 +1249,65 @@ void InspectorPanel::drawTerrainComponent(Terrain& terrain)
         material.paramsDirty = true;
         app().markDirty();
     }
+    ImGui::Unindent(14.0f);
+}
+
+void InspectorPanel::drawVoxelWorldComponent(VoxelWorldComponent& voxelWorld)
+{
+    ImGui::Indent(14.0f);
+    bool changed = false;
+    int seed = static_cast<int>(voxelWorld.seed());
+    if (ImGui::InputInt("Seed", &seed))
+    {
+        voxelWorld.setSeed(static_cast<u32>(std::max(0, seed)));
+        changed = true;
+    }
+    int radius = voxelWorld.chunkRadius();
+    if (ImGui::DragInt("Chunk radius", &radius, 1.0f, 0, 16))
+    {
+        voxelWorld.setChunkRadius(radius);
+        changed = true;
+    }
+    int minY = voxelWorld.minWorldY();
+    if (ImGui::InputInt("Min world Y", &minY))
+    {
+        voxelWorld.setMinWorldY(minY);
+        changed = true;
+    }
+    int maxY = voxelWorld.maxWorldY();
+    if (ImGui::InputInt("Max world Y", &maxY))
+    {
+        voxelWorld.setMaxWorldY(maxY);
+        changed = true;
+    }
+    int waterLevel = voxelWorld.waterLevel();
+    if (ImGui::InputInt("Water level", &waterLevel))
+    {
+        voxelWorld.setWaterLevel(waterLevel);
+        changed = true;
+    }
+    int originId = static_cast<int>(voxelWorld.originObjectId());
+    if (ImGui::InputInt("Origin GameObject ID", &originId))
+    {
+        voxelWorld.setOriginObjectId(static_cast<u64>(std::max(0, originId)));
+        changed = true;
+    }
+    char atlas[256];
+    std::snprintf(atlas, sizeof(atlas), "%s", voxelWorld.atlasFile().c_str());
+    if (ImGui::InputText("Atlas file", atlas, sizeof(atlas)))
+    {
+        voxelWorld.setAtlasFile(atlas);
+        changed = true;
+    }
+    if (ImGui::Button("Regenerate world"))
+    {
+        app().recordUndo();
+        voxelWorld.regenerate();
+        changed = true;
+    }
+    ImGui::Text("Loaded chunks: %zu", voxelWorld.world().chunkCount());
+    if (changed)
+        app().markDirty();
     ImGui::Unindent(14.0f);
 }
 
@@ -2605,6 +2675,12 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             env.content = EnvironmentProbe::Content::SkyAndWorld;
             env.refresh = EnvironmentProbe::Refresh::Automatic;
             env.invalidate();
+            app().markDirty();
+        }
+        if (!object.getComponent<VoxelWorldComponent>() && ImGui::MenuItem("Voxel World"))
+        {
+            app().recordUndo();
+            object.addComponent<VoxelWorldComponent>();
             app().markDirty();
         }
         if (!object.getComponent<Animator>() && ImGui::MenuItem("Animator..."))

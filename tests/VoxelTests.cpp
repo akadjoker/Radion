@@ -1,7 +1,9 @@
 #include "PCH.h"
 
 #include "VoxelBlock.h"
+#include "VoxelEditHistory.h"
 #include "VoxelMesher.h"
+#include "VoxelRaycast.h"
 #include "VoxelTerrain.h"
 #include "VoxelWorld.h"
 
@@ -202,6 +204,60 @@ void testAtlasVerticalFlip()
     CHECK(hasFlippedCorner);
 }
 
+void testRaycast()
+{
+    BlockRegistry registry;
+    BlockDefinition stone;
+    stone.name = "stone";
+    const BlockId stoneId = registry.registerBlock(stone);
+    BlockDefinition water;
+    water.name = "water";
+    water.solid = false;
+    water.transparent = true;
+    const BlockId waterId = registry.registerBlock(water);
+
+    VoxelWorld world;
+    world.setBlock({3, 0, 0}, stoneId);
+    VoxelRaycastHit hit;
+    CHECK(raycast(world, registry, {0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, 10.0f, hit));
+    CHECK((hit.block == VoxelCoord{3, 0, 0}));
+    CHECK((hit.previousBlock == VoxelCoord{2, 0, 0}));
+    CHECK(hit.face == BlockFace::NegativeX);
+    CHECK(hit.distance == 2.5f);
+
+    world.setBlock({1, 0, 0}, waterId);
+    CHECK(raycast(world, registry, {0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, 10.0f, hit));
+    CHECK((hit.block == VoxelCoord{3, 0, 0}));
+    CHECK(hit.face == BlockFace::NegativeX);
+
+    world.setBlock({-3, 0, 0}, stoneId);
+    CHECK(raycast(world, registry, {-1.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, 10.0f, hit));
+    CHECK((hit.block == VoxelCoord{-3, 0, 0}));
+    CHECK((hit.previousBlock == VoxelCoord{-2, 0, 0}));
+    CHECK(!raycast(world, registry, {0.5f, 2.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, 1.0f, hit));
+}
+
+void testEditHistory()
+{
+    VoxelWorld world;
+    VoxelEditHistory history;
+    CHECK(history.setBlock(world, {2, 3, 4}, 7));
+    CHECK(world.block({2, 3, 4}) == 7);
+    CHECK(history.canUndo());
+    CHECK(history.edits().size() == 1);
+    CHECK(history.edits()[0].before == AirBlockId);
+    CHECK(history.undo(world));
+    CHECK(world.block({2, 3, 4}) == AirBlockId);
+    CHECK(history.canRedo());
+    CHECK(history.redo(world));
+    CHECK(world.block({2, 3, 4}) == 7);
+
+    CHECK(history.setBlock(world, {2, 3, 4}, 9));
+    CHECK(!history.canRedo());
+    CHECK(history.undo(world));
+    CHECK(world.block({2, 3, 4}) == 7);
+}
+
 BlockRegistry makeTerrainRegistry()
 {
     BlockRegistry registry;
@@ -318,6 +374,8 @@ int main()
     testAtlasUvs();
     testAtlasRotation();
     testAtlasVerticalFlip();
+    testRaycast();
+    testEditHistory();
     testTerrainGeneration();
     testTallTerrainGeneration();
     testTallTerrainUsesWorldHeight();
