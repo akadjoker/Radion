@@ -2,8 +2,11 @@
 
 #include "VoxelBlock.h"
 #include "VoxelEditHistory.h"
+#include "VoxelEditStore.h"
 #include "VoxelMesher.h"
+#include "VoxelNeighbourhood.h"
 #include "VoxelRaycast.h"
+#include "VoxelStreamer.h"
 #include "VoxelTerrain.h"
 #include "VoxelWorld.h"
 
@@ -25,6 +28,31 @@ void check(bool condition, const char* expression, int line)
 }
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
+
+// The mesher packs a voxel vertex into MeshData::colors and voxel.vert unpacks
+// it. These mirror that layout: a test that reads the fields any other way
+// would stop noticing the day the two sides disagree.
+struct PackedVertex
+{
+    u32 face = 0;
+    u32 occlusion = 0;
+    u32 atlasX = 0;
+    u32 atlasY = 0;
+    f32 u = 0.0f;
+    f32 v = 0.0f;
+};
+
+PackedVertex unpackVertex(u32 packed)
+{
+    PackedVertex vertex;
+    vertex.face = packed & 0x7u;
+    vertex.occlusion = (packed >> 3) & 0x3u;
+    vertex.atlasX = (packed >> 5) & 0x1Fu;
+    vertex.atlasY = (packed >> 10) & 0x1Fu;
+    vertex.u = static_cast<f32>((packed >> 15) & 0x3Fu);
+    vertex.v = static_cast<f32>((packed >> 21) & 0x3Fu);
+    return vertex;
+}
 
 void testRegistry()
 {
@@ -89,32 +117,36 @@ void testMeshing()
     world.setBlock({0, 0, 0}, stoneId);
     const VoxelMeshData oneBlock =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
-    CHECK(oneBlock.opaque.positions.size() == 24);
-    CHECK(oneBlock.opaque.indices.size() == 36);
-    CHECK(oneBlock.opaque.triangleCount() == 12);
+    CHECK(oneBlock.mesh.positions.size() == 24);
+    CHECK(oneBlock.mesh.indices.size() == 36);
+    CHECK(oneBlock.mesh.triangleCount() == 12);
 
     world.setBlock({1, 0, 0}, stoneId);
     const VoxelMeshData adjacent =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
-    CHECK(adjacent.opaque.indices.size() == 36);
-    CHECK(adjacent.opaque.triangleCount() == 12);
+    CHECK(adjacent.mesh.indices.size() == 36);
+    CHECK(adjacent.mesh.triangleCount() == 12);
     bool hasRepeatedUv = false;
-    for (const glm::vec2& uv : adjacent.opaque.uvs)
-        hasRepeatedUv = hasRepeatedUv || uv.x == 2.0f || uv.y == 2.0f;
+    for (u32 packed : adjacent.mesh.colors)
+    {
+        const PackedVertex vertex = unpackVertex(packed);
+        hasRepeatedUv = hasRepeatedUv || vertex.u == 2.0f || vertex.v == 2.0f;
+    }
     CHECK(hasRepeatedUv);
+    CHECK(adjacent.mesh.colors.size() == adjacent.mesh.positions.size());
 
     world.setBlock({32, 0, 0}, stoneId);
     const VoxelMeshData border =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
-    CHECK(border.opaque.indices.size() == 36);
+    CHECK(border.mesh.indices.size() == 36);
 
     VoxelWorld solidWorld;
     VoxelChunk& solidChunk = solidWorld.ensureChunk({0, 0, 0});
     solidChunk.fill(stoneId);
     const VoxelMeshData solidMesh = VoxelMesher::buildChunk(solidWorld, solidChunk, registry);
-    CHECK(solidMesh.opaque.positions.size() == 24);
-    CHECK(solidMesh.opaque.indices.size() == 36);
-    CHECK(solidMesh.opaque.triangleCount() == 12);
+    CHECK(solidMesh.mesh.positions.size() == 24);
+    CHECK(solidMesh.mesh.indices.size() == 36);
+    CHECK(solidMesh.mesh.triangleCount() == 12);
 
     BlockDefinition water;
     water.name = "water";
@@ -128,8 +160,9 @@ void testMeshing()
     transparentWorld.setBlock({1, 0, 0}, waterId);
     const VoxelMeshData waterMesh =
         VoxelMesher::buildChunk(transparentWorld, *transparentWorld.findChunk({0, 0, 0}), registry);
-    CHECK(waterMesh.opaque.indices.empty());
-    CHECK(waterMesh.transparent.indices.size() == 36);
+    CHECK(!waterMesh.hasSlot(VoxelMeshData::OpaqueSlot));
+    CHECK(waterMesh.hasSlot(VoxelMeshData::TransparentSlot));
+    CHECK(waterMesh.mesh.indices.size() == 36);
 }
 
 void testAtlasUvs()
@@ -154,13 +187,15 @@ void testAtlasUvs()
     const VoxelMeshData mesh =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry, settings);
 
-    // UV0 repeats per voxel; UV1 identifies tile (1,1) in the engine atlas convention.
-    CHECK(mesh.opaque.uvs.size() == 24);
-    CHECK(mesh.opaque.uvs2.size() == 24);
-    for (const glm::vec2& uv : mesh.opaque.uvs2)
+    // The tile travels as a column and a row, not as a UV: voxel.vert turns
+    // them into the atlas origin with the material's own tile size, so the
+    // atlas may be resized without remeshing the world.
+    CHECK(mesh.mesh.colors.size() == 24);
+    for (u32 packed : mesh.mesh.colors)
     {
-        CHECK(uv.x == 0.25f);
-        CHECK(uv.y == 0.5f);
+        const PackedVertex vertex = unpackVertex(packed);
+        CHECK(vertex.atlasX == 1);
+        CHECK(vertex.atlasY == 1);
     }
 }
 
@@ -179,8 +214,11 @@ void testAtlasRotation()
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
 
     bool hasClockwiseCorner = false;
-    for (const glm::vec2& uv : mesh.opaque.uvs)
-        hasClockwiseCorner = hasClockwiseCorner || (uv.x == 0.0f && uv.y == 1.0f);
+    for (u32 packed : mesh.mesh.colors)
+    {
+        const PackedVertex vertex = unpackVertex(packed);
+        hasClockwiseCorner = hasClockwiseCorner || (vertex.u == 0.0f && vertex.v == 1.0f);
+    }
     CHECK(hasClockwiseCorner);
 }
 
@@ -199,9 +237,46 @@ void testAtlasVerticalFlip()
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
 
     bool hasFlippedCorner = false;
-    for (const glm::vec2& uv : mesh.opaque.uvs)
-        hasFlippedCorner = hasFlippedCorner || (uv.x == 0.0f && uv.y == 1.0f);
+    for (u32 packed : mesh.mesh.colors)
+    {
+        const PackedVertex vertex = unpackVertex(packed);
+        hasFlippedCorner = hasFlippedCorner || (vertex.u == 0.0f && vertex.v == 1.0f);
+    }
     CHECK(hasFlippedCorner);
+}
+
+void testSideFacesStandUpright()
+{
+    BlockRegistry registry;
+    BlockDefinition block;
+    block.name = "tile";
+    const BlockId id = registry.registerBlock(block);
+
+    VoxelWorld world;
+    // A column two blocks tall, so the greedy sweep merges a quad whose two
+    // extents differ and a swapped texture basis cannot hide behind a square.
+    world.setBlock({0, 0, 0}, id);
+    world.setBlock({0, 1, 0}, id);
+
+    const VoxelMeshData mesh =
+        VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
+
+    // Texture v follows world Y on every side face, whichever axis the sweep
+    // walked: a grass side or a log must never lie on its side.
+    usize sideVertices = 0;
+    bool upright = true;
+    for (usize index = 0; index < mesh.mesh.positions.size(); ++index)
+    {
+        const PackedVertex vertex = unpackVertex(mesh.mesh.colors[index]);
+        const bool vertical = vertex.face == static_cast<u32>(BlockFace::NegativeY) ||
+                              vertex.face == static_cast<u32>(BlockFace::PositiveY);
+        if (vertical)
+            continue;
+        ++sideVertices;
+        upright = upright && vertex.v == mesh.mesh.positions[index].y;
+    }
+    CHECK(sideVertices == 16);
+    CHECK(upright);
 }
 
 void testRaycast()
@@ -363,6 +438,190 @@ void testTallTerrainUsesWorldHeight()
     CHECK(world.block({0, 40, 0}) == registry.findId("grass"));
     CHECK(world.block({0, 72, 0}) == AirBlockId);
 }
+
+void testNeighbourhoodGather()
+{
+    const BlockRegistry registry = makeTerrainRegistry();
+    const BlockId dirt = registry.findId("dirt");
+    const BlockId stone = registry.findId("stone");
+
+    VoxelWorld world;
+    world.ensureChunk({0, 0, 0}).fill(dirt);
+    world.setBlock({-1, 5, 5}, stone);
+
+    VoxelNeighbourhood neighbourhood;
+    neighbourhood.gather(world, {0, 0, 0});
+
+    CHECK((neighbourhood.coordinate() == ChunkCoord{0, 0, 0}));
+    CHECK(neighbourhood.block(0, 5, 5) == dirt);
+    CHECK(neighbourhood.block(-1, 5, 5) == world.findChunk({-1, 0, 0})->block({31, 5, 5}));
+    CHECK(neighbourhood.block(-1, 5, 5) == stone);
+    // Chunk {-1,-1,-1} was never loaded, so its corner of the padded box stays air.
+    CHECK(neighbourhood.block(-1, -1, -1) == AirBlockId);
+}
+
+void runUntilGenerationSettles(VoxelStreamer& streamer)
+{
+    for (int iteration = 0; iteration < 32 && (iteration == 0 || streamer.pendingGeneration() > 0);
+         ++iteration)
+    {
+        streamer.update();
+    }
+}
+
+void testStreamerLoadsAroundOrigin()
+{
+    const BlockRegistry registry = makeTerrainRegistry();
+
+    VoxelStreamer streamer;
+    VoxelStreamer::Settings settings;
+    settings.viewRadius = 1;
+    settings.useJobs = false;
+    streamer.configure(settings);
+    streamer.setBlocks(registry);
+    streamer.setTerrain(12345, VoxelTerrain::Settings());
+    streamer.setOrigin({0.0f, 0.0f, 0.0f});
+
+    runUntilGenerationSettles(streamer);
+
+    CHECK(streamer.pendingGeneration() == 0);
+    CHECK(streamer.loadedChunks() == 25);
+    CHECK(streamer.world().findChunk({3, 0, 0}) == nullptr);
+}
+
+void testStreamerUnloadsBehind()
+{
+    const BlockRegistry registry = makeTerrainRegistry();
+
+    VoxelStreamer streamer;
+    VoxelStreamer::Settings settings;
+    settings.viewRadius = 1;
+    settings.useJobs = false;
+    streamer.configure(settings);
+    streamer.setBlocks(registry);
+    streamer.setTerrain(12345, VoxelTerrain::Settings());
+    streamer.setOrigin({0.0f, 0.0f, 0.0f});
+    runUntilGenerationSettles(streamer);
+    CHECK(streamer.loadedChunks() == 25);
+
+    streamer.setOrigin({6.0f * VoxelChunk::Size, 0.0f, 0.0f});
+    streamer.update();
+
+    usize unloadedCount = 0;
+    ChunkCoord coordinate;
+    while (streamer.popUnloadedChunk(coordinate))
+        ++unloadedCount;
+
+    CHECK(unloadedCount == 25);
+    CHECK(streamer.world().findChunk({0, 0, 0}) == nullptr);
+    CHECK(streamer.world().findChunk({2, 0, 0}) == nullptr);
+}
+
+void testStreamerEditsSurviveReload()
+{
+    const BlockRegistry registry = makeTerrainRegistry();
+    const BlockId stone = registry.findId("stone");
+
+    VoxelStreamer streamer;
+    VoxelStreamer::Settings settings;
+    settings.viewRadius = 1;
+    settings.useJobs = false;
+    streamer.configure(settings);
+    streamer.setBlocks(registry);
+    streamer.setTerrain(12345, VoxelTerrain::Settings());
+    streamer.setOrigin({0.0f, 0.0f, 0.0f});
+    runUntilGenerationSettles(streamer);
+    CHECK(streamer.loadedChunks() == 25);
+
+    const VoxelCoord edited = {5, 5, 5};
+    const BlockId original = streamer.block(edited);
+    const BlockId replacement = original == stone ? AirBlockId : stone;
+    CHECK(streamer.setBlock(edited, replacement));
+    CHECK(streamer.block(edited) == replacement);
+
+    streamer.setOrigin({6.0f * VoxelChunk::Size, 0.0f, 0.0f});
+    streamer.update();
+    ChunkCoord coordinate;
+    while (streamer.popUnloadedChunk(coordinate))
+    {
+    }
+    CHECK(streamer.world().findChunk({0, 0, 0}) == nullptr);
+
+    streamer.setOrigin({0.0f, 0.0f, 0.0f});
+    runUntilGenerationSettles(streamer);
+
+    CHECK(streamer.loadedChunks() == 25);
+    CHECK(streamer.block(edited) == replacement);
+}
+
+void testEditStoreRoundTrip()
+{
+    VoxelEditStore store;
+    store.record({5, 5, 5}, 7);
+    store.record({40, 5, 5}, 9);
+    store.record({-1, 5, 5}, 11);
+    CHECK(store.recordCount() == 3);
+
+    std::vector<u8> bytes;
+    store.write(bytes);
+
+    VoxelEditStore restored;
+    CHECK(restored.read(bytes));
+    CHECK(restored.recordCount() == store.recordCount());
+
+    VoxelChunk originChunk({0, 0, 0});
+    CHECK(restored.apply(originChunk));
+    CHECK(originChunk.block({5, 5, 5}) == 7);
+
+    VoxelChunk positiveChunk({1, 0, 0});
+    CHECK(restored.apply(positiveChunk));
+    CHECK(positiveChunk.block({8, 5, 5}) == 9);
+
+    VoxelChunk negativeChunk({-1, 0, 0});
+    CHECK(restored.apply(negativeChunk));
+    CHECK(negativeChunk.block({31, 5, 5}) == 11);
+}
+
+void testBoundedWorld()
+{
+    const BlockRegistry registry = makeTerrainRegistry();
+
+    VoxelStreamer streamer;
+    VoxelStreamer::Settings settings;
+    settings.viewRadius = 4;
+    settings.useJobs = false;
+    settings.bounded = true;
+    settings.boundsMinX = -1;
+    settings.boundsMaxX = 1;
+    settings.boundsMinZ = -1;
+    settings.boundsMaxZ = 1;
+    streamer.configure(settings);
+    streamer.setBlocks(registry);
+    streamer.setTerrain(12345, VoxelTerrain::Settings());
+
+    bool everOutsideBounds = false;
+    usize maxLoaded = 0;
+    std::vector<ChunkCoord> loaded;
+    for (s32 step = 0; step < 20; ++step)
+    {
+        streamer.setOrigin({static_cast<f32>(step) * VoxelChunk::Size, 0.0f, 0.0f});
+        runUntilGenerationSettles(streamer);
+
+        streamer.world().collectCoordinates(loaded);
+        maxLoaded = std::max(maxLoaded, loaded.size());
+        for (const ChunkCoord& coordinate : loaded)
+        {
+            if (coordinate.x < settings.boundsMinX || coordinate.x > settings.boundsMaxX ||
+                coordinate.z < settings.boundsMinZ || coordinate.z > settings.boundsMaxZ)
+            {
+                everOutsideBounds = true;
+            }
+        }
+    }
+
+    CHECK(!everOutsideBounds);
+    CHECK(maxLoaded == 9);
+}
 } // namespace
 
 int main()
@@ -374,10 +633,17 @@ int main()
     testAtlasUvs();
     testAtlasRotation();
     testAtlasVerticalFlip();
+    testSideFacesStandUpright();
     testRaycast();
     testEditHistory();
     testTerrainGeneration();
     testTallTerrainGeneration();
     testTallTerrainUsesWorldHeight();
+    testNeighbourhoodGather();
+    testStreamerLoadsAroundOrigin();
+    testStreamerUnloadsBehind();
+    testStreamerEditsSurviveReload();
+    testEditStoreRoundTrip();
+    testBoundedWorld();
     return gFailures == 0 ? 0 : 1;
 }

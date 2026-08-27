@@ -198,6 +198,17 @@ public:
     {
         return mImGuiVisible;
     }
+    // False while ImGui is hidden, since a panel nobody can see must not eat
+    // the game's input. Game code that picks with the mouse or reads keys
+    // asks these before acting.
+    bool uiWantsMouse() const
+    {
+        return mImGuiVisible && mImGui.wantsMouse();
+    }
+    bool uiWantsKeyboard() const
+    {
+        return mImGuiVisible && mImGui.wantsKeyboard();
+    }
     void drawSkyContents();
     void drawPostProcessContents();
     void drawProfilerContents();

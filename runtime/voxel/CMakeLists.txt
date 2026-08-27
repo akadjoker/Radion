@@ -2,8 +2,11 @@ add_library(radion_voxel
     src/VoxelBlock.cpp
     src/VoxelChunk.cpp
     src/VoxelEditHistory.cpp
+    src/VoxelEditStore.cpp
     src/VoxelMesher.cpp
+    src/VoxelNeighbourhood.cpp
     src/VoxelRaycast.cpp
+    src/VoxelStreamer.cpp
     src/VoxelTerrain.cpp
     src/VoxelWorld.cpp
 )

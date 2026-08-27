@@ -1391,6 +1391,110 @@ MeshHandle AssetManager::createDynamicMesh(const MeshData& data)
     return mMeshes.add(mesh);
 }
 
+bool AssetManager::uploadVoxel(const MeshData& data, const Material* materials,
+                               u32 materialCount, Mesh& out) const
+{
+    if (data.positions.empty() || data.indices.empty() ||
+        data.colors.size() != data.positions.size())
+    {
+        Log::error("AssetManager: voxel mesh needs one packed word per position");
+        return false;
+    }
+
+    std::string error;
+    if (!validateMeshData(data, error))
+    {
+        Log::error("AssetManager: rejected voxel mesh - %s", error.c_str());
+        return false;
+    }
+
+    GPU& gpu = GPU::getSingleton();
+    const usize count = data.positions.size();
+
+    BufferDesc positionDesc;
+    positionDesc.size = count * sizeof(glm::vec3);
+    positionDesc.usage = BufferVertex | BufferStorage;
+    positionDesc.residency = Residency::Static;
+    positionDesc.stride = sizeof(glm::vec3);
+    positionDesc.data = data.positions.data();
+    positionDesc.debugName = "voxel.positions";
+    out.positionBuffer = gpu.createBuffer(positionDesc);
+
+    BufferDesc attribDesc;
+    attribDesc.size = count * sizeof(u32);
+    attribDesc.usage = BufferVertex | BufferStorage;
+    attribDesc.residency = Residency::Static;
+    attribDesc.stride = sizeof(u32);
+    attribDesc.data = data.colors.data();
+    attribDesc.debugName = "voxel.attribs";
+    out.attribBuffer = gpu.createBuffer(attribDesc);
+
+    BufferDesc indexDesc;
+    indexDesc.size = data.indices.size() * sizeof(u32);
+    indexDesc.usage = BufferIndex;
+    indexDesc.residency = Residency::Static;
+    indexDesc.data = data.indices.data();
+    indexDesc.debugName = "voxel.indices";
+    out.indexBuffer = gpu.createBuffer(indexDesc);
+
+    if (!out.positionBuffer.valid() || !out.attribBuffer.valid() || !out.indexBuffer.valid())
+        return false;
+
+    out.indexType = IndexType::U32;
+    out.vertexCount = static_cast<u32>(count);
+    out.indexCount = static_cast<u32>(data.indices.size());
+    out.submeshes = data.submeshes;
+    out.materials.assign(materials, materials + materialCount);
+    out.bounds = data.bounds;
+
+    // Positions keep the ordinary depth layout, which is what lets the depth
+    // pass and every shadow cascade draw a voxel chunk without knowing it is
+    // one.
+    out.depthLayout = VertexLayout();
+    out.depthLayout.streamCount = 1;
+    out.depthLayout.streams[StreamPosition].stride = sizeof(glm::vec3);
+    out.depthLayout.attribCount = 1;
+    out.depthLayout.attribs[0] = {0, StreamPosition, 0, AttribFormat::Float3};
+
+    out.colorLayout = out.depthLayout;
+    out.colorLayout.streamCount = 2;
+    out.colorLayout.streams[StreamAttribs].stride = sizeof(u32);
+    out.colorLayout.attribCount = 2;
+    out.colorLayout.attribs[1] = {1, StreamAttribs, 0, AttribFormat::UInt1};
+    return true;
+}
+
+MeshHandle AssetManager::createVoxelMesh(const MeshData& data, const Material* materials,
+                                        u32 count)
+{
+    Mesh mesh;
+    if (!uploadVoxel(data, materials, count, mesh))
+    {
+        release(mesh);
+        return MeshHandle();
+    }
+    return mMeshes.add(mesh);
+}
+
+bool AssetManager::replaceVoxelMesh(MeshHandle handle, const MeshData& data,
+                                    const Material* materials, u32 count)
+{
+    Mesh* slot = mMeshes.get(handle);
+    if (!slot)
+        return false;
+
+    Mesh replacement;
+    if (!uploadVoxel(data, materials, count, replacement))
+    {
+        release(replacement);
+        return false;
+    }
+
+    release(*slot);
+    *slot = replacement;
+    return true;
+}
+
 bool AssetManager::updateMeshVertices(MeshHandle handle, u32 firstVertex, u32 vertexCount,
                                       const glm::vec3* positions, const MeshAttribs* attribs)
 {

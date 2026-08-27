@@ -1256,42 +1256,35 @@ void InspectorPanel::drawVoxelWorldComponent(VoxelWorldComponent& voxelWorld)
 {
     ImGui::Indent(14.0f);
     bool changed = false;
+
+    ImGui::SeparatorText("World");
     int seed = static_cast<int>(voxelWorld.seed());
     if (ImGui::InputInt("Seed", &seed))
     {
         voxelWorld.setSeed(static_cast<u32>(std::max(0, seed)));
         changed = true;
     }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Terrain generator seed. The same seed and settings reproduce the "
+                          "same world.");
     int radius = voxelWorld.chunkRadius();
-    if (ImGui::DragInt("Chunk radius", &radius, 1.0f, 0, 16))
+    if (ImGui::DragInt("Chunk radius", &radius, 1.0f, 0, 32))
     {
         voxelWorld.setChunkRadius(radius);
         changed = true;
     }
-    int minY = voxelWorld.minWorldY();
-    if (ImGui::InputInt("Min world Y", &minY))
-    {
-        voxelWorld.setMinWorldY(minY);
-        changed = true;
-    }
-    int maxY = voxelWorld.maxWorldY();
-    if (ImGui::InputInt("Max world Y", &maxY))
-    {
-        voxelWorld.setMaxWorldY(maxY);
-        changed = true;
-    }
-    int waterLevel = voxelWorld.waterLevel();
-    if (ImGui::InputInt("Water level", &waterLevel))
-    {
-        voxelWorld.setWaterLevel(waterLevel);
-        changed = true;
-    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Chunks kept meshed around the origin (VoxelStreamer view radius). "
+                          "Generation itself runs one ring wider than this.");
     int originId = static_cast<int>(voxelWorld.originObjectId());
     if (ImGui::InputInt("Origin GameObject ID", &originId))
     {
         voxelWorld.setOriginObjectId(static_cast<u64>(std::max(0, originId)));
         changed = true;
     }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("GameObject the streaming origin follows every frame. Zero falls back "
+                          "to this object.");
     char atlas[256];
     std::snprintf(atlas, sizeof(atlas), "%s", voxelWorld.atlasFile().c_str());
     if (ImGui::InputText("Atlas file", atlas, sizeof(atlas)))
@@ -1299,13 +1292,422 @@ void InspectorPanel::drawVoxelWorldComponent(VoxelWorldComponent& voxelWorld)
         voxelWorld.setAtlasFile(atlas);
         changed = true;
     }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Texture atlas the block faces sample from. Changing it rebuilds the "
+                          "three voxel materials.");
+    char editsFile[256];
+    std::snprintf(editsFile, sizeof(editsFile), "%s", voxelWorld.editsFile().c_str());
+    if (ImGui::InputText("Edits file", editsFile, sizeof(editsFile)))
+    {
+        voxelWorld.setEditsFile(editsFile);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Where the edited blocks are written, beside the scene. The terrain "
+                          "itself comes back from the seed, so only what somebody changed by "
+                          "hand needs a file.");
+    if (ImGui::Button("Save edits"))
+    {
+        if (voxelWorld.saveEdits(voxelWorld.editsFile().c_str()))
+            changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load edits"))
+    {
+        if (voxelWorld.loadEdits(voxelWorld.editsFile().c_str()))
+            changed = true;
+    }
+    ImGui::SameLine();
+    ImGui::Text("%zu blocks", voxelWorld.editedBlocks());
+
+    ImGui::SeparatorText("Block palette");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("What the world is made of. Each block names its tile in the atlas per "
+                          "face, so a texture pack is a change of coordinates and not of code. "
+                          "Ids are positional: editing a block keeps everything already placed.");
+    for (Voxel::BlockId id = 1; id < voxelWorld.blockCount(); ++id)
+    {
+        const Voxel::BlockDefinition* current = voxelWorld.blockDefinition(id);
+        if (!current)
+            continue;
+        ImGui::PushID(static_cast<int>(id));
+        if (ImGui::TreeNode(current->name.c_str()))
+        {
+            Voxel::BlockDefinition edited = *current;
+            bool blockChanged = false;
+
+            char name[64];
+            std::snprintf(name, sizeof(name), "%s", edited.name.c_str());
+            if (ImGui::InputText("Name", name, sizeof(name)))
+            {
+                edited.name = name;
+                blockChanged = true;
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("The terrain generator asks for its blocks by name: grass, "
+                                  "dirt, stone, sand, gravel, bedrock, water, snow, log, leaves "
+                                  "and the four ores. A name it cannot find is simply left out "
+                                  "of the world.");
+
+            const char* renderTypes[] = {"Opaque", "Cutout", "Transparent"};
+            int renderType = static_cast<int>(edited.renderType);
+            if (ImGui::Combo("Render", &renderType, renderTypes, 3))
+            {
+                edited.renderType = static_cast<Voxel::BlockRenderType>(renderType);
+                edited.transparent = edited.renderType != Voxel::BlockRenderType::Opaque;
+                blockChanged = true;
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Opaque hides what is behind it and hides its neighbours' "
+                                  "faces. Cutout keeps depth and drops the atlas's empty texels, "
+                                  "for leaves. Transparent blends and writes no depth, for "
+                                  "water.");
+            if (ImGui::Checkbox("Solid", &edited.solid))
+                blockChanged = true;
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Whether a ray stops on it and whether it will hold a player "
+                                  "up. Water is not solid.");
+
+            int tile[2] = {static_cast<int>(edited.faces[0].atlasX),
+                           static_cast<int>(edited.faces[0].atlasY)};
+            if (ImGui::DragInt2("All faces", tile, 0.1f, 0, 31))
+            {
+                for (Voxel::BlockFaceMaterial& face : edited.faces)
+                {
+                    face.atlasX = static_cast<u16>(tile[0]);
+                    face.atlasY = static_cast<u16>(tile[1]);
+                }
+                blockChanged = true;
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Atlas column and row for every face at once. terrain.png is "
+                                  "16x16 tiles: grass top is 0,0, its side 3,0, dirt 2,0, stone "
+                                  "1,0, sand 2,1, log side 4,1, leaves 4,3, water 13,12.");
+
+            const char* faceNames[] = {"-X", "+X", "Bottom", "Top", "-Z", "+Z"};
+            for (usize face = 0; face < edited.faces.size(); ++face)
+            {
+                int faceTile[2] = {static_cast<int>(edited.faces[face].atlasX),
+                                   static_cast<int>(edited.faces[face].atlasY)};
+                ImGui::PushID(static_cast<int>(face));
+                if (ImGui::DragInt2(faceNames[face], faceTile, 0.1f, 0, 31))
+                {
+                    edited.faces[face].atlasX = static_cast<u16>(faceTile[0]);
+                    edited.faces[face].atlasY = static_cast<u16>(faceTile[1]);
+                    blockChanged = true;
+                }
+                ImGui::PopID();
+            }
+
+            if (blockChanged)
+            {
+                voxelWorld.setBlockDefinition(id, edited);
+                changed = true;
+            }
+            ImGui::TreePop();
+        }
+        ImGui::PopID();
+    }
+    if (ImGui::Button("Add block"))
+    {
+        Voxel::BlockDefinition definition;
+        definition.name = "block " + std::to_string(voxelWorld.blockCount());
+        voxelWorld.addBlock(definition);
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Reset palette"))
+    {
+        voxelWorld.resetBlocksToDefault();
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Back to the fourteen blocks the engine ships, on terrain.png's own "
+                          "tiles.");
     if (ImGui::Button("Regenerate world"))
     {
         app().recordUndo();
         voxelWorld.regenerate();
         changed = true;
     }
-    ImGui::Text("Loaded chunks: %zu", voxelWorld.world().chunkCount());
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Reapplies terrain and streaming settings, which drops every loaded "
+                          "chunk and streams it back in around the origin.");
+
+    ImGui::SeparatorText("Terrain");
+    bool flat = voxelWorld.flat();
+    if (ImGui::Checkbox("Flat world", &flat))
+    {
+        voxelWorld.setFlat(flat);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("A table at the base surface height, with the noise ignored - somewhere "
+                          "to build on. Caves, ores and trees keep their own switches, so a clean "
+                          "slab means turning those off too.");
+    int minY = voxelWorld.minWorldY();
+    if (ImGui::InputInt("Min world Y", &minY))
+    {
+        voxelWorld.setMinWorldY(minY);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Lowest world Y the vertical chunk band covers. Clamped below max "
+                          "world Y.");
+    int maxY = voxelWorld.maxWorldY();
+    if (ImGui::InputInt("Max world Y", &maxY))
+    {
+        voxelWorld.setMaxWorldY(maxY);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Highest world Y the vertical chunk band covers. Clamped above min "
+                          "world Y.");
+    int waterLevel = voxelWorld.waterLevel();
+    if (ImGui::InputInt("Water level", &waterLevel))
+    {
+        voxelWorld.setWaterLevel(waterLevel);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("World Y at and below which air becomes water.");
+    f32 baseSurfaceHeight = voxelWorld.baseSurfaceHeight();
+    if (ImGui::DragFloat("Base surface height", &baseSurfaceHeight, 0.5f, -1000.0f, 1000.0f))
+    {
+        voxelWorld.setBaseSurfaceHeight(baseSurfaceHeight);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Surface height with zero contribution from the continental and "
+                          "detail noise layers.");
+    f32 continentalAmplitude = voxelWorld.continentalAmplitude();
+    if (ImGui::DragFloat("Continental amplitude", &continentalAmplitude, 0.5f, 0.0f, 500.0f))
+    {
+        voxelWorld.setContinentalAmplitude(continentalAmplitude);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Low frequency height variation added on top of the base surface "
+                          "height.");
+    f32 detailAmplitude = voxelWorld.detailAmplitude();
+    if (ImGui::DragFloat("Detail amplitude", &detailAmplitude, 0.1f, 0.0f, 200.0f))
+    {
+        voxelWorld.setDetailAmplitude(detailAmplitude);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("High frequency height variation layered over the continental shape.");
+    int minSurfaceHeight = voxelWorld.minSurfaceHeight();
+    if (ImGui::DragInt("Min surface height", &minSurfaceHeight, 1.0f, -1000, 1000))
+    {
+        voxelWorld.setMinSurfaceHeight(minSurfaceHeight);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Clamp floor for the generated surface height. Clamped below max "
+                          "surface height.");
+    int maxSurfaceHeight = voxelWorld.maxSurfaceHeight();
+    if (ImGui::DragInt("Max surface height", &maxSurfaceHeight, 1.0f, -1000, 1000))
+    {
+        voxelWorld.setMaxSurfaceHeight(maxSurfaceHeight);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Clamp ceiling for the generated surface height. Clamped above min "
+                          "surface height.");
+    f32 reliefFrequency = voxelWorld.reliefFrequency();
+    if (ImGui::DragFloat("Relief frequency", &reliefFrequency, 0.0001f, 0.0001f, 0.05f, "%.4f"))
+    {
+        voxelWorld.setReliefFrequency(reliefFrequency);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("How fast flat country turns into mountain range. Lower means larger "
+                          "regions of the same character; it scales the continental amplitude "
+                          "rather than adding height, so no biome border shows a step.");
+
+    ImGui::SeparatorText("Biomes");
+    bool biomes = voxelWorld.biomes();
+    if (ImGui::Checkbox("Biomes", &biomes))
+    {
+        voxelWorld.setBiomes(biomes);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Off makes the whole world plains: grass surface, dirt filler. Use it "
+                          "to isolate a terrain problem from a biome one.");
+    ImGui::BeginDisabled(!biomes);
+    f32 biomeFrequency = voxelWorld.biomeFrequency();
+    if (ImGui::DragFloat("Biome frequency", &biomeFrequency, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+    {
+        voxelWorld.setBiomeFrequency(biomeFrequency);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Voronoi cell size for the biome map, in blocks per cell = 1 / this. "
+                          "0.0045 gives cells about 220 blocks across.");
+    ImGui::EndDisabled();
+
+    ImGui::SeparatorText("Caves");
+    bool caves = voxelWorld.caves();
+    if (ImGui::Checkbox("Caves", &caves))
+    {
+        voxelWorld.setCaves(caves);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Carves tunnels out of the generated ground. Off leaves it solid.");
+    ImGui::BeginDisabled(!caves);
+    f32 caveFrequency = voxelWorld.caveFrequency();
+    if (ImGui::DragFloat("Cave frequency", &caveFrequency, 0.001f, 0.005f, 0.2f, "%.3f"))
+    {
+        voxelWorld.setCaveFrequency(caveFrequency);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Tunnel scale. Higher means tighter, more tangled tunnels.");
+    f32 caveThreshold = voxelWorld.caveThreshold();
+    if (ImGui::DragFloat("Cave threshold", &caveThreshold, 0.005f, 0.5f, 0.99f, "%.3f"))
+    {
+        voxelWorld.setCaveThreshold(caveThreshold);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Where the two ridged noise fields have to meet before a tunnel opens. "
+                          "Lower carves more; 0.86 removes about 6% of the underground.");
+    int caveCeiling = voxelWorld.caveCeiling();
+    if (ImGui::DragInt("Cave ceiling", &caveCeiling, 1.0f, 0, 32))
+    {
+        voxelWorld.setCaveCeiling(caveCeiling);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Blocks of ground kept under the surface. Zero lets tunnels break "
+                          "through and open cave mouths.");
+    ImGui::EndDisabled();
+
+    ImGui::SeparatorText("Vegetation and ores");
+    bool trees = voxelWorld.trees();
+    if (ImGui::Checkbox("Trees", &trees))
+    {
+        voxelWorld.setTrees(trees);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Needs the log and leaves blocks in the registry; without them no tree "
+                          "is placed whatever this says.");
+    ImGui::BeginDisabled(!trees);
+    f32 treeDensity = voxelWorld.treeDensity();
+    if (ImGui::DragFloat("Tree density", &treeDensity, 0.05f, 0.0f, 8.0f, "%.2f"))
+    {
+        voxelWorld.setTreeDensity(treeDensity);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Multiplies each biome's own density: forest 0.045 per column, plains "
+                          "0.006, snow 0.018, mountains 0.004, desert none.");
+    ImGui::EndDisabled();
+    bool ores = voxelWorld.ores();
+    if (ImGui::Checkbox("Ores", &ores))
+    {
+        voxelWorld.setOres(ores);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Replaces stone with coal, iron, gold and diamond in 2x2x2 pockets, "
+                          "each with its own depth band.");
+    bool ambientOcclusion = voxelWorld.ambientOcclusion();
+    if (ImGui::Checkbox("Ambient occlusion", &ambientOcclusion))
+    {
+        voxelWorld.setAmbientOcclusion(ambientOcclusion);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Per-vertex corner shading baked by the mesher. It also enters the "
+                          "greedy merge key, so it costs geometry: measured at +75% vertices "
+                          "over a chunk radius of six. Turn it off to see what that buys.");
+
+    ImGui::SeparatorText("Bounds");
+    bool bounded = voxelWorld.bounded();
+    if (ImGui::Checkbox("Bounded", &bounded))
+    {
+        voxelWorld.setBounded(bounded);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Restricts streaming to a fixed X/Z chunk box instead of an endless "
+                          "world.");
+    ImGui::BeginDisabled(!bounded);
+    int boundsMinX = voxelWorld.boundsMinX();
+    if (ImGui::DragInt("Bounds min X", &boundsMinX, 1.0f, -10000, 10000))
+    {
+        voxelWorld.setBoundsMinX(boundsMinX);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Lowest chunk X inside the box. Clamped below bounds max X.");
+    int boundsMaxX = voxelWorld.boundsMaxX();
+    if (ImGui::DragInt("Bounds max X", &boundsMaxX, 1.0f, -10000, 10000))
+    {
+        voxelWorld.setBoundsMaxX(boundsMaxX);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Highest chunk X inside the box. Clamped above bounds min X.");
+    int boundsMinZ = voxelWorld.boundsMinZ();
+    if (ImGui::DragInt("Bounds min Z", &boundsMinZ, 1.0f, -10000, 10000))
+    {
+        voxelWorld.setBoundsMinZ(boundsMinZ);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Lowest chunk Z inside the box. Clamped below bounds max Z.");
+    int boundsMaxZ = voxelWorld.boundsMaxZ();
+    if (ImGui::DragInt("Bounds max Z", &boundsMaxZ, 1.0f, -10000, 10000))
+    {
+        voxelWorld.setBoundsMaxZ(boundsMaxZ);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Highest chunk Z inside the box. Clamped above bounds min Z.");
+    ImGui::EndDisabled();
+
+    ImGui::SeparatorText("Streaming");
+    int maxUploadsPerFrame = static_cast<int>(voxelWorld.maxUploadsPerFrame());
+    if (ImGui::SliderInt("Max uploads per frame", &maxUploadsPerFrame, 1, 64))
+    {
+        voxelWorld.setMaxUploadsPerFrame(static_cast<u32>(maxUploadsPerFrame));
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("GPU mesh uploads accepted per update; caps the per frame streaming "
+                          "cost.");
+    int maxGenerationJobs = static_cast<int>(voxelWorld.maxGenerationJobs());
+    if (ImGui::SliderInt("Max generation jobs", &maxGenerationJobs, 1, 64))
+    {
+        voxelWorld.setMaxGenerationJobs(static_cast<u32>(maxGenerationJobs));
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Chunk generation jobs allowed in flight at the same time.");
+    int maxMeshJobs = static_cast<int>(voxelWorld.maxMeshJobs());
+    if (ImGui::SliderInt("Max mesh jobs", &maxMeshJobs, 1, 64))
+    {
+        voxelWorld.setMaxMeshJobs(static_cast<u32>(maxMeshJobs));
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Chunk meshing jobs allowed in flight at the same time.");
+
+    ImGui::Text("Loaded chunks: %zu", voxelWorld.loadedChunks());
+    ImGui::Text("Pending generation: %zu", voxelWorld.pendingGeneration());
+    ImGui::Text("Pending meshing: %zu", voxelWorld.pendingMeshing());
+    ImGui::Text("Queued meshes: %zu", voxelWorld.queuedMeshes());
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Pending counts that keep climbing instead of settling, or a loaded "
+                          "count that drifts while the camera is still, mean streaming is not "
+                          "keeping up.");
+
     if (changed)
         app().markDirty();
     ImGui::Unindent(14.0f);

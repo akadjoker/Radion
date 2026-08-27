@@ -36,6 +36,12 @@ public:
                                  VolumetricPass* volumetric);
     void drawSky(SkySettings& sky);
     void drawSkyContents(SkySettings& sky);
+    // Whether a panel is under the pointer or holding keyboard focus this
+    // frame. Anything that reads the mouse or the keyboard for the game
+    // itself has to ask first, or a click on a panel also lands in the world
+    // behind it.
+    bool wantsMouse() const;
+    bool wantsKeyboard() const;
     // NewFrame() still runs when Engine hides ImGui so user code may safely
     // build optional UI. A hidden frame must nevertheless be ended, or the
     // next NewFrame() asserts before the game gets to its second update.

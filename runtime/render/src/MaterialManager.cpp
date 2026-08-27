@@ -48,6 +48,7 @@ const char* kUnlitVertexFile = "shaders/unlit.vert";
 const char* kUnlitFragmentFile = "shaders/unlit.frag";
 const char* kLitVertexFile = "shaders/lit.vert";
 const char* kLandscapeVertexFile = "shaders/landscape.vert";
+const char* kVoxelVertexFile = "shaders/voxel.vert";
 const char* kLitFragmentFile = "shaders/lit.frag";
 const char* kWaterVertexFile = "shaders/water.vert";
 const char* kWaterFragmentFile = "shaders/water.frag";
@@ -996,6 +997,16 @@ PipelineHandle MaterialManager::resolvePipeline(Material& material, const Vertex
             vertexFile = kLandscapeVertexFile;
             fragmentFile = kLitFragmentFile;
             debugName = "material.landscape";
+        }
+        else if (material.flags & MaterialVoxelAtlas)
+        {
+            // Same reason as the landscape above: the fragment shader is the
+            // ordinary lit one, and only the vertex stream differs - a chunk
+            // packs face, occlusion, atlas tile and quad extent into one word
+            // instead of carrying 48 bytes of attributes per vertex.
+            vertexFile = kVoxelVertexFile;
+            fragmentFile = kLitFragmentFile;
+            debugName = "material.voxel";
         }
         else if (material.flags & MaterialLit)
         {

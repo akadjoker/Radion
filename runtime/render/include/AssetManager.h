@@ -151,6 +151,15 @@ public:
     // scene can refer to it.
     MeshHandle createMesh(const MeshData& data);
     MeshHandle createDynamicMesh(const MeshData& data);
+    // A voxel chunk's mesh: positions in their own float3 stream, exactly as
+    // any other mesh, so the depth pass and the shadow cascades keep reading
+    // them unchanged - and one packed u32 per vertex out of MeshData::colors
+    // instead of the 48-byte attribute record a voxel leaves almost empty.
+    // voxel.vert unpacks it into the varyings lit.frag expects.
+    MeshHandle createVoxelMesh(const MeshData& data, const Material* materials, u32 count);
+    bool replaceVoxelMesh(MeshHandle handle, const MeshData& data, const Material* materials,
+                          u32 count);
+    bool uploadVoxel(const MeshData& data, const Material* materials, u32 count, Mesh& out) const;
 
     // Creates a stable, non-rendering handle and decodes a file mesh on a
     // worker thread. The finished MeshData is uploaded by

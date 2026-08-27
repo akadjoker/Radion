@@ -574,17 +574,73 @@ nlohmann::json writeTerrain(Terrain& terrain)
     return json;
 }
 
+nlohmann::json writeVoxelBlocks(VoxelWorldComponent& voxelWorld)
+{
+    nlohmann::json blocks = nlohmann::json::array();
+    // Air is the registry's own and never authored, so the palette starts at
+    // the first real block.
+    for (Voxel::BlockId id = 1; id < voxelWorld.blockCount(); ++id)
+    {
+        const Voxel::BlockDefinition* definition = voxelWorld.blockDefinition(id);
+        if (!definition)
+            continue;
+        nlohmann::json faces = nlohmann::json::array();
+        for (const Voxel::BlockFaceMaterial& face : definition->faces)
+        {
+            faces.push_back(nlohmann::json{{"atlasX", face.atlasX},
+                                           {"atlasY", face.atlasY},
+                                           {"rotation", static_cast<u32>(face.rotation)},
+                                           {"flipVertical", face.flipVertical}});
+        }
+        blocks.push_back(nlohmann::json{{"name", definition->name},
+                                        {"solid", definition->solid},
+                                        {"transparent", definition->transparent},
+                                        {"blocksLight", definition->blocksLight},
+                                        {"emittedLight", definition->emittedLight},
+                                        {"renderType", static_cast<u32>(definition->renderType)},
+                                        {"faces", faces}});
+    }
+    return blocks;
+}
+
 nlohmann::json writeVoxelWorld(VoxelWorldComponent& voxelWorld)
 {
     return nlohmann::json{{"type", "VoxelWorld"},
-                          {"version", 1},
+                          {"version", 4},
+                          {"flat", voxelWorld.flat()},
+                          {"ambientOcclusion", voxelWorld.ambientOcclusion()},
+                          {"blocks", writeVoxelBlocks(voxelWorld)},
                           {"active", voxelWorld.active()},
                           {"seed", voxelWorld.seed()},
                           {"chunkRadius", voxelWorld.chunkRadius()},
                           {"minWorldY", voxelWorld.minWorldY()},
                           {"maxWorldY", voxelWorld.maxWorldY()},
                           {"waterLevel", voxelWorld.waterLevel()},
+                          {"baseSurfaceHeight", voxelWorld.baseSurfaceHeight()},
+                          {"continentalAmplitude", voxelWorld.continentalAmplitude()},
+                          {"detailAmplitude", voxelWorld.detailAmplitude()},
+                          {"minSurfaceHeight", voxelWorld.minSurfaceHeight()},
+                          {"maxSurfaceHeight", voxelWorld.maxSurfaceHeight()},
+                          {"reliefFrequency", voxelWorld.reliefFrequency()},
+                          {"biomes", voxelWorld.biomes()},
+                          {"biomeFrequency", voxelWorld.biomeFrequency()},
+                          {"caves", voxelWorld.caves()},
+                          {"caveFrequency", voxelWorld.caveFrequency()},
+                          {"caveThreshold", voxelWorld.caveThreshold()},
+                          {"caveCeiling", voxelWorld.caveCeiling()},
+                          {"trees", voxelWorld.trees()},
+                          {"treeDensity", voxelWorld.treeDensity()},
+                          {"ores", voxelWorld.ores()},
+                          {"bounded", voxelWorld.bounded()},
+                          {"boundsMinX", voxelWorld.boundsMinX()},
+                          {"boundsMaxX", voxelWorld.boundsMaxX()},
+                          {"boundsMinZ", voxelWorld.boundsMinZ()},
+                          {"boundsMaxZ", voxelWorld.boundsMaxZ()},
+                          {"maxUploadsPerFrame", voxelWorld.maxUploadsPerFrame()},
+                          {"maxGenerationJobs", voxelWorld.maxGenerationJobs()},
+                          {"maxMeshJobs", voxelWorld.maxMeshJobs()},
                           {"atlasFile", voxelWorld.atlasFile()},
+                          {"editsFile", voxelWorld.editsFile()},
                           {"originObjectId", voxelWorld.originObjectId()}};
 }
 
@@ -1005,6 +1061,61 @@ void readTerrain(GameObject& object, const nlohmann::json& json, const std::stri
         terrain->setActive(active->get<bool>());
 }
 
+void readVoxelBlocks(VoxelWorldComponent& voxelWorld, const nlohmann::json& json,
+                     const std::string& path, SceneLoadResult& result)
+{
+    const auto blocks = json.find("blocks");
+    if (blocks == json.end() || !blocks->is_array() || blocks->empty())
+        return;
+
+    // The palette is authoritative when the scene carries one: ids are
+    // positional, and a world's blocks refer to them by index.
+    voxelWorld.resetBlocksToDefault();
+    Voxel::BlockId id = 1;
+    for (const nlohmann::json& entry : *blocks)
+    {
+        if (!entry.is_object())
+            continue;
+        Voxel::BlockDefinition definition;
+        const auto name = entry.find("name");
+        if (name == entry.end() || !name->is_string() || name->get<std::string>().empty())
+        {
+            result.addError(path, "voxel block without a name");
+            continue;
+        }
+        definition.name = name->get<std::string>();
+        definition.solid = readBoolOr(entry, "solid", true);
+        definition.transparent = readBoolOr(entry, "transparent", false);
+        definition.blocksLight = readBoolOr(entry, "blocksLight", true);
+        definition.emittedLight = static_cast<u8>(readNumberOr(entry, "emittedLight", 0.0f));
+        definition.renderType =
+            static_cast<Voxel::BlockRenderType>(readNumberOr(entry, "renderType", 0.0f));
+
+        const auto faces = entry.find("faces");
+        if (faces != entry.end() && faces->is_array())
+        {
+            for (usize face = 0; face < definition.faces.size() && face < faces->size(); ++face)
+            {
+                const nlohmann::json& source = (*faces)[face];
+                if (!source.is_object())
+                    continue;
+                Voxel::BlockFaceMaterial& target = definition.faces[face];
+                target.atlasX = static_cast<u16>(readNumberOr(source, "atlasX", 0.0f));
+                target.atlasY = static_cast<u16>(readNumberOr(source, "atlasY", 0.0f));
+                target.rotation =
+                    static_cast<Voxel::BlockFaceRotation>(readNumberOr(source, "rotation", 0.0f));
+                target.flipVertical = readBoolOr(source, "flipVertical", false);
+            }
+        }
+
+        if (id < voxelWorld.blockCount())
+            voxelWorld.setBlockDefinition(id, definition);
+        else
+            voxelWorld.addBlock(definition);
+        ++id;
+    }
+}
+
 void readVoxelWorld(GameObject& object, const nlohmann::json& json, const std::string& path,
                     SceneLoadResult& result)
 {
@@ -1020,12 +1131,53 @@ void readVoxelWorld(GameObject& object, const nlohmann::json& json, const std::s
         seed <= std::numeric_limits<u32>::max())
         voxelWorld->setSeed(static_cast<u32>(seed));
     voxelWorld->setChunkRadius(static_cast<s32>(readNumberOr(json, "chunkRadius", 2.0f)));
-    voxelWorld->setMinWorldY(static_cast<s32>(readNumberOr(json, "minWorldY", -64.0f)));
-    voxelWorld->setMaxWorldY(static_cast<s32>(readNumberOr(json, "maxWorldY", 127.0f)));
-    voxelWorld->setWaterLevel(static_cast<s32>(readNumberOr(json, "waterLevel", 20.0f)));
+    // Both ends of each range go in together: setting them one at a time
+    // clamps the first against the value that has not been read yet.
+    voxelWorld->setWorldHeightRange(
+        static_cast<s32>(readNumberOr(json, "minWorldY", 0.0f)),
+        static_cast<s32>(readNumberOr(json, "maxWorldY", 127.0f)));
+    voxelWorld->setWaterLevel(static_cast<s32>(readNumberOr(json, "waterLevel", 40.0f)));
+    voxelWorld->setBaseSurfaceHeight(readNumberOr(json, "baseSurfaceHeight", 48.0f));
+    voxelWorld->setContinentalAmplitude(readNumberOr(json, "continentalAmplitude", 26.0f));
+    voxelWorld->setDetailAmplitude(readNumberOr(json, "detailAmplitude", 7.0f));
+    voxelWorld->setSurfaceHeightRange(
+        static_cast<s32>(readNumberOr(json, "minSurfaceHeight", 8.0f)),
+        static_cast<s32>(readNumberOr(json, "maxSurfaceHeight", 110.0f)));
+    voxelWorld->setReliefFrequency(readNumberOr(json, "reliefFrequency", 0.0035f));
+    voxelWorld->setBiomes(readBoolOr(json, "biomes", true));
+    voxelWorld->setBiomeFrequency(readNumberOr(json, "biomeFrequency", 0.0045f));
+    voxelWorld->setCaves(readBoolOr(json, "caves", true));
+    voxelWorld->setCaveFrequency(readNumberOr(json, "caveFrequency", 0.045f));
+    voxelWorld->setCaveThreshold(readNumberOr(json, "caveThreshold", 0.86f));
+    voxelWorld->setCaveCeiling(static_cast<s32>(readNumberOr(json, "caveCeiling", 2.0f)));
+    voxelWorld->setTrees(readBoolOr(json, "trees", true));
+    voxelWorld->setTreeDensity(readNumberOr(json, "treeDensity", 1.0f));
+    voxelWorld->setOres(readBoolOr(json, "ores", true));
+    voxelWorld->setFlat(readBoolOr(json, "flat", false));
+    voxelWorld->setAmbientOcclusion(readBoolOr(json, "ambientOcclusion", true));
+    readVoxelBlocks(*voxelWorld, json, path, result);
+    voxelWorld->setMaxUploadsPerFrame(
+        static_cast<u32>(readNumberOr(json, "maxUploadsPerFrame", 4.0f)));
+    voxelWorld->setMaxGenerationJobs(
+        static_cast<u32>(readNumberOr(json, "maxGenerationJobs", 8.0f)));
+    voxelWorld->setMaxMeshJobs(static_cast<u32>(readNumberOr(json, "maxMeshJobs", 8.0f)));
+    voxelWorld->setBounded(readBoolOr(json, "bounded", false));
+    voxelWorld->setBoundsMinX(static_cast<s32>(readNumberOr(json, "boundsMinX", -8.0f)));
+    voxelWorld->setBoundsMaxX(static_cast<s32>(readNumberOr(json, "boundsMaxX", 8.0f)));
+    voxelWorld->setBoundsMinZ(static_cast<s32>(readNumberOr(json, "boundsMinZ", -8.0f)));
+    voxelWorld->setBoundsMaxZ(static_cast<s32>(readNumberOr(json, "boundsMaxZ", 8.0f)));
     const auto atlas = json.find("atlasFile");
     if (atlas != json.end() && atlas->is_string())
         voxelWorld->setAtlasFile(atlas->get<std::string>());
+    const auto edits = json.find("editsFile");
+    if (edits != json.end() && edits->is_string() && !edits->get<std::string>().empty())
+    {
+        const std::string file = edits->get<std::string>();
+        // A world whose edit file went missing still loads: the terrain is
+        // reproduced from the seed, and only what somebody changed is lost.
+        if (!voxelWorld->loadEdits(file.c_str()))
+            result.addError(path, "voxel edits '" + file + "' could not be read");
+    }
     u64 originObjectId = 0;
     const auto origin = json.find("originObjectId");
     if (origin != json.end() && readNonNegativeInteger(*origin, originObjectId))
