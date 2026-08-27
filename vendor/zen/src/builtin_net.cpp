@@ -452,7 +452,7 @@ namespace zen
         inet_pton(AF_INET, host, &addr.sin_addr);
 
         int sent = ::sendto(fd, data->chars, (size_t)data->length, 0,
-                            (struct sockaddr *)&addr, sizeof(addr));
+                                (struct sockaddr *)&addr, sizeof(addr));
         args[0] = val_int((int64_t)sent);
         return 1;
     }
@@ -491,7 +491,7 @@ namespace zen
         struct sockaddr_in from_addr;
         socklen_t from_len = sizeof(from_addr);
         int n = ::recvfrom(fd, buf, (size_t)max_bytes, 0,
-                           (struct sockaddr *)&from_addr, &from_len);
+                               (struct sockaddr *)&from_addr, &from_len);
         if (n <= 0)
         {
             free(buf);
