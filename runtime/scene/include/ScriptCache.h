@@ -15,6 +15,7 @@ namespace zen
 class VM;
 struct GC;
 struct Obj;
+struct ObjClass;
 }
 
 namespace Radion
@@ -78,6 +79,16 @@ public:
         s64 sourceTime = 0;
     };
 
+    // One script-side handle per native component pointer, reused by
+    // instanceFor() so a script that fetches the same component twice gets
+    // back the same instance rather than a fresh wrapper each time.
+    struct CachedInstance
+    {
+        void* key = nullptr;
+        zen::ObjClass* klass = nullptr;
+        zen::Value value = zen::val_nil();
+    };
+
     // An Entry pointer stays valid for the whole life of the cache: entries
     // are never erased, and reloadFile() rebuilds one in place rather than
     // replacing it. That is what lets a component hold the pointer it got
@@ -123,6 +134,30 @@ public:
     void unprotectInstance(zen::Value instance);
     usize protectedInstanceCount() const;
 
+    // One script-side wrapper per native component pointer: the same pointer
+    // asked for twice against the same klass gets back the same Value, not a
+    // new instance each time. Classes handed here are expected to be
+    // persistent (see SceneScriptBindings::registerComponentClasses), so the
+    // wrapper is never touched by the GC once created.
+    zen::Value instanceFor(zen::ObjClass* klass, void* pointer);
+
+    // Defined for parity with the reference this is ported from; nothing
+    // calls it there either.
+    void forgetInstance(void* pointer);
+    // Whether a handle is currently cached for this pointer. For tests: the
+    // cache is what keeps a destroyed component's handle alive, so being able
+    // to see it is what makes that testable.
+    bool hasCachedInstance(const void* pointer) const;
+
+    // Class pointers for the script-facing component classes, one named
+    // pointer per component - set once by
+    // SceneScriptBindings::registerComponentClasses() right after it
+    // registers the matching class, and read by every getter it defines.
+    void setCameraClass(zen::ObjClass* klass);
+    zen::ObjClass* cameraClass() const;
+    void setLightClass(zen::ObjClass* klass);
+    zen::ObjClass* lightClass() const;
+
 private:
     ScriptCache();
     ~ScriptCache();
@@ -141,6 +176,10 @@ private:
     // short-lived scripted objects have existed.
     std::unordered_map<zen::Obj*, usize> mProtectedInstanceIndices;
     int mCompileCount = 0;
+
+    std::unordered_map<void*, CachedInstance> mInstances;
+    zen::ObjClass* mCameraClass = nullptr;
+    zen::ObjClass* mLightClass = nullptr;
 };
 
 } // namespace Radion

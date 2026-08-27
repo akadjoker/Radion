@@ -13,6 +13,7 @@ namespace Radion
 {
 
 class GameObject;
+class ScriptCache;
 
 // Registers the Vec3/GameObject/Scene native classes a Zen script sees, and
 // binds a script instance to the GameObject it belongs to. One entry point
@@ -39,6 +40,14 @@ public:
     // that needs to pass one as a plain argument instead (a collision
     // hook's "other").
     static zen::Value wrapGameObject(zen::VM& vm, GameObject* object);
+
+    // Registers one native class per script-facing component (Camera, Light,
+    // ...), each deriving "Component", and records its ObjClass pointer on
+    // the given ScriptCache - the pointer GameObject's typed getters and
+    // get_component() hand to ScriptCache::instanceFor(). Called once, by
+    // ScriptCache's own constructor, with a direct reference to the cache
+    // being constructed rather than through ScriptCache::getSingleton().
+    static void registerComponentClasses(ScriptCache& cache);
 };
 
 } // namespace Radion

@@ -4,9 +4,11 @@
 
 #include "PCH.h"
 
+#include "Camera.h"
 #include "Collider.h"
 #include "CollisionWorld.h"
 #include "GameObject.h"
+#include "Light.h"
 #include "Scene.h"
 #include "SceneSerializer.h"
 #include "ScriptCache.h"
@@ -868,6 +870,158 @@ void testOnCollisionSeesOtherObjectName()
     CHECK(watcher->name() == "Bumper");
 }
 
+// Component::is_active()/set_active() (SceneScriptBindings.cpp), read and
+// written through a Light handle - verified against the real Light
+// afterwards, not just the absence of a script error.
+void testComponentBaseIsActive()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Lit");
+    DirectionalLight* light = object->addComponent<DirectionalLight>();
+    CHECK(light != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class ToggleLight:\n"
+        "    def on_start(self):\n"
+        "        light = self.node.get_component(Light)\n"
+        "        if light.is_active():\n"
+        "            light.set_active(False)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(light != nullptr);
+    if (light)
+        CHECK(!light->active());
+}
+
+// node.get_component(Class) receives the class itself, not a string
+// (SceneScriptBindings.cpp:goGetComponent). A class with a matching component
+// resolves to a handle; a class with none resolves to nil.
+void testGetComponentByClass()
+{
+    Scene scene;
+    GameObject* lit = scene.createGameObject("Lit");
+    lit->addComponent<DirectionalLight>();
+    GameObject* bare = scene.createGameObject("Bare");
+
+    ZenBehaviour* behaviour = lit->addComponent<ZenBehaviour>();
+    const char* script =
+        "class Fetch:\n"
+        "    def on_start(self):\n"
+        "        found = self.node.get_component(Light)\n"
+        "        if found != None:\n"
+        "            self.node.set_name(\"HasLight\")\n"
+        "        other = self.scene.find(\"Bare\")\n"
+        "        missing = other.get_component(Camera)\n"
+        "        if missing == None:\n"
+        "            other.set_name(\"NoCamera\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(lit->name() == "HasLight");
+    CHECK(bare->name() == "NoCamera");
+}
+
+// Two fetches of the same component must hand back the exact same script
+// instance - the guarantee ScriptCache::instanceFor() exists for. Zen
+// instances compare by identity (values_deep_equal falls through to reference
+// equality for anything that is not a string/array/map), so "==" here is a
+// genuine same-object check, not a field comparison.
+void testComponentHandleIsCached()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Lit");
+    object->addComponent<DirectionalLight>();
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class Compare:\n"
+        "    def on_start(self):\n"
+        "        first = self.node.get_component(Light)\n"
+        "        second = self.node.get_component(Light)\n"
+        "        if first == second:\n"
+        "            self.node.set_name(\"SameInstance\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "SameInstance");
+}
+
+// Handles are cached by the component's address and their class is
+// persistent, so nothing ever collects them: without Scene::componentRemoved()
+// dropping the entry, the next component allocated at that address would
+// inherit the handle and a script reaching through it would touch freed
+// memory. Fetch a handle, destroy the object that owned it, and the cache
+// must have let go.
+void testHandleForgottenWhenOwnerDies()
+{
+    Scene scene;
+    GameObject* holder = scene.createGameObject("Holder");
+    GameObject* target = scene.createGameObject("Target");
+    DirectionalLight* light = target->addComponent<DirectionalLight>();
+    CHECK(light != nullptr);
+
+    ZenBehaviour* behaviour = holder->addComponent<ZenBehaviour>();
+    const char* script =
+        "class Grab:\n"
+        "    def on_start(self):\n"
+        "        other = self.scene.find(\"Target\")\n"
+        "        self.light = other.get_component(Light)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+    CHECK(!behaviour->hasError());
+    CHECK(ScriptCache::getSingleton().hasCachedInstance(light));
+
+    scene.destroy(target);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!ScriptCache::getSingleton().hasCachedInstance(light));
+}
+
+// A component handle stored on a script field must keep working across a
+// frame boundary and a full collection in between - the Light class is
+// persistent (ClassBuilder::persistent(true)), so the GC never frees the
+// wrapper, but the script instance holding the field must still survive and
+// still hand back a usable handle.
+void testHandleSurvivesBetweenFrames()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Lit");
+    DirectionalLight* light = object->addComponent<DirectionalLight>();
+    CHECK(light != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class HoldLight:\n"
+        "    def on_start(self):\n"
+        "        self.light = self.node.get_component(Light)\n"
+        "    def on_update(self, dt):\n"
+        "        self.light.set_active(False)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+    ScriptCache::getSingleton().vm().collect();
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(light != nullptr);
+    if (light)
+        CHECK(!light->active());
+}
+
 // ScriptVM::call()/setGlobal() directly - the generic C++ <-> script call
 // path, independent of ZenBehaviour's own class-based dispatch.
 void testCallAndGlobalRoundTrip()
@@ -916,6 +1070,11 @@ int main()
     testOverridesSurviveSerializerRoundTrip();
     testCallAndGlobalRoundTrip();
     testOnCollisionSeesOtherObjectName();
+    testComponentBaseIsActive();
+    testGetComponentByClass();
+    testComponentHandleIsCached();
+    testHandleForgottenWhenOwnerDies();
+    testHandleSurvivesBetweenFrames();
 
     if (gFailures)
         std::fprintf(stderr, "%d zen behaviour test(s) failed\n", gFailures);
