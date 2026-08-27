@@ -1,6 +1,7 @@
 #include "PCH.h"
 
 #include "VoxelBlock.h"
+#include "VoxelCollision.h"
 #include "VoxelEditHistory.h"
 #include "VoxelEditStore.h"
 #include "VoxelMesher.h"
@@ -622,6 +623,122 @@ void testBoundedWorld()
     CHECK(!everOutsideBounds);
     CHECK(maxLoaded == 9);
 }
+BlockRegistry makeCollisionRegistry()
+{
+    BlockRegistry registry;
+    BlockDefinition stone;
+    stone.name = "stone";
+    registry.registerBlock(stone);
+    BlockDefinition water;
+    water.name = "water";
+    water.solid = false;
+    water.transparent = true;
+    water.renderType = BlockRenderType::Transparent;
+    registry.registerBlock(water);
+    return registry;
+}
+
+// A slab of stone across y = 0, so the surface a box lands on sits at y = 1.
+void fillFloor(VoxelWorld& world, BlockId stone)
+{
+    for (s32 z = -4; z <= 4; ++z)
+        for (s32 x = -4; x <= 4; ++x)
+            world.setBlock({x, 0, z}, stone);
+}
+
+void testCollisionFallsOntoFloor()
+{
+    const BlockRegistry registry = makeCollisionRegistry();
+    const BlockId stone = registry.findId("stone");
+    VoxelWorld world;
+    fillFloor(world, stone);
+
+    const glm::vec3 half(0.3f, 0.9f, 0.3f);
+    const glm::vec3 start(0.5f, 5.0f, 0.5f);
+    const VoxelMoveResult result =
+        VoxelCollision::moveBox(world, registry, start, half, glm::vec3(0.0f, -6.0f, 0.0f));
+
+    CHECK(result.grounded);
+    // Feet rest on the top of the block at y = 1, never inside it.
+    CHECK(result.position.y - half.y >= 1.0f);
+    CHECK(result.position.y - half.y < 1.01f);
+    CHECK(!VoxelCollision::overlaps(world, registry, result.position, half));
+}
+
+void testCollisionStopsAtWall()
+{
+    const BlockRegistry registry = makeCollisionRegistry();
+    const BlockId stone = registry.findId("stone");
+    VoxelWorld world;
+    fillFloor(world, stone);
+    for (s32 y = 1; y <= 3; ++y)
+        for (s32 z = -4; z <= 4; ++z)
+            world.setBlock({2, y, z}, stone);
+
+    const glm::vec3 half(0.3f, 0.9f, 0.3f);
+    const glm::vec3 start(0.5f, 1.9f, 0.5f);
+    const VoxelMoveResult result =
+        VoxelCollision::moveBox(world, registry, start, half, glm::vec3(4.0f, 0.0f, 0.0f));
+
+    CHECK(result.wall);
+    CHECK(result.position.x + half.x <= 2.0f);
+    CHECK(!VoxelCollision::overlaps(world, registry, result.position, half));
+}
+
+void testCollisionHitsCeiling()
+{
+    const BlockRegistry registry = makeCollisionRegistry();
+    const BlockId stone = registry.findId("stone");
+    VoxelWorld world;
+    fillFloor(world, stone);
+    for (s32 z = -4; z <= 4; ++z)
+        for (s32 x = -4; x <= 4; ++x)
+            world.setBlock({x, 5, z}, stone);
+
+    const glm::vec3 half(0.3f, 0.9f, 0.3f);
+    const glm::vec3 start(0.5f, 1.9f, 0.5f);
+    const VoxelMoveResult result =
+        VoxelCollision::moveBox(world, registry, start, half, glm::vec3(0.0f, 6.0f, 0.0f));
+
+    CHECK(result.ceiling);
+    CHECK(result.position.y + half.y <= 5.0f);
+    CHECK(!VoxelCollision::overlaps(world, registry, result.position, half));
+}
+
+void testFastFallDoesNotTunnel()
+{
+    const BlockRegistry registry = makeCollisionRegistry();
+    const BlockId stone = registry.findId("stone");
+    VoxelWorld world;
+    fillFloor(world, stone);
+
+    // Forty blocks in one call: without substepping the box would be past the
+    // floor before anything tested it.
+    const glm::vec3 half(0.3f, 0.9f, 0.3f);
+    const VoxelMoveResult result = VoxelCollision::moveBox(
+        world, registry, glm::vec3(0.5f, 40.0f, 0.5f), half, glm::vec3(0.0f, -60.0f, 0.0f));
+
+    CHECK(result.grounded);
+    CHECK(result.position.y - half.y >= 1.0f);
+}
+
+void testWaterIsNotSolid()
+{
+    const BlockRegistry registry = makeCollisionRegistry();
+    const BlockId water = registry.findId("water");
+    VoxelWorld world;
+    for (s32 z = -2; z <= 2; ++z)
+        for (s32 x = -2; x <= 2; ++x)
+            for (s32 y = 0; y <= 2; ++y)
+                world.setBlock({x, y, z}, water);
+
+    const glm::vec3 half(0.3f, 0.9f, 0.3f);
+    const VoxelMoveResult result = VoxelCollision::moveBox(
+        world, registry, glm::vec3(0.5f, 4.0f, 0.5f), half, glm::vec3(0.0f, -3.0f, 0.0f));
+
+    CHECK(!result.grounded);
+    CHECK(result.position.y < 1.5f);
+}
 } // namespace
 
 int main()
@@ -645,5 +762,10 @@ int main()
     testStreamerEditsSurviveReload();
     testEditStoreRoundTrip();
     testBoundedWorld();
+    testCollisionFallsOntoFloor();
+    testCollisionStopsAtWall();
+    testCollisionHitsCeiling();
+    testFastFallDoesNotTunnel();
+    testWaterIsNotSolid();
     return gFailures == 0 ? 0 : 1;
 }

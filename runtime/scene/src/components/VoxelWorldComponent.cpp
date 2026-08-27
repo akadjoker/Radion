@@ -651,6 +651,11 @@ bool VoxelWorldComponent::placeBlock(const Voxel::VoxelRaycastHit& hit, Voxel::B
     return mStreamer.setBlock(hit.previousBlock, block);
 }
 
+bool VoxelWorldComponent::replaceBlock(const Voxel::VoxelRaycastHit& hit, Voxel::BlockId block)
+{
+    return mStreamer.setBlock(hit.block, block);
+}
+
 bool VoxelWorldComponent::removeBlock(const Voxel::VoxelRaycastHit& hit)
 {
     return mStreamer.setBlock(hit.block, Voxel::AirBlockId);
@@ -700,6 +705,21 @@ bool VoxelWorldComponent::loadEdits(const char* filename)
     // world has to stream back through the generator to pick them up.
     markTerrainDirty();
     return true;
+}
+
+Voxel::VoxelMoveResult VoxelWorldComponent::moveBox(const glm::vec3& position,
+                                                    const glm::vec3& halfExtents,
+                                                    const glm::vec3& displacement) const
+{
+    return Voxel::VoxelCollision::moveBox(mStreamer.world(), mStreamer.blocks(), position,
+                                          halfExtents, displacement);
+}
+
+bool VoxelWorldComponent::boxOverlaps(const glm::vec3& position,
+                                      const glm::vec3& halfExtents) const
+{
+    return Voxel::VoxelCollision::overlaps(mStreamer.world(), mStreamer.blocks(), position,
+                                           halfExtents);
 }
 
 AABB VoxelWorldComponent::blockBounds(Voxel::VoxelCoord block)
