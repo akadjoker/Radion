@@ -51,7 +51,7 @@ std::string VolumePanel::outputBase()
 
 AABB VolumePanel::brushBounds() const
 {
-    const glm::vec3 half = mBrushShape == BrushSphere ? glm::vec3(mBrushRadius) : mBrushHalfExtents;
+    const Math::vec3 half = mBrushShape == BrushSphere ? Math::vec3(mBrushRadius) : mBrushHalfExtents;
     AABB bounds;
     bounds.min = mBrushCenter - half;
     bounds.max = mBrushCenter + half;
@@ -94,7 +94,7 @@ void VolumePanel::drawVolumeSection()
     ImGui::DragFloat("Cell Size", &mCellSize, 0.01f, 0.01f, 8.0f, "%.3f");
     tooltip("World size of one cell. Smaller resolves finer detail and costs cubically.");
 
-    const glm::vec3 extent = glm::vec3(mDimensions[0] - 1, mDimensions[1] - 1, mDimensions[2] - 1) *
+    const Math::vec3 extent = Math::vec3(mDimensions[0] - 1, mDimensions[1] - 1, mDimensions[2] - 1) *
                              mCellSize;
     ImGui::Text("Extent %.2f x %.2f x %.2f (%.1f M samples)", extent.x, extent.y, extent.z,
                 double(mDimensions[0]) * mDimensions[1] * mDimensions[2] / 1000000.0);
@@ -227,7 +227,7 @@ void VolumePanel::drawMeshSection()
 void VolumePanel::createVolume()
 {
     delete mGrid;
-    mGrid = new Volume::GridSource(glm::uvec3(mDimensions[0], mDimensions[1], mDimensions[2]),
+    mGrid = new Volume::GridSource(Math::uvec3(mDimensions[0], mDimensions[1], mDimensions[2]),
                                    mOrigin, mCellSize, -1.0f);
     if (!mGrid->valid())
     {
@@ -238,12 +238,12 @@ void VolumePanel::createVolume()
     }
 
     const AABB bounds = mGrid->bounds();
-    const glm::vec3 center = (bounds.min + bounds.max) * 0.5f;
+    const Math::vec3 center = (bounds.min + bounds.max) * 0.5f;
     switch (mBaseFill)
     {
     case FillSolid:
     {
-        const Volume::BoxSource box(center, (bounds.max - bounds.min) * 0.5f - glm::vec3(mCellSize));
+        const Volume::BoxSource box(center, (bounds.max - bounds.min) * 0.5f - Math::vec3(mCellSize));
         mGrid->fill(box);
         break;
     }
@@ -257,7 +257,7 @@ void VolumePanel::createVolume()
     {
         // Inside is below the ground, so the plane's normal points down and
         // its offset is the height: density is groundHeight - y.
-        const Volume::PlaneSource ground(glm::vec3(0.0f, -1.0f, 0.0f), mTerrainHeight);
+        const Volume::PlaneSource ground(Math::vec3(0.0f, -1.0f, 0.0f), mTerrainHeight);
         Volume::NoiseSource terrain(ground, static_cast<u32>(mNoiseSeed), mNoiseFrequency,
                                     mNoiseAmplitude);
         mGrid->fill(terrain);
@@ -392,7 +392,7 @@ void VolumePanel::loadVolumeFile()
         return;
     }
     encoded.seek(0);
-    Volume::GridSource* loaded = new Volume::GridSource(glm::uvec3(1), glm::vec3(0.0f), 1.0f, -1.0f);
+    Volume::GridSource* loaded = new Volume::GridSource(Math::uvec3(1), Math::vec3(0.0f), 1.0f, -1.0f);
     if (!Volume::GridSource::load(encoded, *loaded))
     {
         delete loaded;
@@ -403,7 +403,7 @@ void VolumePanel::loadVolumeFile()
     mGrid = loaded;
     mOrigin = mGrid->origin();
     mCellSize = mGrid->cellSize();
-    const glm::uvec3 dimensions = mGrid->dimensions();
+    const Math::uvec3 dimensions = mGrid->dimensions();
     mDimensions[0] = static_cast<int>(dimensions.x);
     mDimensions[1] = static_cast<int>(dimensions.y);
     mDimensions[2] = static_cast<int>(dimensions.z);
@@ -432,11 +432,11 @@ void VolumePanel::drawGizmos()
         return;
     }
     constexpr u32 segments = 32;
-    DebugDraw().circle(mBrushCenter, glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), mBrushRadius,
+    DebugDraw().circle(mBrushCenter, Math::vec3(1, 0, 0), Math::vec3(0, 1, 0), mBrushRadius,
                        segments, color);
-    DebugDraw().circle(mBrushCenter, glm::vec3(1, 0, 0), glm::vec3(0, 0, 1), mBrushRadius,
+    DebugDraw().circle(mBrushCenter, Math::vec3(1, 0, 0), Math::vec3(0, 0, 1), mBrushRadius,
                        segments, color);
-    DebugDraw().circle(mBrushCenter, glm::vec3(0, 1, 0), glm::vec3(0, 0, 1), mBrushRadius,
+    DebugDraw().circle(mBrushCenter, Math::vec3(0, 1, 0), Math::vec3(0, 0, 1), mBrushRadius,
                        segments, color);
 }
 

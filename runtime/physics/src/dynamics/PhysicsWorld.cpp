@@ -20,25 +20,25 @@ namespace
 // a face inherits an impulse meant for somewhere else.
 constexpr f32 kMatchDistance = 0.02f;
 
-bool finiteVector(const glm::vec3& value)
+bool finiteVector(const Math::vec3& value)
 {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
-f32 radialWeight(const glm::vec3& centre, const glm::vec3& position, f32 radius,
-                 glm::vec3* direction = nullptr)
+f32 radialWeight(const Math::vec3& centre, const Math::vec3& position, f32 radius,
+                 Math::vec3* direction = nullptr)
 {
     // Same simple linear attenuation used by b2World_Explode. Box2D scales
     // by exposed perimeter; this lightweight 3D version deliberately applies
     // a body-level impulse/force until projected area is a real requirement.
-    const glm::vec3 offset = position - centre;
-    const f32 distanceSquared = glm::dot(offset, offset);
+    const Math::vec3 offset = position - centre;
+    const f32 distanceSquared = Math::dot(offset, offset);
     if (distanceSquared >= radius * radius)
         return 0.0f;
 
     const f32 distance = std::sqrt(distanceSquared);
     if (direction)
-        *direction = distance > 1.0e-6f ? offset / distance : glm::vec3(0.0f, 1.0f, 0.0f);
+        *direction = distance > 1.0e-6f ? offset / distance : Math::vec3(0.0f, 1.0f, 0.0f);
     return 1.0f - distance / radius;
 }
 } // namespace
@@ -132,6 +132,8 @@ void PhysicsWorld::insertBody(u32 id, const BodyEntry& entry)
     mIdToSlot[id] = static_cast<u32>(mBodies.size());
     mBodies.push_back(entry);
     mBodyIds.push_back(id);
+    if (entry.body->bodyType() == BodyType::Static)
+        mStaticBroadphaseDirty = true;
 }
 
 void PhysicsWorld::removeBody(u32 id)
@@ -167,6 +169,8 @@ void PhysicsWorld::removeBodyImmediate(u32 id)
         return;
 
     RigidBody* removedBody = mBodies[slot].body;
+    if (removedBody->bodyType() == BodyType::Static)
+        mStaticBroadphaseDirty = true;
     mJoints.erase(std::remove_if(mJoints.begin(), mJoints.end(),
                                  [removedBody](Joint* joint)
                                  {
@@ -238,6 +242,10 @@ void PhysicsWorld::clearImmediate()
     mCache.clear();
     mContacts.clear();
     mJoints.clear();
+    mStaticBroadphase.clear();
+    mStaticBounds.clear();
+    mStaticIds.clear();
+    mStaticBroadphaseDirty = true;
     mEventQueue.clear();
     mPairs.clear();
     mAccumulator = 0.0f;
@@ -295,7 +303,7 @@ const BodyEntry* PhysicsWorld::body(BodyHandle handle) const
     return body(handle.id);
 }
 
-void PhysicsWorld::setGravity(const glm::vec3& gravity)
+void PhysicsWorld::setGravity(const Math::vec3& gravity)
 {
     mGravity = gravity;
 }
@@ -320,12 +328,40 @@ void PhysicsWorld::setStepCallback(StepCallback callback, void* userData)
 
 void PhysicsWorld::setContactPersistence(u32 steps)
 {
-    mContactPersistence = glm::max(steps, 1u);
+    mContactPersistence = Math::max(steps, 1u);
 }
 
 void PhysicsWorld::setContactMargin(f32 margin)
 {
-    mContactMargin = glm::max(margin, 0.0f);
+    mContactMargin = Math::max(margin, 0.0f);
+    mStaticBroadphaseDirty = true;
+}
+
+void PhysicsWorld::markStaticBroadphaseDirty()
+{
+    mStaticBroadphaseDirty = true;
+}
+
+void PhysicsWorld::rebuildStaticBroadphase()
+{
+    mStaticBounds.clear();
+    mStaticIds.clear();
+    mStaticBounds.reserve(mBodies.size());
+    mStaticIds.reserve(mBodies.size());
+    for (u32 index = 0; index < mBodies.size(); ++index)
+    {
+        const BodyEntry& entry = mBodies[index];
+        if (!entry.body || !entry.shape || !entry.enabled ||
+            entry.body->bodyType() != BodyType::Static)
+            continue;
+        AABB bounds = entry.shape->bounds(entry.body->transform());
+        bounds.min -= Math::vec3(mContactMargin);
+        bounds.max += Math::vec3(mContactMargin);
+        mStaticBounds.push_back(bounds);
+        mStaticIds.push_back(mBodyIds[index]);
+    }
+    mStaticBroadphase.build(mStaticBounds.data(), static_cast<u32>(mStaticBounds.size()));
+    mStaticBroadphaseDirty = false;
 }
 
 void PhysicsWorld::warmStartFromCache(u32 a, u32 b, ContactManifold& manifold)
@@ -344,7 +380,7 @@ void PhysicsWorld::warmStartFromCache(u32 a, u32 b, ContactManifold& manifold)
         const CachedPoint* match = nullptr;
         for (u32 j = 0; j < cached.count; ++j)
         {
-            const f32 distance = glm::length(point.position - cached.points[j].position);
+            const f32 distance = Math::length(point.position - cached.points[j].position);
             if (distance < best)
             {
                 best = distance;
@@ -486,27 +522,52 @@ void PhysicsWorld::step(f32 duration)
             entry.body->integrateForces(duration);
         }
 
-    mBroadphase.clear();
-    mBroadphase.reserve(mBodies.size());
+    if (mStaticBroadphaseDirty)
+        rebuildStaticBroadphase();
+    mDynamicBroadphase.clear();
+    mDynamicBroadphase.reserve(mBodies.size());
+    mDynamicProxies.clear();
+    mDynamicProxies.reserve(mBodies.size());
     for (u32 i = 0; i < mBodies.size(); ++i)
     {
         const BodyEntry& entry = mBodies[i];
-        if (!entry.body || !entry.shape || !entry.enabled)
+        if (!entry.body || !entry.shape || !entry.enabled ||
+            entry.body->bodyType() == BodyType::Static)
             continue;
         BroadphaseProxy proxy;
         proxy.id = mBodyIds[i];
         proxy.filter = entry.filter;
-        proxy.movable = entry.body->bodyType() != BodyType::Static;
+        proxy.movable = true;
         proxy.bounds = entry.shape->bounds(entry.body->transform());
         // Grown by the contact margin, or the broadphase throws away exactly
         // the pairs the margin exists to keep: a body resting on a surface
         // has its AABB ending where the other one starts, they do not
         // overlap, and the narrowphase is never even asked.
-        proxy.bounds.min -= glm::vec3(mContactMargin);
-        proxy.bounds.max += glm::vec3(mContactMargin);
-        mBroadphase.add(proxy);
+        proxy.bounds.min -= Math::vec3(mContactMargin);
+        proxy.bounds.max += Math::vec3(mContactMargin);
+        mDynamicBroadphase.add(proxy);
+        mDynamicProxies.push_back(proxy);
     }
-    mBroadphase.findPairs(mPairs);
+    mPairs.clear();
+    for (const BroadphaseProxy& dynamic : mDynamicProxies)
+    {
+        mStaticBroadphase.queryCandidates(dynamic.bounds, mStaticCandidates);
+        for (u32 candidate : mStaticCandidates)
+        {
+            const AABB& staticBounds = mStaticBroadphase.itemBounds(candidate);
+            const u32 staticId = mStaticIds[candidate];
+            const u32 staticSlot = slotForId(staticId);
+            if (staticSlot == InvalidIndex)
+                continue;
+            const BodyEntry& staticEntry = mBodies[staticSlot];
+            if (!shouldCollide(dynamic.filter, staticEntry.filter) ||
+                !Broadphase::overlaps(dynamic.bounds, staticBounds))
+                continue;
+            mPairs.push_back({Math::min(dynamic.id, staticId), Math::max(dynamic.id, staticId)});
+        }
+    }
+    mDynamicBroadphase.findPairs(mDynamicPairs);
+    mPairs.insert(mPairs.end(), mDynamicPairs.begin(), mDynamicPairs.end());
 
     mContacts.clear();
     mContacts.reserve(mPairs.size());
@@ -570,7 +631,7 @@ void PhysicsWorld::step(f32 duration)
             // Combined the usual way: the geometric mean for friction, the
             // larger for restitution, so one bouncy body is enough to bounce.
             contact.friction = std::sqrt(a.friction * b.friction);
-            contact.restitution = glm::max(a.restitution, b.restitution);
+            contact.restitution = Math::max(a.restitution, b.restitution);
             mContacts.push_back(contact);
         }
 
@@ -696,7 +757,7 @@ void PhysicsWorld::debugDraw() const
     for (const Contact& contact : mContacts)
         for (u32 i = 0; i < contact.manifold.count; ++i)
         {
-            const glm::vec3& point = contact.manifold.points[i].position;
+            const Math::vec3& point = contact.manifold.points[i].position;
             // The normal is drawn scaled by the impulse it is carrying, so a
             // stack shows where the weight actually goes.
             const f32 scale = 0.05f + contact.manifold.points[i].normalImpulse * 0.02f;
@@ -732,7 +793,7 @@ bool PhysicsWorld::raycast(const Ray& ray, f32 maxDistance, const QueryFilter& f
     return found;
 }
 
-void PhysicsWorld::overlapSphere(const glm::vec3& centre, f32 radius, const QueryFilter& filter,
+void PhysicsWorld::overlapSphere(const Math::vec3& centre, f32 radius, const QueryFilter& filter,
                                  std::vector<u32>& out) const
 {
     out.clear();
@@ -764,7 +825,7 @@ void PhysicsWorld::queryAABB(const AABB& bounds, const QueryFilter& filter,
     }
 }
 
-u32 PhysicsWorld::applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 strength,
+u32 PhysicsWorld::applyRadialImpulse(const Math::vec3& centre, f32 radius, f32 strength,
                                      const QueryFilter& filter)
 {
     if (!finiteVector(centre) || !(radius > 0.0f) || !std::isfinite(radius) ||
@@ -780,7 +841,7 @@ u32 PhysicsWorld::applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 st
             !filter.accepts(id, entry.filter))
             continue;
 
-        glm::vec3 direction;
+        Math::vec3 direction;
         const f32 weight = radialWeight(centre, entry.body->position(), radius, &direction);
         if (weight <= 0.0f)
             continue;
@@ -790,7 +851,7 @@ u32 PhysicsWorld::applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 st
     return affected;
 }
 
-u32 PhysicsWorld::addRadialForce(const glm::vec3& centre, f32 radius, f32 strength,
+u32 PhysicsWorld::addRadialForce(const Math::vec3& centre, f32 radius, f32 strength,
                                  const QueryFilter& filter)
 {
     if (!finiteVector(centre) || !(radius > 0.0f) || !std::isfinite(radius) ||
@@ -806,7 +867,7 @@ u32 PhysicsWorld::addRadialForce(const glm::vec3& centre, f32 radius, f32 streng
             !filter.accepts(id, entry.filter))
             continue;
 
-        glm::vec3 direction;
+        Math::vec3 direction;
         const f32 weight = radialWeight(centre, entry.body->position(), radius, &direction);
         if (weight <= 0.0f)
             continue;
@@ -816,11 +877,11 @@ u32 PhysicsWorld::addRadialForce(const glm::vec3& centre, f32 radius, f32 streng
     return affected;
 }
 
-u32 PhysicsWorld::addDirectionalForce(const glm::vec3& centre, f32 radius, const glm::vec3& force,
+u32 PhysicsWorld::addDirectionalForce(const Math::vec3& centre, f32 radius, const Math::vec3& force,
                                       const QueryFilter& filter)
 {
     if (!finiteVector(centre) || !finiteVector(force) || !(radius > 0.0f) ||
-        !std::isfinite(radius) || glm::dot(force, force) == 0.0f)
+        !std::isfinite(radius) || Math::dot(force, force) == 0.0f)
         return 0;
 
     u32 affected = 0;

@@ -31,6 +31,7 @@
 #include "panels/MeshToolsPanel.h"
 #include "panels/ProfilerPanel.h"
 #include "panels/SettingsPanel.h"
+#include "panels/ScriptEditorPanel.h"
 #include "panels/ViewportPanel.h"
 #include "panels/VolumePanel.h"
 
@@ -40,8 +41,6 @@
 #include <imgui.h>
 #include <imgui_internal.h> // DockBuilder* - building the first-run default layout
 #include <nlohmann/json.hpp>
-#include <chrono>
-#include <thread>
 #include <unordered_map>
 
 #ifndef _WIN32
@@ -315,6 +314,8 @@ void EditorApplication::buildPanels()
     mPanels.push_back(new InspectorPanel(*this));
     mPanels.push_back(new SettingsPanel(*this));
     mPanels.push_back(new AssetsPanel(*this));
+    mScriptEditor = new ScriptEditorPanel(*this);
+    mPanels.push_back(mScriptEditor);
     mPanels.push_back(new MeshToolsPanel(*this));
     mPanels.push_back(new LightmapPanel(*this));
     mPanels.push_back(new VolumePanel(*this));
@@ -341,19 +342,31 @@ void EditorApplication::buildPanels()
     }
 }
 
+void EditorApplication::openScriptEditor(const std::string& path)
+{
+    if (mScriptEditor)
+    {
+        mScriptEditor->openFile(path);
+        mFocusScriptEditorPending = true;
+    }
+}
+
 void EditorApplication::buildDefaultScene()
 {
+    // A fresh scene starts at the world origin, regardless of the cursor
+    // position persisted from the scene that was edited previously.
+    mCursor3D = Math::vec3(0.0f);
 
     GameObject* cameraObject = scene().createGameObject("Camera");
     Camera* camera = cameraObject->addComponent<Camera>();
-    cameraObject->setPosition(glm::vec3(0.0f, 4.0f, 10.0f));
-    cameraObject->lookAt(glm::vec3(0.0f, 0.0f, 0.0f));
+    cameraObject->setPosition(Math::vec3(0.0f, 4.0f, 10.0f));
+    cameraObject->lookAt(Math::vec3(0.0f, 0.0f, 0.0f));
     camera->setPerspective(60.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
     scene().setActiveCamera(camera);
 
     GameObject* sunObject = scene().createGameObject("Sun");
     DirectionalLight* sun = sunObject->addComponent<DirectionalLight>();
-    sun->setColor(glm::vec3(1.0f, 0.96f, 0.88f));
+    sun->setColor(Math::vec3(1.0f, 0.96f, 0.88f));
     sun->setCastShadows(true);
 
     scene().update(0.0f);
@@ -472,7 +485,7 @@ GameObject* EditorApplication::duplicateObject(GameObject& source)
         return nullptr;
     }
 
-    clone->setPosition(source.position() + glm::vec3(0.5f, 0.0f, 0.5f));
+    clone->setPosition(source.position() + Math::vec3(0.5f, 0.0f, 0.5f));
     clone->setName(nextIncrementedName(source.name()));
     selection().select(clone->id());
     markDirty();
@@ -482,13 +495,13 @@ GameObject* EditorApplication::duplicateObject(GameObject& source)
 bool EditorApplication::duplicateObjectGrid(GameObject& source, bool alongX, bool alongZ,
                                             u32 countX, u32 countZ, f32 spacing)
 {
-    const u32 cellsX = alongX ? glm::max(countX, 1u) : 1u;
-    const u32 cellsZ = alongZ ? glm::max(countZ, 1u) : 1u;
+    const u32 cellsX = alongX ? Math::max(countX, 1u) : 1u;
+    const u32 cellsZ = alongZ ? Math::max(countZ, 1u) : 1u;
     if (cellsX * cellsZ <= 1)
         return false;
 
     recordUndo();
-    const glm::vec3 base = source.position();
+    const Math::vec3 base = source.position();
     for (u32 z = 0; z < cellsZ; ++z)
         for (u32 x = 0; x < cellsX; ++x)
         {
@@ -504,7 +517,7 @@ bool EditorApplication::duplicateObjectGrid(GameObject& source, bool alongX, boo
                 markDirty();
                 return false;
             }
-            clone->setPosition(base + glm::vec3(static_cast<f32>(x) * spacing, 0.0f,
+            clone->setPosition(base + Math::vec3(static_cast<f32>(x) * spacing, 0.0f,
                                                 static_cast<f32>(z) * spacing));
             clone->setName(nextIncrementedName(source.name()));
         }
@@ -646,7 +659,7 @@ void EditorApplication::fitShadowsToScene()
         camera.nearPlane = active->nearPlane();
     }
 
-    glm::vec3 lightDirection = -mEngine.sky().sunDirection;
+    Math::vec3 lightDirection = -mEngine.sky().sunDirection;
     if (DirectionalLight* sun = scene().electedSunLight(); sun && sun->owner())
         lightDirection = sun->owner()->forward();
 
@@ -1256,6 +1269,7 @@ void EditorApplication::drawDockspace()
             ImGui::DockBuilderDockWindow(kInspectorWindow, inspector);
             ImGui::DockBuilderDockWindow("Settings", settings);
             ImGui::DockBuilderDockWindow(kAssetsWindow, bottom);
+            ImGui::DockBuilderDockWindow("Script Editor", centerTop);
             ImGui::DockBuilderDockWindow(kConsoleWindow, bottom);
             ImGui::DockBuilderDockWindow(kAnimationWindow, bottom);
             ImGui::DockBuilderDockWindow(kDebugWindow, bottom);
@@ -1454,15 +1468,25 @@ void EditorApplication::drawMainMenuBar()
         ImGui::EndMenu();
     }
 
-    const f32 buttonsWidth =
-        ImGui::CalcTextSize(ICON_MDI_PLAY).x + ImGui::CalcTextSize(ICON_MDI_STOP).x +
-        ImGui::GetStyle().ItemSpacing.x * 3.0f + ImGui::GetStyle().FramePadding.x * 4.0f;
+    const f32 buttonsWidth = ImGui::CalcTextSize(ICON_MDI_PLAY).x +
+                             ImGui::CalcTextSize(ICON_MDI_LAUNCH).x +
+                             ImGui::CalcTextSize(ICON_MDI_STOP).x +
+                             ImGui::GetStyle().ItemSpacing.x * 4.0f +
+                             ImGui::GetStyle().FramePadding.x * 6.0f;
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - buttonsWidth) * 0.5f);
     ImGui::BeginDisabled(mPlaying);
     if (ImGui::Button(ICON_MDI_PLAY))
         play();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Play");
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    const bool hasRunTarget = !mProjectManifest.empty() || !mScenePath.empty();
+    ImGui::BeginDisabled(!hasRunTarget || runnerRunning());
+    if (ImGui::Button(ICON_MDI_LAUNCH))
+        launchRunner();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Run in a standalone game window");
     ImGui::EndDisabled();
     ImGui::SameLine();
     ImGui::BeginDisabled(!mPlaying);
@@ -1523,13 +1547,13 @@ void EditorApplication::drawCameraSettingsPopup()
     if (ImGui::DragFloat("Near clipping plane", &mSettings.cameraNearPlane, 0.01f, 0.001f,
                          mSettings.cameraFarPlane - 0.001f, "%.3f"))
         mSettings.cameraNearPlane =
-            glm::clamp(mSettings.cameraNearPlane, 0.001f, mSettings.cameraFarPlane - 0.001f);
+            Math::clamp(mSettings.cameraNearPlane, 0.001f, mSettings.cameraFarPlane - 0.001f);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Geometry closer than this distance is clipped.");
     if (ImGui::DragFloat("Far clipping plane", &mSettings.cameraFarPlane, 1.0f,
                          mSettings.cameraNearPlane + 0.001f, 1000000.0f, "%.1f"))
         mSettings.cameraFarPlane =
-            glm::max(mSettings.cameraFarPlane, mSettings.cameraNearPlane + 0.001f);
+            Math::max(mSettings.cameraFarPlane, mSettings.cameraNearPlane + 0.001f);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Geometry beyond this distance is clipped.");
     ImGui::Separator();
@@ -1742,6 +1766,11 @@ void EditorApplication::runFrame(f32 deltaTime)
         ImGui::End();
         panel->setActive(open);
     }
+    if (mFocusScriptEditorPending)
+    {
+        mFocusScriptEditorPending = false;
+        ImGui::SetWindowFocus("Script Editor");
+    }
     // Last, so the toasts sit over every panel rather than under one.
     mToasts.draw();
     SceneRenderSettings renderSettings = sceneRenderSettings();
@@ -1842,7 +1871,6 @@ void EditorApplication::launchRunner()
     }
     mRunnerPid = child;
     Log::info("Editor: runner started on '%s'", target.c_str());
-    mEngine.getWindow().minimize();
 #endif
 }
 
@@ -1867,7 +1895,6 @@ void EditorApplication::updateRunner()
         Log::warning("Editor: runner exited with status %d", WEXITSTATUS(status));
     else
         Log::info("Editor: runner finished");
-    mEngine.getWindow().restore();
 #endif
 }
 
@@ -1875,7 +1902,7 @@ void EditorApplication::run()
 {
     while (mEngine.update())
     {
-        const f32 deltaTime = glm::min(mEngine.getWindow().getDeltaTime(), 0.1f);
+        const f32 deltaTime = Math::min(mEngine.getWindow().getDeltaTime(), 0.1f);
         mSceneRendered = false;
         runFrame(deltaTime);
         // Only if no panel drew the scene into its own texture this frame -
@@ -1889,10 +1916,6 @@ void EditorApplication::run()
             mEngine.render(scene());
         mEngine.flip();
         updateRunner();
-        // While the runner owns the screen, the minimized editor idles at a
-        // crawl instead of racing the game for the GPU.
-        if (runnerRunning() && mEngine.getWindow().isMinimized())
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         // Let the first editor frame reach the window before loading the
         // persisted project/scene. Previously this happened in the
         // constructor, so the user saw a black window until all scene work

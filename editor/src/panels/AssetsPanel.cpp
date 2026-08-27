@@ -3,6 +3,7 @@
 #include "panels/AssetsPanel.h"
 
 #include "AssetManager.h"
+#include "Color.h"
 #include "EditorApplication.h"
 #include "Engine.h"
 #include "FileSystem.h"
@@ -19,6 +20,8 @@
 #include <IconsMaterialDesignIcons.h>
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <imgui.h>
@@ -51,6 +54,63 @@ bool isImageAsset(const std::string& extension)
           extension == "webp";
     // .exr left out on purpose: AssetTexture's loader does not read it, so
     // loadTexture() would just fail every frame this tried to thumbnail one.
+}
+
+bool isScriptAsset(const std::string& extension)
+{
+    return extension == "py";
+}
+
+// A create dialog takes a single entry name, never a path: allowing a slash
+// here would make a harmless-looking "new script" action write outside the
+// directory the user right-clicked.
+bool isValidEntryName(const char* name)
+{
+    return name && name[0] != '\0' && std::strcmp(name, ".") != 0 && std::strcmp(name, "..") != 0 &&
+           std::strpbrk(name, "/\\") == nullptr;
+}
+
+std::string scriptFileName(const char* name)
+{
+    const std::string value = name ? name : "";
+    return isScriptAsset(extensionOf(value)) ? value : value + ".py";
+}
+
+std::string scriptClassName(const char* name)
+{
+    std::string source = name ? name : "";
+    const usize dot = source.find_last_of('.');
+    if (dot != std::string::npos)
+        source.resize(dot);
+
+    std::string result;
+    bool capitalize = true;
+    for (const char character : source)
+    {
+        const unsigned char value = static_cast<unsigned char>(character);
+        if (std::isalnum(value) || character == '_')
+        {
+            if (result.empty() && std::isdigit(value))
+                result = "Script";
+            result.push_back(capitalize ? static_cast<char>(std::toupper(value)) : character);
+            capitalize = false;
+        }
+        else
+        {
+            capitalize = true;
+        }
+    }
+    return result.empty() ? "NewScript" : result;
+}
+
+std::string makeScriptTemplate(const char* name)
+{
+    return "class " + scriptClassName(name) + "(ScriptComponent):\n"
+           "    def on_start(self):\n"
+           "        pass\n"
+           "\n"
+           "    def on_update(self, dt):\n"
+           "        pass\n";
 }
 
 // Only what MeshLoader actually has an importer registered for
@@ -146,14 +206,17 @@ bool exportRmeshToObj(const std::string& sourceFile, const std::string& objFile)
     for (usize index = 0; index < materialCount; ++index)
     {
         const Material* material = index < mesh.materials.size() ? &mesh.materials[index] : nullptr;
-        const glm::vec4 base = material ? material->params.baseColor : glm::vec4(0.75f, 0.78f, 0.82f, 1.0f);
-        const glm::vec4 emissive = material ? material->params.emissive : glm::vec4(0.0f);
+        const Math::vec4 base = material ? material->params.baseColor : Math::vec4(0.75f, 0.78f, 0.82f, 1.0f);
+        const Math::vec4 emissive = material ? material->params.emissive : Math::vec4(0.0f);
+        const Color baseColor = Color::fromRGBFloat(base.x, base.y, base.z, base.w);
+        const Color emissiveColor = Color::fromRGBFloat(emissive.x, emissive.y, emissive.z,
+                                                         emissive.w);
         mtl << "newmtl " << materialNames[index] << "\n"
              << "Ka 0.000000 0.000000 0.000000\n"
-             << "Kd " << base.r << ' ' << base.g << ' ' << base.b << "\n"
+             << "Kd " << baseColor.red() << ' ' << baseColor.green() << ' ' << baseColor.blue() << "\n"
              << "Ks 0.000000 0.000000 0.000000\n"
-             << "Ke " << emissive.r << ' ' << emissive.g << ' ' << emissive.b << "\n"
-             << "d " << base.a << "\n";
+             << "Ke " << emissiveColor.red() << ' ' << emissiveColor.green() << ' ' << emissiveColor.blue() << "\n"
+             << "d " << baseColor.alpha() << "\n";
 
         const auto textureFile = [&](MaterialSlot slot, usize fallbackIndex) -> std::string
         {
@@ -194,11 +257,11 @@ bool exportRmeshToObj(const std::string& sourceFile, const std::string& objFile)
     obj << "# Exported from " << sourcePath.filename().generic_string() << "\n"
         << "mtllib " << mtlPath.filename().generic_string() << "\n"
         << "o " << objPath.stem().generic_string() << "\n";
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::vec3& position : mesh.positions)
         obj << "v " << position.x << ' ' << position.y << ' ' << position.z << "\n";
-    for (const glm::vec2& uv : mesh.uvs)
+    for (const Math::vec2& uv : mesh.uvs)
         obj << "vt " << uv.x << ' ' << (1.0f - uv.y) << "\n";
-    for (const glm::vec3& normal : mesh.normals)
+    for (const Math::vec3& normal : mesh.normals)
         obj << "vn " << normal.x << ' ' << normal.y << ' ' << normal.z << "\n";
 
     const bool hasUV = mesh.uvs.size() == mesh.positions.size();
@@ -249,7 +312,7 @@ const char* iconForAsset(const FileSystem::DirEntry& entry)
         return ICON_MDI_CUBE_OUTLINE;
     if (extension == "cpp" || extension == "c" || extension == "h" || extension == "hpp" ||
         extension == "glsl" || extension == "vert" || extension == "frag" || extension == "lua" ||
-        extension == "py")
+        isScriptAsset(extension))
         return ICON_MDI_CODE_BRACES;
     if (extension == "txt" || extension == "md" || extension == "json" || extension == "xml" ||
         extension == "yaml" || extension == "yml" || extension == "ini" || extension == "cfg")
@@ -288,8 +351,8 @@ AssetsPanel::AssetsPanel(EditorApplication& app) : EditorPanel("Assets", app)
 {
     const EditorSettings& settings = app.settings();
     mCurrentDirectory = settings.assetsDirectory;
-    mViewMode = static_cast<ViewMode>(glm::clamp(settings.assetsViewMode, 0, 2));
-    mThumbnailSize = glm::clamp(settings.assetsThumbnailSize, 48.0f, 256.0f);
+    mViewMode = static_cast<ViewMode>(Math::clamp(settings.assetsViewMode, 0, 2));
+    mThumbnailSize = Math::clamp(settings.assetsThumbnailSize, 48.0f, 256.0f);
     mHistory.clear();
     mHistory.push_back(mCurrentDirectory);
     mHistoryPosition = 0;
@@ -803,8 +866,8 @@ void AssetsPanel::drawImportPopup()
                 if (object)
                 {
                     object->setPosition(app().cursor3D() + mImportTranslation);
-                    object->setRotation(glm::quat(glm::radians(mImportRotationEuler)));
-                    object->setScale(glm::vec3(mImportScale));
+                    object->setRotation(Math::quat(Math::radians(mImportRotationEuler)));
+                    object->setScale(Math::vec3(mImportScale));
                     MeshRenderer* renderer = object->addComponent<MeshRenderer>();
                     renderer->setMesh(mesh);
                     app().scene().update(0.0f);
@@ -871,6 +934,108 @@ void AssetsPanel::drawGeneratePopup()
         app().toasts().error("Could not save " + FileSystem::fileName(result.path.string()));
     }
     delete generated;
+}
+
+void AssetsPanel::openCreateFolderPopup(const std::filesystem::path& directory)
+{
+    mCreateTargetDirectory = directory.lexically_normal();
+    std::snprintf(mNewFolderName, sizeof(mNewFolderName), "%s", "New Folder");
+    mOpenCreateFolderPopup = true;
+}
+
+void AssetsPanel::openCreateScriptPopup(const std::filesystem::path& directory)
+{
+    mCreateTargetDirectory = directory.lexically_normal();
+    std::snprintf(mNewScriptName, sizeof(mNewScriptName), "%s", "NewScript");
+    mOpenCreateScriptPopup = true;
+}
+
+void AssetsPanel::drawCreateFolderPopup()
+{
+    if (!ImGui::BeginPopup("Create Folder"))
+        return;
+
+    ImGui::TextDisabled("In %s", mCreateTargetDirectory.string().c_str());
+    ImGui::SetNextItemWidth(260.0f);
+    ImGui::InputText("Name", mNewFolderName, sizeof(mNewFolderName));
+
+    const bool validName = isValidEntryName(mNewFolderName);
+    const std::filesystem::path target = mCreateTargetDirectory / mNewFolderName;
+    std::error_code error;
+    const bool alreadyExists = validName && std::filesystem::exists(target, error);
+    if (alreadyExists)
+        ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.3f, 1.0f), "A folder or file with that name already exists.");
+    else if (!validName)
+        ImGui::TextDisabled("Use one name, without / or \\.");
+
+    ImGui::BeginDisabled(!validName || alreadyExists || error);
+    if (ImGui::Button("Create", ImVec2(120.0f, 0.0f)))
+    {
+        error.clear();
+        if (std::filesystem::create_directory(target, error))
+        {
+            mEntriesDirty = true;
+            app().toasts().success("Created folder " + target.filename().string());
+            ImGui::CloseCurrentPopup();
+        }
+        else
+        {
+            Log::error("AssetsPanel: could not create folder '%s': %s", target.string().c_str(),
+                       error.message().c_str());
+            app().toasts().error("Could not create folder " + target.filename().string());
+        }
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+        ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+}
+
+void AssetsPanel::drawCreateScriptPopup()
+{
+    if (!ImGui::BeginPopup("Create Script"))
+        return;
+
+    ImGui::TextDisabled("In %s", mCreateTargetDirectory.string().c_str());
+    ImGui::SetNextItemWidth(260.0f);
+    ImGui::InputText("Name", mNewScriptName, sizeof(mNewScriptName));
+    ImGui::TextDisabled("Creates a .py script with class Name(ScriptComponent).");
+
+    const bool validName = isValidEntryName(mNewScriptName);
+    const std::filesystem::path target = mCreateTargetDirectory / scriptFileName(mNewScriptName);
+    std::error_code error;
+    const bool alreadyExists = validName && std::filesystem::exists(target, error);
+    if (alreadyExists)
+        ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.3f, 1.0f), "%s already exists.",
+                           target.filename().string().c_str());
+    else if (!validName)
+        ImGui::TextDisabled("Use one name, without / or \\.");
+
+    ImGui::BeginDisabled(!validName || alreadyExists || error);
+    if (ImGui::Button("Create", ImVec2(120.0f, 0.0f)))
+    {
+        std::ofstream file(target, std::ios::binary | std::ios::trunc);
+        file << makeScriptTemplate(mNewScriptName);
+        file.close();
+        if (file.good())
+        {
+            mEntriesDirty = true;
+            app().toasts().success("Created script " + target.filename().string());
+            app().openScriptEditor(target.string());
+            ImGui::CloseCurrentPopup();
+        }
+        else
+        {
+            Log::error("AssetsPanel: could not create script '%s'", target.string().c_str());
+            app().toasts().error("Could not create script " + target.filename().string());
+        }
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+        ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
 }
 
 void AssetsPanel::onImGui()
@@ -1076,10 +1241,37 @@ void AssetsPanel::onImGui()
 
     refreshEntries(mCurrentDirectory);
 
-    const auto openEntry = [this](const FileSystem::DirEntry& entry)
+    const auto openEntry = [this](const FileSystem::DirEntry& entry, bool doubleClicked)
     {
         if (entry.isDirectory)
+        {
             mPendingNavigation = mCurrentDirectory / entry.name;
+            return;
+        }
+
+        if (isScriptAsset(extensionOf(entry.name)) && doubleClicked)
+            app().openScriptEditor((mCurrentDirectory / entry.name).string());
+    };
+
+    const auto createMenu = [this](const std::filesystem::path& directory)
+    {
+        if (ImGui::MenuItem(ICON_MDI_FOLDER_PLUS " Create Folder"))
+            openCreateFolderPopup(directory);
+        if (ImGui::MenuItem(ICON_MDI_FILE_PLUS " Create Script"))
+            openCreateScriptPopup(directory);
+    };
+
+    // Empty-space context uses the open directory; an existing folder gets
+    // the same menu targeted at that folder itself (below).
+    const auto directoryContextMenu = [&createMenu, this]()
+    {
+        if (ImGui::BeginPopupContextWindow("##assets_directory_context",
+                                           ImGuiPopupFlags_MouseButtonRight |
+                                               ImGuiPopupFlags_NoOpenOverItems))
+        {
+            createMenu(mCurrentDirectory);
+            ImGui::EndPopup();
+        }
     };
 
     const auto dragEntry = [this](const FileSystem::DirEntry& entry)
@@ -1109,14 +1301,22 @@ void AssetsPanel::onImGui()
     // what actually asks for a scale and does the work once confirmed.
     // "Load" for .rmesh/.rstm (already Radion's own format), "Import" for
     // everything else (goes through a foreign-format importer instead).
-    const auto contextMenu = [this](const FileSystem::DirEntry& entry)
+    const auto contextMenu = [this, &createMenu](const FileSystem::DirEntry& entry)
     {
         if (entry.isDirectory)
+        {
+            if (ImGui::BeginPopupContextItem())
+            {
+                createMenu(mCurrentDirectory / entry.name);
+                ImGui::EndPopup();
+            }
             return;
+        }
         const std::string extension = extensionOf(entry.name);
         const bool mesh = isMeshAsset(extension);
         const bool image = isImageAsset(extension);
-        if (!mesh && !image)
+        const bool script = isScriptAsset(extension);
+        if (!mesh && !image && !script)
             return;
         // Load/Import/Convert/Generate all end up writing beside the source
         // or feeding it to AssetManager by search-path-relative name -
@@ -1283,8 +1483,8 @@ void AssetsPanel::onImGui()
             {
                 mImportPath = relPath;
                 mImportName = stem;
-                mImportTranslation = glm::vec3(0.0f);
-                mImportRotationEuler = glm::vec3(0.0f);
+                mImportTranslation = Math::vec3(0.0f);
+                mImportRotationEuler = Math::vec3(0.0f);
                 mImportScale = 1.0f;
                 mImportPending = true;
             }
@@ -1343,6 +1543,8 @@ void AssetsPanel::onImGui()
                                      stem + "_height.png");
             }
         }
+        if (script && ImGui::MenuItem(ICON_MDI_CONTENT_COPY " Copy Script Path"))
+            ImGui::SetClipboardText(relPath.c_str());
         ImGui::Separator();
         if (ImGui::MenuItem(ICON_MDI_DELETE " Delete..."))
         {
@@ -1372,8 +1574,11 @@ void AssetsPanel::onImGui()
                 ImGui::TextUnformatted(iconForAsset(entry));
                 ImGui::PopStyleColor();
                 ImGui::SameLine();
-                if (ImGui::Selectable(entry.name.c_str()))
-                    openEntry(entry);
+                const bool clicked = ImGui::Selectable(entry.name.c_str());
+                const bool doubleClicked = ImGui::IsItemHovered() &&
+                                           ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+                if (clicked || doubleClicked)
+                    openEntry(entry, doubleClicked);
                 dragEntry(entry);
                 contextMenu(entry);
                 ImGui::PopID();
@@ -1409,9 +1614,12 @@ void AssetsPanel::onImGui()
                     ImGui::TextUnformatted(iconForAsset(entry));
                     ImGui::PopStyleColor();
                     ImGui::SameLine();
-                    if (ImGui::Selectable(entry.name.c_str(), false,
-                                          ImGuiSelectableFlags_SpanAllColumns))
-                        openEntry(entry);
+                    const bool clicked = ImGui::Selectable(entry.name.c_str(), false,
+                                                           ImGuiSelectableFlags_SpanAllColumns);
+                    const bool doubleClicked = ImGui::IsItemHovered() &&
+                                               ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+                    if (clicked || doubleClicked)
+                        openEntry(entry, doubleClicked);
                     dragEntry(entry);
                     contextMenu(entry);
                     ImGui::Unindent(14.0f);
@@ -1426,7 +1634,20 @@ void AssetsPanel::onImGui()
             }
             ImGui::EndTable();
         }
+        directoryContextMenu();
         ImGui::EndChild();
+        if (mOpenCreateFolderPopup)
+        {
+            mOpenCreateFolderPopup = false;
+            ImGui::OpenPopup("Create Folder");
+        }
+        if (mOpenCreateScriptPopup)
+        {
+            mOpenCreateScriptPopup = false;
+            ImGui::OpenPopup("Create Script");
+        }
+        drawCreateFolderPopup();
+        drawCreateScriptPopup();
         return;
     }
 
@@ -1519,8 +1740,10 @@ void AssetsPanel::onImGui()
                                       IM_COL32(235, 238, 245, 255), extension.c_str());
                     }
                 }
-                if (clicked)
-                    openEntry(entry);
+                const bool doubleClicked = ImGui::IsItemHovered() &&
+                                           ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+                if (clicked || doubleClicked)
+                    openEntry(entry, doubleClicked);
                 dragEntry(entry);
                 contextMenu(entry);
 
@@ -1540,7 +1763,20 @@ void AssetsPanel::onImGui()
         mPendingNavigation.clear();
     }
 
+    directoryContextMenu();
     ImGui::EndChild();
+    if (mOpenCreateFolderPopup)
+    {
+        mOpenCreateFolderPopup = false;
+        ImGui::OpenPopup("Create Folder");
+    }
+    if (mOpenCreateScriptPopup)
+    {
+        mOpenCreateScriptPopup = false;
+        ImGui::OpenPopup("Create Script");
+    }
+    drawCreateFolderPopup();
+    drawCreateScriptPopup();
 }
 
 } // namespace Radion

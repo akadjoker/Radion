@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O sistema de animação permite criar, editar e playback de keyframe animations de meshes. Usa o **ImAnim** para timeline e interpolação, e aplica deformação via morph targets e skinning.
+O sistema de animação permite criar, editar e playback de keyframe animations de meshes. A timeline e interpolação serão implementadas no próprio Blender, aplicando deformação via morph targets e skinning.
 
 ## Componentes
 
@@ -10,7 +10,7 @@ O sistema de animação permite criar, editar e playback de keyframe animations 
 
 ```cpp
 struct AnimationClip {
-    ImGuiID clipId;                      // ID do clip ImAnim
+    ImGuiID clipId;                      // ID do clip
     std::string name;                    // "Walk", "Jump", etc
     float duration = 2.0f;               // segundos
     u32 fps = 24;
@@ -27,7 +27,7 @@ struct AnimationClip {
 
 struct Keyframe {
     float time;                          // segundos desde frame 0
-    glm::vec3 value;                     // pos, rot, scale
+    Math::vec3 value;                     // pos, rot, scale
     int easeType = iam_ease_linear;
     float bezierParams[4];               // se cubic_bezier
 };
@@ -37,14 +37,14 @@ struct Keyframe {
 
 ```cpp
 struct AnimationInstance {
-    ImGuiID instanceId;                  // ID da instância ImAnim
+    ImGuiID instanceId;                  // ID da instância
     AnimationClip* clip;
     float playbackSpeed = 1.0f;
     bool playing = false;
     float currentTime = 0.0f;
 
-    glm::vec3 getVertexOffset(u32 vertexIndex) const;
-    glm::quat getBoneRotation(u32 boneIndex) const;
+    Math::vec3 getVertexOffset(u32 vertexIndex) const;
+    Math::quat getBoneRotation(u32 boneIndex) const;
 };
 ```
 
@@ -58,8 +58,8 @@ private:
     std::map<std::string, AnimationClip> mClips;  // library
 
     // Deformation buffers
-    std::vector<glm::vec3> mMorphOffsets;         // vertex offsets animados
-    std::vector<glm::mat4> mBonePalette;          // transformações de bones
+    std::vector<Math::vec3> mMorphOffsets;         // vertex offsets animados
+    std::vector<Math::mat4> mBonePalette;          // transformações de bones
 
 public:
     // Timeline authoring
@@ -73,8 +73,8 @@ public:
     void seekAnimation(float time);
 
     // Deformation queries
-    glm::vec3 getAnimatedVertexPosition(u32 index) const;
-    glm::mat4 getAnimatedBoneTransform(u32 index) const;
+    Math::vec3 getAnimatedVertexPosition(u32 index) const;
+    Math::mat4 getAnimatedBoneTransform(u32 index) const;
 
     // Persistence
     bool saveAnimation(const std::string& path);
@@ -110,7 +110,7 @@ void BlenderApplication::insertKeyframe() {
         ImGuiID channel = makeChannelId("vertex", vIdx);
         
         // Registrar offset da posição original
-        glm::vec3 offset = mMeshData->positions[vIdx] - mMeshDataOriginal->positions[vIdx];
+        Math::vec3 offset = mMeshData->positions[vIdx] - mMeshDataOriginal->positions[vIdx];
         
         mCurrentClip.keyframes[channel].push_back({
             time,
@@ -143,7 +143,7 @@ if (ImGui::Button("Play")) {
 
 ```cpp
 void BlenderApplication::play() {
-    // Compilar clip ImAnim a partir de mCurrentClip
+    // Compilar o clip a partir de mCurrentClip
     iam_clip clip = iam_clip::begin(mCurrentClipId);
 
     for (auto& [channel, keyframes] : mCurrentClip.keyframes) {
@@ -176,7 +176,7 @@ void BlenderApplication::runFrame(f32 deltaTime) {
             if (iam_instance.get_float(makeChannelId("vertex.x", v), &x) &&
                 iam_instance.get_float(makeChannelId("vertex.y", v), &y) &&
                 iam_instance.get_float(makeChannelId("vertex.z", v), &z)) {
-                mMorphOffsets[v] = glm::vec3(x, y, z);
+                mMorphOffsets[v] = Math::vec3(x, y, z);
             }
         }
 
@@ -302,7 +302,6 @@ Ver `MINI_RENDERER.md` para detalhes.
 
 - [ ] Clip data structure & BlenderApplication integration
 - [ ] TimelinePanel com inserção keyframes
-- [ ] ImAnim integration (iam_clip, iam_instance)
 - [ ] Playback básico (play/pause/seek)
 - [ ] Display keyframes no timeline
 - [ ] Deformation application (morph offsets)

@@ -40,22 +40,22 @@ public:
     virtual ShapeType type() const = 0;
 
     // Moment of inertia about the centre of mass, body space.
-    virtual glm::mat3 inertia(f32 mass) const = 0;
+    virtual Math::mat3 inertia(f32 mass) const = 0;
 
     // World AABB under `transform` - what the broadphase sorts and prunes on.
-    virtual AABB bounds(const glm::mat4& transform) const = 0;
+    virtual AABB bounds(const Math::mat4& transform) const = 0;
 
     // Furthest point of the shape along `direction` (world space, direction
     // need not be normalized). The one primitive SAT projection is built on.
-    virtual glm::vec3 support(const glm::mat4& transform, const glm::vec3& direction) const = 0;
+    virtual Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const = 0;
 
     // Extent of the shape's shadow on `axis`, world space.
-    void project(const glm::mat4& transform, const glm::vec3& axis, f32& minimum,
+    void project(const Math::mat4& transform, const Math::vec3& axis, f32& minimum,
                  f32& maximum) const;
 
     // Emitted through DebugDraw3D, which is already a batch - a hundred
     // colliders cost one draw call, not a hundred.
-    virtual void debugDraw(const glm::mat4& transform, Color color) const = 0;
+    virtual void debugDraw(const Math::mat4& transform, Color color) const = 0;
 };
 
 class SphereShape final : public CollisionShape
@@ -67,10 +67,10 @@ public:
     {
         return ShapeType::Sphere;
     }
-    glm::mat3 inertia(f32 mass) const override;
-    AABB bounds(const glm::mat4& transform) const override;
-    glm::vec3 support(const glm::mat4& transform, const glm::vec3& direction) const override;
-    void debugDraw(const glm::mat4& transform, Color color) const override;
+    Math::mat3 inertia(f32 mass) const override;
+    AABB bounds(const Math::mat4& transform) const override;
+    Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const override;
+    void debugDraw(const Math::mat4& transform, Color color) const override;
 
     f32 radius() const
     {
@@ -84,30 +84,30 @@ private:
 class BoxShape final : public CollisionShape
 {
 public:
-    explicit BoxShape(const glm::vec3& halfExtents);
+    explicit BoxShape(const Math::vec3& halfExtents);
 
     ShapeType type() const override
     {
         return ShapeType::Box;
     }
-    glm::mat3 inertia(f32 mass) const override;
-    AABB bounds(const glm::mat4& transform) const override;
-    glm::vec3 support(const glm::mat4& transform, const glm::vec3& direction) const override;
-    void debugDraw(const glm::mat4& transform, Color color) const override;
+    Math::mat3 inertia(f32 mass) const override;
+    AABB bounds(const Math::mat4& transform) const override;
+    Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const override;
+    void debugDraw(const Math::mat4& transform, Color color) const override;
 
-    const glm::vec3& halfExtents() const
+    const Math::vec3& halfExtents() const
     {
         return mHalfExtents;
     }
     // The eight corners in world space, in the order the face table below
     // indexes them.
-    void corners(const glm::mat4& transform, glm::vec3 out[8]) const;
+    void corners(const Math::mat4& transform, Math::vec3 out[8]) const;
     // Outward normal and the four corner indices of face `index`, 0..5.
     static const u8* faceCorners(u32 index);
-    static glm::vec3 faceNormal(const glm::mat4& transform, u32 index);
+    static Math::vec3 faceNormal(const Math::mat4& transform, u32 index);
 
 private:
-    glm::vec3 mHalfExtents;
+    Math::vec3 mHalfExtents;
 };
 
 // A segment along the body's local Y with a radius around it. Everything a
@@ -126,10 +126,10 @@ public:
     {
         return ShapeType::Capsule;
     }
-    glm::mat3 inertia(f32 mass) const override;
-    AABB bounds(const glm::mat4& transform) const override;
-    glm::vec3 support(const glm::mat4& transform, const glm::vec3& direction) const override;
-    void debugDraw(const glm::mat4& transform, Color color) const override;
+    Math::mat3 inertia(f32 mass) const override;
+    AABB bounds(const Math::mat4& transform) const override;
+    Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const override;
+    void debugDraw(const Math::mat4& transform, Color color) const override;
 
     f32 radius() const
     {
@@ -140,7 +140,7 @@ public:
         return mHalfHeight;
     }
     // The two ends of the inner segment, world space.
-    void segment(const glm::mat4& transform, glm::vec3& lower, glm::vec3& upper) const;
+    void segment(const Math::mat4& transform, Math::vec3& lower, Math::vec3& upper) const;
 
 private:
     f32 mRadius;
@@ -150,18 +150,18 @@ private:
 class PlaneShape final : public CollisionShape
 {
 public:
-    PlaneShape(const glm::vec3& normal, f32 constant = 0.0f);
+    PlaneShape(const Math::vec3& normal, f32 constant = 0.0f);
 
     ShapeType type() const override
     {
         return ShapeType::Plane;
     }
-    glm::mat3 inertia(f32 mass) const override;
-    AABB bounds(const glm::mat4& transform) const override;
-    glm::vec3 support(const glm::mat4& transform, const glm::vec3& direction) const override;
-    void debugDraw(const glm::mat4& transform, Color color) const override;
+    Math::mat3 inertia(f32 mass) const override;
+    AABB bounds(const Math::mat4& transform) const override;
+    Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const override;
+    void debugDraw(const Math::mat4& transform, Color color) const override;
 
-    const glm::vec3& normal() const
+    const Math::vec3& normal() const
     {
         return mNormal;
     }
@@ -171,7 +171,7 @@ public:
     }
 
 private:
-    glm::vec3 mNormal;
+    Math::vec3 mNormal;
     f32 mConstant;
 };
 
@@ -194,24 +194,24 @@ enum class TriangleFeature : u8
 class TriangleShape final : public CollisionShape
 {
 public:
-    TriangleShape(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, u8 sharedEdges = 0);
+    TriangleShape(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c, u8 sharedEdges = 0);
 
     ShapeType type() const override
     {
         return ShapeType::Triangle;
     }
-    glm::mat3 inertia(f32 mass) const override;
-    AABB bounds(const glm::mat4& transform) const override;
-    glm::vec3 support(const glm::mat4& transform, const glm::vec3& direction) const override;
-    void debugDraw(const glm::mat4& transform, Color color) const override;
+    Math::mat3 inertia(f32 mass) const override;
+    AABB bounds(const Math::mat4& transform) const override;
+    Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const override;
+    void debugDraw(const Math::mat4& transform, Color color) const override;
 
-    const glm::vec3& vertex(u32 index) const
+    const Math::vec3& vertex(u32 index) const
     {
         return mVertices[index];
     }
     // Unnormalized when the triangle is degenerate - callers check the length
     // rather than trusting a normalize() of nothing.
-    glm::vec3 rawNormal() const;
+    Math::vec3 rawNormal() const;
 
     // An edge another triangle also uses is inside the surface, not on its
     // rim. A contact there must be pushed out along the face, never along the
@@ -226,7 +226,7 @@ public:
     bool featureIsInternal(TriangleFeature feature) const;
 
 private:
-    glm::vec3 mVertices[3];
+    Math::vec3 mVertices[3];
     u8 mSharedEdges = 0;
 };
 
@@ -238,22 +238,22 @@ class TrimeshShape final : public CollisionShape
 public:
     // Copies both arrays: a shape outlives whatever MeshData it was built
     // from, and the tree indexes into this copy.
-    TrimeshShape(const glm::vec3* vertices, u32 vertexCount, const u32* indices, u32 indexCount);
+    TrimeshShape(const Math::vec3* vertices, u32 vertexCount, const u32* indices, u32 indexCount);
 
     ShapeType type() const override
     {
         return ShapeType::Trimesh;
     }
-    glm::mat3 inertia(f32 mass) const override;
-    AABB bounds(const glm::mat4& transform) const override;
-    glm::vec3 support(const glm::mat4& transform, const glm::vec3& direction) const override;
-    void debugDraw(const glm::mat4& transform, Color color) const override;
+    Math::mat3 inertia(f32 mass) const override;
+    AABB bounds(const Math::mat4& transform) const override;
+    Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const override;
+    void debugDraw(const Math::mat4& transform, Color color) const override;
 
     // One line per triangle, from its centre along the normal the WINDING
     // gives - which is the normal collision actually uses. The normals stored
     // on the mesh are the renderer's and can disagree: a model can light
     // perfectly and still be walked through.
-    void debugDrawFaceNormals(const glm::mat4& transform, f32 length, Color color,
+    void debugDrawFaceNormals(const Math::mat4& transform, f32 length, Color color,
                               Color flippedColor) const;
 
     // Triangles wound against their neighbours. Two triangles sharing an edge
@@ -276,9 +276,9 @@ public:
     {
         u32 triangle = 0;
         f32 distance = 0.0f;
-        glm::vec3 point{0.0f};
+        Math::vec3 point{0.0f};
         // Face normal, unit length, as wound in the mesh.
-        glm::vec3 normal{0.0f, 1.0f, 0.0f};
+        Math::vec3 normal{0.0f, 1.0f, 0.0f};
     };
 
     struct SweepHit
@@ -287,7 +287,7 @@ public:
         // Fraction of `velocity` travelled before contact, in [0, 1]. Negative
         // means the shape already overlapped, and the value is the depth.
         f32 t = 0.0f;
-        glm::vec3 normal{0.0f, 1.0f, 0.0f};
+        Math::vec3 normal{0.0f, 1.0f, 0.0f};
     };
 
     // Moves an ellipsoid of `radii` from `centre` along `velocity` and reports
@@ -296,9 +296,9 @@ public:
     // A sweep, not a push-out: a character needs "how far can I go before I
     // hit" and "what did I land on", and no amount of pushing out gives
     // either.
-    bool sweepEllipsoid(const glm::vec3& localCentre, const glm::vec3& radii,
-                        const glm::vec3& velocity, SweepHit& hit) const;
-    bool sweepSphere(const glm::vec3& localCentre, f32 radius, const glm::vec3& velocity,
+    bool sweepEllipsoid(const Math::vec3& localCentre, const Math::vec3& radii,
+                        const Math::vec3& velocity, SweepHit& hit) const;
+    bool sweepSphere(const Math::vec3& localCentre, f32 radius, const Math::vec3& velocity,
                      SweepHit& hit) const;
 
     // Third-person camera collision: sweeps a sphere of `radius` from `from`
@@ -309,19 +309,19 @@ public:
     // player, the camera can never lose him, it only gets closer. `margin`
     // keeps the camera sphere clear of the surface so it does not z-fight.
     // All in this mesh's own space, like the other queries.
-    glm::vec3 slideCamera(const glm::vec3& from, const glm::vec3& to, f32 radius,
+    Math::vec3 slideCamera(const Math::vec3& from, const Math::vec3& to, f32 radius,
                           f32 margin = 0.02f) const;
 
     // Nearest triangle the ray meets within `maxDistance`, or false.
     bool raycast(const Ray& localRay, f32 maxDistance, RayHit& hit) const;
     // Triangles actually within `radius` of `centre`, not merely whose boxes
     // are - the tree narrows it down, this confirms.
-    void overlapSphere(const glm::vec3& localCentre, f32 radius, std::vector<u32>& out) const;
+    void overlapSphere(const Math::vec3& localCentre, f32 radius, std::vector<u32>& out) const;
 
 private:
     void buildAdjacency();
 
-    std::vector<glm::vec3> mVertices;
+    std::vector<Math::vec3> mVertices;
     std::vector<u32> mIndices;
     // Three bits per triangle: edge i is shared with another triangle.
     std::vector<u8> mSharedEdges;
@@ -342,7 +342,7 @@ public:
     // `faces` holds one edge index per face, matching ConvexHullComputer's
     // own convention - walking that edge with getNextEdgeOfFace() visits the
     // whole face in order.
-    ConvexHullShape(const glm::vec3* vertices, u32 vertexCount, const Edge* edges, u32 edgeCount,
+    ConvexHullShape(const Math::vec3* vertices, u32 vertexCount, const Edge* edges, u32 edgeCount,
                     const int* faces, u32 faceCount);
     // Copies a shatter shard's own hull straight in - the shard's vertices are
     // already relative to its own centroid, which is exactly the local space
@@ -353,12 +353,12 @@ public:
     {
         return ShapeType::ConvexHull;
     }
-    glm::mat3 inertia(f32 mass) const override;
-    AABB bounds(const glm::mat4& transform) const override;
-    glm::vec3 support(const glm::mat4& transform, const glm::vec3& direction) const override;
-    void debugDraw(const glm::mat4& transform, Color color) const override;
+    Math::mat3 inertia(f32 mass) const override;
+    AABB bounds(const Math::mat4& transform) const override;
+    Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const override;
+    void debugDraw(const Math::mat4& transform, Color color) const override;
 
-    const std::vector<glm::vec3>& vertices() const
+    const std::vector<Math::vec3>& vertices() const
     {
         return mVertices;
     }
@@ -376,26 +376,26 @@ public:
     }
 
 private:
-    std::vector<glm::vec3> mVertices;
+    std::vector<Math::vec3> mVertices;
     std::vector<Edge> mEdges;
     std::vector<int> mFaces;
 };
 
 // Closest point on the segment [a,b] to `point`.
-glm::vec3 closestPointOnSegment(const glm::vec3& a, const glm::vec3& b, const glm::vec3& point);
+Math::vec3 closestPointOnSegment(const Math::vec3& a, const Math::vec3& b, const Math::vec3& point);
 
 // Closest point on triangle [a,b,c] to `point`, by Voronoi regions rather
 // than by projecting and clamping.
 // The region it lands in is also which feature it lands on, so `feature` costs
 // nothing to report and is what tells an edge contact from a face one.
-glm::vec3 closestPointOnTriangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
-                                 const glm::vec3& point, TriangleFeature* feature = nullptr);
+Math::vec3 closestPointOnTriangle(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c,
+                                 const Math::vec3& point, TriangleFeature* feature = nullptr);
 
 // Closest pair of points between two segments. Handles the parallel and
 // degenerate cases, which is the whole difficulty - two capsules lying side
 // by side are exactly the case a naive solve divides by zero on.
-void closestPointsBetweenSegments(const glm::vec3& p1, const glm::vec3& q1, const glm::vec3& p2,
-                                  const glm::vec3& q2, glm::vec3& c1, glm::vec3& c2);
+void closestPointsBetweenSegments(const Math::vec3& p1, const Math::vec3& q1, const Math::vec3& p2,
+                                  const Math::vec3& q2, Math::vec3& c1, Math::vec3& c2);
 
 } // namespace Radion::Physics
 

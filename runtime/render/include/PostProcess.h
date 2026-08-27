@@ -46,7 +46,7 @@ public:
 
     bool begin(u32 width, u32 height, FrameContext& frame, u32 temporalIndex = 0,
                bool resetTemporalHistory = false);
-    TextureHandle computeSSAO(const glm::mat4& projection);
+    TextureHandle computeSSAO(const Math::mat4& projection);
     void resolve(const Rect& destination, u32 windowWidth, u32 windowHeight);
 
     // Same chain as resolve(), but the final tone-map/gamma draw lands in an
@@ -100,7 +100,7 @@ public:
     // defined in PostProcess.cpp's fragment source - see the comments there
     // before passing a new one.
     void draw(TextureHandle source, TextureHandle secondary, TargetHandle destination,
-             const Viewport& viewport, u32 mode, const glm::vec4& options);
+             const Viewport& viewport, u32 mode, const Math::vec4& options);
 
     f32 exposure = 1.0f;
     ToneMapMode toneMap = ToneMapMode::ACES;
@@ -124,7 +124,7 @@ public:
     // HDR temporal resolve happens before Bloom/ToneMap.  It is intentionally
     // independent from the generic effect list: a history buffer has ordering
     // and lifetime requirements that a stateless post layer does not have.
-    bool taaEnabled = true;
+    bool taaEnabled = false;
     f32 taaFeedback = 0.95f;
     f32 taaMotionFeedback = 0.85f;
     // How many standard deviations of the 3x3 neighbourhood the history is
@@ -135,7 +135,7 @@ public:
     // softer than the raw image by construction; zero disables the correction
     // and anything past ~0.5 starts to ring on high-contrast edges.
     f32 taaSharpness = 0.0f;
-    bool enabled = true;
+    bool enabled = false;
 
     const std::vector<PostLayer>& layers() const
     {
@@ -166,8 +166,8 @@ private:
     BufferHandle mTAAUniform;
     SamplerHandle mSampler;
     std::vector<PostLayer> mLayers;
-    glm::mat4 mProjection = glm::mat4(1.0f);
-    glm::mat4 mInverseProjection = glm::mat4(1.0f);
+    Math::mat4 mProjection = Math::mat4(1.0f);
+    Math::mat4 mInverseProjection = Math::mat4(1.0f);
     u32 mTemporalIndex = 0;
     bool mTemporalAAAllowed = true;
     u32 mTAARead[3] = {};

@@ -176,7 +176,7 @@ bool WaypointNetwork::findPath(WaypointID fromWaypoint, WaypointID toWaypoint, P
     return false;
 }
 
-bool WaypointNetwork::findPath(const glm::vec3& origin, const glm::vec3& destination,
+bool WaypointNetwork::findPath(const Math::vec3& origin, const Math::vec3& destination,
                                const WaypointVisibility& visibility, Path& outPath) const
 {
     WaypointID closestToOrigin;
@@ -196,26 +196,26 @@ bool WaypointNetwork::findPath(const glm::vec3& origin, const glm::vec3& destina
     return findPath(closestToOrigin, closestToDestination, outPath);
 }
 
-bool WaypointNetwork::extents(glm::vec3& minimum, glm::vec3& maximum) const
+bool WaypointNetwork::extents(Math::vec3& minimum, Math::vec3& maximum) const
 {
     if (mWaypoints.empty())
         return false;
 
-    glm::vec3 min(FLT_MAX);
-    glm::vec3 max(-FLT_MAX);
+    Math::vec3 min(FLT_MAX);
+    Math::vec3 max(-FLT_MAX);
     for (const auto& kv : mWaypoints)
     {
         const Waypoint* wp = kv.second;
-        const glm::vec3 radius(wp->radius());
-        min = glm::min(min, wp->position() - radius);
-        max = glm::max(max, wp->position() + radius);
+        const Math::vec3 radius(wp->radius());
+        min = Math::min(min, wp->position() - radius);
+        max = Math::max(max, wp->position() + radius);
     }
     minimum = min;
     maximum = max;
     return true;
 }
 
-bool WaypointNetwork::findClosestValidWaypoint(const glm::vec3& origin,
+bool WaypointNetwork::findClosestValidWaypoint(const Math::vec3& origin,
                                                const WaypointVisibility& visibility,
                                                WaypointID& outWaypointID) const
 {
@@ -227,8 +227,8 @@ bool WaypointNetwork::findClosestValidWaypoint(const glm::vec3& origin,
         const Waypoint* wp = kv.second;
         if (wp && visibility.isVisible(origin, wp->position()))
         {
-            glm::vec3 delta = origin - wp->position();
-            float distSq = glm::dot(delta, delta);
+            Math::vec3 delta = origin - wp->position();
+            float distSq = Math::dot(delta, delta);
             if (distSq < closestDistanceSq)
             {
                 closestDistanceSq = distSq;
@@ -246,7 +246,7 @@ float WaypointNetwork::goalEstimate(WaypointID fromWaypoint, WaypointID toWaypoi
     const Waypoint* towp = findWaypoint(toWaypoint);
     if (!fromwp || !towp)
         return 0.0f;
-    return glm::length(fromwp->position() - towp->position());
+    return Math::length(fromwp->position() - towp->position());
 }
 
 } // namespace Radion::AI

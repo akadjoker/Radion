@@ -4,7 +4,7 @@
 #include "ParticleEffect.h"
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <vector>
 
 namespace Radion
@@ -26,8 +26,8 @@ public:
     // Spawns a one-shot effect at the given world position. If direction is
     // non-zero the spawned GameObject is rotated to face it.
     ParticleEffect* spawn(const ParticleSystem::Emitter& emitter, u32 burstCount,
-                          const glm::vec3& position,
-                          const glm::vec3& direction = glm::vec3(0.0f));
+                          const Math::vec3& position,
+                          const Math::vec3& direction = Math::vec3(0.0f));
 
     // Moves finished one-shots back to the available list and disables them.
     // Call once per frame after Scene::update().

@@ -12,7 +12,7 @@
 
 #include "Behavior.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <vector>
 
 namespace Radion::AI
@@ -40,7 +40,7 @@ public:
         // How far off the mesh a point may sit and still snap onto it - the
         // goal is usually a player standing on the floor, not a point already
         // known to be on the navmesh.
-        glm::vec3 searchExtents = glm::vec3(2.0f, 6.0f, 2.0f);
+        Math::vec3 searchExtents = Math::vec3(2.0f, 6.0f, 2.0f);
     };
 
     NavMeshBehavior(const NavMesh& navMesh, const Settings& settings);
@@ -65,14 +65,14 @@ private:
     // using it, so nothing about one agent's path can live in its fields.
     struct Route
     {
-        std::vector<glm::vec3> corners;
+        std::vector<Math::vec3> corners;
         usize next = 0;
         float sinceRepath = 0.0f;
-        glm::vec3 goalWhenFound = glm::vec3(0.0f);
+        Math::vec3 goalWhenFound = Math::vec3(0.0f);
         bool hasRoute = false;
         // Last position known to be on the walkable surface, which every
         // following move is slid from.
-        glm::vec3 surfacePosition = glm::vec3(0.0f);
+        Math::vec3 surfacePosition = Math::vec3(0.0f);
         bool onSurface = false;
     };
 

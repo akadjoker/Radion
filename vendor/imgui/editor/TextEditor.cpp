@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <string>
 #include <set>
-#include <boost/regex.hpp>
+#include <regex>
 
 #include "TextEditor.h"
 
@@ -23,7 +23,7 @@ bool char_isspace(char ch)
 }
 
 struct TextEditor::RegexList {
-    std::vector<std::pair<boost::regex, TextEditor::PaletteIndex>> mValue;
+    std::vector<std::pair<std::regex, TextEditor::PaletteIndex>> mValue;
 };
 
 
@@ -35,7 +35,7 @@ TextEditor::TextEditor()
 {
 	SetPalette(defaultPalette);
 	mLines.push_back(Line());
-	SetLanguageDefinition(LanguageDefinitionId::BuLang);
+	SetLanguageDefinition(LanguageDefinitionId::ZenScript);
 	RebuildVisibleLines();
 }
 
@@ -90,14 +90,14 @@ void TextEditor::SetLanguageDefinition(LanguageDefinitionId aValue)
 	case LanguageDefinitionId::None:
 		mLanguageDefinition = nullptr;
 		return;
-	case LanguageDefinitionId::BuLang:
-		mLanguageDefinition = &(LanguageDefinition::BuLang());
+	case LanguageDefinitionId::ZenScript:
+		mLanguageDefinition = &(LanguageDefinition::ZenScript());
 		break;
 	}
 
     mRegexList->mValue.clear();
 	for (const auto& r : mLanguageDefinition->mTokenRegexStrings)
-        mRegexList->mValue.push_back(std::make_pair(boost::regex(r.first, boost::regex_constants::optimize), r.second));
+		mRegexList->mValue.push_back(std::make_pair(std::regex(r.first, std::regex_constants::optimize), r.second));
 
 	Colorize();
 }
@@ -3036,7 +3036,7 @@ void TextEditor::ColorizeRange(int aFromLine, int aToLine)
 		return;
 
 	std::string buffer;
-	boost::cmatch results;
+	std::cmatch results;
 	std::string id;
 
 	int endLine = std::max(0, std::min((int)mLines.size(), aToLine));
@@ -3082,7 +3082,7 @@ void TextEditor::ColorizeRange(int aFromLine, int aToLine)
 				for (const auto& p : mRegexList->mValue)
 				{
 					bool regexSearchResult = false;
-					try { regexSearchResult = boost::regex_search(first, last, results, p.first, boost::regex_constants::match_continuous); }
+					try { regexSearchResult = std::regex_search(first, last, results, p.first, std::regex_constants::match_continuous); }
 					catch (...) {}
 					if (regexSearchResult)
 					{
@@ -3156,6 +3156,16 @@ void TextEditor::ColorizeInternal()
 
 	if (mCheckComments)
 	{
+		// A new pass must clear flags from the previous text state. This is
+		// especially important while editing a line that used to be a comment.
+		for (auto& line : mLines)
+			for (auto& glyph : line)
+			{
+				glyph.mComment = false;
+				glyph.mMultiLineComment = false;
+				glyph.mPreprocessor = false;
+			}
+
 		auto endLine = mLines.size();
 		auto endIndex = 0;
 		auto commentStartLine = endLine;
@@ -3232,7 +3242,8 @@ void TextEditor::ColorizeInternal()
 						auto& startStr = mLanguageDefinition->mCommentStart;
 						auto& singleStartStr = mLanguageDefinition->mSingleLineComment;
 
-						if (!withinSingleLineComment && currentIndex + startStr.size() <= line.size() &&
+						if (!withinSingleLineComment && !startStr.empty() &&
+							currentIndex + startStr.size() <= line.size() &&
 							ColorizerEquals(startStr.begin(), startStr.end(), from, from + startStr.size(), pred))
 						{
 							commentStartLine = currentLine;
@@ -3291,6 +3302,31 @@ void TextEditor::ColorizeInternal()
 		}
 		return;
 	}
+}
+
+const TextEditor::LanguageDefinition& TextEditor::LanguageDefinition::ZenScript()
+{
+	static const LanguageDefinition language = []
+	{
+		LanguageDefinition result;
+		result.mName = "Zen Script";
+		result.mSingleLineComment = "#";
+		result.mCaseSensitive = true;
+		result.mKeywords = {
+			"and", "as", "break", "class", "continue", "def", "elif", "else", "False",
+			"for", "from", "if", "import", "in", "is", "None", "not", "or", "pass",
+			"return", "True", "while"
+		};
+		result.mTokenRegexStrings = {
+			{ "\"(\\\\.|[^\"\\\\])*\"", PaletteIndex::String },
+			{ "'(\\\\.|[^'\\\\])*'", PaletteIndex::String },
+			{ "[0-9]+(\\.[0-9]+)?", PaletteIndex::Number },
+			{ "[A-Za-z_][A-Za-z0-9_]*", PaletteIndex::Identifier },
+			{ "[()\\[\\]{}:,.+=*/%<>!-]+", PaletteIndex::Punctuation }
+		};
+		return result;
+	}();
+	return language;
 }
 
 const TextEditor::Palette& TextEditor::GetDarkPalette()
@@ -3622,32 +3658,46 @@ void TextEditor::ScanFoldRegions()
 		return;
 	}
 
-	// Match { with } using a stack, only for curly braces (primary fold markers)
-	std::vector<int> braceStack; // stack of line numbers where '{' was found
-	for (int i = 0; i < (int)mLines.size(); i++)
+	// Zen scripts use indentation, rather than braces, to define their blocks.
+	struct IndentBlock
+	{
+		int line;
+		int indent;
+	};
+	std::vector<IndentBlock> blocks;
+	for (int i = 0; i < (int)mLines.size(); ++i)
 	{
 		const auto& line = mLines[i];
-		for (int j = 0; j < (int)line.size(); j++)
+		int first = 0;
+		int indent = 0;
+		while (first < (int)line.size() && (line[first].mChar == ' ' || line[first].mChar == '\t'))
 		{
-			char ch = line[j].mChar;
-			if (ch == '{')
-			{
-				braceStack.push_back(i);
-			}
-			else if (ch == '}')
-			{
-				if (!braceStack.empty())
-				{
-					int startLine = braceStack.back();
-					braceStack.pop_back();
-					// Only create fold region if it spans multiple lines
-					if (i > startLine)
-					{
-						mFoldRegions[startLine] = i;
-					}
-				}
-			}
+			indent += line[first].mChar == '\t' ? mTabSize : 1;
+			++first;
 		}
+		if (first == (int)line.size() || line[first].mChar == '#')
+			continue;
+
+		while (!blocks.empty() && indent <= blocks.back().indent)
+		{
+			const IndentBlock block = blocks.back();
+			blocks.pop_back();
+			if (i - 1 > block.line)
+				mFoldRegions[block.line] = i - 1;
+		}
+
+		int last = (int)line.size() - 1;
+		while (last >= first && char_isspace(line[last].mChar))
+			--last;
+		if (last >= first && line[last].mChar == ':')
+			blocks.push_back({i, indent});
+	}
+	while (!blocks.empty())
+	{
+		const IndentBlock block = blocks.back();
+		blocks.pop_back();
+		if ((int)mLines.size() - 1 > block.line)
+			mFoldRegions[block.line] = (int)mLines.size() - 1;
 	}
 
 	// Remove any folded lines that are no longer valid fold headers

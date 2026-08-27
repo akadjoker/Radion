@@ -5,8 +5,8 @@
 #include "Mesh.h"
 #include "Types.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
+#include "Math.h"
 #include <vector>
 
 namespace Radion
@@ -42,9 +42,9 @@ public:
     // One triangle in the tree, with its world-space vertices baked in.
     struct Triangle
     {
-        glm::vec3 v0, v1, v2;
-        glm::vec3 normal; // face normal, normalized
-        glm::vec3 centroid;
+        Math::vec3 v0, v1, v2;
+        Math::vec3 normal; // face normal, normalized
+        Math::vec3 centroid;
         AABB bounds;
         u32 source = 0; // index of the CollisionMesh that contributed it
         u32 index = 0;  // triangle index within that source
@@ -53,8 +53,8 @@ public:
     struct RayHit
     {
         f32 t = 0.0f;
-        glm::vec3 point;
-        glm::vec3 normal;
+        Math::vec3 point;
+        Math::vec3 normal;
         u32 source = 0;
         u32 triangle = 0;
     };
@@ -66,8 +66,8 @@ public:
     struct SweepHit
     {
         f32 t = 0.0f;
-        glm::vec3 normal; // world-space contact normal
-        glm::vec3 point;  // world-space point of contact
+        Math::vec3 normal; // world-space contact normal
+        Math::vec3 point;  // world-space point of contact
         u32 source = 0;
         u32 triangle = 0;
         bool collided = false;
@@ -96,7 +96,7 @@ public:
     // transformed by `transform` (so a level mesh living in its own local
     // space lines up with a world-space character). Call once per level mesh
     // before build().
-    void addCollisionMesh(const CollisionMesh& mesh, const glm::mat4& transform);
+    void addCollisionMesh(const CollisionMesh& mesh, const Math::mat4& transform);
 
     // Subdivides until no node holds more than `maxTriangles` (subject to
     // `maxDepth`). Cheap enough to re-run at load only.
@@ -108,11 +108,11 @@ public:
     // Swept ellipsoid from `center` with half-extents `radii`, moved by
     // `velocity` - the CollideAndSlide primitive. Unit radii everywhere is a
     // plain swept sphere. Returns the earliest contact, if any.
-    bool sweepEllipsoid(const glm::vec3& center, const glm::vec3& radii, const glm::vec3& velocity,
+    bool sweepEllipsoid(const Math::vec3& center, const Math::vec3& radii, const Math::vec3& velocity,
                         SweepHit& out) const;
 
     // Convenience wrapper: a swept sphere of `radius`.
-    bool sweepSphere(const glm::vec3& center, f32 radius, const glm::vec3& velocity,
+    bool sweepSphere(const Math::vec3& center, f32 radius, const Math::vec3& velocity,
                      SweepHit& out) const;
 
     // Gathers every triangle whose bounds overlap `region`, for a query that
@@ -156,8 +156,8 @@ private:
 
     void collectInternal(u32 nodeIndex, const AABB& region, std::vector<u32>& out) const;
     void raycastNode(u32 nodeIndex, const Ray& ray, RayHit& best, bool& hit) const;
-    void sweepNode(u32 nodeIndex, const AABB& sweptBounds, const glm::vec3& center,
-                   const glm::vec3& radii, const glm::vec3& invRadii, const glm::vec3& velocity,
+    void sweepNode(u32 nodeIndex, const AABB& sweptBounds, const Math::vec3& center,
+                   const Math::vec3& radii, const Math::vec3& invRadii, const Math::vec3& velocity,
                    f32& bestT, SweepHit& out, bool& hit, u32& visited) const;
 
     std::vector<Triangle> mTriangles;

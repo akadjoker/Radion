@@ -14,21 +14,21 @@ CharacterRigidBody::CharacterRigidBody()
 
 void CharacterRigidBody::setShape(f32 radius, f32 height)
 {
-    mRadius = glm::max(radius, 0.01f);
-    mHeight = glm::max(height, 0.0f);
+    mRadius = Math::max(radius, 0.01f);
+    mHeight = Math::max(height, 0.0f);
     mShape = CapsuleShape(mRadius, mHeight * 0.5f);
 }
 
 void CharacterRigidBody::setMass(f32 mass)
 {
-    mMass = glm::max(mass, 0.001f);
+    mMass = Math::max(mass, 0.001f);
     if (mBodyId != kInvalidBodyId)
         mBody.setMass(mMass);
 }
 
 void CharacterRigidBody::setFriction(f32 friction)
 {
-    mFriction = glm::max(friction, 0.0f);
+    mFriction = Math::max(friction, 0.0f);
     if (mWorld && mBodyId != kInvalidBodyId)
         if (BodyEntry* entry = mWorld->body(mBodyId))
             entry->friction = mFriction;
@@ -36,8 +36,8 @@ void CharacterRigidBody::setFriction(f32 friction)
 
 void CharacterRigidBody::setMaxSlopeAngle(f32 degrees)
 {
-    mMaxSlopeAngleDegrees = glm::clamp(degrees, 0.0f, 89.0f);
-    mMaxSlopeAngleCosine = std::cos(glm::radians(mMaxSlopeAngleDegrees));
+    mMaxSlopeAngleDegrees = Math::clamp(degrees, 0.0f, 89.0f);
+    mMaxSlopeAngleCosine = std::cos(Math::radians(mMaxSlopeAngleDegrees));
 }
 
 void CharacterRigidBody::setLayer(u32 layer)
@@ -56,11 +56,11 @@ void CharacterRigidBody::setMask(u32 mask)
             entry->filter.mask = mMask;
 }
 
-void CharacterRigidBody::addToWorld(PhysicsWorld& world, const glm::vec3& position)
+void CharacterRigidBody::addToWorld(PhysicsWorld& world, const Math::vec3& position)
 {
     mBody.setBodyType(BodyType::Dynamic);
     mBody.setMass(mMass);
-    mBody.setInverseInertiaTensor(glm::mat3(0.0f));
+    mBody.setInverseInertiaTensor(Math::mat3(0.0f));
     mBody.setPosition(position);
 
     BodyEntry entry;
@@ -83,34 +83,34 @@ void CharacterRigidBody::removeFromWorld()
     mBodyId = kInvalidBodyId;
 }
 
-void CharacterRigidBody::setLinearVelocity(const glm::vec3& velocity)
+void CharacterRigidBody::setLinearVelocity(const Math::vec3& velocity)
 {
     mBody.setVelocity(velocity);
-    if (glm::dot(velocity, velocity) > 1.0e-12f && !mBody.awake())
+    if (Math::dot(velocity, velocity) > 1.0e-12f && !mBody.awake())
         mBody.setAwake(true);
 }
 
-const glm::vec3& CharacterRigidBody::linearVelocity() const
+const Math::vec3& CharacterRigidBody::linearVelocity() const
 {
     return mBody.velocity();
 }
 
-void CharacterRigidBody::addLinearVelocity(const glm::vec3& velocity)
+void CharacterRigidBody::addLinearVelocity(const Math::vec3& velocity)
 {
     setLinearVelocity(mBody.velocity() + velocity);
 }
 
-void CharacterRigidBody::addImpulse(const glm::vec3& impulse)
+void CharacterRigidBody::addImpulse(const Math::vec3& impulse)
 {
     mBody.applyLinearImpulse(impulse);
 }
 
-const glm::vec3& CharacterRigidBody::position() const
+const Math::vec3& CharacterRigidBody::position() const
 {
     return mBody.position();
 }
 
-glm::mat4 CharacterRigidBody::transform() const
+Math::mat4 CharacterRigidBody::transform() const
 {
     return mBody.transform();
 }
@@ -120,17 +120,17 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
     if (!mWorld || mBodyId == kInvalidBodyId)
         return;
 
-    const glm::vec3 characterPosition = mBody.position();
-    const glm::mat4 characterTransform = mBody.transform();
+    const Math::vec3 characterPosition = mBody.position();
+    const Math::mat4 characterTransform = mBody.transform();
 
     u32 groundBodyId = kInvalidBodyId;
-    glm::vec3 groundNormal(0.0f);
-    glm::vec3 groundPosition(0.0f);
+    Math::vec3 groundNormal(0.0f);
+    Math::vec3 groundPosition(0.0f);
     f32 bestDot = -std::numeric_limits<f32>::max();
 
     AABB candidateBounds = mShape.bounds(characterTransform);
-    candidateBounds.min -= glm::vec3(maxSeparationDistance);
-    candidateBounds.max += glm::vec3(maxSeparationDistance);
+    candidateBounds.min -= Math::vec3(maxSeparationDistance);
+    candidateBounds.max += Math::vec3(maxSeparationDistance);
     QueryFilter query;
     query.collision = {mLayer, mMask};
     query.ignoredBody = mBodyId;
@@ -161,8 +161,8 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
         {
             if (manifold.count == 0)
                 continue;
-            const glm::vec3 normal = -manifold.normal;
-            const f32 dot = glm::dot(normal, mUp);
+            const Math::vec3 normal = -manifold.normal;
+            const f32 dot = Math::dot(normal, mUp);
             if (dot > bestDot)
             {
                 bestDot = dot;
@@ -177,26 +177,26 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
     if (groundBodyId == kInvalidBodyId)
     {
         mGroundState = GroundState::InAir;
-        mGroundNormal = glm::vec3(0.0f);
-        mGroundPosition = glm::vec3(0.0f);
-        mGroundVelocity = glm::vec3(0.0f);
+        mGroundNormal = Math::vec3(0.0f);
+        mGroundPosition = Math::vec3(0.0f);
+        mGroundVelocity = Math::vec3(0.0f);
         return;
     }
 
     mGroundNormal = groundNormal;
     mGroundPosition = groundPosition;
 
-    const glm::vec3 localGroundPosition = groundPosition - characterPosition;
+    const Math::vec3 localGroundPosition = groundPosition - characterPosition;
     if (mSupportingVolume.distance(localGroundPosition) > 0.0f)
         mGroundState = GroundState::NotSupported;
-    else if (glm::dot(groundNormal, mUp) < mMaxSlopeAngleCosine)
+    else if (Math::dot(groundNormal, mUp) < mMaxSlopeAngleCosine)
         mGroundState = GroundState::OnSteepGround;
     else
         mGroundState = GroundState::OnGround;
 
     const BodyEntry* groundEntry = mWorld->body(groundBodyId);
     mGroundVelocity = (groundEntry && groundEntry->body) ? groundEntry->body->velocityAtPoint(groundPosition)
-                                                          : glm::vec3(0.0f);
+                                                          : Math::vec3(0.0f);
 }
 
 } // namespace Radion::Physics

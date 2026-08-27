@@ -32,7 +32,7 @@ struct MaterialTextureSource
     // angle or at distance aliased for it.
     Filter filter = Filter::Anisotropic;
     Wrap wrap = Wrap::Repeat;
-    glm::vec2 scrollSpeed = glm::vec2(0.0f);
+    Math::vec2 scrollSpeed = Math::vec2(0.0f);
     f32 rotateSpeed = 0.0f;
     ColorSpaceOverride colorSpace = ColorSpaceOverride::FromSlot;
     bool generateMips = true;

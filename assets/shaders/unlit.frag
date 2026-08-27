@@ -211,7 +211,12 @@ void main()
 
     vec4 albedo = vec4(1.0);
 #ifdef HAS_ALBEDO
-    albedo = texture(uAlbedo, vUV * uvTransform.xy + uvTransform.zw);
+    vec2 albedoUv = vUV * uvTransform.xy + uvTransform.zw;
+#ifdef VOXEL_ATLAS
+    vec2 voxelUv = fract(vUV);
+    albedoUv = vUV2 + custom0.zw + voxelUv * (custom0.xy - custom0.zw * 2.0);
+#endif
+    albedo = texture(uAlbedo, albedoUv);
 #endif
 #ifdef HAS_DETAIL
     vec2 detailUV = vUV * max(custom0.x, 1.0);

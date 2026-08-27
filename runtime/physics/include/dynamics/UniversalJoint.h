@@ -23,10 +23,10 @@ namespace Radion::Physics
 class UniversalJoint final : public Joint
 {
 public:
-    UniversalJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
-                   const glm::vec3& worldAxisA, const glm::vec3& worldAxisB);
-    UniversalJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localAxisA,
-                   RigidBody& b, const glm::vec3& localAnchorB, const glm::vec3& localAxisB);
+    UniversalJoint(RigidBody& a, RigidBody& b, const Math::vec3& worldAnchor,
+                   const Math::vec3& worldAxisA, const Math::vec3& worldAxisB);
+    UniversalJoint(RigidBody& a, const Math::vec3& localAnchorA, const Math::vec3& localAxisA,
+                   RigidBody& b, const Math::vec3& localAnchorB, const Math::vec3& localAxisB);
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -49,27 +49,27 @@ private:
     void calculatePerpendicularityProperties();
     void calculateAngles();
     void calculateLimitProperties(bool hasLimits, f32 theta, f32 minAngle, f32 maxAngle,
-                                  const glm::vec3& axis, bool& active, f32& effectiveMass);
-    void calculateMotorProperties(bool enabled, const glm::vec3& axis, f32& effectiveMass);
-    void applyLinearImpulse(const glm::vec3& impulse);
-    void applyAngularImpulse(const glm::vec3& impulse);
+                                  const Math::vec3& axis, bool& active, f32& effectiveMass);
+    void calculateMotorProperties(bool enabled, const Math::vec3& axis, f32& effectiveMass);
+    void applyLinearImpulse(const Math::vec3& impulse);
+    void applyAngularImpulse(const Math::vec3& impulse);
 
     RigidBody* mBodyA;
     RigidBody* mBodyB;
-    glm::vec3 mLocalAnchorA;
-    glm::vec3 mLocalAnchorB;
-    glm::vec3 mLocalAxisA;
-    glm::vec3 mLocalAxisB;
-    glm::quat mInverseInitialOrientation;
+    Math::vec3 mLocalAnchorA;
+    Math::vec3 mLocalAnchorB;
+    Math::vec3 mLocalAxisA;
+    Math::vec3 mLocalAxisB;
+    Math::quat mInverseInitialOrientation;
 
-    glm::vec3 mArmA{0.0f};
-    glm::vec3 mArmB{0.0f};
-    glm::mat3 mPositionEffectiveMass{0.0f};
-    glm::vec3 mTotalPositionImpulse{0.0f};
+    Math::vec3 mArmA{0.0f};
+    Math::vec3 mArmB{0.0f};
+    Math::mat3 mPositionEffectiveMass{0.0f};
+    Math::vec3 mTotalPositionImpulse{0.0f};
 
-    glm::vec3 mAxisA{1.0f, 0.0f, 0.0f};
-    glm::vec3 mAxisB{0.0f, 1.0f, 0.0f};
-    glm::vec3 mPerpendicularAxis{0.0f, 0.0f, 1.0f};
+    Math::vec3 mAxisA{1.0f, 0.0f, 0.0f};
+    Math::vec3 mAxisB{0.0f, 1.0f, 0.0f};
+    Math::vec3 mPerpendicularAxis{0.0f, 0.0f, 1.0f};
     f32 mPerpendicularity = 0.0f;
     f32 mPerpendicularEffectiveMass = 0.0f;
     f32 mTotalPerpendicularImpulse = 0.0f;
@@ -77,15 +77,15 @@ private:
     f32 mThetaA = 0.0f;
     f32 mThetaB = 0.0f;
 
-    f32 mLimitsMinA = -glm::pi<f32>();
-    f32 mLimitsMaxA = glm::pi<f32>();
+    f32 mLimitsMinA = -Math::pi<f32>();
+    f32 mLimitsMaxA = Math::pi<f32>();
     bool mHasLimitsA = false;
     bool mLimitActiveA = false;
     f32 mLimitEffectiveMassA = 0.0f;
     f32 mTotalLimitImpulseA = 0.0f;
 
-    f32 mLimitsMinB = -glm::pi<f32>();
-    f32 mLimitsMaxB = glm::pi<f32>();
+    f32 mLimitsMinB = -Math::pi<f32>();
+    f32 mLimitsMaxB = Math::pi<f32>();
     bool mHasLimitsB = false;
     bool mLimitActiveB = false;
     f32 mLimitEffectiveMassB = 0.0f;

@@ -2,6 +2,7 @@
 #define RADION_PHYSICS_DYNAMICS_PHYSICSWORLD_H
 
 #include "Containers.h"
+#include "BoundsTree.h"
 #include "collision/Broadphase.h"
 #include "collision/CollisionFilter.h"
 #include "dynamics/ContactSolver.h"
@@ -44,16 +45,16 @@ struct ContactEventInfo
     u32 bodyB = 0;
     ContactEvent event = ContactEvent::Enter;
     // Empty for Exit - by then there is no contact left to describe.
-    glm::vec3 normal{0.0f};
-    glm::vec3 point{0.0f};
+    Math::vec3 normal{0.0f};
+    Math::vec3 point{0.0f};
     f32 penetration = 0.0f;
 };
 
 struct WorldRayHit
 {
     u32 body = 0xFFFFFFFFu;
-    glm::vec3 point{0.0f};
-    glm::vec3 normal{0.0f, 1.0f, 0.0f};
+    Math::vec3 point{0.0f};
+    Math::vec3 normal{0.0f, 1.0f, 0.0f};
     f32 distance = 0.0f;
 };
 
@@ -92,6 +93,10 @@ public:
     u32 addBody(const BodyEntry& entry);
     void removeBody(u32 id);
     void clear();
+    // Call after changing an already-added static body's transform, shape,
+    // filter, enabled state or type. Dynamic and kinematic bodies rebuild
+    // their proxies every step and need no notification.
+    void markStaticBroadphaseDirty();
 
     void addJoint(Joint* joint);
     void removeJoint(Joint* joint);
@@ -110,8 +115,8 @@ public:
         return mBodies.size();
     }
 
-    void setGravity(const glm::vec3& gravity);
-    const glm::vec3& gravity() const
+    void setGravity(const Math::vec3& gravity);
+    const Math::vec3& gravity() const
     {
         return mGravity;
     }
@@ -167,7 +172,7 @@ public:
 
     bool raycast(const Ray& ray, f32 maxDistance, const QueryFilter& filter,
                  WorldRayHit& hit) const;
-    void overlapSphere(const glm::vec3& centre, f32 radius, const QueryFilter& filter,
+    void overlapSphere(const Math::vec3& centre, f32 radius, const QueryFilter& filter,
                        std::vector<u32>& out) const;
     void queryAABB(const AABB& bounds, const QueryFilter& filter, std::vector<u32>& out) const;
 
@@ -176,11 +181,11 @@ public:
     // linearly to zero at radius and only affect dynamic bodies accepted by
     // the query filter. An impulse is instantaneous; forces must be added
     // before step() and are integrated during that step.
-    u32 applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 strength,
+    u32 applyRadialImpulse(const Math::vec3& centre, f32 radius, f32 strength,
                            const QueryFilter& filter = QueryFilter());
-    u32 addRadialForce(const glm::vec3& centre, f32 radius, f32 strength,
+    u32 addRadialForce(const Math::vec3& centre, f32 radius, f32 strength,
                        const QueryFilter& filter = QueryFilter());
-    u32 addDirectionalForce(const glm::vec3& centre, f32 radius, const glm::vec3& force,
+    u32 addDirectionalForce(const Math::vec3& centre, f32 radius, const Math::vec3& force,
                             const QueryFilter& filter = QueryFilter());
 
     usize contactCount() const
@@ -204,7 +209,7 @@ private:
 
     struct CachedPoint
     {
-        glm::vec3 position{0.0f};
+        Math::vec3 position{0.0f};
         f32 normalImpulse = 0.0f;
         f32 tangentImpulse[2] = {0.0f, 0.0f};
     };
@@ -238,6 +243,7 @@ private:
     void clearImmediate();
     void flushPendingMutations();
     void dispatchEvents();
+    void rebuildStaticBroadphase();
 
     // Bodies and their ids are parallel dense arrays. Public ids never move;
     // mIdToSlot is updated when the last slot is swapped over a removed one.
@@ -260,7 +266,14 @@ private:
     bool mClearPending = false;
     bool mDispatchingEvents = false;
 
-    Broadphase mBroadphase;
+    Broadphase mDynamicBroadphase;
+    BoundsTree mStaticBroadphase;
+    std::vector<AABB> mStaticBounds;
+    std::vector<u32> mStaticIds;
+    std::vector<BroadphaseProxy> mDynamicProxies;
+    std::vector<BroadphasePair> mDynamicPairs;
+    std::vector<u32> mStaticCandidates;
+    bool mStaticBroadphaseDirty = true;
     std::vector<BroadphasePair> mPairs;
     // Scratch for one pair's manifolds, reused every step. A convex against a
     // trimesh produces one per triangle it touches.
@@ -274,7 +287,7 @@ private:
     std::vector<u8> mIslandAwake;
 
     ContactSolver mSolver;
-    glm::vec3 mGravity{0.0f, -9.81f, 0.0f};
+    Math::vec3 mGravity{0.0f, -9.81f, 0.0f};
     f32 mFixedStep = 1.0f / 120.0f;
     f32 mAccumulator = 0.0f;
     u32 mMaxStepsPerUpdate = 8;

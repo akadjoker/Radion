@@ -3,8 +3,8 @@
 
 #include "Types.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include "Math.h"
+#include "Math.h"
 #include <vector>
 
 namespace Radion::AI
@@ -84,7 +84,7 @@ public:
     }
     void setHealth(float health)
     {
-        mHealth = glm::max(health, 0.0f);
+        mHealth = Math::max(health, 0.0f);
     }
     bool alive() const
     {
@@ -92,7 +92,7 @@ public:
     }
     void applyDamage(float amount)
     {
-        mHealth = glm::max(mHealth - amount, 0.0f);
+        mHealth = Math::max(mHealth - amount, 0.0f);
     }
 
     // CombatBehavior's own per-entity cooldown between shots - lives here
@@ -105,11 +105,11 @@ public:
     }
     void setAttackCooldown(float seconds)
     {
-        mAttackCooldown = glm::max(seconds, 0.0f);
+        mAttackCooldown = Math::max(seconds, 0.0f);
     }
     void tickAttackCooldown(float timeDelta)
     {
-        mAttackCooldown = glm::max(mAttackCooldown - timeDelta, 0.0f);
+        mAttackCooldown = Math::max(mAttackCooldown - timeDelta, 0.0f);
     }
 
     // One shot's worth of event state, valid for the frame CombatBehavior
@@ -144,35 +144,35 @@ public:
         return mCurrentGroup;
     }
 
-    const glm::vec3& position() const
+    const Math::vec3& position() const
     {
         return mPosition;
     }
-    void setPosition(const glm::vec3& position)
+    void setPosition(const Math::vec3& position)
     {
         mPosition = position;
     }
-    const glm::vec3& velocity() const
+    const Math::vec3& velocity() const
     {
         return mVelocity;
     }
-    void setVelocity(const glm::vec3& velocity)
+    void setVelocity(const Math::vec3& velocity)
     {
         mVelocity = velocity;
     }
-    const glm::quat& orientation() const
+    const Math::quat& orientation() const
     {
         return mOrientation;
     }
-    void setOrientation(const glm::quat& orientation)
+    void setOrientation(const Math::quat& orientation)
     {
         mOrientation = orientation;
     }
-    const glm::vec3& desiredMove() const
+    const Math::vec3& desiredMove() const
     {
         return mDesiredMoveVector;
     }
-    void setDesiredMove(const glm::vec3& move)
+    void setDesiredMove(const Math::vec3& move)
     {
         mDesiredMoveVector = move;
     }
@@ -186,7 +186,7 @@ public:
     // construction through Settings.
     void setMaxSpeed(float speed)
     {
-        mMaxSpeed = glm::max(speed, 0.0f);
+        mMaxSpeed = Math::max(speed, 0.0f);
     }
     float desiredSpeed() const
     {
@@ -194,7 +194,7 @@ public:
     }
     void setDesiredSpeed(float speed)
     {
-        mDesiredSpeed = glm::max(speed, 0.0f);
+        mDesiredSpeed = Math::max(speed, 0.0f);
     }
     float senseRange() const
     {
@@ -217,24 +217,24 @@ public:
     // wires an Entity's orientation() directly to a GameObject must apply a
     // 180 degree turn around up() first.
 
-    glm::vec3 forward() const
+    Math::vec3 forward() const
     {
-        return glm::mat3_cast(mOrientation)[2];
+        return Math::mat3_cast(mOrientation)[2];
     }
-    glm::vec3 side() const
+    Math::vec3 side() const
     {
-        return glm::mat3_cast(mOrientation)[0];
+        return Math::mat3_cast(mOrientation)[0];
     }
-    glm::vec3 up() const
+    Math::vec3 up() const
     {
-        return glm::mat3_cast(mOrientation)[1];
+        return Math::mat3_cast(mOrientation)[1];
     }
 
     // Velocity is a free vector; speed() is its magnitude and setSpeed()
     // rescales it.
     float speed() const
     {
-        return glm::length(mVelocity);
+        return Math::length(mVelocity);
     }
     void setSpeed(float newSpeed);
 
@@ -260,16 +260,16 @@ public:
 
     // Predicted position in `predictionTime` seconds (straight-line
     // extrapolation).
-    glm::vec3 predictFuturePosition(float predictionTime) const
+    Math::vec3 predictFuturePosition(float predictionTime) const
     {
         return mPosition + (mVelocity * predictionTime);
     }
 
     // Transform helpers in the vehicle's local frame.
-    glm::vec3 localizeDirection(const glm::vec3& globalDirection) const;
-    glm::vec3 localizePosition(const glm::vec3& globalPosition) const;
-    glm::vec3 globalizePosition(const glm::vec3& localPosition) const;
-    glm::vec3 globalizeDirection(const glm::vec3& localDirection) const;
+    Math::vec3 localizeDirection(const Math::vec3& globalDirection) const;
+    Math::vec3 localizePosition(const Math::vec3& globalPosition) const;
+    Math::vec3 globalizePosition(const Math::vec3& localPosition) const;
+    Math::vec3 globalizeDirection(const Math::vec3& localDirection) const;
 
     // Rotate the orientation so forward() points along the current velocity,
     // keeping up as close as possible.
@@ -292,10 +292,10 @@ protected:
     EntityType mEnemyMask = ~EntityType(0);
     EntityType mEntityType = 0;
 
-    glm::vec3 mPosition = glm::vec3(0.0f);
-    glm::vec3 mVelocity = glm::vec3(0.0f);
-    glm::quat mOrientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    glm::vec3 mDesiredMoveVector = glm::vec3(0.0f);
+    Math::vec3 mPosition = Math::vec3(0.0f);
+    Math::vec3 mVelocity = Math::vec3(0.0f);
+    Math::quat mOrientation = Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::vec3 mDesiredMoveVector = Math::vec3(0.0f);
 
     float mSenseRange = 4.0f;
     float mMaxVelocityChange = 1.0f;

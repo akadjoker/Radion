@@ -4,7 +4,7 @@
 #include "GPU.h"
 #include "Mesh.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -60,8 +60,8 @@ public:
     // against it and corrects the sample direction, so a wall reflects at the
     // distance it actually is. All zero means infinitely distant - no
     // correction, the reference's global-probe path.
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::vec3 extents = glm::vec3(0.0f);
+    Math::vec3 position = Math::vec3(0.0f);
+    Math::vec3 extents = Math::vec3(0.0f);
 
     // Which objects this probe serves, as a radius around `position` - a
     // job `extents` used to do as a side effect of being non-zero, and could
@@ -141,7 +141,7 @@ public:
     // View-projection for each of the 6 faces, in GL's own face order
     // (+X, -X, +Y, -Y, +Z, -Z - the order glNamedFramebufferTextureLayer
     // takes as layer 0..5).
-    void faceViewProjections(glm::mat4 out[6]) const;
+    void faceViewProjections(Math::mat4 out[6]) const;
 
     // Fills every face with a flat colour keyed to its axis: +X/+Y/+Z are
     // red/green/blue, and their opposites cyan/magenta/yellow.

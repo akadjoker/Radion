@@ -15,7 +15,7 @@ f32 playbackTime(f32 time, f32 duration, PlayMode mode)
     if (!(duration > 0.0f))
         return 0.0f;
     if (mode == PlayMode::Once)
-        return glm::clamp(time, 0.0f, duration);
+        return Math::clamp(time, 0.0f, duration);
 
     const f32 cycle = mode == PlayMode::PingPong ? duration * 2.0f : duration;
     f32 wrapped = std::fmod(time, cycle);
@@ -24,11 +24,11 @@ f32 playbackTime(f32 time, f32 duration, PlayMode mode)
     return mode == PlayMode::PingPong && wrapped > duration ? cycle - wrapped : wrapped;
 }
 
-glm::quat nlerp(const glm::quat& from, glm::quat to, f32 amount)
+Math::quat nlerp(const Math::quat& from, Math::quat to, f32 amount)
 {
-    if (glm::dot(from, to) < 0.0f)
+    if (Math::dot(from, to) < 0.0f)
         to = -to;
-    return glm::normalize(from * (1.0f - amount) + to * amount);
+    return Math::normalize(from * (1.0f - amount) + to * amount);
 }
 
 void applyClip(const AnimationClip* clip, f32 time, f32 weight, const std::vector<f32>& mask,
@@ -43,9 +43,9 @@ void applyClip(const AnimationClip* clip, f32 time, f32 weight, const std::vecto
         const f32 amount = weight * (mask.empty() || i >= mask.size() ? 1.0f : mask[i]);
         if (amount <= 0.001f)
             continue;
-        pose[i].position = glm::mix(pose[i].position, scratch[i].position, amount);
+        pose[i].position = Math::mix(pose[i].position, scratch[i].position, amount);
         pose[i].rotation = nlerp(pose[i].rotation, scratch[i].rotation, amount);
-        pose[i].scale = glm::mix(pose[i].scale, scratch[i].scale, amount);
+        pose[i].scale = Math::mix(pose[i].scale, scratch[i].scale, amount);
     }
 }
 
@@ -124,7 +124,7 @@ void Animator::update(f32 deltaTime)
     if (!mPoseEditMode)
     {
         set->skeleton.bindPose(mLocalPose);
-        const f32 dt = std::isfinite(deltaTime) ? glm::max(deltaTime, 0.0f) : 0.0f;
+        const f32 dt = std::isfinite(deltaTime) ? Math::max(deltaTime, 0.0f) : 0.0f;
         for (AnimationLayer& layer : mLayers)
         {
             if (!layer.mCurrent && !layer.mCurrentName.empty())
@@ -138,7 +138,7 @@ void Animator::update(f32 deltaTime)
             const f32 layerDt = layer.mPaused ? 0.0f : dt;
             layer.mTime += layerDt * layer.mSpeed;
             if (layer.mBlendDuration > 0.0f && layer.mBlend < 1.0f)
-                layer.mBlend = glm::min(layer.mBlend + layerDt / layer.mBlendDuration, 1.0f);
+                layer.mBlend = Math::min(layer.mBlend + layerDt / layer.mBlendDuration, 1.0f);
             if (layer.mBlend >= 1.0f)
                 layer.mPrevious = nullptr;
             if (layer.finished() && !layer.mReturnTo.empty())
@@ -170,7 +170,7 @@ void Animator::update(f32 deltaTime)
     // corrected pose rather than the pre-IK one.
     if (!mIKChains.empty())
     {
-        const glm::mat4 ownerTransform = owner() ? owner()->globalTransform() : glm::mat4(1.0f);
+        const Math::mat4 ownerTransform = owner() ? owner()->globalTransform() : Math::mat4(1.0f);
         bool solved = false;
         for (const IKChain& chain : mIKChains)
         {
@@ -221,11 +221,11 @@ void Animator::setBoneLocalPose(u32 bone, const LocalPose& pose)
         mLocalPose[bone] = pose;
 }
 
-bool Animator::boneGlobalPosition(s32 bone, glm::vec3& out) const
+bool Animator::boneGlobalPosition(s32 bone, Math::vec3& out) const
 {
     if (bone < 0 || static_cast<usize>(bone) >= mGlobalPose.size())
         return false;
-    out = glm::vec3(mGlobalPose[static_cast<usize>(bone)][3]);
+    out = Math::vec3(mGlobalPose[static_cast<usize>(bone)][3]);
     return true;
 }
 
@@ -238,16 +238,16 @@ const std::vector<LocalPose>& Animator::localPose() const
 {
     return mLocalPose;
 }
-const std::vector<glm::mat4>& Animator::globalPose() const
+const std::vector<Math::mat4>& Animator::globalPose() const
 {
     return mGlobalPose;
 }
-const std::vector<glm::mat4>& Animator::palette() const
+const std::vector<Math::mat4>& Animator::palette() const
 {
     return mPalette;
 }
 
-const std::vector<glm::mat4>& Animator::prevPalette() const
+const std::vector<Math::mat4>& Animator::prevPalette() const
 {
     return mPrevPalette;
 }

@@ -26,27 +26,27 @@ void insertSorted(std::vector<int>& values, int value)
     }
 }
 
-f32 triple(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c)
+f32 triple(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c)
 {
-    return glm::dot(a, glm::cross(b, c));
+    return Math::dot(a, Math::cross(b, c));
 }
 
 struct DistanceFromPoint
 {
-    glm::vec3 center;
+    Math::vec3 center;
 
-    bool operator()(const glm::vec3& a, const glm::vec3& b) const
+    bool operator()(const Math::vec3& a, const Math::vec3& b) const
     {
-        f32 da = glm::dot(a - center, a - center);
-        f32 db = glm::dot(b - center, b - center);
+        f32 da = Math::dot(a - center, a - center);
+        f32 db = Math::dot(b - center, b - center);
         return da < db;
     }
 };
 
 } // namespace
 
-bool VoronoiShatter::getVerticesInsidePlanes(const std::vector<glm::vec4>& planes,
-                                              std::vector<glm::vec3>& verticesOut,
+bool VoronoiShatter::getVerticesInsidePlanes(const std::vector<Math::vec4>& planes,
+                                              std::vector<Math::vec3>& verticesOut,
                                               std::vector<int>& planeIndicesOut)
 {
     verticesOut.clear();
@@ -54,29 +54,29 @@ bool VoronoiShatter::getVerticesInsidePlanes(const std::vector<glm::vec4>& plane
     const int numPlanes = (int)planes.size();
     for (int i = 0; i < numPlanes; i++)
     {
-        glm::vec3 n1(planes[i]);
+        Math::vec3 n1(planes[i]);
         for (int j = i + 1; j < numPlanes; j++)
         {
-            glm::vec3 n2(planes[j]);
-            glm::vec3 n1n2 = glm::cross(n1, n2);
-            if (glm::dot(n1n2, n1n2) > kCrossEpsilon)
+            Math::vec3 n2(planes[j]);
+            Math::vec3 n1n2 = Math::cross(n1, n2);
+            if (Math::dot(n1n2, n1n2) > kCrossEpsilon)
             {
                 for (int k = j + 1; k < numPlanes; k++)
                 {
-                    glm::vec3 n3(planes[k]);
-                    glm::vec3 n2n3 = glm::cross(n2, n3);
-                    glm::vec3 n3n1 = glm::cross(n3, n1);
-                    if ((glm::dot(n2n3, n2n3) > kCrossEpsilon) && (glm::dot(n3n1, n3n1) > kCrossEpsilon))
+                    Math::vec3 n3(planes[k]);
+                    Math::vec3 n2n3 = Math::cross(n2, n3);
+                    Math::vec3 n3n1 = Math::cross(n3, n1);
+                    if ((Math::dot(n2n3, n2n3) > kCrossEpsilon) && (Math::dot(n3n1, n3n1) > kCrossEpsilon))
                     {
-                        f32 quotient = glm::dot(n1, n2n3);
+                        f32 quotient = Math::dot(n1, n2n3);
                         if (std::fabs(quotient) > kQuotientEpsilon)
                         {
-                            glm::vec3 potentialVertex = (n2n3 * planes[i].w + n3n1 * planes[j].w + n1n2 * planes[k].w) * (-1.0f / quotient);
+                            Math::vec3 potentialVertex = (n2n3 * planes[i].w + n3n1 * planes[j].w + n1n2 * planes[k].w) * (-1.0f / quotient);
                             int l = 0;
                             for (; l < numPlanes; l++)
                             {
-                                const glm::vec4& np = planes[l];
-                                if (glm::dot(glm::vec3(np), potentialVertex) + np.w > kInsideEpsilon)
+                                const Math::vec4& np = planes[l];
+                                if (Math::dot(Math::vec3(np), potentialVertex) + np.w > kInsideEpsilon)
                                 {
                                     break;
                                 }
@@ -97,8 +97,8 @@ bool VoronoiShatter::getVerticesInsidePlanes(const std::vector<glm::vec4>& plane
     return !verticesOut.empty();
 }
 
-void VoronoiShatter::shatter(const std::vector<glm::vec3>& sourceVertices,
-                              const std::vector<glm::vec3>& voronoiPoints,
+void VoronoiShatter::shatter(const std::vector<Math::vec3>& sourceVertices,
+                              const std::vector<Math::vec3>& voronoiPoints,
                               std::vector<Shard>& shardsOut)
 {
     shardsOut.clear();
@@ -106,10 +106,10 @@ void VoronoiShatter::shatter(const std::vector<glm::vec3>& sourceVertices,
     ConvexHullComputer sourceHull;
     if (!sourceVertices.empty())
     {
-        sourceHull.compute(&sourceVertices[0].x, sizeof(glm::vec3), (int)sourceVertices.size(), 0.0f, 0.0f);
+        sourceHull.compute(&sourceVertices[0].x, sizeof(Math::vec3), (int)sourceVertices.size(), 0.0f, 0.0f);
     }
 
-    std::vector<glm::vec4> convexPlanes;
+    std::vector<Math::vec4> convexPlanes;
     const int numSourceFaces = (int)sourceHull.faces.size();
     for (int i = 0; i < numSourceFaces; i++)
     {
@@ -118,28 +118,28 @@ void VoronoiShatter::shatter(const std::vector<glm::vec3>& sourceVertices,
         int v1 = edge->getTargetVertex();
         edge = edge->getNextEdgeOfFace();
         int v2 = edge->getTargetVertex();
-        glm::vec3 normal = glm::normalize(glm::cross(sourceHull.vertices[v1] - sourceHull.vertices[v0],
+        Math::vec3 normal = Math::normalize(Math::cross(sourceHull.vertices[v1] - sourceHull.vertices[v0],
                                                        sourceHull.vertices[v2] - sourceHull.vertices[v0]));
-        f32 offset = -glm::dot(normal, sourceHull.vertices[v0]);
-        convexPlanes.push_back(glm::vec4(normal, offset));
+        f32 offset = -Math::dot(normal, sourceHull.vertices[v0]);
+        convexPlanes.push_back(Math::vec4(normal, offset));
     }
     const int numConvexPlanes = (int)convexPlanes.size();
 
-    std::vector<glm::vec3> sortedVoronoiPoints(voronoiPoints);
+    std::vector<Math::vec3> sortedVoronoiPoints(voronoiPoints);
     const int numPoints = (int)voronoiPoints.size();
 
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec4> planes;
+    std::vector<Math::vec3> vertices;
+    std::vector<Math::vec4> planes;
     std::vector<int> planeIndices;
 
     for (int i = 0; i < numPoints; i++)
     {
-        const glm::vec3 curVoronoiPoint = voronoiPoints[i];
+        const Math::vec3 curVoronoiPoint = voronoiPoints[i];
 
         planes = convexPlanes;
         for (int j = 0; j < numConvexPlanes; j++)
         {
-            planes[j].w += glm::dot(glm::vec3(planes[j]), curVoronoiPoint);
+            planes[j].w += Math::dot(Math::vec3(planes[j]), curVoronoiPoint);
         }
 
         f32 maxDistance = kInfinity;
@@ -155,13 +155,13 @@ void VoronoiShatter::shatter(const std::vector<glm::vec3>& sourceVertices,
         getVerticesInsidePlanes(planes, vertices, planeIndices);
         for (int j = 1; j < numPoints; j++)
         {
-            glm::vec3 normal = sortedVoronoiPoints[j] - curVoronoiPoint;
-            f32 nlength = glm::length(normal);
+            Math::vec3 normal = sortedVoronoiPoints[j] - curVoronoiPoint;
+            f32 nlength = Math::length(normal);
             if (nlength > maxDistance)
             {
                 break;
             }
-            glm::vec4 plane(normal / nlength, -nlength * 0.5f);
+            Math::vec4 plane(normal / nlength, -nlength * 0.5f);
             planes.push_back(plane);
             getVerticesInsidePlanes(planes, vertices, planeIndices);
             if (vertices.empty())
@@ -180,10 +180,10 @@ void VoronoiShatter::shatter(const std::vector<glm::vec3>& sourceVertices,
                 }
                 planes.resize(numPlaneIndices);
             }
-            maxDistance = glm::length(vertices[0]);
+            maxDistance = Math::length(vertices[0]);
             for (int k = 1; k < (int)vertices.size(); k++)
             {
-                f32 distance = glm::length(vertices[k]);
+                f32 distance = Math::length(vertices[k]);
                 if (maxDistance < distance)
                 {
                     maxDistance = distance;
@@ -197,11 +197,11 @@ void VoronoiShatter::shatter(const std::vector<glm::vec3>& sourceVertices,
         }
 
         ConvexHullComputer cellHull;
-        cellHull.compute(&vertices[0].x, sizeof(glm::vec3), (int)vertices.size(), 0.0f, 0.0f);
+        cellHull.compute(&vertices[0].x, sizeof(Math::vec3), (int)vertices.size(), 0.0f, 0.0f);
 
         const int numFaces = (int)cellHull.faces.size();
         f32 volume = 0.0f;
-        glm::vec3 com(0.0f);
+        Math::vec3 com(0.0f);
         for (int j = 0; j < numFaces; j++)
         {
             const ConvexHullComputer::Edge* edge = &cellHull.edges[cellHull.faces[j]];

@@ -120,7 +120,7 @@ public:
     // nothing.
     void restart();
  
-    void invalidateRegion(const glm::vec2& centreXZ, f32 radius);
+    void invalidateRegion(const Math::vec2& centreXZ, f32 radius);
 
     // Marks everything. What to call when a modifier itself is edited - far
     // cheaper than restart(), because it keeps the GPU buffers.
@@ -136,14 +136,14 @@ public:
     // no Heightmap modifier exists. radius is world units; amount/strength
     // work in the modifier's own normalised [0,1] height, same units
     // heightmapAmount already multiplies.
-    bool sculptRaise(const glm::vec3& worldCenter, f32 radius, f32 amount);
-    bool sculptLower(const glm::vec3& worldCenter, f32 radius, f32 amount);
-    bool sculptSmooth(const glm::vec3& worldCenter, f32 radius, f32 strength);
+    bool sculptRaise(const Math::vec3& worldCenter, f32 radius, f32 amount);
+    bool sculptLower(const Math::vec3& worldCenter, f32 radius, f32 amount);
+    bool sculptSmooth(const Math::vec3& worldCenter, f32 radius, f32 strength);
 
     // Pulls the brushed area toward targetHeight instead of offsetting it -
     // targetHeight 0 resets it to black, an unpainted heightmap pixel's own
     // value. Mirrors Terrain::flatten().
-    bool sculptFlatten(const glm::vec3& worldCenter, f32 radius, f32 targetHeight, f32 strength);
+    bool sculptFlatten(const Math::vec3& worldCenter, f32 radius, f32 targetHeight, f32 strength);
 
     Material& material();
     const Material& material() const;
@@ -183,10 +183,10 @@ private:
 
     struct Chunk
     {
-        glm::vec3 position = glm::vec3(0.0f); // the chunk's own origin, in world
+        Math::vec3 position = Math::vec3(0.0f); // the chunk's own origin, in world
         MeshHandle mesh;
 
-        glm::vec3 sphereCentre = glm::vec3(0.0f); // in world
+        Math::vec3 sphereCentre = Math::vec3(0.0f); // in world
         f32 sphereRadius = 0.0f;
         f32 minimumY = 0.0f;
         f32 maximumY = 0.0f;
@@ -206,14 +206,14 @@ private:
     Landscape();
     void onDestroy() override;
 
-    void update(const glm::vec3& cameraPosition);
+    void update(const Math::vec3& cameraPosition);
     void cull(const Frustum& frustum);
-    void submitCamera(RenderList& list, const glm::mat4& transform,
-                      const glm::vec3& cameraPosition);
-    void submitShadow(RenderList& list, const glm::mat4& transform,
-                      const glm::vec3& cameraPosition);
+    void submitCamera(RenderList& list, const Math::mat4& transform,
+                      const Math::vec3& cameraPosition);
+    void submitShadow(RenderList& list, const Math::mat4& transform,
+                      const Math::vec3& cameraPosition);
 
-    f32 sampleHeight(const glm::vec2& worldPosition) const;
+    f32 sampleHeight(const Math::vec2& worldPosition) const;
     bool buildChunk(const ChunkKey& key, Chunk& chunk);
     void releaseChunk(Chunk& chunk);
     // Builds `key`'s chunk now if it is not already current and the frame
@@ -224,8 +224,8 @@ private:
     // requestChunk(0, 0) is the centre chunk; update()'s spiral walks
     // outward from it one ring at a time.
     bool requestChunk(s32 offsetX, s32 offsetZ, class Timer& buildTimer);
-    u32 pickLod(const Chunk& chunk, const glm::vec3& cameraPosition) const;
-    bool sculpt(const glm::vec3& worldCenter, f32 radius, f32 amount, bool smoothing);
+    u32 pickLod(const Chunk& chunk, const Math::vec3& cameraPosition) const;
+    bool sculpt(const Math::vec3& worldCenter, f32 radius, f32 amount, bool smoothing);
 
     std::unordered_map<ChunkKey, Chunk, ChunkKeyHash> mChunks;
     std::deque<ChunkKey> mPriorityInvalidation;

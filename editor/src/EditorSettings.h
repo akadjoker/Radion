@@ -3,7 +3,7 @@
 
 #include "Types.h"
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -31,8 +31,8 @@ public:
     // scene otherwise means re-navigating to wherever the work actually is
     // after every single reopen. ViewportPanel owns the live values; this is
     // only where the last-known pose is kept between sessions.
-    glm::vec3 cameraPosition = glm::vec3(0.0f, 2.5f, 9.5f);
-    glm::vec3 cameraOrbitTarget = glm::vec3(0.0f);
+    Math::vec3 cameraPosition = Math::vec3(0.0f, 2.5f, 9.5f);
+    Math::vec3 cameraOrbitTarget = Math::vec3(0.0f);
     f32 cameraOrbitDistance = 10.0f;
     f32 cameraOrbitYaw = 0.0f;
     f32 cameraOrbitPitch = -0.25f;
@@ -52,7 +52,7 @@ public:
     bool viewportSnap = false;
     int viewportTool = 0;
     int viewportNavigationTool = 0;
-    glm::vec3 cursor3D = glm::vec3(0.0f);
+    Math::vec3 cursor3D = Math::vec3(0.0f);
     int viewMode = 0;
     bool showStatsOverlay = false;
     bool showDynamicIndexDebug = false;
@@ -64,7 +64,7 @@ public:
     // Editor Viewport quality only. These never alter the scene or the Game
     // view; they remove expensive preview passes while authoring.
     bool previewShadows = true;
-    bool previewSSAO = true;
+    bool previewSSAO = false;
     bool previewVolumetrics = false;
     bool previewLensFlares = false;
     bool previewPlanarReflections = false;

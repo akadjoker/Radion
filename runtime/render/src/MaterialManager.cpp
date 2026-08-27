@@ -285,7 +285,7 @@ const char* animationProperty(const MaterialAnim& animation)
     return "custom1";
 }
 
-void writeVec4(std::ostringstream& text, const glm::vec4& value)
+void writeVec4(std::ostringstream& text, const Math::vec4& value)
 {
     text << '(' << value.x << ", " << value.y << ", " << value.z << ", " << value.w << ')';
 }
@@ -409,6 +409,8 @@ std::string withVariantDefines(const std::string& source, u32 variantFlags, u8 p
         result += "#define TERRAIN_SURFACE 1\n";
     if (variantFlags & MaterialTerrainClassic)
         result += "#define TERRAIN_CLASSIC 1\n";
+    if (variantFlags & MaterialVoxelAtlas)
+        result += "#define VOXEL_ATLAS 1\n";
     if (variantFlags & MaterialReflection)
         result += "#define HAS_REFLECTION 1\n";
     if (variantFlags & MaterialMirror)
@@ -443,7 +445,7 @@ std::string withVariantDefines(const std::string& source, u32 variantFlags, u8 p
     return result;
 }
 
-glm::vec4* paramField(MaterialParams& params, u8 index)
+Math::vec4* paramField(MaterialParams& params, u8 index)
 {
     switch (index)
     {
@@ -597,6 +599,7 @@ PipelineKey MaterialManager::pipelineKeyOf(const Material& material, u8 pass) co
                                    MaterialReflection | MaterialMirror | MaterialAnimated |
                                    MaterialLit | MaterialReceiveShadow | MaterialLandscape |
                                    MaterialTerrain | MaterialTerrainClassic |
+                                   MaterialVoxelAtlas |
                                    MaterialParallax | MaterialMetallicRoughnessMap |
                                    MaterialSpecularGlossinessMap)) |
                 variantFlagsOf(material);
@@ -930,12 +933,12 @@ void MaterialManager::animate(Material& material, f32 time) const
     for (u8 i = 0; i < material.animCount; ++i)
     {
         const MaterialAnim& anim = material.anims[i];
-        glm::vec4* field = paramField(material.params, anim.field);
+        Math::vec4* field = paramField(material.params, anim.field);
         if (!field)
             continue;
 
         const f32 t = evaluateCurve(anim.curve, time, anim.speed, anim.phase);
-        const glm::vec4 value = anim.min + (anim.max - anim.min) * t;
+        const Math::vec4 value = anim.min + (anim.max - anim.min) * t;
 
         for (u8 component = 0; component < 4; ++component)
         {

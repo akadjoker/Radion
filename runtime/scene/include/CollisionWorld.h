@@ -4,7 +4,7 @@
 #include "Math.h"
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <vector>
 
 namespace Radion
@@ -27,10 +27,10 @@ class CollisionWorld
 public:
     struct MoveResult
     {
-        glm::vec3 position{0.0f};
+        Math::vec3 position{0.0f};
         u32 hitCount = 0;
         bool collided = false;
-        glm::vec3 lastNormal{0.0f, 1.0f, 0.0f};
+        Math::vec3 lastNormal{0.0f, 1.0f, 0.0f};
     };
 
     // Epsilon: how far a resting contact is pushed off the surface it just
@@ -62,7 +62,7 @@ public:
     // collider whose type pairs with `movingType`, sliding/stopping per the
     // pair's own response. The mover itself carries no Collider - a purely
     // geometric query, same as the character controller's ellipsoid sweep.
-    MoveResult moveSphere(const glm::vec3& from, const glm::vec3& to, f32 radius,
+    MoveResult moveSphere(const Math::vec3& from, const Math::vec3& to, f32 radius,
                           u32 movingType, u32 maxHits = 10) const;
 
 private:
@@ -81,6 +81,8 @@ private:
 
     Scene* mScene = nullptr;
     std::vector<Pair> mPairs;
+    std::vector<Collider*> mStepColliders;
+    std::vector<AABB> mStepBounds;
     MoveConfig mMoveConfig;
 };
 

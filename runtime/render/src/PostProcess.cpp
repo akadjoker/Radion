@@ -288,16 +288,16 @@ void main()
 
 struct PostBlock
 {
-    glm::mat4 projection;
-    glm::mat4 inverseProjection;
-    glm::vec4 sizeMode;
-    glm::vec4 options;
+    Math::mat4 projection;
+    Math::mat4 inverseProjection;
+    Math::vec4 sizeMode;
+    Math::vec4 options;
 };
 
 struct TAABlock
 {
-    glm::vec4 sizeAndFeedback;
-    glm::vec4 clipAndSharpen;
+    Math::vec4 sizeAndFeedback;
+    Math::vec4 clipAndSharpen;
 };
 
 } // namespace
@@ -491,8 +491,8 @@ void PostProcessStack::clear()
 
 bool PostProcessStack::resize(u32 width, u32 height)
 {
-    const u32 halfWidth = glm::max(1u, width / 2);
-    const u32 halfHeight = glm::max(1u, height / 2);
+    const u32 halfWidth = Math::max(1u, width / 2);
+    const u32 halfHeight = Math::max(1u, height / 2);
 
     // Checking only mScene's dimensions used to be enough to call the whole
     // stack "already the right size" - until a previous resize() got mScene
@@ -547,7 +547,7 @@ bool PostProcessStack::begin(u32 width, u32 height, FrameContext& frame, u32 tem
     frame.sceneColor = mScene.color;
     frame.sceneDepth = mScene.depth;
     frame.viewport = {0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height)};
-    mTemporalIndex = glm::min(temporalIndex, 2u);
+    mTemporalIndex = Math::min(temporalIndex, 2u);
     mTemporalAAAllowed = frame.temporalAA;
     // Each stream keeps its history at its own resolution. Streams render
     // interleaved at different sizes (editor viewport and game panel), so a
@@ -614,16 +614,16 @@ TextureHandle PostProcessStack::resolveTAA(TextureHandle source)
         const Viewport viewport{0.0f, 0.0f, static_cast<f32>(mScene.width),
                                 static_cast<f32>(mScene.height)};
         draw(source, TextureHandle(), mTAAHistory[mTemporalIndex][write].target, viewport, 0,
-             glm::vec4(0.0f));
+             Math::vec4(0.0f));
         mTAARead[mTemporalIndex] = write;
         mTAAHistoryValid[mTemporalIndex] = true;
         return mTAAHistory[mTemporalIndex][write].color;
     }
 
     TAABlock block;
-    block.sizeAndFeedback = glm::vec4(static_cast<f32>(mScene.width), static_cast<f32>(mScene.height),
+    block.sizeAndFeedback = Math::vec4(static_cast<f32>(mScene.width), static_cast<f32>(mScene.height),
                                       taaFeedback, taaMotionFeedback);
-    block.clipAndSharpen = glm::vec4(taaClipWidth, taaSharpness, 0.0f, 0.0f);
+    block.clipAndSharpen = Math::vec4(taaClipWidth, taaSharpness, 0.0f, 0.0f);
     GPU& gpu = GPU::getSingleton();
     gpu.updateBuffer(mTAAUniform, 0, sizeof(block), &block);
     gpu.bindTexture(0, source, mSampler);
@@ -640,34 +640,34 @@ TextureHandle PostProcessStack::resolveTAA(TextureHandle source)
     return writeTarget.color;
 }
 
-TextureHandle PostProcessStack::computeSSAO(const glm::mat4& projection)
+TextureHandle PostProcessStack::computeSSAO(const Math::mat4& projection)
 {
     if (!enabled || !ssaoEnabled || !mScene.depth.valid())
         return TextureHandle();
     mProjection = projection;
-    mInverseProjection = glm::inverse(projection);
+    mInverseProjection = Math::inverse(projection);
     const Viewport viewport{0.0f, 0.0f, static_cast<f32>(mAO[0].width),
                             static_cast<f32>(mAO[0].height)};
     draw(mScene.depth, TextureHandle(), mAO[0].target, viewport, 7,
-         glm::vec4(ssaoRadius, ssaoBias, ssaoIntensity, static_cast<f32>(ssaoSamples)));
+         Math::vec4(ssaoRadius, ssaoBias, ssaoIntensity, static_cast<f32>(ssaoSamples)));
     if (!ssaoBlur)
         return mAO[0].color;
 
     draw(mAO[0].color, mScene.depth, mAO[1].target, viewport, 8,
-         glm::vec4(ssaoDepthSigma, 0.0f, 0.0f, 0.0f));
+         Math::vec4(ssaoDepthSigma, 0.0f, 0.0f, 0.0f));
     draw(mAO[1].color, mScene.depth, mAO[0].target, viewport, 9,
-         glm::vec4(ssaoDepthSigma, 0.0f, 0.0f, 0.0f));
+         Math::vec4(ssaoDepthSigma, 0.0f, 0.0f, 0.0f));
     return mAO[0].color;
 }
 
 void PostProcessStack::draw(TextureHandle source, TextureHandle secondary, TargetHandle destination,
-                            const Viewport& viewport, u32 mode, const glm::vec4& options)
+                            const Viewport& viewport, u32 mode, const Math::vec4& options)
 {
     PostBlock block;
     block.projection = mProjection;
     block.inverseProjection = mInverseProjection;
     block.sizeMode =
-        glm::vec4(1.0f / viewport.width, 1.0f / viewport.height, static_cast<f32>(mode), 0.0f);
+        Math::vec4(1.0f / viewport.width, 1.0f / viewport.height, static_cast<f32>(mode), 0.0f);
     block.options = options;
     GPU& gpu = GPU::getSingleton();
     gpu.setTarget(destination);
@@ -700,21 +700,21 @@ TextureHandle PostProcessStack::runLayers(bool& displayEncoded)
             Viewport half{0.0f, 0.0f, static_cast<f32>(mBloom[0].width),
                           static_cast<f32>(mBloom[0].height)};
             draw(source, TextureHandle(), mBloom[0].target, half, 3,
-                 glm::vec4(bloomThreshold, bloomSoftKnee, 0.0f, 0.0f));
-            draw(mBloom[0].color, TextureHandle(), mBloom[1].target, half, 4, glm::vec4(0.0f));
-            draw(mBloom[1].color, TextureHandle(), mBloom[0].target, half, 5, glm::vec4(0.0f));
+                 Math::vec4(bloomThreshold, bloomSoftKnee, 0.0f, 0.0f));
+            draw(mBloom[0].color, TextureHandle(), mBloom[1].target, half, 4, Math::vec4(0.0f));
+            draw(mBloom[1].color, TextureHandle(), mBloom[0].target, half, 5, Math::vec4(0.0f));
             draw(source, mBloom[0].color, mPing[ping].target, viewport, 6,
-                 glm::vec4(bloomStrength, 0.0f, 0.0f, 0.0f));
+                 Math::vec4(bloomStrength, 0.0f, 0.0f, 0.0f));
         }
         else if (layer.effect == PostEffect::ToneMap)
         {
             draw(source, TextureHandle(), mPing[ping].target, viewport, 1,
-                 glm::vec4(exposure, static_cast<f32>(toneMap), 0.0f, 0.0f));
+                 Math::vec4(exposure, static_cast<f32>(toneMap), 0.0f, 0.0f));
             displayEncoded = true;
         }
         else
             draw(source, TextureHandle(), mPing[ping].target, viewport, 2,
-                 glm::vec4(fxaaSubpixel, fxaaEdgeThreshold, fxaaEdgeThresholdMin, 1.0f / 8.0f));
+                 Math::vec4(fxaaSubpixel, fxaaEdgeThreshold, fxaaEdgeThresholdMin, 1.0f / 8.0f));
         source = mPing[ping].color;
         ping ^= 1;
     }
@@ -742,9 +742,9 @@ void PostProcessStack::resolve(const Rect& destination, u32 windowWidth, u32 win
     GPU::getSingleton().setTarget(TargetHandle(), clear);
     if (!displayEncoded && !ssaoDebug)
         draw(source, TextureHandle(), TargetHandle(), viewport, 1,
-             glm::vec4(1.0f, static_cast<f32>(ToneMapMode::None), 0.0f, 0.0f));
+             Math::vec4(1.0f, static_cast<f32>(ToneMapMode::None), 0.0f, 0.0f));
     else
-        draw(source, TextureHandle(), TargetHandle(), viewport, 0, glm::vec4(0.0f));
+        draw(source, TextureHandle(), TargetHandle(), viewport, 0, Math::vec4(0.0f));
     (void)windowWidth;
     (void)windowHeight;
 }
@@ -778,9 +778,9 @@ TextureHandle PostProcessStack::resolveToTexture(u32 outputIndex, bool applyPost
     // difference is where the draw lands.
     if (!displayEncoded && (!ssaoDebug || !applyPostProcess))
         draw(source, TextureHandle(), resolved.target, viewport, 1,
-             glm::vec4(1.0f, static_cast<f32>(ToneMapMode::None), 0.0f, 0.0f));
+             Math::vec4(1.0f, static_cast<f32>(ToneMapMode::None), 0.0f, 0.0f));
     else
-        draw(source, TextureHandle(), resolved.target, viewport, 0, glm::vec4(0.0f));
+        draw(source, TextureHandle(), resolved.target, viewport, 0, Math::vec4(0.0f));
     return resolved.color;
 }
 

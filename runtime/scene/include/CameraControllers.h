@@ -4,7 +4,7 @@
 #include "Component.h"
 #include "Input.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -124,8 +124,8 @@ public:
 
     void setTarget(GameObject* target);
     GameObject* target() const;
-    void setTargetPoint(const glm::vec3& point);
-    const glm::vec3& targetPoint() const;
+    void setTargetPoint(const Math::vec3& point);
+    const Math::vec3& targetPoint() const;
     void setDistance(f32 distance);
     f32 distance() const;
     void setDistanceLimits(f32 minimum, f32 maximum);
@@ -150,11 +150,11 @@ private:
 
     Orbit();
     void onUpdate(f32 deltaTime) override;
-    glm::vec3 currentTarget() const;
+    Math::vec3 currentTarget() const;
     void clampDistance();
 
     GameObject* mTarget = nullptr;
-    glm::vec3 mTargetPoint = glm::vec3(0.0f);
+    Math::vec3 mTargetPoint = Math::vec3(0.0f);
     MouseButton mOrbitButton = LEFT;
     f32 mYaw = 0.0f;
     f32 mPitch = 17.0f;
@@ -175,8 +175,8 @@ public:
 
     void setTarget(GameObject* target);
     GameObject* target() const;
-    void setTargetPoint(const glm::vec3& point);
-    const glm::vec3& targetPoint() const;
+    void setTargetPoint(const Math::vec3& point);
+    const Math::vec3& targetPoint() const;
     void setDistance(f32 distance);
     f32 distance() const;
     void setDistanceLimits(f32 minimum, f32 maximum);
@@ -207,11 +207,11 @@ private:
 
     Maya();
     void onUpdate(f32 deltaTime) override;
-    glm::vec3 currentTarget() const;
+    Math::vec3 currentTarget() const;
     void clampDistance();
 
     GameObject* mTarget = nullptr;
-    glm::vec3 mTargetPoint = glm::vec3(0.0f);
+    Math::vec3 mTargetPoint = Math::vec3(0.0f);
     KeyCode mModifierKey = KEY_LEFT_ALT;
     MouseButton mOrbitButton = LEFT;
     MouseButton mPanButton = MIDDLE;
@@ -279,15 +279,15 @@ private:
 
     ThirdPerson();
     void onUpdate(f32 deltaTime) override;
-    glm::vec3 desiredPosition() const;
-    glm::vec3 aimPoint() const;
+    Math::vec3 desiredPosition() const;
+    Math::vec3 aimPoint() const;
     // Pulls `desired` back toward `anchor` when the sphere swept between them
     // hits the collision octree - see slideCamera() in
     // collision/CollisionShape.cpp for the physics-world twin this mirrors.
-    glm::vec3 collide(const glm::vec3& anchor, const glm::vec3& desired) const;
+    Math::vec3 collide(const Math::vec3& anchor, const Math::vec3& desired) const;
 
     GameObject* mTarget = nullptr;
-    glm::vec3 mVelocity = glm::vec3(0.0f);
+    Math::vec3 mVelocity = Math::vec3(0.0f);
     f32 mYaw = 0.0f;
     f32 mPitch = 20.0f;
     f32 mMinPitch = -30.0f;

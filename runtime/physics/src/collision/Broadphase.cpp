@@ -40,17 +40,21 @@ void Broadphase::findPairs(std::vector<BroadphasePair>& out)
     // Sweep along whichever axis the bodies are most spread over: variance,
     // not extent, because one distant outlier stretches the extent without
     // separating anything.
-    glm::vec3 sum(0.0f);
-    glm::vec3 sumSquared(0.0f);
+    Math::vec3 sum(0.0f);
+    Math::vec3 sumSquared(0.0f);
+    bool hasMovableProxy = false;
     for (const BroadphaseProxy& proxy : mProxies)
     {
-        const glm::vec3 center = (proxy.bounds.min + proxy.bounds.max) * 0.5f;
+        const Math::vec3 center = (proxy.bounds.min + proxy.bounds.max) * 0.5f;
         sum += center;
         sumSquared += center * center;
+        hasMovableProxy = hasMovableProxy || proxy.movable;
     }
+    if (!hasMovableProxy)
+        return;
     const f32 inverse = 1.0f / static_cast<f32>(count);
-    const glm::vec3 mean = sum * inverse;
-    const glm::vec3 variance = sumSquared * inverse - mean * mean;
+    const Math::vec3 mean = sum * inverse;
+    const Math::vec3 variance = sumSquared * inverse - mean * mean;
     mSweepAxis = 0;
     if (variance.y > variance.x && variance.y >= variance.z)
         mSweepAxis = 1;
@@ -84,8 +88,8 @@ void Broadphase::findPairs(std::vector<BroadphasePair>& out)
             if (!overlaps(first.bounds, second.bounds))
                 continue;
             BroadphasePair pair;
-            pair.a = glm::min(first.id, second.id);
-            pair.b = glm::max(first.id, second.id);
+            pair.a = Math::min(first.id, second.id);
+            pair.b = Math::max(first.id, second.id);
             out.push_back(pair);
         }
     }

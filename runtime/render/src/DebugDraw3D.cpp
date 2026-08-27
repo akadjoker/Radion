@@ -6,8 +6,8 @@
 #include "Batch.h"
 #include "RenderTechnique.h"
 
-#include <glm/gtc/constants.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
+#include "Math.h"
+#include "Math.h"
 
 namespace Radion
 {
@@ -134,18 +134,18 @@ public:
 private:
     struct VectorBlock
     {
-        glm::mat4 viewProjection;
-        glm::mat4 model;
-        glm::mat4 normalMatrix;
-        glm::vec4 options;
+        Math::mat4 viewProjection;
+        Math::mat4 model;
+        Math::mat4 normalMatrix;
+        Math::vec4 options;
     };
 
     struct OutlineBlock
     {
-        glm::mat4 viewProjection;
-        glm::mat4 model;
-        glm::vec4 color;
-        glm::vec4 options;
+        Math::mat4 viewProjection;
+        Math::mat4 model;
+        Math::vec4 color;
+        Math::vec4 options;
     };
 
     bool initializeVectors(const VertexLayout& layout);
@@ -278,11 +278,11 @@ void DebugPass::drawMeshVectors(const FrameContext& frame, const DebugDraw3D& de
         VectorBlock block;
         block.viewProjection = frame.viewProjection;
         block.model = command.transform;
-        const glm::mat3 basis(command.transform);
-        block.normalMatrix = std::abs(glm::determinant(basis)) > 0.000001f
-                                 ? glm::mat4(glm::transpose(glm::inverse(basis)))
-                                 : glm::mat4(1.0f);
-        block.options = glm::vec4(command.length, static_cast<f32>(command.flags), 0.0f, 0.0f);
+        const Math::mat3 basis(command.transform);
+        block.normalMatrix = std::abs(Math::determinant(basis)) > 0.000001f
+                                 ? Math::mat4(Math::transpose(Math::inverse(basis)))
+                                 : Math::mat4(1.0f);
+        block.options = Math::vec4(command.length, static_cast<f32>(command.flags), 0.0f, 0.0f);
         gpu.updateBuffer(mVectorUniform, 0, sizeof(block), &block);
         gpu.bindUniform(0, mVectorUniform);
         gpu.setPipeline(mVectorPipeline);
@@ -371,9 +371,9 @@ void DebugPass::drawOutlines(const FrameContext& frame, const DebugDraw3D& debug
         OutlineBlock block;
         block.viewProjection = frame.viewProjection;
         block.model = command.transform;
-        block.color = glm::vec4(command.color.red(), command.color.green(), command.color.blue(),
+        block.color = Math::vec4(command.color.red(), command.color.green(), command.color.blue(),
                                 command.color.alpha());
-        block.options = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+        block.options = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 
         DrawDesc draw;
         draw.vertexBuffers[0] = mesh->positionBuffer;
@@ -425,19 +425,19 @@ namespace
 // Any two vectors orthogonal to `direction` and to each other work as a
 // gizmo's local right/up - which pair does not matter, only that neither
 // degenerates when `direction` is near-vertical.
-void perpendicularBasis(const glm::vec3& direction, glm::vec3& right, glm::vec3& up)
+void perpendicularBasis(const Math::vec3& direction, Math::vec3& right, Math::vec3& up)
 {
-    const glm::vec3 reference =
-        std::abs(direction.y) > 0.99f ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
-    right = glm::normalize(glm::cross(direction, reference));
-    up = glm::cross(right, direction);
+    const Math::vec3 reference =
+        std::abs(direction.y) > 0.99f ? Math::vec3(0.0f, 0.0f, 1.0f) : Math::vec3(0.0f, 1.0f, 0.0f);
+    right = Math::normalize(Math::cross(direction, reference));
+    up = Math::cross(right, direction);
 }
 
 Color lighten(Color color, f32 factor)
 {
     const auto mix = [factor](u8 channel)
     {
-        return static_cast<u8>(glm::mix(static_cast<f32>(channel), 255.0f, factor));
+        return static_cast<u8>(Math::mix(static_cast<f32>(channel), 255.0f, factor));
     };
     return Color(mix(color.r()), mix(color.g()), mix(color.b()), color.a());
 }
@@ -466,7 +466,7 @@ void DebugDraw3D::clear()
     mOutlines.clear();
 }
 
-void DebugDraw3D::line(const glm::vec3& from, const glm::vec3& to, Color color, bool depthTest)
+void DebugDraw3D::line(const Math::vec3& from, const Math::vec3& to, Color color, bool depthTest)
 {
     mLines.push_back({from, to, color, depthTest});
 }
@@ -476,9 +476,9 @@ void DebugDraw3D::box(const AABB& bounds, Color color)
     if (bounds.empty())
         return;
 
-    const glm::vec3& a = bounds.min;
-    const glm::vec3& b = bounds.max;
-    const glm::vec3 corners[8] = {
+    const Math::vec3& a = bounds.min;
+    const Math::vec3& b = bounds.max;
+    const Math::vec3 corners[8] = {
         {a.x, a.y, a.z}, {b.x, a.y, a.z}, {b.x, a.y, b.z}, {a.x, a.y, b.z},
         {a.x, b.y, a.z}, {b.x, b.y, a.z}, {b.x, b.y, b.z}, {a.x, b.y, b.z},
     };
@@ -488,12 +488,12 @@ void DebugDraw3D::box(const AABB& bounds, Color color)
         line(corners[edges[i]], corners[edges[i + 1]], color);
 }
 
-void DebugDraw3D::axis(const glm::mat4& transform, f32 size)
+void DebugDraw3D::axis(const Math::mat4& transform, f32 size)
 {
-    const glm::vec3 origin = glm::vec3(transform[3]);
-    line(origin, origin + glm::vec3(transform[0]) * size, Color::Red);
-    line(origin, origin + glm::vec3(transform[1]) * size, Color::Green);
-    line(origin, origin + glm::vec3(transform[2]) * size, Color::Blue);
+    const Math::vec3 origin = Math::vec3(transform[3]);
+    line(origin, origin + Math::vec3(transform[0]) * size, Color::Red);
+    line(origin, origin + Math::vec3(transform[1]) * size, Color::Green);
+    line(origin, origin + Math::vec3(transform[2]) * size, Color::Blue);
 }
 
 void DebugDraw3D::grid(f32 y, u32 slices, f32 spacing, bool axes)
@@ -508,21 +508,21 @@ void DebugDraw3D::grid(f32 y, u32 slices, f32 spacing, bool axes)
         const f32 offset = static_cast<f32>(i) * spacing;
         const Color xColor = axes && i == 0 ? Color(Color::Red) : minor;
         const Color zColor = axes && i == 0 ? Color(Color::Blue) : minor;
-        line(glm::vec3(-extent, y, offset), glm::vec3(extent, y, offset), xColor);
-        line(glm::vec3(offset, y, -extent), glm::vec3(offset, y, extent), zColor);
+        line(Math::vec3(-extent, y, offset), Math::vec3(extent, y, offset), xColor);
+        line(Math::vec3(offset, y, -extent), Math::vec3(offset, y, extent), zColor);
     }
 }
 
-void DebugDraw3D::cursor3D(const glm::vec3& position, const glm::vec3& cameraRight,
-                           const glm::vec3& cameraUp, f32 radius)
+void DebugDraw3D::cursor3D(const Math::vec3& position, const Math::vec3& cameraRight,
+                           const Math::vec3& cameraUp, f32 radius)
 {
     constexpr u32 segments = 24;
-    glm::vec3 previous = position + cameraRight * radius;
+    Math::vec3 previous = position + cameraRight * radius;
     for (u32 i = 1; i <= segments; ++i)
     {
-        const f32 angle = static_cast<f32>(i) / static_cast<f32>(segments) * glm::two_pi<f32>();
-        const glm::vec3 next =
-            position + (cameraRight * glm::cos(angle) + cameraUp * glm::sin(angle)) * radius;
+        const f32 angle = static_cast<f32>(i) / static_cast<f32>(segments) * Math::two_pi<f32>();
+        const Math::vec3 next =
+            position + (cameraRight * Math::cos(angle) + cameraUp * Math::sin(angle)) * radius;
         line(previous, next, i % 2 == 0 ? Color(Color::White) : Color(255, 40, 40), false);
         previous = next;
     }
@@ -534,7 +534,7 @@ void DebugDraw3D::cursor3D(const glm::vec3& position, const glm::vec3& cameraRig
          false);
 }
 
-void DebugDraw3D::triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, Color color,
+void DebugDraw3D::triangle(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c, Color color,
                            bool filled)
 {
     if (filled)
@@ -547,31 +547,31 @@ void DebugDraw3D::triangle(const glm::vec3& a, const glm::vec3& b, const glm::ve
     }
 }
 
-void DebugDraw3D::pickedTriangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
-                                 const glm::vec3& hit, f32 normalLength)
+void DebugDraw3D::pickedTriangle(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c,
+                                 const Math::vec3& hit, f32 normalLength)
 {
     triangle(a, b, c, Color(255, 190, 32, 72), true);
     triangle(a, b, c, Color::Yellow, false);
 
-    const glm::vec3 cross = glm::cross(b - a, c - a);
-    const f32 lengthSquared = glm::dot(cross, cross);
+    const Math::vec3 cross = Math::cross(b - a, c - a);
+    const f32 lengthSquared = Math::dot(cross, cross);
     if (lengthSquared > 0.0000001f && normalLength > 0.0f)
         line(hit, hit + cross * (normalLength / std::sqrt(lengthSquared)), Color::Cyan);
 }
 
-void DebugDraw3D::meshVectors(MeshHandle mesh, const glm::mat4& transform, f32 length, u8 flags)
+void DebugDraw3D::meshVectors(MeshHandle mesh, const Math::mat4& transform, f32 length, u8 flags)
 {
     if (!mesh.valid() || !(length > 0.0f) || flags == 0)
         return;
     mMeshVectors.push_back({mesh, transform, length, flags});
 }
 
-void DebugDraw3D::outline(MeshHandle mesh, const glm::mat4& transform, Color color, f32 thickness)
+void DebugDraw3D::outline(MeshHandle mesh, const Math::mat4& transform, Color color, f32 thickness)
 {
     outlineRange(mesh, transform, 0, 0, color, thickness);
 }
 
-void DebugDraw3D::outlineRange(MeshHandle mesh, const glm::mat4& transform, u32 indexOffset,
+void DebugDraw3D::outlineRange(MeshHandle mesh, const Math::mat4& transform, u32 indexOffset,
                                u32 indexCount, Color color, f32 thickness)
 {
     if (!mesh.valid() || thickness <= 0.0f)
@@ -579,47 +579,47 @@ void DebugDraw3D::outlineRange(MeshHandle mesh, const glm::mat4& transform, u32 
     mOutlines.push_back({mesh, transform, color, thickness, indexOffset, indexCount});
 }
 
-void DebugDraw3D::circle(const glm::vec3& center, const glm::vec3& u, const glm::vec3& v,
+void DebugDraw3D::circle(const Math::vec3& center, const Math::vec3& u, const Math::vec3& v,
                          f32 radius, u32 segments, Color color)
 {
-    segments = glm::max(segments, 3u);
-    glm::vec3 previous = center + u * radius;
+    segments = Math::max(segments, 3u);
+    Math::vec3 previous = center + u * radius;
     for (u32 i = 1; i <= segments; ++i)
     {
-        const f32 t = (static_cast<f32>(i) / static_cast<f32>(segments)) * glm::two_pi<f32>();
-        const glm::vec3 point = center + (u * std::cos(t) + v * std::sin(t)) * radius;
+        const f32 t = (static_cast<f32>(i) / static_cast<f32>(segments)) * Math::two_pi<f32>();
+        const Math::vec3 point = center + (u * std::cos(t) + v * std::sin(t)) * radius;
         line(previous, point, color);
         previous = point;
     }
 }
 
 
-void DebugDraw3D::cross(const glm::vec3& position, f32 size, Color color)
+void DebugDraw3D::cross(const Math::vec3& position, f32 size, Color color)
 {
-    line(position - glm::vec3(size, 0.0f, 0.0f), position + glm::vec3(size, 0.0f, 0.0f), color);
-    line(position - glm::vec3(0.0f, size, 0.0f), position + glm::vec3(0.0f, size, 0.0f), color);
-    line(position - glm::vec3(0.0f, 0.0f, size), position + glm::vec3(0.0f, 0.0f, size), color);
+    line(position - Math::vec3(size, 0.0f, 0.0f), position + Math::vec3(size, 0.0f, 0.0f), color);
+    line(position - Math::vec3(0.0f, size, 0.0f), position + Math::vec3(0.0f, size, 0.0f), color);
+    line(position - Math::vec3(0.0f, 0.0f, size), position + Math::vec3(0.0f, 0.0f, size), color);
 }
 
 // Two short segments splayed off `from`, pointing back along from->to. The
 // head sits in the plane perpendicular to world up, so a link seen from
 // above still reads as directed.
-void DebugDraw3D::arrowHead(const glm::vec3& from, const glm::vec3& to, f32 size, Color color)
+void DebugDraw3D::arrowHead(const Math::vec3& from, const Math::vec3& to, f32 size, Color color)
 {
-    const glm::vec3 delta = to - from;
-    if (glm::dot(delta, delta) < 1e-6f)
+    const Math::vec3 delta = to - from;
+    if (Math::dot(delta, delta) < 1e-6f)
         return;
-    const glm::vec3 forward = glm::normalize(delta);
-    glm::vec3 side = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), forward);
-    if (glm::dot(side, side) < 1e-6f)
-        side = glm::cross(glm::vec3(1.0f, 0.0f, 0.0f), forward);
-    side = glm::normalize(side);
+    const Math::vec3 forward = Math::normalize(delta);
+    Math::vec3 side = Math::cross(Math::vec3(0.0f, 1.0f, 0.0f), forward);
+    if (Math::dot(side, side) < 1e-6f)
+        side = Math::cross(Math::vec3(1.0f, 0.0f, 0.0f), forward);
+    side = Math::normalize(side);
 
     line(from, from + forward * size + side * (size / 3.0f), color);
     line(from, from + forward * size - side * (size / 3.0f), color);
 }
 
-void DebugDraw3D::arrow(const glm::vec3& from, const glm::vec3& to, f32 headFrom, f32 headTo,
+void DebugDraw3D::arrow(const Math::vec3& from, const Math::vec3& to, f32 headFrom, f32 headTo,
                         Color color)
 {
     line(from, to, color);
@@ -629,28 +629,28 @@ void DebugDraw3D::arrow(const glm::vec3& from, const glm::vec3& to, f32 headFrom
         arrowHead(to, from, headTo, color);
 }
 
-void DebugDraw3D::arc(const glm::vec3& from, const glm::vec3& to, f32 height, f32 headFrom,
+void DebugDraw3D::arc(const Math::vec3& from, const Math::vec3& to, f32 height, f32 headFrom,
                       f32 headTo, Color color)
 {
     constexpr u32 kArcPoints = 8;
     constexpr f32 kPad = 0.05f;
     constexpr f32 kScale = (1.0f - kPad * 2.0f) / static_cast<f32>(kArcPoints);
 
-    const glm::vec3 delta = to - from;
-    const f32 rise = glm::length(delta) * height;
+    const Math::vec3 delta = to - from;
+    const f32 rise = Math::length(delta) * height;
 
     // Parabola through both ends, peaking at the midpoint - the bow is what
     // separates it from an ordinary walked segment.
     const auto evaluate = [&](f32 u)
     {
         const f32 bow = 1.0f - (u * 2.0f - 1.0f) * (u * 2.0f - 1.0f);
-        return from + delta * u + glm::vec3(0.0f, rise * bow, 0.0f);
+        return from + delta * u + Math::vec3(0.0f, rise * bow, 0.0f);
     };
 
-    glm::vec3 previous = evaluate(kPad);
+    Math::vec3 previous = evaluate(kPad);
     for (u32 i = 1; i <= kArcPoints; ++i)
     {
-        const glm::vec3 point = evaluate(kPad + static_cast<f32>(i) * kScale);
+        const Math::vec3 point = evaluate(kPad + static_cast<f32>(i) * kScale);
         line(previous, point, color);
         previous = point;
     }
@@ -664,64 +664,64 @@ void DebugDraw3D::arc(const glm::vec3& from, const glm::vec3& to, f32 height, f3
 // Three orthogonal great circles: a single flat ring reads as a disc from
 // some angles and vanishes from others, three of them read as a sphere from
 // any of them.
-void DebugDraw3D::pointLightGizmo(const glm::vec3& position, f32 range, Color color, u32 segments)
+void DebugDraw3D::pointLightGizmo(const Math::vec3& position, f32 range, Color color, u32 segments)
 {
     if (!(range > 0.0f))
         return;
-    circle(position, glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), range, segments,
+    circle(position, Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f), range, segments,
            color);
-    circle(position, glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), range, segments,
+    circle(position, Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f), range, segments,
            color);
-    circle(position, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), range, segments,
+    circle(position, Math::vec3(0.0f, 1.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f), range, segments,
            color);
 }
 
 // Two cones sharing the apex: the outer at full colour, the inner lightened
 // so the falloff band between them is the thing the eye picks out.
-void DebugDraw3D::spotLightGizmo(const glm::vec3& position, const glm::vec3& direction, f32 range,
+void DebugDraw3D::spotLightGizmo(const Math::vec3& position, const Math::vec3& direction, f32 range,
                                  f32 innerAngleDegrees, f32 outerAngleDegrees, Color color,
                                  u32 segments)
 {
-    if (!(range > 0.0f) || !(glm::length(direction) > 0.0001f))
+    if (!(range > 0.0f) || !(Math::length(direction) > 0.0001f))
         return;
-    const glm::vec3 forward = glm::normalize(direction);
-    glm::vec3 right;
-    glm::vec3 up;
+    const Math::vec3 forward = Math::normalize(direction);
+    Math::vec3 right;
+    Math::vec3 up;
     perpendicularBasis(forward, right, up);
-    const glm::vec3 endCenter = position + forward * range;
-    const u32 ribs = glm::max(4u, segments / 3);
+    const Math::vec3 endCenter = position + forward * range;
+    const u32 ribs = Math::max(4u, segments / 3);
 
     spotCone(position, endCenter, right, up, range, outerAngleDegrees, segments, ribs, color);
     spotCone(position, endCenter, right, up, range, innerAngleDegrees, segments, ribs,
              lighten(color, 0.6f));
 }
 
-void DebugDraw3D::spotCone(const glm::vec3& apex, const glm::vec3& endCenter,
-                           const glm::vec3& right, const glm::vec3& up, f32 range, f32 angleDegrees,
+void DebugDraw3D::spotCone(const Math::vec3& apex, const Math::vec3& endCenter,
+                           const Math::vec3& right, const Math::vec3& up, f32 range, f32 angleDegrees,
                            u32 segments, u32 ribs, Color color)
 {
-    const f32 endRadius = range * std::tan(glm::radians(glm::clamp(angleDegrees, 0.0f, 89.0f)));
+    const f32 endRadius = range * std::tan(Math::radians(Math::clamp(angleDegrees, 0.0f, 89.0f)));
     circle(endCenter, right, up, endRadius, segments, color);
     for (u32 i = 0; i < ribs; ++i)
     {
-        const f32 t = (static_cast<f32>(i) / static_cast<f32>(ribs)) * glm::two_pi<f32>();
-        const glm::vec3 point = endCenter + (right * std::cos(t) + up * std::sin(t)) * endRadius;
+        const f32 t = (static_cast<f32>(i) / static_cast<f32>(ribs)) * Math::two_pi<f32>();
+        const Math::vec3 point = endCenter + (right * std::cos(t) + up * std::sin(t)) * endRadius;
         line(apex, point, color);
     }
 }
 
-void DebugDraw3D::rectangleLightGizmo(const glm::vec3& position, const glm::vec3& direction,
+void DebugDraw3D::rectangleLightGizmo(const Math::vec3& position, const Math::vec3& direction,
                                       f32 width, f32 height, Color color, f32 normalLength)
 {
-    if (!(width > 0.0f) || !(height > 0.0f) || !(glm::length(direction) > 0.0001f))
+    if (!(width > 0.0f) || !(height > 0.0f) || !(Math::length(direction) > 0.0001f))
         return;
-    const glm::vec3 forward = glm::normalize(direction);
-    glm::vec3 right;
-    glm::vec3 up;
+    const Math::vec3 forward = Math::normalize(direction);
+    Math::vec3 right;
+    Math::vec3 up;
     perpendicularBasis(forward, right, up);
-    const glm::vec3 halfRight = right * (width * 0.5f);
-    const glm::vec3 halfUp = up * (height * 0.5f);
-    const glm::vec3 corners[4] = {
+    const Math::vec3 halfRight = right * (width * 0.5f);
+    const Math::vec3 halfUp = up * (height * 0.5f);
+    const Math::vec3 corners[4] = {
         position - halfRight - halfUp,
         position + halfRight - halfUp,
         position + halfRight + halfUp,
@@ -735,22 +735,22 @@ void DebugDraw3D::rectangleLightGizmo(const glm::vec3& position, const glm::vec3
 
 // Position is meaningless for a directional light - the small ring and its
 // rays exist only to show the direction, not to mark a place in the world.
-void DebugDraw3D::directionalLightGizmo(const glm::vec3& position, const glm::vec3& direction,
+void DebugDraw3D::directionalLightGizmo(const Math::vec3& position, const Math::vec3& direction,
                                         Color color, f32 radius, f32 rayLength, u32 rayCount)
 {
-    if (!(glm::length(direction) > 0.0001f))
+    if (!(Math::length(direction) > 0.0001f))
         return;
-    const glm::vec3 forward = glm::normalize(direction);
-    glm::vec3 right;
-    glm::vec3 up;
+    const Math::vec3 forward = Math::normalize(direction);
+    Math::vec3 right;
+    Math::vec3 up;
     perpendicularBasis(forward, right, up);
     circle(position, right, up, radius, 24, color);
 
-    rayCount = glm::max(rayCount, 1u);
+    rayCount = Math::max(rayCount, 1u);
     for (u32 i = 0; i < rayCount; ++i)
     {
-        const f32 t = (static_cast<f32>(i) / static_cast<f32>(rayCount)) * glm::two_pi<f32>();
-        const glm::vec3 start =
+        const f32 t = (static_cast<f32>(i) / static_cast<f32>(rayCount)) * Math::two_pi<f32>();
+        const Math::vec3 start =
             position + (right * std::cos(t) + up * std::sin(t)) * (radius * 0.6f);
         line(start, start + forward * rayLength, color);
     }

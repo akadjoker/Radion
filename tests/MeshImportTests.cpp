@@ -103,10 +103,10 @@ void importPath(MeshLoader& loader, const std::string& path, const char* label)
     f64 area = 0.0;
     for (usize i = 0; i + 2 < mesh.indices.size(); i += 3)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[i + 0]];
-        const glm::vec3& b = mesh.positions[mesh.indices[i + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[i + 2]];
-        area += 0.5 * glm::length(glm::cross(b - a, c - a));
+        const Math::vec3& a = mesh.positions[mesh.indices[i + 0]];
+        const Math::vec3& b = mesh.positions[mesh.indices[i + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[i + 2]];
+        area += 0.5 * Math::length(Math::cross(b - a, c - a));
     }
     std::fprintf(stderr, "    surface area %.0f square units\n", area);
     for (u32 density = 2; density <= 8; density *= 2)
@@ -181,7 +181,7 @@ void testGltf()
     CHECK(loader.load(helmetPath, helmet));
     if (helmet.positions.empty())
         return;
-    const glm::vec3 size = helmet.bounds.max - helmet.bounds.min;
+    const Math::vec3 size = helmet.bounds.max - helmet.bounds.min;
     CHECK(std::abs(helmet.bounds.min.y) < size.y * 0.05f);
     CHECK(size.y > size.x && size.y > size.z);
 }

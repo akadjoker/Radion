@@ -8,7 +8,7 @@
 #include "ImGuiFileDialog.h"
 
 #include <filesystem>
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <string>
 #include <vector>
 
@@ -140,8 +140,8 @@ private:
     bool mImportPending = false;
     std::string mImportPath; // relative to whichever root assetRelativePath() matched
     std::string mImportName; // file name, no extension - the popup title
-    glm::vec3 mImportTranslation{0.0f}; // offset from the 3D cursor, not a world position
-    glm::vec3 mImportRotationEuler{0.0f}; // degrees
+    Math::vec3 mImportTranslation{0.0f}; // offset from the 3D cursor, not a world position
+    Math::vec3 mImportRotationEuler{0.0f}; // degrees
     f32 mImportScale = 1.0f;
     bool mImportOptimize = false; // merge submeshes that share a material, cuts draw calls
     bool mImportSplit = false; // break oversized submeshes into spatially local pieces for the BVH
@@ -156,6 +156,19 @@ private:
     bool mDeletePending = false;
     std::string mDeletePath; // relative to whichever root assetRelativePath() matched
     void drawDeletePopup();
+
+    // Creation belongs to the folder under the cursor, not necessarily the
+    // directory currently open in the content view: right-clicking a folder
+    // can create directly inside it without navigating away first.
+    std::filesystem::path mCreateTargetDirectory;
+    char mNewFolderName[128] = "New Folder";
+    char mNewScriptName[128] = "NewScript";
+    bool mOpenCreateFolderPopup = false;
+    bool mOpenCreateScriptPopup = false;
+    void openCreateFolderPopup(const std::filesystem::path& directory);
+    void openCreateScriptPopup(const std::filesystem::path& directory);
+    void drawCreateFolderPopup();
+    void drawCreateScriptPopup();
 
     // Right-click an image asset > Generate Normal Map.../Generate
     // Heightmap... - Pixmap::generate_normal_map()/generate_heightmap()

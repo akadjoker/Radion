@@ -4,8 +4,8 @@
 #include "GPU.h"
 #include "Types.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include "Math.h"
+#include "Math.h"
 #include <string>
 #include <vector>
 
@@ -28,11 +28,11 @@ public:
     // ([-1,1]^3); `size` gives it its world dimensions.
     struct Decal
     {
-        glm::vec3 position = glm::vec3(0.0f);
-        glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-        glm::vec3 size = glm::vec3(1.0f); // full box dimensions, in world units
+        Math::vec3 position = Math::vec3(0.0f);
+        Math::quat rotation = Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        Math::vec3 size = Math::vec3(1.0f); // full box dimensions, in world units
 
-        glm::vec3 color = glm::vec3(1.0f); // tint, multiplied by the texture
+        Math::vec3 color = Math::vec3(1.0f); // tint, multiplied by the texture
         f32 opacity = 1.0f;
 
         // Exponent of the slope fade: a surface whose normal turns away from
@@ -95,19 +95,19 @@ public:
 
     // Places a decal centred on a hit surface, its box's +Z rotated onto
     // `normal` - the same axis the slope fade compares the surface against.
-    s32 placeOnSurface(const glm::vec3& position, const glm::vec3& normal, s32 layer, f32 size,
-                       f32 thickness, f32 rotationRadians, const glm::vec3& color = glm::vec3(1.0f),
+    s32 placeOnSurface(const Math::vec3& position, const Math::vec3& normal, s32 layer, f32 size,
+                       f32 thickness, f32 rotationRadians, const Math::vec3& color = Math::vec3(1.0f),
                        f32 opacity = 1.0f);
 
     // World -> decal box ([-1,1]^3), with the layer index hidden in the 4th
     // row. Public because Lighting::submitDecals() needs it too.
-    static glm::mat4 makeProjection(const Decal& decal);
+    static Math::mat4 makeProjection(const Decal& decal);
 
     // Radius of the sphere enclosing the box, for the same tile culling the
     // lights go through.
     static f32 boundingRadius(const Decal& decal)
     {
-        return glm::length(decal.size) * 0.5f;
+        return Math::length(decal.size) * 0.5f;
     }
 
     TextureHandle albedoArray() const

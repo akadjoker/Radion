@@ -111,7 +111,7 @@ void EditorToasts::draw()
     for (usize i = mToasts.size(); i > 0; --i)
     {
         const Toast& toast = mToasts[i - 1];
-        const f32 alpha = glm::min(toast.remaining / kFadeSeconds, 1.0f);
+        const f32 alpha = Math::min(toast.remaining / kFadeSeconds, 1.0f);
 
         ImGui::SetNextWindowBgAlpha(0.85f * alpha);
         ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x - margin, y),

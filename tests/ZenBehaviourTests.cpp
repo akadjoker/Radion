@@ -58,7 +58,7 @@ void testScriptRotatesObjectOnPlay()
     CHECK(behaviour->loadSource(script));
     CHECK(!behaviour->hasError());
 
-    const glm::quat startRotation = object->rotation();
+    const Math::quat startRotation = object->rotation();
 
     scene.setRunningInEditor(false);
     for (int i = 0; i < 10; ++i)
@@ -66,6 +66,42 @@ void testScriptRotatesObjectOnPlay()
 
     CHECK(!behaviour->hasError());
     CHECK(object->name() == "Started by node");
+    CHECK(object->rotation() != startRotation);
+}
+
+// The shipped 3D sample uses the current script contract: it inherits from
+// ScriptComponent, has no __init__, and receives self.node before on_start.
+// Loading the real file guards both the VM-facing base class and the example
+// users copy into their projects.
+void testMoveScriptUsesScriptComponentContract()
+{
+    const std::filesystem::path path =
+        std::filesystem::path(RADION_TEST_ASSET_DIR) / "scripts" / "move.py";
+
+    Scene scene;
+    GameObject* object = scene.createGameObject("MoveRotate");
+    CHECK(object != nullptr);
+    if (!object)
+        return;
+
+    object->setPosition(Math::vec3(4.0f, 2.0f, -1.0f));
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+    CHECK(behaviour != nullptr);
+    if (!behaviour)
+        return;
+
+    CHECK(behaviour->loadFile(path.string()));
+
+    const Math::quat startRotation = object->rotation();
+    scene.setRunningInEditor(false);
+    scene.update(0.5f);
+
+    const Math::vec3 position = object->position();
+    const f32 dx = position.x - 4.0f;
+    const f32 dz = position.z + 1.0f;
+    CHECK(!behaviour->hasError());
+    CHECK(std::abs(position.y - 2.0f) < 0.001f);
+    CHECK(std::abs(dx * dx + dz * dz - 9.0f) < 0.001f);
     CHECK(object->rotation() != startRotation);
 }
 
@@ -83,7 +119,7 @@ void testScriptDoesNotRunInEditorMode()
         "        self.owner.yaw(90.0 * dt)\n";
     CHECK(behaviour->loadSource(script));
 
-    const glm::quat startRotation = object->rotation();
+    const Math::quat startRotation = object->rotation();
     scene.setRunningInEditor(true);
     for (int i = 0; i < 10; ++i)
         scene.update(1.0f / 60.0f);
@@ -180,10 +216,10 @@ void testGameObjectTransformAndVec3Arithmetic()
     scene.update(1.0f / 60.0f);
 
     CHECK(!behaviour->hasError());
-    CHECK(object->position() == glm::vec3(1.0f, 2.0f, 3.0f));
-    CHECK(object->scale() == glm::vec3(2.0f, 2.0f, 4.0f));
+    CHECK(object->position() == Math::vec3(1.0f, 2.0f, 3.0f));
+    CHECK(object->scale() == Math::vec3(2.0f, 2.0f, 4.0f));
 
-    const glm::vec3 rotationDegrees = glm::degrees(glm::eulerAngles(object->rotation()));
+    const Math::vec3 rotationDegrees = Math::degrees(Math::eulerAngles(object->rotation()));
     CHECK(std::abs(rotationDegrees.y - 6.0f) < 0.01f);
 }
 
@@ -217,7 +253,7 @@ void testSceneFindAndCreateBindings()
     GameObject* spawned = scene.findGameObject("Spawned");
     CHECK(spawned != nullptr);
     if (spawned)
-        CHECK(spawned->position() == glm::vec3(4.0f, 5.0f, 6.0f));
+        CHECK(spawned->position() == Math::vec3(4.0f, 5.0f, 6.0f));
 }
 
 // A full collection between every frame, with a script that allocates on
@@ -253,7 +289,7 @@ void testCollectionBetweenFramesKeepsBindingsAlive()
     }
 
     CHECK(!behaviour->hasError());
-    CHECK(object->position() == glm::vec3(32.0f, 64.0f, 96.0f));
+    CHECK(object->position() == Math::vec3(32.0f, 64.0f, 96.0f));
     CHECK(anchor->position() == object->position());
     CHECK(anchor->name() == "Anchor");
 }
@@ -304,9 +340,9 @@ void testSharedScriptCompilesOnceAndKeepsPerInstanceState()
     CHECK(!behaviourB->hasError());
     CHECK(!behaviourC->hasError());
 
-    const f32 yawA = glm::degrees(glm::eulerAngles(a->rotation())).y;
-    const f32 yawB = glm::degrees(glm::eulerAngles(b->rotation())).y;
-    const f32 yawC = glm::degrees(glm::eulerAngles(c->rotation())).y;
+    const f32 yawA = Math::degrees(Math::eulerAngles(a->rotation())).y;
+    const f32 yawB = Math::degrees(Math::eulerAngles(b->rotation())).y;
+    const f32 yawC = Math::degrees(Math::eulerAngles(c->rotation())).y;
 
     CHECK(std::abs(yawA - 30.0f * dt * frames) < 0.05f);
     CHECK(std::abs(yawB - 60.0f * dt * frames) < 0.05f);
@@ -381,8 +417,8 @@ void testReloadPropagatesToAllSharingComponents()
     const f32 dt = 1.0f / 60.0f;
     scene.update(dt);
 
-    const f32 yawFirstBefore = glm::degrees(glm::eulerAngles(first->rotation())).y;
-    const f32 yawSecondBefore = glm::degrees(glm::eulerAngles(second->rotation())).y;
+    const f32 yawFirstBefore = Math::degrees(Math::eulerAngles(first->rotation())).y;
+    const f32 yawSecondBefore = Math::degrees(Math::eulerAngles(second->rotation())).y;
     CHECK(std::abs(yawFirstBefore - 30.0f * dt) < 0.01f);
     CHECK(std::abs(yawSecondBefore - 30.0f * dt) < 0.01f);
 
@@ -393,8 +429,8 @@ void testReloadPropagatesToAllSharingComponents()
 
     scene.update(dt);
 
-    const f32 yawFirstAfter = glm::degrees(glm::eulerAngles(first->rotation())).y;
-    const f32 yawSecondAfter = glm::degrees(glm::eulerAngles(second->rotation())).y;
+    const f32 yawFirstAfter = Math::degrees(Math::eulerAngles(first->rotation())).y;
+    const f32 yawSecondAfter = Math::degrees(Math::eulerAngles(second->rotation())).y;
     CHECK(std::abs((yawFirstAfter - yawFirstBefore) - 300.0f * dt) < 0.05f);
     CHECK(std::abs((yawSecondAfter - yawSecondBefore) - 300.0f * dt) < 0.05f);
 
@@ -445,7 +481,7 @@ void testZenBehaviourSurvivesSerializerRoundTrip()
         const f32 dt = 1.0f / 60.0f;
         reloaded.update(dt);
         CHECK(!reBehaviour->hasError());
-        CHECK(std::abs(glm::degrees(glm::eulerAngles(reObject->rotation())).y - 45.0f * dt) < 0.01f);
+        CHECK(std::abs(Math::degrees(Math::eulerAngles(reObject->rotation())).y - 45.0f * dt) < 0.01f);
     }
 
     std::error_code removeError;
@@ -607,7 +643,7 @@ void testClassBodyPropertiesComeFromTheCompiledClass()
     const f32 dt = 1.0f / 60.0f;
     scene.update(dt);
     CHECK(!behaviour->hasError());
-    CHECK(std::abs(glm::degrees(glm::eulerAngles(object->rotation())).y - 180.0f * dt) < 0.01f);
+    CHECK(std::abs(Math::degrees(Math::eulerAngles(object->rotation())).y - 180.0f * dt) < 0.01f);
 
     // The bindings' own fields are added to the class when an instance is
     // bound; they must never turn into properties.
@@ -683,8 +719,8 @@ void testInitRunsAndOverrideWinsOverIt()
 
     // The plain one runs the script's own default, the tuned one three
     // times that - one script, one compile, two different objects.
-    const f32 plainYaw = glm::degrees(glm::eulerAngles(plain->rotation())).y;
-    const f32 tunedYaw = glm::degrees(glm::eulerAngles(tuned->rotation())).y;
+    const f32 plainYaw = Math::degrees(Math::eulerAngles(plain->rotation())).y;
+    const f32 tunedYaw = Math::degrees(Math::eulerAngles(tuned->rotation())).y;
     CHECK(std::abs(plainYaw - 60.0f * dt) < 0.01f);
     CHECK(std::abs(tunedYaw - 180.0f * dt) < 0.01f);
 }
@@ -708,14 +744,14 @@ void testClearOverrideRestoresTheDeclaredDefault()
     scene.setRunningInEditor(false);
     const f32 dt = 1.0f / 60.0f;
     scene.update(dt);
-    const f32 overriddenStep = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    const f32 overriddenStep = Math::degrees(Math::eulerAngles(object->rotation())).y;
     CHECK(std::abs(overriddenStep - 600.0f * dt) < 0.05f);
 
     behaviour->clearOverride("speed");
     CHECK(behaviour->overrideCount() == 0);
 
     scene.update(dt);
-    const f32 after = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    const f32 after = Math::degrees(Math::eulerAngles(object->rotation())).y;
     CHECK(std::abs((after - overriddenStep) - 60.0f * dt) < 0.05f);
     CHECK(!behaviour->hasError());
 }
@@ -792,7 +828,7 @@ void testOverridesSurviveSerializerRoundTrip()
     const f32 dt = 1.0f / 60.0f;
     reloaded.update(dt);
     CHECK(!reBehaviour->hasError());
-    CHECK(std::abs(glm::degrees(glm::eulerAngles(reObject->rotation())).y - 45.0f * dt) < 0.01f);
+    CHECK(std::abs(Math::degrees(Math::eulerAngles(reObject->rotation())).y - 45.0f * dt) < 0.01f);
 
     std::error_code removeError;
     std::filesystem::remove(path, removeError);
@@ -808,7 +844,7 @@ void testOnCollisionSeesOtherObjectName()
     Scene scene;
     GameObject* watcher = scene.createGameObject("Watcher");
     GameObject* bumper = scene.createGameObject("Bumper");
-    bumper->setPosition(glm::vec3(0.5f, 0.0f, 0.0f));
+    bumper->setPosition(Math::vec3(0.5f, 0.0f, 0.0f));
 
     Collider* watcherCollider = watcher->addComponent<Collider>();
     watcherCollider->setSphere(1.0f);
@@ -859,6 +895,7 @@ void testCallAndGlobalRoundTrip()
 int main()
 {
     testScriptRotatesObjectOnPlay();
+    testMoveScriptUsesScriptComponentContract();
     testScriptDoesNotRunInEditorMode();
     testClassWithOnlyOneHookLoadsFine();
     testScriptWithNoBehaviourClassFailsToLoad();

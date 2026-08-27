@@ -25,8 +25,8 @@ bool ShadowPass::createResources()
 {
     destroyResources();
     GPU& gpu = GPU::getSingleton();
-    const u32 cascadeResolution = glm::max(mCalculator.settings.resolution, 1u);
-    const u32 cascadeCount = glm::clamp(mCalculator.settings.count, 1u, MaxShadowCascades);
+    const u32 cascadeResolution = Math::max(mCalculator.settings.resolution, 1u);
+    const u32 cascadeCount = Math::clamp(mCalculator.settings.count, 1u, MaxShadowCascades);
     // PSSM4 is four equal quadrants. Keeping the public resolution as the
     // resolution of one split preserves the old array quality: 2048 in the
     // editor becomes the same 4096 atlas layout described in the Godot code.
@@ -157,8 +157,8 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
     // is always max(setting, 1) once createResources() has run, so comparing
     // it to a raw 0 setting never agrees and recreated the cascades every
     // single frame.
-    const u32 cascadeResolution = glm::max(mCalculator.settings.resolution, 1u);
-    const u32 cascadeCount = glm::clamp(mCalculator.settings.count, 1u, MaxShadowCascades);
+    const u32 cascadeResolution = Math::max(mCalculator.settings.resolution, 1u);
+    const u32 cascadeCount = Math::clamp(mCalculator.settings.count, 1u, MaxShadowCascades);
     const u32 wantedResolution = cascadeCount >= 3 ? cascadeResolution * 2u : cascadeResolution;
     if (mResolution != wantedResolution && !createResources())
     {
@@ -184,8 +184,8 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
     }
     reportSkip(ShadowSkipReason::None);
 
-    const glm::vec3 sunDirection = glm::normalize(sun->direction);
-    if (glm::dot(sunDirection, mCachedSunDirection) < 0.9999f || cascades.count != mCachedCount)
+    const Math::vec3 sunDirection = Math::normalize(sun->direction);
+    if (Math::dot(sunDirection, mCachedSunDirection) < 0.9999f || cascades.count != mCachedCount)
         for (bool& cached : mCascadeCached)
             cached = false;
     mCachedSunDirection = sunDirection;
@@ -220,7 +220,7 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
         block.shadowBias[i] = cascades.shadowBias[i];
         block.shadowNormalBias[i] = cascades.shadowNormalBias[i];
         block.rangeBegin[i] = cascades.rangeBegin[i];
-        block.uvScale[i] = glm::vec4(cascades.uvScale[i], 0.0f, 0.0f);
+        block.uvScale[i] = Math::vec4(cascades.uvScale[i], 0.0f, 0.0f);
         mHalfExtents[i] = cascades.halfExtents[i];
         mSplits[i] = cascades.splits[i];
     }
@@ -230,17 +230,17 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
         block.penumbraKernel[i] = mPenumbraKernel[i];
     }
     block.directionAndCount =
-        glm::vec4(sunDirection, static_cast<f32>(cascades.count));
+        Math::vec4(sunDirection, static_cast<f32>(cascades.count));
     const f32 tanAngle = mCalculator.settings.angularDiameter > 0.0f
-                             ? std::tan(glm::radians(mCalculator.settings.angularDiameter))
+                             ? std::tan(Math::radians(mCalculator.settings.angularDiameter))
                              : 0.0f;
-    block.sampling = glm::vec4(1.0f / static_cast<f32>(mResolution), cascades.softShadowScale,
+    block.sampling = Math::vec4(1.0f / static_cast<f32>(mResolution), cascades.softShadowScale,
                                tanAngle, mCalculator.settings.blend ? 1.0f : 0.0f);
     block.sampling2 =
-        glm::vec4(static_cast<f32>(mSoftSamples), static_cast<f32>(mPenumbraSamples),
-                  glm::clamp(mCalculator.settings.opacity, 0.0f, 1.0f),
+        Math::vec4(static_cast<f32>(mSoftSamples), static_cast<f32>(mPenumbraSamples),
+                  Math::clamp(mCalculator.settings.opacity, 0.0f, 1.0f),
                   frame.temporalAA ? static_cast<f32>(mFrameIndex & 255u) : 0.0f);
-    block.sampling3 = glm::vec4(cascades.fadeFrom, cascades.fadeTo, 0.0f, 0.0f);
+    block.sampling3 = Math::vec4(cascades.fadeFrom, cascades.fadeTo, 0.0f, 0.0f);
     GPU& gpu = GPU::getSingleton();
     gpu.updateBuffer(mBlock, 0, sizeof(block), &block);
 
@@ -252,7 +252,7 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
     frame.directionalShadowBlock = mBlock;
 
     FrameContext shadowFrame = frame;
-    shadowFrame.clipPlane = glm::vec4(0.0f);
+    shadowFrame.clipPlane = Math::vec4(0.0f);
     ClearValue clear;
     clear.bits = ClearDepth;
     const bool fullClear = mAtlasNeedsClear;
@@ -316,7 +316,7 @@ void ShadowPass::rebuildKernels()
         return;
     mKernelQuality = mCalculator.settings.quality;
 
-    switch (glm::min(mCalculator.settings.quality, 5u))
+    switch (Math::min(mCalculator.settings.quality, 5u))
     {
     case 0: mPenumbraSamples = 4;  mSoftSamples = 0;  break;
     case 1: mPenumbraSamples = 4;  mSoftSamples = 1;  break;
@@ -326,17 +326,17 @@ void ShadowPass::rebuildKernels()
     default: mPenumbraSamples = 32; mSoftSamples = 32; break;
     }
 
-    auto buildVogel = [](glm::vec4* kernel, u32 count)
+    auto buildVogel = [](Math::vec4* kernel, u32 count)
     {
         for (u32 i = 0; i < MaxShadowKernel; ++i)
-            kernel[i] = glm::vec4(0.0f);
+            kernel[i] = Math::vec4(0.0f);
         const f32 goldenAngle = 2.4f;
         for (u32 i = 0; i < count; ++i)
         {
             const f32 r = std::sqrt(static_cast<f32>(i) + 0.5f) /
                           std::sqrt(static_cast<f32>(count));
             const f32 theta = static_cast<f32>(i) * goldenAngle;
-            kernel[i] = glm::vec4(std::cos(theta) * r, std::sin(theta) * r, 0.0f, 0.0f);
+            kernel[i] = Math::vec4(std::cos(theta) * r, std::sin(theta) * r, 0.0f, 0.0f);
         }
     };
     buildVogel(mPenumbraKernel, mPenumbraSamples);

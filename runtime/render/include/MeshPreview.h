@@ -4,7 +4,7 @@
 #include "Mesh.h"
 #include "OffscreenTarget.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion
 {

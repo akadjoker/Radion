@@ -2,7 +2,7 @@
 
 #include "Camera.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -82,24 +82,24 @@ f32 Camera::farPlane() const
     return mFarPlane;
 }
 
-glm::mat4 Camera::viewMatrix() const
+Math::mat4 Camera::viewMatrix() const
 {
-    const glm::quat inverseRotation = glm::inverse(owner()->globalRotation());
-    return glm::mat4_cast(inverseRotation) *
-           glm::translate(glm::mat4(1.0f), -owner()->globalPosition());
+    const Math::quat inverseRotation = Math::inverse(owner()->globalRotation());
+    return Math::mat4_cast(inverseRotation) *
+           Math::translate(Math::mat4(1.0f), -owner()->globalPosition());
 }
 
-glm::mat4 Camera::projectionMatrix() const
+Math::mat4 Camera::projectionMatrix() const
 {
     if (mProjection == CameraProjection::Perspective)
-        return glm::perspective(glm::radians(mFieldOfView), mAspect, mNearPlane, mFarPlane);
+        return Math::perspective(Math::radians(mFieldOfView), mAspect, mNearPlane, mFarPlane);
 
     const f32 halfHeight = mOrthographicSize * 0.5f;
     const f32 halfWidth = halfHeight * mAspect;
-    return glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, mNearPlane, mFarPlane);
+    return Math::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, mNearPlane, mFarPlane);
 }
 
-glm::mat4 Camera::viewProjectionMatrix() const
+Math::mat4 Camera::viewProjectionMatrix() const
 {
     return projectionMatrix() * viewMatrix();
 }
@@ -115,7 +115,7 @@ Ray Camera::rayFromMouse(f32 mouseX, f32 mouseY, const FloatRect& viewport) cons
     }
 
     return Radion::rayFromScreen(mouseX - viewport.x, mouseY - viewport.y, viewport.width,
-                                 viewport.height, glm::inverse(viewProjectionMatrix()));
+                                 viewport.height, Math::inverse(viewProjectionMatrix()));
 }
 
 } // namespace Radion

@@ -28,31 +28,31 @@ constexpr const char* kOceanReflectionTarget = kReflectionTargetName;
 // convention.
 struct alignas(16) OceanUniforms
 {
-    glm::mat4 model = glm::mat4(1.0f);
-    glm::mat4 viewProjection = glm::mat4(1.0f);
-    glm::mat4 reflectionViewProjection = glm::mat4(1.0f);
-    glm::mat4 invViewProjection = glm::mat4(1.0f);
+    Math::mat4 model = Math::mat4(1.0f);
+    Math::mat4 viewProjection = Math::mat4(1.0f);
+    Math::mat4 reflectionViewProjection = Math::mat4(1.0f);
+    Math::mat4 invViewProjection = Math::mat4(1.0f);
 
-    glm::vec3 viewPosition = glm::vec3(0.0f);
+    Math::vec3 viewPosition = Math::vec3(0.0f);
     f32 time = 0.0f;
 
-    glm::vec3 lightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
+    Math::vec3 lightDirection = Math::vec3(0.0f, -1.0f, 0.0f);
     f32 timeScale = 1.0f;
 
-    glm::vec3 lightColor = glm::vec3(1.0f);
+    Math::vec3 lightColor = Math::vec3(1.0f);
     f32 steepness = 0.55f;
 
-    glm::vec3 ambient = glm::vec3(0.2f);
+    Math::vec3 ambient = Math::vec3(0.2f);
     f32 skyIntensity = 1.0f;
 
-    glm::vec4 waves[kOceanMaxWaves];
+    Math::vec4 waves[kOceanMaxWaves];
     s32 waveCount = 0;
     f32 pad0 = 0.0f, pad1 = 0.0f, pad2 = 0.0f;
 
-    glm::vec3 shallowColor = glm::vec3(0.28f, 0.55f, 0.55f);
+    Math::vec3 shallowColor = Math::vec3(0.28f, 0.55f, 0.55f);
     f32 absorptionDistance = 28.0f;
 
-    glm::vec3 deepColor = glm::vec3(0.02f, 0.11f, 0.20f);
+    Math::vec3 deepColor = Math::vec3(0.02f, 0.11f, 0.20f);
     f32 roughness = 0.06f;
 
     f32 fresnelDetail = 0.25f;
@@ -77,9 +77,9 @@ struct alignas(16) OceanUniforms
 
     f32 reflectionDistortion = 0.035f;
     s32 debugMode = 0;
-    glm::vec2 screenSize = glm::vec2(1.0f);
+    Math::vec2 screenSize = Math::vec2(1.0f);
 
-    glm::vec3 underwaterColor = glm::vec3(0.06f, 0.22f, 0.30f);
+    Math::vec3 underwaterColor = Math::vec3(0.06f, 0.22f, 0.30f);
     s32 underwaterCamera = 0;
 
     s32 hasSkyCube = 0;
@@ -87,7 +87,7 @@ struct alignas(16) OceanUniforms
     f32 fresnelScale = 0.90f;
     f32 fresnelPower = 4.0f;
 
-    glm::vec4 opticalStrengths = glm::vec4(1.0f);
+    Math::vec4 opticalStrengths = Math::vec4(1.0f);
 };
 
 // GLSL requires #version to stay the file's first line, so a variant #define
@@ -173,7 +173,7 @@ public:
         // A clip plane means this is a mirrored sub-pass, and the surface must
         // not appear in its own reflection. The queue is global rather than
         // per-list, so this is the only place that can tell the two apart.
-        if (frame.clipPlane != glm::vec4(0.0f))
+        if (frame.clipPlane != Math::vec4(0.0f))
             return;
 
         if (!ensurePipelines())
@@ -236,7 +236,7 @@ private:
         // from the vertex, the same stream Terrain's depth/shadow draws use.
         VertexLayout layout;
         layout.streamCount = 1;
-        layout.streams[0].stride = sizeof(glm::vec3);
+        layout.streams[0].stride = sizeof(Math::vec3);
         layout.attribCount = 1;
         layout.attribs[0] = {0, 0, 0, AttribFormat::Float3};
 
@@ -325,24 +325,24 @@ private:
         uniforms.model = command.model;
         uniforms.viewProjection = frame.viewProjection;
         uniforms.reflectionViewProjection = frame.reflectionViewProj;
-        uniforms.invViewProjection = glm::inverse(frame.viewProjection);
+        uniforms.invViewProjection = Math::inverse(frame.viewProjection);
         uniforms.viewPosition = frame.cameraPosition;
         uniforms.time = frame.time;
         uniforms.timeScale = command.timeScale;
         uniforms.steepness = command.steepness;
 
         const EnvironmentBlock environment = environmentForFrame(frame);
-        uniforms.lightDirection = glm::vec3(environment.sunDirection);
-        uniforms.lightColor = glm::vec3(environment.sunColor);
-        uniforms.ambient = glm::vec3(environment.ambient);
+        uniforms.lightDirection = Math::vec3(environment.sunDirection);
+        uniforms.lightColor = Math::vec3(environment.sunColor);
+        uniforms.ambient = Math::vec3(environment.ambient);
         uniforms.skyIntensity = (frame.sky && frame.sky->enabled) ? frame.sky->intensity : 1.0f;
 
-        const u32 waveCount = glm::min(command.waveCount, kOceanMaxWaves);
+        const u32 waveCount = Math::min(command.waveCount, kOceanMaxWaves);
         uniforms.waveCount = static_cast<s32>(waveCount);
         for (u32 i = 0; i < waveCount; ++i)
         {
             const OceanWave& wave = command.waves[i];
-            uniforms.waves[i] = glm::vec4(wave.direction, wave.wavelength, wave.amplitude);
+            uniforms.waves[i] = Math::vec4(wave.direction, wave.wavelength, wave.amplitude);
         }
 
         uniforms.shallowColor = command.shallowColor;
@@ -372,11 +372,11 @@ private:
         uniforms.fresnelPower = command.fresnelPower;
         uniforms.minOpacity = command.minOpacity;
         uniforms.reflectionDistortion = command.reflectionDistortion;
-        uniforms.opticalStrengths = glm::vec4(command.reflectionStrength,
+        uniforms.opticalStrengths = Math::vec4(command.reflectionStrength,
                                               command.refractionStrength,
                                               command.colorStrength, 0.0f);
         uniforms.debugMode = command.debugMode;
-        uniforms.screenSize = glm::vec2(frame.viewport.width, frame.viewport.height);
+        uniforms.screenSize = Math::vec2(frame.viewport.width, frame.viewport.height);
 
         // Below the surface the shader takes the Snell's-window path instead.
         // Measured against the plane's own height rather than against anything

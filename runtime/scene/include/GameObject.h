@@ -4,8 +4,8 @@
 #include "Component.h"
 #include "Types.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include "Math.h"
+#include "Math.h"
 #include <string>
 #include <utility>
 #include <vector>
@@ -165,38 +165,38 @@ public:
         return removeComponent(T::Type);
     }
 
-    const glm::vec3& position() const;
-    const glm::quat& rotation() const;
-    const glm::vec3& scale() const;
-    void setPosition(const glm::vec3& position);
-    void setRotation(const glm::quat& rotation);
-    void setRotationDegrees(const glm::vec3& rotation);
-    void setScale(const glm::vec3& scale);
-    void setGlobalPosition(const glm::vec3& position);
-    void setGlobalRotation(const glm::quat& rotation);
-    void translate(const glm::vec3& offset, TransformSpace space = TransformSpace::Local);
+    const Math::vec3& position() const;
+    const Math::quat& rotation() const;
+    const Math::vec3& scale() const;
+    void setPosition(const Math::vec3& position);
+    void setRotation(const Math::quat& rotation);
+    void setRotationDegrees(const Math::vec3& rotation);
+    void setScale(const Math::vec3& scale);
+    void setGlobalPosition(const Math::vec3& position);
+    void setGlobalRotation(const Math::quat& rotation);
+    void translate(const Math::vec3& offset, TransformSpace space = TransformSpace::Local);
     void moveForward(f32 distance);
     void moveRight(f32 distance);
     void moveUp(f32 distance);
-    void rotate(const glm::quat& rotation, TransformSpace space = TransformSpace::Local);
-    void rotate(const glm::vec3& axis, f32 degrees, TransformSpace space = TransformSpace::Local);
+    void rotate(const Math::quat& rotation, TransformSpace space = TransformSpace::Local);
+    void rotate(const Math::vec3& axis, f32 degrees, TransformSpace space = TransformSpace::Local);
     void yaw(f32 degrees, TransformSpace space = TransformSpace::Local);
     void pitch(f32 degrees, TransformSpace space = TransformSpace::Local);
     void roll(f32 degrees, TransformSpace space = TransformSpace::Local);
-    void lookAt(const glm::vec3& target, const glm::vec3& up = glm::vec3(0, 1, 0));
-    bool rotateTowards(const glm::vec3& target, f32 maxDegreesDelta,
-                       const glm::vec3& up = glm::vec3(0, 1, 0));
-    const glm::mat4& localTransform() const;
-    const glm::mat4& globalTransform() const;
-    const glm::mat4& previousGlobalTransform() const;
-    glm::vec3 globalPosition() const;
-    glm::quat globalRotation() const;
-    glm::vec3 globalScale() const;
-    glm::vec3 right() const;
-    glm::vec3 up() const;
-    glm::vec3 forward() const;
+    void lookAt(const Math::vec3& target, const Math::vec3& up = Math::vec3(0, 1, 0));
+    bool rotateTowards(const Math::vec3& target, f32 maxDegreesDelta,
+                       const Math::vec3& up = Math::vec3(0, 1, 0));
+    const Math::mat4& localTransform() const;
+    const Math::mat4& globalTransform() const;
+    const Math::mat4& previousGlobalTransform() const;
+    Math::vec3 globalPosition() const;
+    Math::quat globalRotation() const;
+    Math::vec3 globalScale() const;
+    Math::vec3 right() const;
+    Math::vec3 up() const;
+    Math::vec3 forward() const;
     f32 distanceTo(const GameObject& other) const;
-    glm::vec3 directionTo(const GameObject& other) const;
+    Math::vec3 directionTo(const GameObject& other) const;
 
 private:
     friend class Scene;
@@ -248,19 +248,20 @@ private:
     // loop that might still be on this component's stack has finished.
     std::vector<Component*> mPendingComponentDeletes;
     u32 mComponentCallbackDepth = 0;
-    glm::vec3 mPosition = glm::vec3(0);
-    glm::quat mRotation = glm::quat(1, 0, 0, 0);
-    glm::vec3 mScale = glm::vec3(1);
-    mutable glm::mat4 mLocalTransform = glm::mat4(1);
-    mutable glm::mat4 mGlobalTransform = glm::mat4(1);
-    glm::mat4 mPreviousGlobalTransform = glm::mat4(1);
-    mutable glm::vec3 mGlobalPosition = glm::vec3(0);
-    mutable glm::quat mGlobalRotation = glm::quat(1, 0, 0, 0);
-    mutable glm::vec3 mGlobalScale = glm::vec3(1);
+    Math::vec3 mPosition = Math::vec3(0);
+    Math::quat mRotation = Math::quat(1, 0, 0, 0);
+    Math::vec3 mScale = Math::vec3(1);
+    mutable Math::mat4 mLocalTransform = Math::mat4(1);
+    mutable Math::mat4 mGlobalTransform = Math::mat4(1);
+    Math::mat4 mPreviousGlobalTransform = Math::mat4(1);
+    mutable Math::vec3 mGlobalPosition = Math::vec3(0);
+    mutable Math::quat mGlobalRotation = Math::quat(1, 0, 0, 0);
+    mutable Math::vec3 mGlobalScale = Math::vec3(1);
     mutable bool mLocalDirty = false;
     mutable bool mGlobalDirty = false;
     bool mPreviousGlobalTransformValid = false;
     bool mDynamicBoundsQueued = false;
+    bool mPendingDestroyQueued = false;
 };
 
 } // namespace Radion

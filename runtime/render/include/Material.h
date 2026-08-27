@@ -4,7 +4,7 @@
 #include "GPU.h"
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 #include <string>
 
@@ -80,6 +80,11 @@ enum MaterialFlags : u32
     // the ordinary Lit detail path reads. Only meaningful with
     // MaterialTerrain: alone it does nothing.
     MaterialTerrainClassic = 1 << 16,
+
+    // A voxel mesh stores repeated face coordinates in UV0 and the atlas tile
+    // origin in UV1. Lit reconstructs the sample UV within that tile so a
+    // greedy quad repeats its block texture instead of stretching it.
+    MaterialVoxelAtlas = 1 << 17,
 };
 
 struct MaterialFlagName
@@ -160,14 +165,14 @@ struct MaterialTexture
 // a fixed meaning; the render technique decides how custom fields are used.
 struct MaterialParams
 {
-    glm::vec4 baseColor = glm::vec4(1.0f);
-    glm::vec4 emissive = glm::vec4(0.0f);
-    glm::vec4 surface = glm::vec4(1.0f, 0.0f, 0.5f, 1.0f); // rough, metal, alphaCut, normalScale
-    glm::vec4 uvTransform = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f); // tileU, tileV, offU, offV
-    glm::vec4 uvAnim = glm::vec4(0.0f);                        // scrollU, scrollV, rotSpeed, _
-    glm::vec4 sequence = glm::vec4(0.0f);                      // frames, fps, loop, interpolate
-    glm::vec4 custom0 = glm::vec4(0.0f);
-    glm::vec4 custom1 = glm::vec4(0.0f);
+    Math::vec4 baseColor = Math::vec4(1.0f);
+    Math::vec4 emissive = Math::vec4(0.0f);
+    Math::vec4 surface = Math::vec4(1.0f, 0.0f, 0.5f, 1.0f); // rough, metal, alphaCut, normalScale
+    Math::vec4 uvTransform = Math::vec4(1.0f, 1.0f, 0.0f, 0.0f); // tileU, tileV, offU, offV
+    Math::vec4 uvAnim = Math::vec4(0.0f);                        // scrollU, scrollV, rotSpeed, _
+    Math::vec4 sequence = Math::vec4(0.0f);                      // frames, fps, loop, interpolate
+    Math::vec4 custom0 = Math::vec4(0.0f);
+    Math::vec4 custom1 = Math::vec4(0.0f);
 };
 
 static_assert(sizeof(MaterialParams) == 128, "block must match the std140 layout in the shader");
@@ -191,8 +196,8 @@ struct MaterialAnim
     Curve curve = Curve::SineWave;
     f32 speed = 1.0f;
     f32 phase = 0.0f;
-    glm::vec4 min = glm::vec4(0.0f);
-    glm::vec4 max = glm::vec4(1.0f);
+    Math::vec4 min = Math::vec4(0.0f);
+    Math::vec4 max = Math::vec4(1.0f);
 };
 
 // ------------------------------------------------------------ material

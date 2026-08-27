@@ -114,7 +114,7 @@ void MeshHealthPanel::drawContents()
     ImGui::Text("%zu vertices, %zu triangles", d.vertexCount, d.triangleCount);
     ImGui::Text("%zu submeshes, %zu materials", d.submeshCount, d.materialCount);
     ImGui::Text("%s in memory", memory);
-    const glm::vec3 size = d.bounds.max - d.bounds.min;
+    const Math::vec3 size = d.bounds.max - d.bounds.min;
     ImGui::Text("bounds %.3f x %.3f x %.3f", size.x, size.y, size.z);
 
     ImGui::Separator();

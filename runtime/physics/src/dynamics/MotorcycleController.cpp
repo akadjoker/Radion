@@ -11,12 +11,12 @@ namespace Radion::Physics
 namespace
 {
 
-const glm::vec3 kLocalUp(0.0f, 1.0f, 0.0f);
-const glm::vec3 kLocalForward(0.0f, 0.0f, 1.0f);
+const Math::vec3 kLocalUp(0.0f, 1.0f, 0.0f);
+const Math::vec3 kLocalForward(0.0f, 0.0f, 1.0f);
 
-glm::vec3 normalizedOr(const glm::vec3& value, const glm::vec3& fallback)
+Math::vec3 normalizedOr(const Math::vec3& value, const Math::vec3& fallback)
 {
-    const f32 lengthSquared = glm::dot(value, value);
+    const f32 lengthSquared = Math::dot(value, value);
     return lengthSquared > 1.0e-12f ? value / std::sqrt(lengthSquared) : fallback;
 }
 
@@ -25,10 +25,10 @@ f32 sign(f32 value)
     return value < 0.0f ? -1.0f : 1.0f;
 }
 
-f32 signedAngleAroundForward(const glm::vec3& from, const glm::vec3& to, const glm::vec3& forward)
+f32 signedAngleAroundForward(const Math::vec3& from, const Math::vec3& to, const Math::vec3& forward)
 {
-    const f32 d = glm::clamp(glm::dot(from, to), -1.0f, 1.0f);
-    return -sign(glm::dot(glm::cross(from, to), forward)) * std::acos(d);
+    const f32 d = Math::clamp(Math::dot(from, to), -1.0f, 1.0f);
+    return -sign(Math::dot(Math::cross(from, to), forward)) * std::acos(d);
 }
 
 } // namespace
@@ -41,7 +41,7 @@ MotorcycleController::MotorcycleController(RaycastVehicle& vehicle, RigidBody& c
 void MotorcycleController::setSteerInput(f32 input)
 {
     if (std::isfinite(input))
-        mSteerInput = glm::clamp(input, -1.0f, 1.0f);
+        mSteerInput = Math::clamp(input, -1.0f, 1.0f);
 }
 
 void MotorcycleController::setMaxSteerAngle(f32 angle)
@@ -73,7 +73,7 @@ void MotorcycleController::setLeanSpringIntegration(f32 coefficient, f32 decay)
 
 void MotorcycleController::setLeanSmoothingFactor(f32 factor)
 {
-    mLeanSmoothingFactor = glm::clamp(factor, 0.0f, 1.0f);
+    mLeanSmoothingFactor = Math::clamp(factor, 0.0f, 1.0f);
 }
 
 void MotorcycleController::setLeanControllerEnabled(bool enabled)
@@ -88,10 +88,10 @@ bool MotorcycleController::leanControllerEnabled() const
 
 f32 MotorcycleController::currentLeanAngle() const
 {
-    const glm::vec3 forward = mChassis.directionToWorld(kLocalForward);
-    const glm::vec3 up = mChassis.directionToWorld(kLocalUp);
-    glm::vec3 flatUp = glm::vec3(0.0f, 1.0f, 0.0f) - forward * forward.y;
-    flatUp = normalizedOr(flatUp, glm::vec3(0.0f, 1.0f, 0.0f));
+    const Math::vec3 forward = mChassis.directionToWorld(kLocalForward);
+    const Math::vec3 up = mChassis.directionToWorld(kLocalUp);
+    Math::vec3 flatUp = Math::vec3(0.0f, 1.0f, 0.0f) - forward * forward.y;
+    flatUp = normalizedOr(flatUp, Math::vec3(0.0f, 1.0f, 0.0f));
     return signedAngleAroundForward(up, flatUp, forward);
 }
 
@@ -102,26 +102,26 @@ f32 MotorcycleController::wheelBase() const
     for (u32 i = 0; i < mVehicle.wheelCount(); ++i)
     {
         const RaycastVehicle::Wheel& wheel = mVehicle.wheel(i);
-        const glm::vec3 fullyExtended =
+        const Math::vec3 fullyExtended =
             wheel.chassisConnectionLocal + wheel.directionLocal * wheel.restLength;
-        const f32 value = glm::dot(fullyExtended, kLocalForward);
-        low = glm::min(low, value);
-        high = glm::max(high, value);
+        const f32 value = Math::dot(fullyExtended, kLocalForward);
+        low = Math::min(low, value);
+        high = Math::max(high, value);
     }
     return high - low;
 }
 
-void MotorcycleController::preUpdate(f32 step, const glm::vec3& gravity)
+void MotorcycleController::preUpdate(f32 step, const Math::vec3& gravity)
 {
-    const glm::vec3 forward = mChassis.directionToWorld(kLocalForward);
-    const glm::vec3 worldUp(0.0f, 1.0f, 0.0f);
+    const Math::vec3 forward = mChassis.directionToWorld(kLocalForward);
+    const Math::vec3 worldUp(0.0f, 1.0f, 0.0f);
 
     if (mEnableLeanController)
     {
         // Target lean follows the total impulse the ground applied to the
         // wheels last step: supported weight plus cornering force, which is
         // exactly the direction a rider balances against.
-        glm::vec3 targetLean(0.0f);
+        Math::vec3 targetLean(0.0f);
         for (u32 i = 0; i < mVehicle.wheelCount(); ++i)
         {
             const RaycastVehicle::Wheel& wheel = mVehicle.wheel(i);
@@ -134,17 +134,17 @@ void MotorcycleController::preUpdate(f32 step, const glm::vec3& gravity)
         mTargetLean = mLeanSmoothingFactor * mTargetLean +
                       (1.0f - mLeanSmoothingFactor) * targetLean;
 
-        mTargetLean -= forward * glm::dot(mTargetLean, forward);
+        mTargetLean -= forward * Math::dot(mTargetLean, forward);
         mTargetLean = normalizedOr(mTargetLean, worldUp);
 
-        glm::vec3 adjustedWorldUp = worldUp - forward * glm::dot(worldUp, forward);
+        Math::vec3 adjustedWorldUp = worldUp - forward * Math::dot(worldUp, forward);
         adjustedWorldUp = normalizedOr(adjustedWorldUp, worldUp);
         const f32 leanAngle = signedAngleAroundForward(mTargetLean, adjustedWorldUp, forward);
         if (std::abs(leanAngle) > mMaxLeanAngle)
-            mTargetLean = glm::angleAxis(sign(leanAngle) * mMaxLeanAngle, forward) *
+            mTargetLean = Math::angleAxis(sign(leanAngle) * mMaxLeanAngle, forward) *
                           adjustedWorldUp;
 
-        const glm::vec3 up = mChassis.directionToWorld(kLocalUp);
+        const Math::vec3 up = mChassis.directionToWorld(kLocalUp);
         const f32 deltaAngle = signedAngleAroundForward(mTargetLean, up, forward);
         mLeanSpringIntegratedDeltaAngle += deltaAngle * step;
     }
@@ -155,9 +155,9 @@ void MotorcycleController::preUpdate(f32 step, const glm::vec3& gravity)
     }
 
     const f32 maxSteerAngleFactor =
-        wheelBase() * std::tan(mMaxLeanAngle) * glm::length(gravity);
+        wheelBase() * std::tan(mMaxLeanAngle) * Math::length(gravity);
 
-    const f32 velocity = glm::dot(mChassis.velocity(), forward);
+    const f32 velocity = Math::dot(mChassis.velocity(), forward);
     const f32 velocitySquared = velocity * velocity;
 
     const f32 steerStrength = std::abs(mSteerInput);
@@ -170,7 +170,7 @@ void MotorcycleController::preUpdate(f32 step, const glm::vec3& gravity)
         const f32 asinArgument =
             maxSteerAngleFactor / (velocitySquared * cosCasterAngle);
         if (asinArgument < 1.0f)
-            steerAngle = glm::min(steerAngle, std::asin(asinArgument));
+            steerAngle = Math::min(steerAngle, std::asin(asinArgument));
     }
 
     for (u32 i = 0; i < mVehicle.wheelCount(); ++i)
@@ -197,41 +197,41 @@ void MotorcycleController::postUpdate(f32 step)
     if (!allInContact)
     {
         mLeanSpringIntegratedDeltaAngle *=
-            glm::max(0.0f, 1.0f - mLeanSpringIntegrationCoefficientDecay * step);
+            Math::max(0.0f, 1.0f - mLeanSpringIntegrationCoefficientDecay * step);
         return;
     }
 
-    const glm::vec3 forward = mChassis.directionToWorld(kLocalForward);
-    const glm::vec3 up = mChassis.directionToWorld(kLocalUp);
+    const Math::vec3 forward = mChassis.directionToWorld(kLocalForward);
+    const Math::vec3 up = mChassis.directionToWorld(kLocalUp);
 
     const f32 deltaAngle = signedAngleAroundForward(mTargetLean, up, forward);
-    const f32 angleRate = glm::dot(mChassis.angularVelocity(), forward);
+    const f32 angleRate = Math::dot(mChassis.angularVelocity(), forward);
 
     const f32 totalImpulse = (mLeanSpringConstant * deltaAngle - mLeanSpringDamping * angleRate +
                               mLeanSpringIntegrationCoefficient *
                                   mLeanSpringIntegratedDeltaAngle) *
                              step;
 
-    const glm::vec3 oldAngularVelocity = mChassis.angularVelocity();
+    const Math::vec3 oldAngularVelocity = mChassis.angularVelocity();
     mChassis.applyAngularImpulse(totalImpulse * forward);
 
     // The angular impulse alone drags every contact point sideways; a linear
     // impulse on the centre of mass cancels the average of that so the lean
     // torque rolls the bike instead of pushing it off its line.
-    const glm::vec3 deltaAngularVelocity = mChassis.angularVelocity() - oldAngularVelocity;
-    glm::vec3 linearAcceleration(0.0f);
+    const Math::vec3 deltaAngularVelocity = mChassis.angularVelocity() - oldAngularVelocity;
+    Math::vec3 linearAcceleration(0.0f);
     f32 totalLambda = 0.0f;
     for (u32 i = 0; i < mVehicle.wheelCount(); ++i)
     {
         const RaycastVehicle::Wheel& wheel = mVehicle.wheel(i);
         const f32 lambda = wheel.appliedSuspensionImpulse;
         totalLambda += lambda;
-        const glm::vec3 r = wheel.contactPoint - mChassis.position();
-        linearAcceleration += lambda * glm::cross(deltaAngularVelocity, r);
+        const Math::vec3 r = wheel.contactPoint - mChassis.position();
+        linearAcceleration += lambda * Math::cross(deltaAngularVelocity, r);
     }
     if (totalLambda > 0.0f && mChassis.inverseMass() > 0.0f)
     {
-        const glm::vec3 linearImpulse =
+        const Math::vec3 linearImpulse =
             -linearAcceleration / (totalLambda * mChassis.inverseMass());
         mChassis.applyLinearImpulse(linearImpulse);
     }

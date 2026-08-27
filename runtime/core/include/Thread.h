@@ -203,6 +203,9 @@ private:
 // to be handed one, and a pool per subsystem would oversubscribe the machine
 // several times over.
 ThreadPool& Jobs();
+// Stops the global pool if it is running, without starting it just to stop
+// it. Call before SDL shuts down because workers are SDL threads.
+void shutdownJobs();
 
 } // namespace Radion
 

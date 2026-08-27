@@ -36,6 +36,7 @@
 #include "Scene.h"
 #include "TrailRender.h"
 #include "TreeRender.h"
+#include "Thread.h"
 
 namespace Radion
 {
@@ -283,6 +284,9 @@ void Engine::shutdown()
 
     GPU::destroyDevice(mGpu);
     mGpu = nullptr;
+    // The global pool owns SDL threads. Join them while SDL is still alive,
+    // rather than relying on static destruction after Window::destroy().
+    shutdownJobs();
     mWindow.destroy();
     mInitialized = false;
 }
@@ -376,7 +380,7 @@ TextureHandle Engine::directionalShadowTexture() const
 }
 
 void Engine::debugDrawTexture(TextureHandle texture, bool isArray, u32 layer, TargetHandle target,
-                              u32 width, u32 height, const glm::vec4& sourceRect)
+                              u32 width, u32 height, const Math::vec4& sourceRect)
 {
     if (mRenderer && texture.valid() && width > 0 && height > 0)
         mRenderer->debugDrawTexture(texture, isArray, layer, target, width, height, sourceRect);
@@ -508,7 +512,7 @@ void Engine::drawProfilerContents()
 void Engine::setRenderResolution(const RenderResolution& resolution)
 {
     mRenderResolution = resolution;
-    mRenderResolution.scale = glm::clamp(resolution.scale, 0.25f, 2.0f);
+    mRenderResolution.scale = Math::clamp(resolution.scale, 0.25f, 2.0f);
 }
 
 bool Engine::startGifRecording()
@@ -563,7 +567,7 @@ constexpr u32 kRenderAlignment = 32;
 
 u32 alignUp(u32 value)
 {
-    return ((glm::max(value, 1u) + kRenderAlignment - 1) / kRenderAlignment) * kRenderAlignment;
+    return ((Math::max(value, 1u) + kRenderAlignment - 1) / kRenderAlignment) * kRenderAlignment;
 }
 
 } // namespace
@@ -579,9 +583,9 @@ void Engine::resolveRenderSize(const Rect& rect, u32& width, u32& height) const
 
     const f32 scale = mRenderResolution.scale;
     width =
-        alignUp(static_cast<u32>(glm::max(1.0f, glm::round(static_cast<f32>(rect.width) * scale))));
+        alignUp(static_cast<u32>(Math::max(1.0f, Math::round(static_cast<f32>(rect.width) * scale))));
     height = alignUp(
-        static_cast<u32>(glm::max(1.0f, glm::round(static_cast<f32>(rect.height) * scale))));
+        static_cast<u32>(Math::max(1.0f, Math::round(static_cast<f32>(rect.height) * scale))));
 }
 
 bool Engine::render(Scene& scene)
@@ -768,7 +772,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
         temporal.valid ? temporal.prevProjectionNoJitter : frame.projectionNoJitter;
     frame.prevViewProjectionNoJitter =
         temporal.valid ? temporal.prevViewProjectionNoJitter : frame.viewProjectionNoJitter;
-    frame.prevJitter = temporal.valid ? temporal.prevJitter : glm::vec2(0.0f);
+    frame.prevJitter = temporal.valid ? temporal.prevJitter : Math::vec2(0.0f);
     const auto halton = [](u32 index, u32 base)
     {
         f32 result = 0.0f;
@@ -785,7 +789,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
     if (frame.temporalAA)
     {
         const u32 jitterSample = temporal.jitterPhase % 8u + 1u;
-        frame.jitter = glm::vec2((halton(jitterSample, 2u) - 0.5f) * 2.0f /
+        frame.jitter = Math::vec2((halton(jitterSample, 2u) - 0.5f) * 2.0f /
                                      static_cast<f32>(renderWidth),
                                  (halton(jitterSample, 3u) - 0.5f) * 2.0f /
                                      static_cast<f32>(renderHeight));
@@ -1045,7 +1049,7 @@ bool Engine::presentLoadingFrame(const char* stage, f32 progress)
         mLoadingBatch->drawRect(left, top, kBarWidth, kBarHeight, true);
         mLoadingBatch->setColor(static_cast<unsigned char>(255), static_cast<unsigned char>(170),
                                 static_cast<unsigned char>(40));
-        mLoadingBatch->drawRect(left, top, kBarWidth * glm::clamp(progress, 0.0f, 1.0f), kBarHeight,
+        mLoadingBatch->drawRect(left, top, kBarWidth * Math::clamp(progress, 0.0f, 1.0f), kBarHeight,
                                 true);
     }
 
@@ -1072,7 +1076,7 @@ bool Engine::waitForAsyncLoads(const char* stage)
         if (remaining == 0)
             break;
 
-        peak = glm::max(peak, remaining);
+        peak = Math::max(peak, remaining);
         std::snprintf(label, sizeof(label), "%s  %u mesh / %u texture", stage, meshes, textures);
         const f32 progress =
             peak > 0 ? 1.0f - static_cast<f32>(remaining) / static_cast<f32>(peak) : 0.0f;

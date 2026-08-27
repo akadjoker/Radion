@@ -216,7 +216,7 @@ void SettingsPanel::onImGui()
             ImGui::TextDisabled("Not captured yet");
         else
         {
-            const f32 age = glm::max(static_cast<f32>(engine.getWindow().getTime()) -
+            const f32 age = Math::max(static_cast<f32>(engine.getWindow().getTime()) -
                                          probe.lastCaptureTimeSeconds(),
                                      0.0f);
             ImGui::TextDisabled("Last capture: %.1f s ago | %.2f ms | #%llu",
@@ -359,7 +359,7 @@ void SettingsPanel::onImGui()
                                           "ends.");
                     if (const Camera* cam = app().scene().activeCamera())
                     {
-                        const f32 farPlane = glm::max(cam->farPlane(), 1.0f);
+                        const f32 farPlane = Math::max(cam->farPlane(), 1.0f);
                         ImGui::SliderFloat(
                             "Shadow distance", &shadows->distance, 1.0f, farPlane, "%.0f",
                             ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat |
@@ -408,7 +408,7 @@ void SettingsPanel::onImGui()
                     static const char* qualityNames[] = {"Hard",        "Soft Very Low",
                                                          "Soft Low",    "Soft Medium",
                                                          "Soft High",   "Soft Ultra"};
-                    int qualityIndex = static_cast<int>(glm::min(shadows->quality, 5u));
+                    int qualityIndex = static_cast<int>(Math::min(shadows->quality, 5u));
                     if (ImGui::Combo("Quality", &qualityIndex, qualityNames, 6))
                         shadows->quality = static_cast<u32>(qualityIndex);
                     if (ImGui::IsItemHovered())

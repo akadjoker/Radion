@@ -1,6 +1,7 @@
 #include "PCH.h"
 
 #include "Scene.h"
+#include "Thread.h"
 
 #include "AssetManager.h"
 #include "DebugDraw3D.h"
@@ -15,7 +16,7 @@
 
 #include <cmath>
 #include <cstring>
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 #include <limits>
 #include <nlohmann/json.hpp>
 
@@ -47,7 +48,7 @@ bool queued(const std::vector<GameObject*>& queue, const GameObject* object)
 // (invalid cubemap) result when no probe qualifies is exactly what tells
 // ForwardPass to fall back to the frame's single default probe.
 RenderProbe resolveNearestProbe(const std::vector<ReflectionProbe*>& probes,
-                                const glm::vec3& position)
+                                const Math::vec3& position)
 {
     RenderProbe result;
     const ReflectionProbe* nearest = nullptr;
@@ -70,18 +71,18 @@ RenderProbe resolveNearestProbe(const std::vector<ReflectionProbe*>& probes,
         // (EnvironmentProbe::extents' own doc): a plain mirror of what was
         // captured, sampled straight. A probe that sets only extents keeps
         // being selected by its box exactly as before.
-        const glm::vec3 offset = position - env.position;
+        const Math::vec3 offset = position - env.position;
         if (env.influenceRadius > 0.0f)
         {
-            if (glm::dot(offset, offset) > env.influenceRadius * env.influenceRadius)
+            if (Math::dot(offset, offset) > env.influenceRadius * env.influenceRadius)
                 continue;
         }
         else if (env.extents.x <= 0.0f || env.extents.y <= 0.0f || env.extents.z <= 0.0f)
             continue;
-        else if (glm::abs(offset.x) > env.extents.x || glm::abs(offset.y) > env.extents.y ||
-                 glm::abs(offset.z) > env.extents.z)
+        else if (Math::abs(offset.x) > env.extents.x || Math::abs(offset.y) > env.extents.y ||
+                 Math::abs(offset.z) > env.extents.z)
             continue;
-        const f32 distSq = glm::dot(offset, offset);
+        const f32 distSq = Math::dot(offset, offset);
         if (!nearest || distSq < nearestDistSq)
         {
             nearest = candidate;
@@ -132,9 +133,9 @@ void submitDynamicRenderer(MeshRenderer* renderer, RenderList& list, AssetManage
             materials.sync(material);
         }
     Animator* animator = object->getComponent<Animator>();
-    const std::vector<glm::mat4>* palette =
+    const std::vector<Math::mat4>* palette =
         animator && animator->active() ? &animator->palette() : nullptr;
-    const std::vector<glm::mat4>* prevPalette =
+    const std::vector<Math::mat4>* prevPalette =
         animator && animator->active() ? &animator->prevPalette() : nullptr;
     const RenderProbe probe = resolveNearestProbe(probes, object->globalPosition());
     list.submit(renderer->mesh(), *mesh, object->globalTransform(), overrides, overrideCount,
@@ -147,12 +148,12 @@ bool outsideCasterVolume(const std::vector<Plane>* casterPlanes, const AABB& bou
 {
     if (!casterPlanes)
         return false;
-    const glm::vec3 center = bounds.center();
-    const glm::vec3 extents = bounds.extents();
+    const Math::vec3 center = bounds.center();
+    const Math::vec3 extents = bounds.extents();
     for (const Plane& plane : *casterPlanes)
     {
-        const f32 distance = glm::dot(plane.normal, center) + plane.d;
-        const f32 radius = glm::dot(glm::abs(plane.normal), extents);
+        const f32 distance = Math::dot(plane.normal, center) + plane.d;
+        const f32 radius = Math::dot(Math::abs(plane.normal), extents);
         if (distance + radius < 0.0f)
             return true;
     }
@@ -161,25 +162,25 @@ bool outsideCasterVolume(const std::vector<Plane>* casterPlanes, const AABB& bou
 
 // Depth-buffer pixel -> view-space position, for pickSurface()'s centre pixel
 // and its 3x3 neighbours.
-glm::vec3 viewPositionFromDepth(s32 x, s32 y, f32 depth, u32 depthWidth, u32 depthHeight,
-                                const glm::mat4& inverseProjection)
+Math::vec3 viewPositionFromDepth(s32 x, s32 y, f32 depth, u32 depthWidth, u32 depthHeight,
+                                const Math::mat4& inverseProjection)
 {
-    const glm::vec2 uv((static_cast<f32>(x) + 0.5f) / static_cast<f32>(depthWidth),
+    const Math::vec2 uv((static_cast<f32>(x) + 0.5f) / static_cast<f32>(depthWidth),
                        (static_cast<f32>(y) + 0.5f) / static_cast<f32>(depthHeight));
-    const glm::vec4 clip(uv * 2.0f - 1.0f, depth * 2.0f - 1.0f, 1.0f);
-    const glm::vec4 view = inverseProjection * clip;
-    return glm::vec3(view) / view.w;
+    const Math::vec4 clip(uv * 2.0f - 1.0f, depth * 2.0f - 1.0f, 1.0f);
+    const Math::vec4 view = inverseProjection * clip;
+    return Math::vec3(view) / view.w;
 }
 
 struct OcclusionBlock
 {
-    glm::mat4 viewProjection;
-    glm::mat4 model;
+    Math::mat4 viewProjection;
+    Math::mat4 model;
 };
 
 // One shared cube, [-1, 1]^3 - every entry's own model matrix scales it to
 // that entry's world AABB (extents already half-size, matching this).
-const glm::vec3 kOcclusionCubeVertices[8] = {
+const Math::vec3 kOcclusionCubeVertices[8] = {
     {-1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, -1.0f}, {-1.0f, 1.0f, -1.0f},
     {-1.0f, -1.0f, 1.0f},  {1.0f, -1.0f, 1.0f},  {1.0f, 1.0f, 1.0f},  {-1.0f, 1.0f, 1.0f},
 };
@@ -202,6 +203,12 @@ Scene::Scene() : mRoot("Scene")
 
 Scene::~Scene()
 {
+    if (mDynamicBuildPending)
+    {
+        Jobs().wait(mDynamicBuildJob);
+        mDynamicBuildPending = false;
+    }
+
     for (const PendingAdd& pending : mPendingAdd)
         delete pending.object;
     for (GameObject* object : mDetached)
@@ -346,7 +353,7 @@ bool Scene::add(GameObject* object, GameObject* parent)
 bool Scene::remove(GameObject* object)
 {
     if (!object || object == &mRoot || !object->parent() || queued(mPendingRemove, object) ||
-        queued(mPendingDestroy, object))
+        object->mPendingDestroyQueued)
         return false;
     mPendingRemove.push_back(object);
     return true;
@@ -354,11 +361,12 @@ bool Scene::remove(GameObject* object)
 
 bool Scene::destroy(GameObject* object)
 {
-    if (!object || object == &mRoot || queued(mPendingDestroy, object))
+    if (!object || object == &mRoot || object->mPendingDestroyQueued)
         return false;
     if (!object->parent() &&
         std::find(mDetached.begin(), mDetached.end(), object) == mDetached.end())
         return false;
+    object->mPendingDestroyQueued = true;
     mPendingDestroy.push_back(object);
     return true;
 }
@@ -368,7 +376,7 @@ bool Scene::reparent(GameObject* object, GameObject* parent)
     GameObject* destination = parent ? parent : &mRoot;
     if (!object || object == &mRoot || destination == object || object->mScene != this ||
         destination->mScene != this || !object->parent() || object->isAncestorOf(destination) ||
-        queued(mPendingRemove, object) || queued(mPendingDestroy, object))
+        queued(mPendingRemove, object) || object->mPendingDestroyQueued)
         return false;
 
     if (object->parent() == destination)
@@ -403,8 +411,8 @@ bool Scene::saveCamera(const std::string& filename) const
         return false;
 
     GameObject* object = mActiveCamera->owner();
-    const glm::vec3 position = object->globalPosition();
-    const glm::quat rotation = object->globalRotation();
+    const Math::vec3 position = object->globalPosition();
+    const Math::quat rotation = object->globalRotation();
 
     nlohmann::json root;
     root["position"] = {position.x, position.y, position.z};
@@ -447,8 +455,8 @@ bool Scene::loadCamera(const std::string& filename)
 
     GameObject* object = mActiveCamera->owner();
     object->setPosition(
-        glm::vec3((*position)[0].get<f32>(), (*position)[1].get<f32>(), (*position)[2].get<f32>()));
-    object->setRotation(glm::quat((*rotation)[3].get<f32>(), (*rotation)[0].get<f32>(),
+        Math::vec3((*position)[0].get<f32>(), (*position)[1].get<f32>(), (*position)[2].get<f32>()));
+    object->setRotation(Math::quat((*rotation)[3].get<f32>(), (*rotation)[0].get<f32>(),
                                   (*rotation)[1].get<f32>(), (*rotation)[2].get<f32>()));
 
     Log::info("Scene: loaded camera from '%s'", filename.c_str());
@@ -460,46 +468,67 @@ void Scene::update(f32 deltaTime)
     RADION_PROFILE_SCOPE("Scene update");
     mDeltaTime = std::isfinite(deltaTime) && deltaTime >= 0 ? deltaTime : 0;
     flushChanges();
-    for (GameObject* object : mObjects)
     {
-        if (!object->disposed())
+        RADION_PROFILE_SCOPE("Previous transforms");
+        for (GameObject* object : mObjects)
         {
-            object->mPreviousGlobalTransform = object->globalTransform();
-            object->mPreviousGlobalTransformValid = true;
+            if (!object->disposed())
+            {
+                object->mPreviousGlobalTransform = object->globalTransform();
+                object->mPreviousGlobalTransformValid = true;
+            }
         }
     }
     // Capture the count: a component attached from on_start/on_update joins
     // the list immediately, but must not run until the next frame. Removal
     // writes a tombstone, so callbacks can safely remove themselves or one
     // another without invalidating this iteration.
-    const usize updateCount = mUpdateComponents.size();
-    for (usize i = 0; i < updateCount; ++i)
     {
-        Component* component = mUpdateComponents[i];
-        GameObject* object = component ? component->owner() : nullptr;
-        if (object && object->isActiveInHierarchy() && !object->disposed())
-            object->updateComponent(component, mDeltaTime);
+        RADION_PROFILE_SCOPE("Component update");
+        const usize updateCount = mUpdateComponents.size();
+        for (usize i = 0; i < updateCount; ++i)
+        {
+            Component* component = mUpdateComponents[i];
+            GameObject* object = component ? component->owner() : nullptr;
+            if (object && object->isActiveInHierarchy() && !object->disposed())
+                object->updateComponent(component, mDeltaTime);
+        }
     }
-    for (Animator* animator : mAnimators)
-        if (animator->active() && animator->owner()->isActiveInHierarchy())
-            animator->update(mDeltaTime);
-    for (BoneAttachment* attachment : mBoneAttachments)
-        if (attachment->active() && attachment->owner()->isActiveInHierarchy())
-            attachment->update();
-    mCollisionWorld.step();
-    const usize lateUpdateCount = mLateUpdateComponents.size();
-    for (usize i = 0; i < lateUpdateCount; ++i)
     {
-        Component* component = mLateUpdateComponents[i];
-        GameObject* object = component ? component->owner() : nullptr;
-        if (object && object->isActiveInHierarchy() && !object->disposed())
-            object->lateUpdateComponent(component, mDeltaTime);
+        RADION_PROFILE_SCOPE("Animation update");
+        for (Animator* animator : mAnimators)
+            if (animator->active() && animator->owner()->isActiveInHierarchy())
+                animator->update(mDeltaTime);
+        for (BoneAttachment* attachment : mBoneAttachments)
+            if (attachment->active() && attachment->owner()->isActiveInHierarchy())
+                attachment->update();
+    }
+    {
+        RADION_PROFILE_SCOPE("Collision contacts");
+        mCollisionWorld.step();
+    }
+    {
+        RADION_PROFILE_SCOPE("Late component update");
+        const usize lateUpdateCount = mLateUpdateComponents.size();
+        for (usize i = 0; i < lateUpdateCount; ++i)
+        {
+            Component* component = mLateUpdateComponents[i];
+            GameObject* object = component ? component->owner() : nullptr;
+            if (object && object->isActiveInHierarchy() && !object->disposed())
+                object->lateUpdateComponent(component, mDeltaTime);
+        }
     }
 
-    for (GameObject* object : mObjects)
-        if (object->disposed() && (!object->parent() || !object->parent()->disposed()) &&
-            !queued(mPendingDestroy, object))
-            mPendingDestroy.push_back(object);
+    {
+        RADION_PROFILE_SCOPE("Disposed objects");
+        for (GameObject* object : mObjects)
+            if (object->disposed() && (!object->parent() || !object->parent()->disposed()) &&
+                !object->mPendingDestroyQueued)
+            {
+                object->mPendingDestroyQueued = true;
+                mPendingDestroy.push_back(object);
+            }
+    }
 
     ParticleEffectPool::getSingleton().reclaim();
 
@@ -773,7 +802,7 @@ bool Scene::setupOcclusionQueryResources()
     // own uniform-buffer offset alignment - binding at an arbitrary byte
     // offset is not portable even though this particular driver tolerates
     // it (see GPUCaps).
-    const u32 alignment = glm::max(gpu.caps().uniformOffsetAlignment, 4u);
+    const u32 alignment = Math::max(gpu.caps().uniformOffsetAlignment, 4u);
     mOcclusionBlockStride = ((sizeof(OcclusionBlock) + alignment - 1) / alignment) * alignment;
     if (!ensureOcclusionBlockCapacity(64))
         return false;
@@ -782,7 +811,7 @@ bool Scene::setupOcclusionQueryResources()
     verticesDesc.size = sizeof(kOcclusionCubeVertices);
     verticesDesc.usage = BufferVertex;
     verticesDesc.residency = Residency::Static;
-    verticesDesc.stride = sizeof(glm::vec3);
+    verticesDesc.stride = sizeof(Math::vec3);
     verticesDesc.data = kOcclusionCubeVertices;
     verticesDesc.debugName = "occlusion.cube.vertices";
     mOcclusionCubeVertices = gpu.createBuffer(verticesDesc);
@@ -802,7 +831,7 @@ bool Scene::setupOcclusionQueryResources()
 
     VertexLayout layout;
     layout.streamCount = 1;
-    layout.streams[StreamPosition].stride = sizeof(glm::vec3);
+    layout.streams[StreamPosition].stride = sizeof(Math::vec3);
     layout.attribCount = 1;
     layout.attribs[0] = {0, StreamPosition, 0, AttribFormat::Float3};
 
@@ -845,7 +874,7 @@ bool Scene::ensureOcclusionResultCapacity(u32 count)
 
     // Grown in steps rather than to exactly what was asked for, so a scene
     // gaining a few entries a frame does not reallocate and remap every time.
-    mOcclusionResultCapacity = glm::max(count + count / 2u, 256u);
+    mOcclusionResultCapacity = Math::max(count + count / 2u, 256u);
     for (u32 i = 0; i < kOcclusionResultBuffers; ++i)
     {
         BufferDesc desc;
@@ -880,8 +909,8 @@ bool Scene::ensureOcclusionBlockCapacity(u32 count)
     return mOcclusionBlock.valid();
 }
 
-void Scene::updateOcclusionQueries(TargetHandle depthTarget, const glm::mat4& viewProjection,
-                                   const glm::vec3& cameraPosition)
+void Scene::updateOcclusionQueries(TargetHandle depthTarget, const Math::mat4& viewProjection,
+                                   const Math::vec3& cameraPosition)
 {
     if (!mOcclusionQueryEnabled || mStaticHits.empty())
         return;
@@ -1001,14 +1030,14 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const glm::mat4& vi
         // things at different scene scales, with a floor for a box that is
         // nearly flat on one axis.
         constexpr f32 kOcclusionBoxPadding = 0.002f;
-        const glm::vec3 extents = candidates[i].worldBounds.extents();
-        const glm::vec3 padded =
-            extents + glm::max(extents * kOcclusionBoxPadding, glm::vec3(0.0005f));
+        const Math::vec3 extents = candidates[i].worldBounds.extents();
+        const Math::vec3 padded =
+            extents + Math::max(extents * kOcclusionBoxPadding, Math::vec3(0.0005f));
 
         OcclusionBlock block;
         block.viewProjection = viewProjection;
-        block.model = glm::translate(glm::mat4(1.0f), candidates[i].worldBounds.center()) *
-                      glm::scale(glm::mat4(1.0f), padded);
+        block.model = Math::translate(Math::mat4(1.0f), candidates[i].worldBounds.center()) *
+                      Math::scale(Math::mat4(1.0f), padded);
         std::memcpy(mOcclusionBlockScratch.data() + i * mOcclusionBlockStride, &block,
                     sizeof(block));
     }
@@ -1049,7 +1078,7 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const glm::mat4& vi
     {
         RADION_PROFILE_SCOPE("Occlusion resolve");
         RADION_GPU_PROFILE_SCOPE("Occlusion resolve");
-        const usize limit = glm::min(candidates.size(), usize(mOcclusionResultCapacity));
+        const usize limit = Math::min(candidates.size(), usize(mOcclusionResultCapacity));
         for (usize i = 0; i < limit; ++i)
         {
             gpu.resolveQuery(candidates[i].query, results,
@@ -1096,7 +1125,7 @@ void Scene::debugDrawOcclusion() const
     {
         const bool visible = mStaticIndex.lastVisible(hit.entryIndex);
         AABB bounds = mStaticIndex.entryBounds(hit.entryIndex);
-        const glm::vec3 margin = (bounds.max - bounds.min) * 0.01f + glm::vec3(0.01f);
+        const Math::vec3 margin = (bounds.max - bounds.min) * 0.01f + Math::vec3(0.01f);
         bounds.min -= margin;
         bounds.max += margin;
         DebugDraw().box(bounds, visible ? Color::Green : Color::Red);
@@ -1142,8 +1171,8 @@ bool Scene::buildRenderList(RenderList& list, u32 filter)
                            mActiveCamera->owner()->globalPosition(), filter);
 }
 
-bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
-                            const glm::vec3& cameraPosition, u32 filter, bool occlusionView,
+bool Scene::buildRenderList(RenderList& list, const Math::mat4& viewProjection,
+                            const Math::vec3& cameraPosition, u32 filter, bool occlusionView,
                             bool previewOcclusion)
 {
     flushChanges();
@@ -1175,10 +1204,10 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
         {
             const SpotLight* spot = static_cast<SpotLight*>(light);
             output.range = spot->range();
-            const f32 innerCos = glm::cos(glm::radians(spot->innerAngle()));
-            const f32 outerCos = glm::cos(glm::radians(spot->outerAngle()));
+            const f32 innerCos = Math::cos(Math::radians(spot->innerAngle()));
+            const f32 outerCos = Math::cos(Math::radians(spot->outerAngle()));
             output.coneAngleCos = outerCos;
-            output.coneAngleScale = 1.0f / glm::max(innerCos - outerCos, 0.0001f);
+            output.coneAngleScale = 1.0f / Math::max(innerCos - outerCos, 0.0001f);
             break;
         }
         case LightType::Rectangle:
@@ -1286,9 +1315,9 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
             }
 
             Animator* animator = object->getComponent<Animator>();
-            const std::vector<glm::mat4>* palette =
+            const std::vector<Math::mat4>* palette =
                 animator && animator->active() ? &animator->palette() : nullptr;
-            const std::vector<glm::mat4>* prevPalette =
+            const std::vector<Math::mat4>* prevPalette =
                 animator && animator->active() ? &animator->prevPalette() : nullptr;
             if (object != probeOwner)
             {
@@ -1453,17 +1482,17 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
         if (object->hasDebugFlag(DebugSkeleton) && animator)
         {
             const Skeleton* skeleton = animator->skeleton();
-            const std::vector<glm::mat4>& pose = animator->globalPose();
+            const std::vector<Math::mat4>& pose = animator->globalPose();
             if (skeleton && pose.size() == skeleton->boneCount())
                 for (u32 bone = 0; bone < skeleton->boneCount(); ++bone)
                 {
                     const s32 parent = skeleton->bone(bone).parent;
                     if (parent < 0)
                         continue;
-                    const glm::vec3 joint =
-                        glm::vec3(object->globalTransform() * pose[bone] * glm::vec4(0, 0, 0, 1));
-                    const glm::vec3 parentJoint =
-                        glm::vec3(object->globalTransform() * pose[parent] * glm::vec4(0, 0, 0, 1));
+                    const Math::vec3 joint =
+                        Math::vec3(object->globalTransform() * pose[bone] * Math::vec4(0, 0, 0, 1));
+                    const Math::vec3 parentJoint =
+                        Math::vec3(object->globalTransform() * pose[parent] * Math::vec4(0, 0, 0, 1));
                     debug.line(parentJoint, joint, Color::Cyan, false);
                 }
         }
@@ -1472,7 +1501,7 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
     return true;
 }
 
-bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u32 filter,
+bool Scene::buildShadowList(RenderList& list, const Math::mat4& viewProjection, u32 filter,
                             const Sphere* cullSphere, MeshHandle exclude, u64 excludeObjectId,
                             bool reflectionCapture, const std::vector<Plane>* casterPlanes,
                             f32 minCasterExtent)
@@ -1485,7 +1514,7 @@ bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u
         rebuildStaticIndex();
     list.clear();
     list.setFilter(filter);
-    list.setCamera(viewProjection, glm::vec3(0.0f));
+    list.setCamera(viewProjection, Math::vec3(0.0f));
     if (cullSphere)
         list.setCullSphere(*cullSphere);
 
@@ -1523,8 +1552,8 @@ bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u
                 continue;
             if (minCasterExtent > 0.0f)
             {
-                const glm::vec3 size = mStaticIndex.entryBounds(hit.entryIndex).extents() * 2.0f;
-                if (glm::max(size.x, glm::max(size.y, size.z)) < minCasterExtent)
+                const Math::vec3 size = mStaticIndex.entryBounds(hit.entryIndex).extents() * 2.0f;
+                if (Math::max(size.x, Math::max(size.y, size.z)) < minCasterExtent)
                     continue;
             }
             Mesh* mesh = assets.getMesh(renderer->mesh());
@@ -1566,16 +1595,16 @@ bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u
             continue;
         if (minCasterExtent > 0.0f)
         {
-            const glm::vec3 size = worldBounds.extents() * 2.0f;
-            if (glm::max(size.x, glm::max(size.y, size.z)) < minCasterExtent)
+            const Math::vec3 size = worldBounds.extents() * 2.0f;
+            if (Math::max(size.x, Math::max(size.y, size.z)) < minCasterExtent)
                 continue;
         }
         const Material* overrides = renderer->materialOverrides();
         const u32 overrideCount = renderer->materialOverrideCount();
         Animator* animator = object->getComponent<Animator>();
-        const std::vector<glm::mat4>* palette =
+        const std::vector<Math::mat4>* palette =
             animator && animator->active() ? &animator->palette() : nullptr;
-        const std::vector<glm::mat4>* prevPalette =
+        const std::vector<Math::mat4>* prevPalette =
             animator && animator->active() ? &animator->prevPalette() : nullptr;
         list.submit(renderer->mesh(), *mesh, object->globalTransform(), overrides, overrideCount,
                     palette, nullptr, &object->previousGlobalTransform(), prevPalette);
@@ -1598,8 +1627,8 @@ bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u
     // way buildRenderList() lets it through unfiltered. Without this loop a
     // tree just never appeared in any shadow view: buildShadowList() only
     // ever walked mRenderers.
-    const glm::vec3 cameraPosition =
-        mActiveCamera ? mActiveCamera->owner()->globalPosition() : glm::vec3(0.0f);
+    const Math::vec3 cameraPosition =
+        mActiveCamera ? mActiveCamera->owner()->globalPosition() : Math::vec3(0.0f);
     for (Forest* forest : mForests)
     {
         GameObject* object = forest->owner();
@@ -1695,11 +1724,18 @@ void Scene::componentRemoved(Component* component)
     const auto removeFromEventList = [component](std::vector<Component*>& components,
                                                  usize& index) {
         if (index < components.size() && components[index] == component)
+        {
             components[index] = nullptr;
+            return true;
+        }
         index = Component::InvalidSceneListIndex;
+        return false;
     };
-    removeFromEventList(mUpdateComponents, component->mSceneUpdateIndex);
-    removeFromEventList(mLateUpdateComponents, component->mSceneLateUpdateIndex);
+    const bool removedUpdate =
+        removeFromEventList(mUpdateComponents, component->mSceneUpdateIndex);
+    const bool removedLate =
+        removeFromEventList(mLateUpdateComponents, component->mSceneLateUpdateIndex);
+    mComponentListsDirty = mComponentListsDirty || removedUpdate || removedLate;
 
     switch (component->type())
     {
@@ -1761,6 +1797,9 @@ void Scene::componentRemoved(Component* component)
 
 void Scene::compactComponentLists()
 {
+    if (!mComponentListsDirty)
+        return;
+
     const auto compact = [](std::vector<Component*>& components, bool lateUpdate) {
         usize write = 0;
         for (usize read = 0; read < components.size(); ++read)
@@ -1779,6 +1818,7 @@ void Scene::compactComponentLists()
     };
     compact(mUpdateComponents, false);
     compact(mLateUpdateComponents, true);
+    mComponentListsDirty = false;
 }
 
 void Scene::registerBranch(GameObject* object)
@@ -1851,8 +1891,8 @@ void Scene::flushChanges()
 
 bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f32 mouseX,
                         f32 mouseY, u32 windowWidth, u32 windowHeight,
-                        const glm::mat4& inverseProjection, const glm::mat4& inverseView,
-                        glm::vec3& outPosition, glm::vec3& outNormal)
+                        const Math::mat4& inverseProjection, const Math::mat4& inverseView,
+                        Math::vec3& outPosition, Math::vec3& outNormal)
 {
     if (!depth.valid() || depthWidth <= 2 || depthHeight <= 2 || windowWidth == 0 ||
         windowHeight == 0)
@@ -1879,7 +1919,7 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
     if (centre >= 1.0f || centre <= 0.0f)
         return false; // sky or background: nothing to stick to
 
-    const glm::vec3 position =
+    const Math::vec3 position =
         viewPositionFromDepth(px, py, centre, depthWidth, depthHeight, inverseProjection);
 
     // The normal comes from differences, but taking the NEAREST neighbour on
@@ -1896,20 +1936,20 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
     const bool useRight = std::fabs(d[5] - centre) <= std::fabs(d[3] - centre);
     const bool useUp = std::fabs(d[7] - centre) <= std::fabs(d[1] - centre);
 
-    const glm::vec3 alongX =
+    const Math::vec3 alongX =
         useRight
             ? viewPositionFromDepth(px + 1, py, d[5], depthWidth, depthHeight, inverseProjection)
             : viewPositionFromDepth(px - 1, py, d[3], depthWidth, depthHeight, inverseProjection);
-    const glm::vec3 alongY =
+    const Math::vec3 alongY =
         useUp ? viewPositionFromDepth(px, py + 1, d[7], depthWidth, depthHeight, inverseProjection)
               : viewPositionFromDepth(px, py - 1, d[1], depthWidth, depthHeight, inverseProjection);
 
     // Keeps the cross product's sense when the far-side neighbour is used.
-    const glm::vec3 dX = useRight ? (alongX - position) : (position - alongX);
-    const glm::vec3 dY = useUp ? (alongY - position) : (position - alongY);
+    const Math::vec3 dX = useRight ? (alongX - position) : (position - alongX);
+    const Math::vec3 dY = useUp ? (alongY - position) : (position - alongY);
 
-    glm::vec3 normal = glm::cross(dX, dY);
-    const f32 length = glm::length(normal);
+    Math::vec3 normal = Math::cross(dX, dY);
+    const f32 length = Math::length(normal);
     if (length < 1e-8f)
         return false; // degenerate neighbours
     normal /= length;
@@ -1919,8 +1959,8 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
     if (normal.z < 0.0f)
         normal = -normal;
 
-    outPosition = glm::vec3(inverseView * glm::vec4(position, 1.0f));
-    outNormal = glm::normalize(glm::mat3(inverseView) * normal);
+    outPosition = Math::vec3(inverseView * Math::vec4(position, 1.0f));
+    outNormal = Math::normalize(Math::mat3(inverseView) * normal);
     return true;
 }
 
@@ -1947,7 +1987,7 @@ void pickObjectRecursive(const GameObject& object, const Ray& ray, GameObject*& 
     for (usize i = 0; i < object.childCount(); ++i)
         pickObjectRecursive(*object.child(i), ray, best, bestT);
 }
-void pickObjectAtPointRecursive(const GameObject& object, const glm::vec3& point, GameObject*& best,
+void pickObjectAtPointRecursive(const GameObject& object, const Math::vec3& point, GameObject*& best,
                                 f32& bestVolume)
 {
     if (object.active() && object.isVisibleInHierarchy())
@@ -1959,7 +1999,7 @@ void pickObjectAtPointRecursive(const GameObject& object, const glm::vec3& point
                 const AABB worldBounds = transformAABB(mesh->bounds, object.globalTransform());
                 if (worldBounds.contains(point))
                 {
-                    const glm::vec3 extents = worldBounds.extents();
+                    const Math::vec3 extents = worldBounds.extents();
                     const f32 volume = extents.x * extents.y * extents.z;
                     if (volume < bestVolume)
                     {
@@ -2012,7 +2052,7 @@ GameObject* Scene::pickDynamicObject(const Ray& ray, f32* outDistance)
     return best;
 }
 
-GameObject* Scene::pickObjectAtPoint(const glm::vec3& point) const
+GameObject* Scene::pickObjectAtPoint(const Math::vec3& point) const
 {
     GameObject* best = nullptr;
     f32 bestVolume = std::numeric_limits<f32>::max();
@@ -2020,7 +2060,7 @@ GameObject* Scene::pickObjectAtPoint(const glm::vec3& point) const
     return best;
 }
 
-s32 Scene::pickSubmeshAtPoint(const GameObject& object, const glm::vec3& point, s32* outSubmesh)
+s32 Scene::pickSubmeshAtPoint(const GameObject& object, const Math::vec3& point, s32* outSubmesh)
 {
     if (outSubmesh)
         *outSubmesh = -1;
@@ -2030,7 +2070,7 @@ s32 Scene::pickSubmeshAtPoint(const GameObject& object, const glm::vec3& point, 
     if (!mesh)
         return -1;
 
-    const glm::mat4& transform = object.globalTransform();
+    const Math::mat4& transform = object.globalTransform();
     s32 best = -1;
     f32 bestVolume = std::numeric_limits<f32>::max();
     for (usize i = 0; i < mesh->submeshes.size(); ++i)
@@ -2041,7 +2081,7 @@ s32 Scene::pickSubmeshAtPoint(const GameObject& object, const glm::vec3& point, 
         const AABB worldBounds = transformAABB(submesh.bounds, transform);
         if (!worldBounds.contains(point))
             continue;
-        const glm::vec3 extents = worldBounds.extents();
+        const Math::vec3 extents = worldBounds.extents();
         const f32 volume = extents.x * extents.y * extents.z;
         if (volume < bestVolume)
         {

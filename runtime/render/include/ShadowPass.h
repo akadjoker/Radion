@@ -15,23 +15,23 @@ static constexpr u32 MaxShadowKernel = 32;
 struct alignas(16) DirectionalShadowBlock
 {
     // World to atlas UV per split, rect and NDC-to-UV bias folded in.
-    glm::mat4 shadowMatrix[MaxShadowCascades];
-    glm::vec4 splits = glm::vec4(0.0f);
-    glm::vec4 shadowBias = glm::vec4(0.0f);
-    glm::vec4 shadowNormalBias = glm::vec4(0.0f);
-    glm::vec4 rangeBegin = glm::vec4(0.0f);
-    glm::vec4 uvScale[MaxShadowCascades]{};
-    glm::vec4 directionAndCount = glm::vec4(0.0f, -1.0f, 0.0f, 0.0f);
+    Math::mat4 shadowMatrix[MaxShadowCascades];
+    Math::vec4 splits = Math::vec4(0.0f);
+    Math::vec4 shadowBias = Math::vec4(0.0f);
+    Math::vec4 shadowNormalBias = Math::vec4(0.0f);
+    Math::vec4 rangeBegin = Math::vec4(0.0f);
+    Math::vec4 uvScale[MaxShadowCascades]{};
+    Math::vec4 directionAndCount = Math::vec4(0.0f, -1.0f, 0.0f, 0.0f);
     // x = 1/atlas size, y = soft shadow scale, z = tan(angular diameter),
     // w = blend splits.
-    glm::vec4 sampling = glm::vec4(0.0f);
+    Math::vec4 sampling = Math::vec4(0.0f);
     // x = soft samples, y = penumbra samples, z = opacity, w = frame count
     // for the rotating disk.
-    glm::vec4 sampling2 = glm::vec4(0.0f);
+    Math::vec4 sampling2 = Math::vec4(0.0f);
     // x = fade from, y = fade to.
-    glm::vec4 sampling3 = glm::vec4(0.0f);
-    glm::vec4 softKernel[MaxShadowKernel]{};
-    glm::vec4 penumbraKernel[MaxShadowKernel]{};
+    Math::vec4 sampling3 = Math::vec4(0.0f);
+    Math::vec4 softKernel[MaxShadowKernel]{};
+    Math::vec4 penumbraKernel[MaxShadowKernel]{};
 };
 
 // Why a frame carries no directional shadow. Every one of these is a normal
@@ -113,15 +113,15 @@ private:
     u32 mKernelQuality = ~0u;
     u32 mSoftSamples = 4;
     u32 mPenumbraSamples = 8;
-    glm::vec4 mSoftKernel[MaxShadowKernel]{};
-    glm::vec4 mPenumbraKernel[MaxShadowKernel]{};
+    Math::vec4 mSoftKernel[MaxShadowKernel]{};
+    Math::vec4 mPenumbraKernel[MaxShadowKernel]{};
     f32 mHalfExtents[MaxShadowCascades]{};
     f32 mSplits[MaxShadowCascades]{};
     u32 mResolution = 0;
     ShadowSkipReason mSkipReason = ShadowSkipReason::None;
     CascadeShadowData mCached;
     bool mCascadeCached[MaxShadowCascades]{};
-    glm::vec3 mCachedSunDirection = glm::vec3(0.0f);
+    Math::vec3 mCachedSunDirection = Math::vec3(0.0f);
     u32 mCachedCount = 0;
     u32 mFrameIndex = 0;
     bool mAtlasNeedsClear = true;

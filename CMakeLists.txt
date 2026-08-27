@@ -54,6 +54,7 @@ option(RADION_ENABLE_SANITIZERS "Enable sanitizers in Debug builds" ON)
 option(RADION_BUILD_EDITOR "Build the Radion editor" ON)
 option(RADION_BUILD_RUNNER "Build the standalone Radion game runner" ON)
 option(RADION_BUILD_BLENDER "Build the Radion Blender tool" ON)
+option(RADION_BUILD_VOXEL_DEMO "Build the voxel terrain demo" ON)
  
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -62,6 +63,13 @@ include(RadionFormat)
 
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
+
+# Mathc is intentionally built here instead of through its own CMake project:
+# Radion controls the warning level and language standard for all of its
+# dependencies, and Mathc is a small self-contained implementation.
+add_library(radion_math STATIC vendor/mathc/mathc.cpp)
+target_include_directories(radion_math PUBLIC ${PROJECT_SOURCE_DIR}/vendor/mathc)
+target_compile_features(radion_math PUBLIC cxx_std_17)
 
 if(WIN32 AND BUILD_SHARED_LIBS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -84,6 +92,7 @@ add_subdirectory(runtime/render)
 add_subdirectory(runtime/physics)
 add_subdirectory(runtime/geometry)
 add_subdirectory(runtime/ai)
+add_subdirectory(runtime/voxel)
 
 # Vendored Zen scripting language (core VM + simple builtin modules only),
 # and the Radion-side bindings on top of it - before runtime/scene, which
@@ -108,6 +117,10 @@ endif()
 
 if(RADION_BUILD_BLENDER)
     add_subdirectory(blend)
+endif()
+
+if(RADION_BUILD_VOXEL_DEMO)
+    add_subdirectory(examples/voxel_demo)
 endif()
 
 add_subdirectory(tools/lightmapbake)
