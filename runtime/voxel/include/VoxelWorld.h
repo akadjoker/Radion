@@ -22,6 +22,16 @@ public:
     VoxelChunk& ensureChunk(ChunkCoord coordinate);
     VoxelChunk* findChunk(ChunkCoord coordinate);
     const VoxelChunk* findChunk(ChunkCoord coordinate) const;
+    template <class Function> void forEachChunk(Function&& function)
+    {
+        for (auto& entry : mChunks)
+            function(entry.first, entry.second);
+    }
+    template <class Function> void forEachChunk(Function&& function) const
+    {
+        for (const auto& entry : mChunks)
+            function(entry.first, entry.second);
+    }
     bool removeChunk(ChunkCoord coordinate);
     void clear();
     usize chunkCount() const { return mChunks.size(); }

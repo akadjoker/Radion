@@ -75,6 +75,7 @@ private:
     void drawParticleEffectComponent(class ParticleEffect& effect);
     void drawParticleEmitterComponent(class ParticleEmitter& emitter);
     void drawOceanComponent(class Ocean& ocean);
+    void drawVoxelWorldComponent(class VoxelWorldComponent& voxelWorld);
     void drawGrassComponent(class Grass& grass);
     void drawHairComponent(class Hair& hair);
     void drawForestComponent(class Forest& forest);

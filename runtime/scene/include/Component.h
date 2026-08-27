@@ -42,6 +42,7 @@ enum class ComponentType : u8
     SelfDestroy,
     Waypoints,
     NavMeshSurface,
+    VoxelWorld,
     Collider,
     Count
 };

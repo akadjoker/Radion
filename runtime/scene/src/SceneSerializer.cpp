@@ -40,6 +40,7 @@
 #include "Waypoints.h"
 #include "Text3D.h"
 #include "Terrain.h"
+#include "VoxelWorldComponent.h"
 #include "VolumetricPass.h"
 
 #include <cmath>
@@ -573,6 +574,20 @@ nlohmann::json writeTerrain(Terrain& terrain)
     return json;
 }
 
+nlohmann::json writeVoxelWorld(VoxelWorldComponent& voxelWorld)
+{
+    return nlohmann::json{{"type", "VoxelWorld"},
+                          {"version", 1},
+                          {"active", voxelWorld.active()},
+                          {"seed", voxelWorld.seed()},
+                          {"chunkRadius", voxelWorld.chunkRadius()},
+                          {"minWorldY", voxelWorld.minWorldY()},
+                          {"maxWorldY", voxelWorld.maxWorldY()},
+                          {"waterLevel", voxelWorld.waterLevel()},
+                          {"atlasFile", voxelWorld.atlasFile()},
+                          {"originObjectId", voxelWorld.originObjectId()}};
+}
+
 nlohmann::json writeRoad(Road& road)
 {
     nlohmann::json json{{"type", "Road"}, {"version", 2}, {"active", road.active()},
@@ -988,6 +1003,36 @@ void readTerrain(GameObject& object, const nlohmann::json& json, const std::stri
     const auto active = json.find("active");
     if (active != json.end() && active->is_boolean())
         terrain->setActive(active->get<bool>());
+}
+
+void readVoxelWorld(GameObject& object, const nlohmann::json& json, const std::string& path,
+                    SceneLoadResult& result)
+{
+    VoxelWorldComponent* voxelWorld = object.addComponent<VoxelWorldComponent>();
+    if (!voxelWorld)
+    {
+        result.addError(path, "object already has a VoxelWorld component");
+        return;
+    }
+    u64 seed = 0;
+    const auto seedField = json.find("seed");
+    if (seedField != json.end() && readNonNegativeInteger(*seedField, seed) &&
+        seed <= std::numeric_limits<u32>::max())
+        voxelWorld->setSeed(static_cast<u32>(seed));
+    voxelWorld->setChunkRadius(static_cast<s32>(readNumberOr(json, "chunkRadius", 2.0f)));
+    voxelWorld->setMinWorldY(static_cast<s32>(readNumberOr(json, "minWorldY", -64.0f)));
+    voxelWorld->setMaxWorldY(static_cast<s32>(readNumberOr(json, "maxWorldY", 127.0f)));
+    voxelWorld->setWaterLevel(static_cast<s32>(readNumberOr(json, "waterLevel", 20.0f)));
+    const auto atlas = json.find("atlasFile");
+    if (atlas != json.end() && atlas->is_string())
+        voxelWorld->setAtlasFile(atlas->get<std::string>());
+    u64 originObjectId = 0;
+    const auto origin = json.find("originObjectId");
+    if (origin != json.end() && readNonNegativeInteger(*origin, originObjectId))
+        voxelWorld->setOriginObjectId(originObjectId);
+    const auto active = json.find("active");
+    if (active != json.end() && active->is_boolean())
+        voxelWorld->setActive(active->get<bool>());
 }
 
 nlohmann::json writeCamera(Camera& camera)
@@ -3746,6 +3791,8 @@ nlohmann::json writeComponents(GameObject& object)
         array.push_back(writeForest(*component));
     if (Ocean* component = object.getComponent<Ocean>())
         array.push_back(writeOcean(*component));
+    if (VoxelWorldComponent* component = object.getComponent<VoxelWorldComponent>())
+        array.push_back(writeVoxelWorld(*component));
     if (ZenBehaviour* component = object.findComponent<ZenBehaviour>())
         array.push_back(writeZenBehaviour(*component));
     // Not written: ActionRunner (no getters over its command queue - cannot
@@ -3806,6 +3853,8 @@ void readComponent(GameObject& object, const nlohmann::json& json, const std::st
         readForest(object, json, path, result);
     else if (type == "Ocean")
         readOcean(object, json, path, result);
+    else if (type == "VoxelWorld")
+        readVoxelWorld(object, json, path, result);
     else if (type == "CharacterController")
         readCharacterController(object, json, path, result);
     else if (type == "FreeFly")
