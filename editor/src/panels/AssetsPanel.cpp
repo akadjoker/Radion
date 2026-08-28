@@ -13,7 +13,9 @@
 #include "MaterialManager.h"
 #include "MeshRenderer.h"
 #include "Pixmap.h"
+#include "Prefab.h"
 #include "Scene.h"
+#include "SceneSerializer.h"
 #include "Skeleton.h"
 
 #include <IconsMaterialDesignIcons.h>
@@ -130,6 +132,13 @@ bool isMeshAsset(const std::string& extension)
 bool isNativeMeshAsset(const std::string& extension)
 {
     return extension == "rmesh" || extension == "rstm";
+}
+
+// A saved GameObject subtree (Prefab::saveToFile()'s own format) - reading
+// one is a plain SceneSerializer::subtreeFromJson(), not an importer.
+bool isPrefabAsset(const std::string& extension)
+{
+    return extension == "rprefab";
 }
 
 std::string objMaterialName(const std::string& source, usize index)
@@ -306,6 +315,8 @@ const char* iconForAsset(const FileSystem::DirEntry& entry)
         return ICON_MDI_FILE_IMAGE;
     if (isMeshAsset(extension))
         return ICON_MDI_CUBE_OUTLINE;
+    if (isPrefabAsset(extension))
+        return ICON_MDI_PACKAGE_VARIANT_CLOSED;
     if (extension == "cpp" || extension == "c" || extension == "h" || extension == "hpp" ||
         extension == "glsl" || extension == "vert" || extension == "frag" || extension == "lua" ||
         isScriptAsset(extension))
@@ -330,6 +341,8 @@ ImVec4 iconColorForAsset(const FileSystem::DirEntry& entry)
         return ImVec4(0.55f, 0.85f, 0.55f, 1.0f); // image green
     if (isMeshAsset(extension))
         return ImVec4(0.4f, 0.75f, 0.9f, 1.0f); // mesh cyan
+    if (isPrefabAsset(extension))
+        return ImVec4(0.75f, 0.55f, 0.95f, 1.0f); // prefab violet
     if (extension == "cpp" || extension == "c" || extension == "h" || extension == "hpp" ||
         extension == "glsl" || extension == "vert" || extension == "frag" || extension == "lua" ||
         extension == "py")
@@ -576,6 +589,41 @@ std::string AssetsPanel::importOutputBase()
         resolved.empty() ? app().assetBrowserRoot() + "/" + mImportPath : resolved;
     const usize dot = base.find_last_of('.');
     return dot == std::string::npos ? base : base.substr(0, dot);
+}
+
+void AssetsPanel::instantiatePrefab(const std::string& relativePath)
+{
+    Prefab prefab;
+    if (!prefab.load(relativePath))
+    {
+        Log::error("AssetsPanel: could not read prefab '%s'", relativePath.c_str());
+        app().toasts().error("Could not read " + FileSystem::fileName(relativePath));
+        return;
+    }
+
+    app().recordUndo();
+    SceneLoadResult result;
+    GameObject* object = prefab.instantiate(app().scene(), nullptr, result);
+    if (!object)
+    {
+        for (const SceneDiagnostic& diagnostic : result.diagnostics)
+            Log::error("AssetsPanel: prefab instantiate failed - %s: %s",
+                       diagnostic.jsonPath.c_str(), diagnostic.message.c_str());
+        app().toasts().error("Could not instantiate " + FileSystem::fileName(relativePath));
+        return;
+    }
+
+    // Position only - rotation/scale are what the prefab was saved with, and
+    // stay untouched. Children keep their own transform, local to this root.
+    object->setPosition(app().cursor3D());
+    // Prefab::instantiate() only queues the new objects; they are not walkable
+    // (childCount(), the transform hierarchy) until the Scene's normal add
+    // flush runs, ordinarily at the top of next frame. Selecting one right
+    // away needs that flush now instead.
+    app().scene().update(0.0f);
+    app().selection().select(object->id());
+    app().markDirty();
+    app().toasts().success("Instantiated " + FileSystem::fileName(relativePath));
 }
 
 void AssetsPanel::drawDeletePopup()
@@ -1245,8 +1293,18 @@ void AssetsPanel::onImGui()
             return;
         }
 
-        if (isScriptAsset(extensionOf(entry.name)) && doubleClicked)
+        const std::string extension = extensionOf(entry.name);
+        if (isScriptAsset(extension) && doubleClicked)
+        {
             app().openScriptEditor((mCurrentDirectory / entry.name).string());
+            return;
+        }
+        if (isPrefabAsset(extension) && doubleClicked)
+        {
+            std::string relPath;
+            if (assetRelativePath(mCurrentDirectory / entry.name, relPath))
+                instantiatePrefab(relPath);
+        }
     };
 
     const auto createMenu = [this](const std::filesystem::path& directory)
@@ -1312,7 +1370,8 @@ void AssetsPanel::onImGui()
         const bool mesh = isMeshAsset(extension);
         const bool image = isImageAsset(extension);
         const bool script = isScriptAsset(extension);
-        if (!mesh && !image && !script)
+        const bool prefab = isPrefabAsset(extension);
+        if (!mesh && !image && !script && !prefab)
             return;
         // Load/Import/Convert/Generate all end up writing beside the source
         // or feeding it to AssetManager by search-path-relative name -
@@ -1539,6 +1598,8 @@ void AssetsPanel::onImGui()
                                      stem + "_height.png");
             }
         }
+        if (prefab && ImGui::MenuItem(ICON_MDI_PACKAGE_VARIANT " Instantiate"))
+            instantiatePrefab(relPath);
         if (script && ImGui::MenuItem(ICON_MDI_CONTENT_COPY " Copy Script Path"))
             ImGui::SetClipboardText(relPath.c_str());
         ImGui::Separator();

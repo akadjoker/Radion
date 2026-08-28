@@ -4,6 +4,7 @@
 
 #include "Animation.h"
 #include "AssetManager.h"
+#include "AudioPlayer.h"
 #include "Billboard.h"
 #include "BoneAttachment.h"
 #include "Camera.h"
@@ -250,6 +251,9 @@ void removeComponentByType(GameObject& object, ComponentType type)
     case ComponentType::VoxelWorld: object.removeComponent<VoxelWorldComponent>(); break;
     case ComponentType::Script: object.removeComponent<ScriptComponent>(); break;
     case ComponentType::Collider: object.removeComponent<Collider>(); break;
+    case ComponentType::AudioPlayer:
+        object.removeComponent<AudioPlayer>();
+        break;
     default: break;
     }
 }
@@ -837,6 +841,15 @@ void InspectorPanel::drawComponentList(GameObject& object)
             toRemove = ComponentType::Collider;
         else
             drawColliderComponent(object, *collider);
+        ImGui::PopID();
+    }
+    if (AudioPlayer* audioPlayer = object.getComponent<AudioPlayer>())
+    {
+        ImGui::PushID("AudioPlayer");
+        if (drawComponentHeader(app(), "AudioPlayer", *audioPlayer))
+            toRemove = ComponentType::AudioPlayer;
+        else
+            drawAudioPlayerComponent(*audioPlayer);
         ImGui::PopID();
     }
     if (ZenBehaviour* behaviour = object.findComponent<ZenBehaviour>())
@@ -3047,6 +3060,11 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             object.addComponent<Collider>();
             app().markDirty();
         }
+        if (!object.getComponent<AudioPlayer>() && ImGui::MenuItem("AudioPlayer"))
+        {
+            object.addComponent<AudioPlayer>();
+            app().markDirty();
+        }
         if (!object.getComponent<ScriptComponent>() && ImGui::MenuItem("Zen Behaviour"))
         {
             object.addComponent<ZenBehaviour>();
@@ -4001,6 +4019,156 @@ void InspectorPanel::drawSelfDestroyComponent(GameObject&, SelfDestroy& selfDest
         selfDestroy.restart();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Zero the countdown and re-arm the dispose.");
+
+    ImGui::Unindent(14.0f);
+}
+
+void InspectorPanel::drawAudioPlayerComponent(AudioPlayer& player)
+{
+    ImGui::Indent(14.0f);
+
+    char sourceBuffer[256];
+    std::strncpy(sourceBuffer, player.source().c_str(), sizeof(sourceBuffer) - 1);
+    sourceBuffer[sizeof(sourceBuffer) - 1] = '\0';
+    if (ImGui::InputText("Source", sourceBuffer, sizeof(sourceBuffer)))
+    {
+        player.setSource(sourceBuffer);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Path to the sound file, resolved through the project's search paths - "
+                          "drop an audio asset here instead of typing it.");
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kAssetFileDragPayload))
+        {
+            const std::string path(static_cast<const char*>(payload->Data), payload->DataSize);
+            player.setSource(path);
+            app().markDirty();
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    bool music = player.music();
+    if (ImGui::Checkbox("Music", &music))
+    {
+        player.setMusic(music);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Music streams from one voice at a time and ignores Pan; off, this "
+                          "decodes up front as a sound effect and overlaps freely with others.");
+
+    bool autoplay = player.autoplay();
+    if (ImGui::Checkbox("Autoplay", &autoplay))
+    {
+        player.setAutoplay(autoplay);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Start playing as soon as this object's Start runs.");
+
+    bool loop = player.loop();
+    if (ImGui::Checkbox("Loop", &loop))
+    {
+        player.setLoop(loop);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Restart from the beginning every time playback reaches the end.");
+
+    f32 volume = player.volume();
+    if (ImGui::DragFloat("Volume", &volume, 0.01f, 0.0f, 4.0f, "%.2f"))
+    {
+        player.setVolume(volume);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Playback gain - 1 is unity, up to 4x boost. Applies live to a voice "
+                          "already playing.");
+
+    f32 pitch = player.pitch();
+    if (ImGui::DragFloat("Pitch", &pitch, 0.01f, 0.01f, 4.0f, "%.2f"))
+    {
+        player.setPitch(pitch);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Playback speed and pitch multiplier - 1 is unmodified.");
+
+    f32 pan = player.pan();
+    if (ImGui::DragFloat("Pan", &pan, 0.01f, -1.0f, 1.0f, "%.2f"))
+    {
+        player.setPan(pan);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Left/right balance for a non-spatial sound effect - ignored by Music "
+                          "and overridden by Spatial.");
+
+    bool spatial = player.spatial();
+    if (ImGui::Checkbox("Spatial", &spatial))
+    {
+        player.setSpatial(spatial);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Follow this object's world position every frame and attenuate against "
+                          "the listener the Scene sets from the active camera.");
+
+    ImGui::BeginDisabled(!spatial);
+    f32 minDistance = player.minDistance();
+    if (ImGui::DragFloat("Min Distance", &minDistance, 0.1f, 0.0f, 1000000.0f, "%.2f"))
+    {
+        player.setMinDistance(minDistance);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Below this distance from the listener, a spatial voice is at full "
+                          "volume.");
+
+    f32 maxDistance = player.maxDistance();
+    if (ImGui::DragFloat("Max Distance", &maxDistance, 0.1f, 0.0f, 1000000.0f, "%.2f"))
+    {
+        player.setMaxDistance(maxDistance);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Past this distance from the listener, a spatial voice is silent.");
+
+    f32 rolloff = player.rolloff();
+    if (ImGui::DragFloat("Rolloff", &rolloff, 0.1f, 0.0f, 100.0f, "%.2f"))
+    {
+        player.setRolloff(rolloff);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Shapes the attenuation curve between Min and Max Distance - higher "
+                          "falls off faster.");
+    ImGui::EndDisabled();
+
+    ImGui::Separator();
+    if (ImGui::Button("Play"))
+        player.play();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Load the source if needed and start (or restart) playback.");
+    ImGui::SameLine();
+    if (ImGui::Button("Stop"))
+        player.stop();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Stop playback and release the voice.");
+    ImGui::SameLine();
+    if (ImGui::Button("Pause"))
+        player.pause();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Pause the voice in place, if one is playing.");
+    ImGui::SameLine();
+    if (ImGui::Button("Resume"))
+        player.resume();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Resume a paused voice.");
+    ImGui::SameLine();
+    ImGui::TextDisabled("%s", player.playing() ? "Playing" : "Stopped");
 
     ImGui::Unindent(14.0f);
 }

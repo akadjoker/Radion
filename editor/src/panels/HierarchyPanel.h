@@ -2,6 +2,7 @@
 #define RADION_HIERARCHY_PANEL_H
 
 #include "EditorPanel.h"
+#include "ImGuiFileDialog.h"
 
 #include <glm/vec3.hpp>
 #include <string>
@@ -100,6 +101,15 @@ private:
     void drawPendingOceanPopup();
     void drawPendingGridDuplicatePopup();
     void queuePendingPrimitive(PrimitiveKind kind, GameObject* parent);
+
+    // "Save as Prefab..." on a Hierarchy node's context menu - mSavePrefabSource
+    // is the object id the dialog was opened for, looked back up through
+    // Scene::findGameObject() on Accept rather than kept as a raw pointer
+    // (the dialog stays open across frames, plenty of time for the object to
+    // be deleted from under it).
+    void drawSavePrefabPopup();
+    ImGuiFileDialog mSavePrefabDialog;
+    u64 mSavePrefabSource = 0;
 
     PendingPrimitive mPendingPrimitive;
     PendingTerrain mPendingTerrain;

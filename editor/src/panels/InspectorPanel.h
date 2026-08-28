@@ -59,6 +59,7 @@ private:
     void drawLightComponent(class Light& light);
     void drawText3DComponent(class Text3D& text);
     void drawBillboardComponent(class Billboard& billboard);
+    void drawAudioPlayerComponent(class AudioPlayer& player);
     void drawBoneAttachmentComponent(class BoneAttachment& attachment);
     void drawOrbitComponent(GameObject& object, class Orbit& orbit);
     void drawMayaComponent(GameObject& object, class Maya& maya);
