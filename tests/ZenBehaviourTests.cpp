@@ -19,6 +19,7 @@
 
 #include "zen/vm.h"
 
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <filesystem>
@@ -873,6 +874,39 @@ void testOnCollisionSeesOtherObjectName()
     CHECK(watcher->name() == "Bumper");
 }
 
+// callCollision() carries the began flag through to on_collision(self,
+// other, began). The older 1-argument on_collision(self, other) form (the
+// script just above, driven through CollisionWorld) keeps working
+// unchanged when called the same way, since zen does not check argument
+// count on a native-invoked call - proof that adding `began` here could
+// not have broken it.
+void testCallCollisionPassesBeganFlag()
+{
+    Scene scene;
+    GameObject* watcher = scene.createGameObject("Watcher");
+    GameObject* other = scene.createGameObject("Other");
+    ZenBehaviour* behaviour = watcher->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class BeganWatcher:\n"
+        "    def on_collision(self, other, began):\n"
+        "        if began:\n"
+        "            self.owner.set_name(\"Began\")\n"
+        "        else:\n"
+        "            self.owner.set_name(\"Ended\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(0.0f);
+    CHECK(behaviour->callCollision(other, true));
+    CHECK(!behaviour->hasError());
+    CHECK(watcher->name() == "Began");
+
+    CHECK(behaviour->callCollision(other, false));
+    CHECK(!behaviour->hasError());
+    CHECK(watcher->name() == "Ended");
+}
+
 // Component::is_active()/set_active() (SceneScriptBindings.cpp), read and
 // written through a Light handle - verified against the real Light
 // afterwards, not just the absence of a script error.
@@ -1138,6 +1172,73 @@ void testMeshRendererSubmeshCount()
     CHECK(renderer != nullptr);
     if (renderer)
         CHECK(renderer->submeshCount() == 0);
+}
+
+// Every set_* shape in one script: an unbound name or a wrong arity raises in
+// the VM, so reaching the last line at all is what proves the eight are
+// registered. It deliberately does not assert that a mesh arrived - createMesh
+// uploads, and no test binary here holds a GL context, so has_mesh() would
+// read the environment rather than the binding. That half is covered by
+// running examples/tutorials tutorial 05, which draws what it spawns.
+// set_mesh_file() on a missing file is the one outcome that is the same with
+// or without a context: False, and no script error.
+void testMeshRendererSetsPrimitiveMesh()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Shaped");
+    MeshRenderer* renderer = object->addComponent<MeshRenderer>();
+    CHECK(renderer != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class SetShapes:\n"
+        "    def on_start(self):\n"
+        "        r = self.node.get_component(MeshRenderer)\n"
+        "        r.set_box(1.0, 2.0, 3.0)\n"
+        "        r.set_sphere(0.5)\n"
+        "        r.set_plane(2.0, 2.0)\n"
+        "        r.set_cylinder(0.5, 1.0)\n"
+        "        r.set_cone(0.5, 1.0)\n"
+        "        r.set_capsule(0.4, 1.0)\n"
+        "        r.set_torus(1.0, 0.25)\n"
+        "        if not r.set_mesh_file(\"no_such_mesh.rmesh\"):\n"
+        "            self.node.set_name(\"Bound\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Bound");
+}
+
+// The class argument can also be written as a generic: the compiler places
+// generic values before the explicit arguments (generic_argument_list,
+// compiler_expressions.cpp), so get_component<Light>() reaches the same
+// native with the same args[0] as get_component(Light). Nothing in the
+// bindings distinguishes them, and this is what holds that true.
+void testGenericSpellingReachesTheSameNative()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Generic");
+    object->addComponent<DirectionalLight>();
+    object->addComponent<MeshRenderer>();
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class GenericCalls:\n"
+        "    def on_start(self):\n"
+        "        plain = self.node.get_component(Light)\n"
+        "        generic = self.node.get_component<Light>()\n"
+        "        if plain == generic and self.node.has_component<MeshRenderer>():\n"
+        "            self.node.set_name(\"Same\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Same");
 }
 
 // A handful of plain setters, ending in set_max_iterations() - the one that
@@ -1701,6 +1802,165 @@ void testReadGameObjectRejectsOtherHandles()
     CHECK(object->getComponent<Camera>() == camera);
 }
 
+// callEvent() dispatches to on_event(self, event, value) - the general
+// named-event hook beside the fixed on_start/on_update/on_destroy/
+// on_collision ones. Both the event name and the value reach the script,
+// and the default value (no second argument) is 0.0.
+void testCallEventInvokesOnEventHook()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Eventer");
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class EventHandler:\n"
+        "    def on_event(self, event, value):\n"
+        "        self.owner.set_name(event)\n"
+        "        self.owner.yaw(value)\n";
+    CHECK(behaviour->loadSource(script));
+
+    // createGameObject() only queues the object (Scene::add()) - owner()
+    // and object->scene() do not resolve until a flush, so one no-op update
+    // has to run before a direct call like callEvent() can reach the script.
+    scene.setRunningInEditor(false);
+    scene.update(0.0f);
+    CHECK(behaviour->callEvent("Jump", 45.0));
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Jump");
+    const f32 yawAfterJump = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    CHECK(std::abs(yawAfterJump - 45.0f) < 0.01f);
+
+    CHECK(behaviour->callEvent("Idle"));
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Idle");
+    const f32 yawAfterIdle = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    CHECK(std::abs(yawAfterIdle - yawAfterJump) < 0.01f);
+}
+
+// A class that never defines on_event has no slot to call into - callEvent()
+// is then a harmless no-op that reports it did nothing, with no error.
+void testCallEventReturnsFalseWithoutOnEventHook()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("NoEvents");
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class NoEventHook:\n"
+        "    def on_update(self, dt):\n"
+        "        pass\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(0.0f);
+    CHECK(!behaviour->callEvent("Anything"));
+    CHECK(!behaviour->hasError());
+}
+
+// callFunction() reaches any method the class defines, by name, the same way
+// a direct script call would - and hasFunction() answers from the compiled
+// class's own vtable, no instance and no call involved.
+void testCallFunctionInvokesNamedMethodAndHasFunctionSeesIt()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Custom");
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class Custom:\n"
+        "    def take_damage(self, amount):\n"
+        "        self.owner.yaw(amount)\n"
+        "    def on_update(self, dt):\n"
+        "        pass\n";
+    CHECK(behaviour->loadSource(script));
+
+    CHECK(behaviour->hasFunction("take_damage"));
+    CHECK(behaviour->hasFunction("on_update"));
+    CHECK(!behaviour->hasFunction("no_such_function"));
+
+    scene.setRunningInEditor(false);
+    scene.update(0.0f);
+    CHECK(behaviour->callFunction("take_damage", 30.0));
+    CHECK(!behaviour->hasError());
+    const f32 yaw = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    CHECK(std::abs(yaw - 30.0f) < 0.01f);
+}
+
+// Calling a name the script never defined is a captured runtime error, the
+// same way a bad on_update() is - not a crash, not a silent no-op.
+void testCallFunctionFailsForUnknownName()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Bare");
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class Bare:\n"
+        "    def on_update(self, dt):\n"
+        "        pass\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(0.0f);
+    CHECK(!behaviour->callFunction("no_such_function", 1.0));
+    CHECK(behaviour->hasError());
+    CHECK(!behaviour->lastError().empty());
+}
+
+// reloadIfChanged() notices a real on-disk edit and recompiles through the
+// same ScriptCache path reload() does - the mtime is forced forward here
+// past whatever resolution the filesystem happens to have, since the point
+// under test is the comparison itself, not a race against the OS clock.
+// sourceTimestamp() reads the shared ScriptCache entry directly, so it moves
+// for every component sharing the path, not only the one that called reload.
+void testReloadIfChangedDetectsDiskEditAndSourceTimestampTracksIt()
+{
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "radion_zen_behaviour_reload_if_changed_test.py";
+    writeReloadScript(path, 30.0f);
+
+    Scene scene;
+    GameObject* object = scene.createGameObject("Watched");
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+    CHECK(behaviour->loadFile(path.string()));
+
+    const s64 firstStamp = behaviour->sourceTimestamp();
+    CHECK(firstStamp != 0);
+
+    // Unchanged on disk: nothing to pick up.
+    CHECK(!behaviour->reloadIfChanged());
+    CHECK(behaviour->sourceTimestamp() == firstStamp);
+
+    writeReloadScript(path, 300.0f);
+    std::filesystem::last_write_time(
+        path, std::filesystem::last_write_time(path) + std::chrono::seconds(5));
+
+    CHECK(behaviour->reloadIfChanged());
+    CHECK(behaviour->sourceTimestamp() != firstStamp);
+
+    scene.setRunningInEditor(false);
+    const f32 dt = 1.0f / 60.0f;
+    scene.update(dt);
+    CHECK(!behaviour->hasError());
+    CHECK(std::abs(glm::degrees(glm::eulerAngles(object->rotation())).y - 300.0f * dt) < 0.05f);
+
+    std::error_code removeError;
+    std::filesystem::remove(path, removeError);
+}
+
+// A behaviour loaded from a source string has no file to watch:
+// sourceTimestamp() stays 0 and reloadIfChanged() is always a no-op for it.
+void testReloadIfChangedFalseWithoutFile()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Inline");
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+    CHECK(behaviour->loadSource("class Empty:\n    def on_start(self):\n        pass\n"));
+
+    CHECK(behaviour->sourceTimestamp() == 0);
+    CHECK(!behaviour->reloadIfChanged());
+}
+
 // ScriptVM::call()/setGlobal() directly - the generic C++ <-> script call
 // path, independent of ZenBehaviour's own class-based dispatch.
 void testCallAndGlobalRoundTrip()
@@ -1912,8 +2172,15 @@ int main()
     testInitRunsAndOverrideWinsOverIt();
     testClearOverrideRestoresTheDeclaredDefault();
     testOverridesSurviveSerializerRoundTrip();
+    testCallEventInvokesOnEventHook();
+    testCallEventReturnsFalseWithoutOnEventHook();
+    testCallFunctionInvokesNamedMethodAndHasFunctionSeesIt();
+    testCallFunctionFailsForUnknownName();
+    testReloadIfChangedDetectsDiskEditAndSourceTimestampTracksIt();
+    testReloadIfChangedFalseWithoutFile();
     testCallAndGlobalRoundTrip();
     testOnCollisionSeesOtherObjectName();
+    testCallCollisionPassesBeganFlag();
     testComponentBaseIsActive();
     testGetComponentByClass();
     testComponentHandleIsCached();
@@ -1923,6 +2190,8 @@ int main()
     testMeshRendererSubmeshVisibility();
     testMeshRendererCountsAreIntegers();
     testMeshRendererSubmeshCount();
+    testMeshRendererSetsPrimitiveMesh();
+    testGenericSpellingReachesTheSameNative();
     testCharacterControllerTuning();
     testCharacterControllerMoveReturnsResult();
     testCharacterControllerMoveInputRoundTrip();

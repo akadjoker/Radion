@@ -2,6 +2,7 @@
 
 #include "ZenBehaviour.h"
 
+#include "FileSystem.h"
 #include "GameObject.h"
 #include "Scene.h"
 #include "SceneScriptBindings.h"
@@ -10,6 +11,8 @@
 #include "zen/vm.h"
 
 #include <cstring>
+#include <filesystem>
+#include <system_error>
 
 namespace Radion
 {
@@ -18,6 +21,23 @@ static std::string currentErrorMessage(zen::VM& vm)
 {
     zen::ObjFiber* fiber = vm.current_fiber();
     return (fiber && fiber->error) ? fiber->error->chars : "zen: runtime error";
+}
+
+// User parameters the method in that vtable slot declares, self excluded.
+// Negative is variadic; 0 for anything that is not a closure, so a caller
+// that cannot tell passes nothing rather than too much.
+static int methodArity(zen::Value classValue, int slot)
+{
+    if (slot < 0 || !zen::is_class(classValue))
+        return 0;
+    zen::ObjClass* klass = zen::as_class(classValue);
+    if (!klass || slot >= klass->vtable_size)
+        return 0;
+    const zen::Value method = klass->vtable[slot];
+    if (!zen::is_closure(method))
+        return 0;
+    zen::ObjClosure* closure = zen::as_closure(method);
+    return (closure && closure->func) ? closure->func->arity : 0;
 }
 
 ZenBehaviour::ZenBehaviour() : ScriptComponent(ComponentEventUpdate)
@@ -98,6 +118,36 @@ bool ZenBehaviour::reload()
     return true;
 }
 
+bool ZenBehaviour::reloadIfChanged()
+{
+    if (!mFromFile || mScriptPath.empty())
+        return false;
+
+    // The component keeps the authored path (e.g. "Scripts/foo.zen"); the
+    // cache compiled it from FileSystem's resolved real path, so the disk
+    // check has to go through the same resolution or an edit made to the
+    // real file could go unnoticed here.
+    const std::string resolved = FileSystem::getSingleton().resolve(mScriptPath);
+    if (resolved.empty())
+        return false;
+
+    std::error_code error;
+    const std::filesystem::file_time_type time = std::filesystem::last_write_time(resolved, error);
+    if (error)
+        return false;
+
+    const s64 stamp = static_cast<s64>(time.time_since_epoch().count());
+    if (stamp == sourceTimestamp())
+        return false;
+
+    return reload();
+}
+
+s64 ZenBehaviour::sourceTimestamp() const
+{
+    return mEntry ? mEntry->sourceTime : 0;
+}
+
 void ZenBehaviour::fail(const std::string& error)
 {
     mFailed = true;
@@ -122,6 +172,67 @@ const std::string& ZenBehaviour::lastError() const
 bool ZenBehaviour::isZenBehaviour() const
 {
     return true;
+}
+
+bool ZenBehaviour::callEvent(const std::string& event, f64 value)
+{
+    if (!mLoaded || mFailed)
+        return false;
+
+    GameObject* object = owner();
+    if (!object || !object->scene() || object->scene()->runningInEditor())
+        return false;
+
+    if (!ensureInstance() || !mEntry || mEntry->onEventSlot < 0)
+        return false;
+
+    zen::VM& vm = ScriptCache::getSingleton().vm();
+    zen::ObjString* text = vm.make_string(event.c_str(), (int)event.size());
+    zen::Value args[2] = {zen::val_obj((zen::Obj*)text), zen::val_float(value)};
+    vm.invoke(mInstance, mEntry->onEventSlot, args, 2);
+    if (vm.had_error())
+    {
+        fail(currentErrorMessage(vm));
+        return false;
+    }
+    return true;
+}
+
+bool ZenBehaviour::callFunction(const std::string& name, f64 value)
+{
+    if (!mLoaded || mFailed || name.empty())
+        return false;
+
+    GameObject* object = owner();
+    if (!object || !object->scene() || object->scene()->runningInEditor())
+        return false;
+
+    if (!ensureInstance())
+        return false;
+
+    zen::VM& vm = ScriptCache::getSingleton().vm();
+    zen::Value arg = zen::val_float(value);
+    vm.invoke(mInstance, name.c_str(), &arg, 1);
+    if (vm.had_error())
+    {
+        fail(currentErrorMessage(vm));
+        return false;
+    }
+    return true;
+}
+
+bool ZenBehaviour::hasFunction(const std::string& name) const
+{
+    if (!mLoaded || !mEntry || name.empty())
+        return false;
+
+    zen::VM& vm = ScriptCache::getSingleton().vm();
+    const int slot = vm.find_selector(name.c_str(), (int)name.size());
+    if (slot < 0)
+        return false;
+
+    zen::ObjClass* klass = zen::is_class(mEntry->classValue) ? zen::as_class(mEntry->classValue) : nullptr;
+    return klass && slot < klass->vtable_size && !zen::is_nil(klass->vtable[slot]);
 }
 
 usize ZenBehaviour::declaredPropertyCount() const
@@ -376,26 +487,38 @@ void ZenBehaviour::onUpdate(f32 deltaTime)
         fail(currentErrorMessage(vm));
 }
 
-void ZenBehaviour::onCollision(GameObject* other)
+bool ZenBehaviour::callCollision(GameObject* other, bool began)
 {
-    if (!mLoaded || mFailed || !other)
-        return;
+    if (!mLoaded || mFailed)
+        return false;
 
     GameObject* object = owner();
     if (!object || !object->scene() || object->scene()->runningInEditor())
-        return;
+        return false;
 
-    if (!ensureInstance())
-        return;
-
-    if (mEntry->onCollisionSlot < 0)
-        return;
+    if (!ensureInstance() || !mEntry || mEntry->onCollisionSlot < 0)
+        return false;
 
     zen::VM& vm = ScriptCache::getSingleton().vm();
-    zen::Value arg = SceneScriptBindings::wrapGameObject(vm, other);
-    vm.invoke(mInstance, mEntry->onCollisionSlot, &arg, 1);
+    zen::Value args[2] = {other ? SceneScriptBindings::wrapGameObject(vm, other) : zen::val_nil(),
+                          zen::val_bool(began)};
+    // A script written as on_collision(self, other) gets one argument. Handing
+    // it two would write the second past the frame the closure declares:
+    // VM::invoke fills the registers before it sets stack_top, and that slot
+    // is the next frame's base.
+    const int arity = methodArity(mEntry->classValue, mEntry->onCollisionSlot);
+    vm.invoke(mInstance, mEntry->onCollisionSlot, args, arity >= 2 || arity < 0 ? 2 : 1);
     if (vm.had_error())
+    {
         fail(currentErrorMessage(vm));
+        return false;
+    }
+    return true;
+}
+
+void ZenBehaviour::onCollision(GameObject* other)
+{
+    callCollision(other, true);
 }
 
 void ZenBehaviour::onDestroy()

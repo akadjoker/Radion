@@ -15,7 +15,8 @@ class GameObject;
 
 // Runs a Zen script class against the GameObject it is attached to. The
 // script defines one class with any of on_start(self)/on_update(self, dt)/
-// on_destroy(self); ZenBehaviour creates one instance of it per component
+// on_destroy(self)/on_collision(self, other, began)/on_event(self, event,
+// value); ZenBehaviour creates one instance of it per component
 // (through the shared ScriptCache) and reaches the owning GameObject
 // through the instance's own "node" field (see SceneScriptBindings) - not a
 // VM global, since the underlying zen::VM is shared by every scripted object
@@ -41,9 +42,35 @@ public:
     // if this behaviour was loaded from a source string instead of a file.
     bool reload();
 
+    // Re-reads the file this behaviour was loaded from and calls reload()
+    // only if its on-disk timestamp moved since the last load/reload - the
+    // per-object hot-reload check. False (no-op) for a behaviour loaded from
+    // a source string, or when the file has not changed.
+    bool reloadIfChanged();
+    // The source file's last-write time as of the last successful load or
+    // reload, read straight off the shared ScriptCache entry - so it moves
+    // for every component sharing this path, not only the one that called
+    // reload(). 0 for a behaviour loaded from a source string.
+    s64 sourceTimestamp() const;
+
     const std::string& scriptPath() const;
     bool hasError() const;
     const std::string& lastError() const;
+
+    // Runs a named event hook - on_event(self, event, value) - if the
+    // script's class defines one. False (no-op) when it does not.
+    bool callEvent(const std::string& event, f64 value = 0.0);
+
+    // Calls any function the script's class defines, by name, with one f64
+    // argument - the general escape hatch beside the fixed on_start/
+    // on_update/on_destroy/on_collision/on_event hooks. False (and
+    // hasError()) if the class defines no such name.
+    bool callFunction(const std::string& name, f64 value = 0.0);
+
+    // Whether the script's class defines a method by this name - checked
+    // against the compiled class's own vtable, no instance touched and no
+    // call made.
+    bool hasFunction(const std::string& name) const;
 
     // What the loaded script declares in its class body (or optionally in
     // __init__), collected by ScriptCache and shared by every component
@@ -67,11 +94,22 @@ public:
 
     bool isZenBehaviour() const override;
 
-    // Runs on_collision(self, other), once per contact - called by
+    // Runs on_collision(self, other, began), once per contact - called by
     // CollisionWorld, not through Component's own per-frame events. A no-op
     // when the script defines no on_collision, and gated in editor mode the
-    // same as onUpdate().
+    // same as onUpdate(). CollisionWorld re-detects every touching pair from
+    // scratch each step with no enter/exit state of its own, so this always
+    // passes began=true; see callCollision() for the began-aware call.
     void onCollision(GameObject* other);
+
+    // The began-aware form onCollision() forwards to - exposed directly for
+    // a caller (or a future CollisionWorld) that does know whether a contact
+    // just started. A script written against the older on_collision(self,
+    // other) still works unchanged: zen does not check argument count on a
+    // native-invoked call (VM::invoke(instance, slot, args, nargs) writes
+    // the extra register and never reads it back), so the added `began`
+    // argument is simply ignored by a class that never declared it.
+    bool callCollision(GameObject* other, bool began);
 
 protected:
     void onUpdate(f32 deltaTime) override;
