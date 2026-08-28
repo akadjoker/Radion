@@ -239,6 +239,14 @@ target_precompile_headers(radion_script_bench PRIVATE
 )
 target_link_libraries(radion_script_bench PRIVATE radion_scene)
 
+add_executable(radion_screen_draw_tests ScreenDrawTests.cpp)
+target_precompile_headers(radion_screen_draw_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_screen_draw_tests PRIVATE radion_render)
+add_test(NAME screen_draw COMMAND radion_screen_draw_tests)
+set_tests_properties(screen_draw PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_scene_collision_tests SceneCollisionTests.cpp)
 target_precompile_headers(radion_scene_collision_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"

@@ -10,6 +10,8 @@ set(IMGUI_SOURCES
 add_library(radion_render
     src/Batch.cpp
     src/DebugDraw3D.cpp
+    src/ScreenDraw.cpp
+    src/ScreenDrawPass.cpp
     src/DepthPass.cpp
     src/MaterialManager.cpp
     src/MeshLoader.cpp
