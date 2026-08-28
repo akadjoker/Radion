@@ -721,8 +721,11 @@ void testPointsOfInterest()
         CHECK(pick->id() != first->id());
     }
 
-    CHECK(pois.remove(second->id()));
-    CHECK(pois.find(second->id()) == nullptr);
+    // Taken before the remove: it frees the point, so reading its id back
+    // off the pointer afterwards is a use-after-free.
+    const u32 secondId = second->id();
+    CHECK(pois.remove(secondId));
+    CHECK(pois.find(secondId) == nullptr);
 }
 
 void testPursuitEvasion()
