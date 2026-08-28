@@ -34,6 +34,8 @@
 #include "RenderList.h"
 #include "Renderer.h"
 #include "Scene.h"
+#include "ScreenDraw.h"
+#include "ScreenDrawPass.h"
 #include "TrailRender.h"
 #include "TreeRender.h"
 #include "Thread.h"
@@ -259,6 +261,13 @@ void Engine::shutdown()
         mLoadingBatch = nullptr;
     }
 
+    if (mScreenDrawPass)
+    {
+        mScreenDrawPass->shutdown();
+        delete mScreenDrawPass;
+        mScreenDrawPass = nullptr;
+    }
+
     mRenderer->shutdown();
     mPostProcess->shutdown();
     delete mPostProcess;
@@ -311,6 +320,7 @@ bool Engine::update()
     Profiler::getSingleton().addSample("ImGui (frame anterior)", mOverlayMilliseconds);
     Profiler::getSingleton().addSample("Present (frame anterior)", mPresentMilliseconds);
     DebugDraw().clear();
+    ScreenDraws().clear();
     TrailDraws().clear();
     ParticleDraws().clear();
     GrassDraws().clear();
@@ -954,6 +964,19 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
             mPostProcess->resolve(*presentRect, static_cast<u32>(windowWidth),
                                   static_cast<u32>(windowHeight));
         }
+    }
+    // Screen-space overlays draw here, after the resolve, rather than as a
+    // RenderTechnique: those all run inside Renderer::execute(), before
+    // tonemapping and TAA, so a menu drawn there would pick up bloom, tonemap
+    // and TAA blur meant for the 3D scene.
+    if (!output)
+    {
+        if (!mScreenDrawPass)
+            mScreenDrawPass = new ScreenDrawPass();
+        int width = 0;
+        int height = 0;
+        mWindow.getDrawableSize(width, height);
+        mScreenDrawPass->execute(static_cast<u32>(width), static_cast<u32>(height));
     }
     if (!output && (debugShowShadowCascades || debugShowShadowAtlas))
     {

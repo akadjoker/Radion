@@ -20,6 +20,7 @@ class Scene;
 class Renderer;
 class RenderList;
 class BatchRenderer;
+class ScreenDrawPass;
 struct RenderListStats;
 class PostProcessStack;
 class Lighting;
@@ -381,6 +382,9 @@ private:
     // Built on the first loading frame and kept for the rest of the run: a
     // level reload wants it again, and it is a few kilobytes.
     BatchRenderer* mLoadingBatch = nullptr;
+    // Draws the ScreenDraw queue over the resolved window frame - built on
+    // first use, same reasoning as mLoadingBatch.
+    ScreenDrawPass* mScreenDrawPass = nullptr;
     bool mInitialized = false;
     bool mFrameActive = false;
     bool mBuiltinPanelsVisible = true;
