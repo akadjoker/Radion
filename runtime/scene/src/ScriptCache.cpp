@@ -27,7 +27,8 @@ static bool classDefinesAnyHook(zen::VM& vm, zen::ObjClass* klass)
     return classDefinesSlot(klass, vm.intern_selector("on_start", 8)) ||
            classDefinesSlot(klass, vm.intern_selector("on_update", 9)) ||
            classDefinesSlot(klass, vm.intern_selector("on_destroy", 10)) ||
-           classDefinesSlot(klass, vm.intern_selector("on_collision", 12));
+           classDefinesSlot(klass, vm.intern_selector("on_collision", 12)) ||
+           classDefinesSlot(klass, vm.intern_selector("on_event", 8));
 }
 
 // A global slot belongs to the script that was just compiled if it did not
@@ -270,6 +271,7 @@ ScriptCache::Entry* ScriptCache::buildEntry(const std::string& key, bool isFile,
     stored.onUpdateSlot = resolveSlot(vm, klass, "on_update", 9);
     stored.onDestroySlot = resolveSlot(vm, klass, "on_destroy", 10);
     stored.onCollisionSlot = resolveSlot(vm, klass, "on_collision", 12);
+    stored.onEventSlot = resolveSlot(vm, klass, "on_event", 8);
     stored.version += 1;
     stored.sourceTime = isFile ? fileWriteTime(sourceOrPath) : 0;
 

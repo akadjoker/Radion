@@ -30,9 +30,9 @@ namespace Radion
 //
 // Convention for picking the behaviour class out of a compiled script: the
 // first top-level class the run just defined (in declaration order) that
-// defines at least one of on_start/on_update/on_destroy/on_collision. A hint name
-// (the file's stem, for loadFile()) is tried first and wins on an exact
-// match, so a script with several classes can still be steered explicitly.
+// defines at least one of on_start/on_update/on_destroy/on_collision/on_event.
+// A hint name (the file's stem, for loadFile()) is tried first and wins on an
+// exact match, so a script with several classes can still be steered explicitly.
 class ScriptCache
 {
 public:
@@ -48,9 +48,9 @@ public:
     ScriptCache& operator=(const ScriptCache&) = delete;
 
     // A compiled behaviour class plus the vtable slots for its __init__ and
-    // on_start/on_update/on_destroy/on_collision methods, resolved once here
-    // instead of once per component. -1 means the class does not define that
-    // one.
+    // on_start/on_update/on_destroy/on_collision/on_event methods, resolved
+    // once here instead of once per component. -1 means the class does not
+    // define that one.
     struct Entry
     {
         zen::Value classValue = zen::val_nil();
@@ -59,6 +59,7 @@ public:
         int onUpdateSlot = -1;
         int onDestroySlot = -1;
         int onCollisionSlot = -1;
+        int onEventSlot = -1;
         // Built once per compile, not once per component: what a script
         // declares belongs to the script. A ZenBehaviour reads this list to
         // know what the inspector may drive, and keeps only its own
