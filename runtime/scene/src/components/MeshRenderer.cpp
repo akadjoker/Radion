@@ -139,6 +139,12 @@ void MeshRenderer::setSubmeshVisible(u32 submesh, bool visible)
     applyHiddenSubmeshes();
 }
 
+u32 MeshRenderer::submeshCount() const
+{
+    const Mesh* mesh = Assets().getMesh(mMesh);
+    return mesh ? static_cast<u32>(mesh->submeshes.size()) : 0;
+}
+
 const std::vector<u32>& MeshRenderer::hiddenSubmeshes() const
 {
     return mHiddenSubmeshes;

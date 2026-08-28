@@ -233,6 +233,12 @@ target_compile_definitions(radion_zen_behaviour_tests PRIVATE
 add_test(NAME zen_behaviour COMMAND radion_zen_behaviour_tests)
 set_tests_properties(zen_behaviour PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
+add_executable(radion_script_bench ScriptBench.cpp)
+target_precompile_headers(radion_script_bench PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_script_bench PRIVATE radion_scene)
+
 add_executable(radion_scene_collision_tests SceneCollisionTests.cpp)
 target_precompile_headers(radion_scene_collision_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
