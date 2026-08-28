@@ -4993,7 +4993,7 @@ bool InspectorPanel::makeSubmeshMaterialUnique(MeshHandle handle, u32 slot, s32 
 void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
 {
     const Mesh* mesh = AssetManager::getSingleton().getMesh(renderer.mesh());
-    const usize submeshCount = mesh ? mesh->submeshes.size() : 0;
+    const usize submeshCount = renderer.submeshCount();
 
     // The one thing that ties the Viewport and this list together, both
     // ways - see EditorApplication::pickedSubmesh(). Read up here, before

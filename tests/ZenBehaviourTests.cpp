@@ -4,11 +4,14 @@
 
 #include "PCH.h"
 
+#include "Animation.h"
 #include "Camera.h"
+#include "CharacterController.h"
 #include "Collider.h"
 #include "CollisionWorld.h"
 #include "GameObject.h"
 #include "Light.h"
+#include "MeshRenderer.h"
 #include "Scene.h"
 #include "SceneSerializer.h"
 #include "ScriptCache.h"
@@ -1022,6 +1025,682 @@ void testHandleSurvivesBetweenFrames()
         CHECK(!light->active());
 }
 
+// MeshRenderer's is_active/set_active bindings are Component's, but
+// set_visible_in_reflections() is its own (SceneScriptBindings.cpp) -
+// verified against the real MeshRenderer, not just the absence of a script
+// error.
+void testMeshRendererVisibleInReflections()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Mirror");
+    MeshRenderer* renderer = object->addComponent<MeshRenderer>();
+    CHECK(renderer != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class HideFromReflections:\n"
+        "    def on_start(self):\n"
+        "        r = self.node.get_component(MeshRenderer)\n"
+        "        r.set_visible_in_reflections(False)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(renderer != nullptr);
+    if (renderer)
+        CHECK(renderer->visibleInReflections() == false);
+}
+
+// set_submesh_visible()/is_submesh_visible() round-tripped through the
+// script itself - hide submesh 2, read it back, and mark the object's name
+// on success so both the script's own view and the real MeshRenderer state
+// are checked.
+void testMeshRendererSubmeshVisibility()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Chunked");
+    MeshRenderer* renderer = object->addComponent<MeshRenderer>();
+    CHECK(renderer != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class HideSubmesh:\n"
+        "    def on_start(self):\n"
+        "        r = self.node.get_component(MeshRenderer)\n"
+        "        r.set_submesh_visible(2, False)\n"
+        "        if r.is_submesh_visible(2) == False:\n"
+        "            self.node.set_name(\"SubmeshHidden\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "SubmeshHidden");
+    CHECK(renderer != nullptr);
+    if (renderer)
+        CHECK(renderer->submeshVisible(2) == false);
+}
+
+// A count reaches the script as an integer, not a float. Indexing an array
+// is the one place the VM refuses a float outright ("array index must be
+// integer", vm_dispatch.cpp), so a count returned as val_float fails here
+// and passes every comparison test - int and float compare numerically.
+void testMeshRendererCountsAreIntegers()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Counted");
+    MeshRenderer* renderer = object->addComponent<MeshRenderer>();
+    CHECK(renderer != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class CountSubmeshes:\n"
+        "    def on_start(self):\n"
+        "        r = self.node.get_component(MeshRenderer)\n"
+        "        r.set_submesh_visible(1, False)\n"
+        "        names = [\"none\", \"one\", \"two\"]\n"
+        "        self.node.set_name(names[r.get_hidden_submesh_count()])\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "one");
+}
+
+// get_submesh_count() is what closes MeshRenderer's submesh API: without it
+// a script could hide submesh 7 on a 3-submesh mesh and is_submesh_visible(7)
+// would still answer True. No mesh assigned here means zero submeshes.
+void testMeshRendererSubmeshCount()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Unmeshed");
+    MeshRenderer* renderer = object->addComponent<MeshRenderer>();
+    CHECK(renderer != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class CountSubmesh:\n"
+        "    def on_start(self):\n"
+        "        r = self.node.get_component(MeshRenderer)\n"
+        "        self.node.set_name(str(r.get_submesh_count()))\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "0");
+    CHECK(renderer != nullptr);
+    if (renderer)
+        CHECK(renderer->submeshCount() == 0);
+}
+
+// A handful of plain setters, ending in set_max_iterations() - the one that
+// crosses as an integer - confirmed against the real component.
+void testCharacterControllerTuning()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Tuned");
+    CharacterController* controller = object->addComponent<CharacterController>();
+    CHECK(controller != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class TuneController:\n"
+        "    def on_start(self):\n"
+        "        c = self.node.get_component(CharacterController)\n"
+        "        c.set_radius(0.75)\n"
+        "        c.set_gravity(-9.8)\n"
+        "        c.set_max_iterations(4)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(controller != nullptr);
+    if (controller)
+    {
+        CHECK(std::abs(controller->radius() - 0.75f) < 0.0001f);
+        CHECK(std::abs(controller->gravity() - (-9.8f)) < 0.0001f);
+        CHECK(controller->maxIterations() == 4);
+    }
+}
+
+// move() returns a MoveResult rather than updating the getters - with no
+// octree attached (CharacterController.cpp:228-233) it just translates the
+// owner directly, so both the script's own read of the result and the
+// GameObject's actual position are checked.
+void testCharacterControllerMoveReturnsResult()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Mover");
+    CharacterController* controller = object->addComponent<CharacterController>();
+    CHECK(controller != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class MoveController:\n"
+        "    def on_start(self):\n"
+        "        c = self.node.get_component(CharacterController)\n"
+        "        result = c.move(Vec3(1.0, 0.0, 0.0))\n"
+        "        if result.collided == False and result.displacement.x == 1.0:\n"
+        "            self.node.set_name(\"Moved\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Moved");
+    CHECK(std::abs(object->position().x - 1.0f) < 0.0001f);
+}
+
+// set_move_input()/get_move_input() round-tripped through the script itself,
+// then confirmed against moveInput() on the real component.
+void testCharacterControllerMoveInputRoundTrip()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("InputRoundTrip");
+    CharacterController* controller = object->addComponent<CharacterController>();
+    CHECK(controller != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class InputController:\n"
+        "    def on_start(self):\n"
+        "        c = self.node.get_component(CharacterController)\n"
+        "        c.set_move_input(Vec3(2.0, 0.0, 3.0))\n"
+        "        v = c.get_move_input()\n"
+        "        if v.x == 2.0 and v.z == 3.0:\n"
+        "            self.node.set_name(\"InputRoundTripOk\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "InputRoundTripOk");
+    CHECK(controller != nullptr);
+    if (controller)
+    {
+        CHECK(std::abs(controller->moveInput().x - 2.0f) < 0.0001f);
+        CHECK(std::abs(controller->moveInput().z - 3.0f) < 0.0001f);
+    }
+}
+
+// Every handle class registered by the bindings declares zero fields, and
+// new_instance() leaves the field array null for those (memory.cpp), so
+// reading x/y/z off a handle passed where a Vec3 belongs dereferences null
+// and takes the process down. The call is refused instead, and the transform
+// the script meant to write is left alone.
+void testVec3ArgumentTypeIsChecked()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("BadArgument");
+    object->setPosition(glm::vec3(5.0f, 6.0f, 7.0f));
+    object->addComponent<CharacterController>();
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class BadArgument:\n"
+        "    def on_start(self):\n"
+        "        self.node.set_position(self.node)\n"
+        "        c = self.node.get_component(CharacterController)\n"
+        "        c.teleport(c)\n"
+        "        if c.move(c) == None:\n"
+        "            self.node.set_name(\"Survived\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Survived");
+    CHECK(object->position() == glm::vec3(5.0f, 6.0f, 7.0f));
+}
+
+// Same fixture as SceneTests.cpp's testAnimatedPlayers (SceneTests.cpp:266-295):
+// a two-bone skeleton and one two-second "Move" clip translating bone 0 along X.
+AnimationSetHandle makeMoveAnimationSet()
+{
+    Skeleton skeleton;
+    skeleton.addBone("root", -1, glm::mat4(1.0f), glm::mat4(1.0f));
+    skeleton.addBone("hand", 0, glm::mat4(1.0f), glm::mat4(1.0f));
+    skeleton.finalize();
+
+    AnimationClip clip;
+    clip.setName("Move");
+    clip.setDuration(2.0f);
+    BoneTrack track;
+    track.bone = 0;
+    track.times = {0.0f, 2.0f};
+    track.positions = {glm::vec3(0.0f), glm::vec3(2.0f, 0.0f, 0.0f)};
+    track.rotations = {glm::quat(1, 0, 0, 0), glm::quat(1, 0, 0, 0)};
+    track.scales = {glm::vec3(1.0f), glm::vec3(1.0f)};
+    clip.tracks().push_back(track);
+
+    const std::vector<AnimationClip> clips = {clip};
+    return Animations().create(skeleton, clips);
+}
+
+// a.play(clip) with no mode/blend_time - Animator::play()'s own defaults
+// (PlayMode::Loop, 0.2s) - followed by a.get_layer(0), checked against the
+// real layer's isPlaying()/duration().
+void testAnimatorPlaysClipFromScript()
+{
+    const AnimationSetHandle animationSet = makeMoveAnimationSet();
+    Scene scene;
+    GameObject* object = scene.createGameObject("AnimatedScript");
+    Animator* animator = object->addComponent<Animator>();
+    CHECK(animator != nullptr);
+    if (animator)
+        animator->bind(animationSet);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class PlayFromScript:\n"
+        "    def on_start(self):\n"
+        "        a = self.node.get_component(Animator)\n"
+        "        a.play(\"Move\")\n"
+        "        a.get_layer(0)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(animator != nullptr);
+    if (animator)
+    {
+        CHECK(animator->layer(0).isPlaying("Move"));
+        CHECK(std::abs(animator->layer(0).duration() - 2.0f) < 0.0001f);
+    }
+
+    Animations().destroy(animationSet);
+}
+
+// PLAY_LOOP/PLAY_ONCE/PLAY_PINGPONG are plain int globals matching
+// static_cast<int>(PlayMode::Loop|Once|PingPong) - observed here through
+// finished(), which only ever reports true for PlayMode::Once.
+void testAnimatorPlayModeConstants()
+{
+    const AnimationSetHandle animationSet = makeMoveAnimationSet();
+    Scene scene;
+    GameObject* object = scene.createGameObject("PlayModeScript");
+    Animator* animator = object->addComponent<Animator>();
+    CHECK(animator != nullptr);
+    if (animator)
+        animator->bind(animationSet);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class PlayModeConstants:\n"
+        "    def on_start(self):\n"
+        "        a = self.node.get_component(Animator)\n"
+        "        a.play(\"Move\", PLAY_ONCE)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(animator != nullptr);
+    if (animator)
+    {
+        // Past the end of a 2s clip: Once must report finished, which needs
+        // both mCurrent resolved (Animation update already ran this frame)
+        // and mMode read back exactly as PlayMode::Once from PLAY_ONCE.
+        animator->layer(0).seek(10.0f);
+        CHECK(animator->layer(0).finished());
+    }
+
+    Animations().destroy(animationSet);
+}
+
+// The invariant behind decision (3): Animator::layer() resizes mLayers
+// (Animation.cpp:90-95), so a handle taken for layer 0 must still resolve to
+// the right layer after a later get_layer() call reallocates the vector -
+// caching the AnimationLayer* itself would read freed memory here.
+void testAnimationLayerHandleSurvivesLayerGrowth()
+{
+    const AnimationSetHandle animationSet = makeMoveAnimationSet();
+    Scene scene;
+    GameObject* object = scene.createGameObject("LayerGrowth");
+    Animator* animator = object->addComponent<Animator>();
+    CHECK(animator != nullptr);
+    if (animator)
+        animator->bind(animationSet);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class LayerGrowth:\n"
+        "    def on_start(self):\n"
+        "        a = self.node.get_component(Animator)\n"
+        "        l0 = a.get_layer(0)\n"
+        "        a.get_layer(3)\n"
+        "        l0.play(\"Move\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(animator != nullptr);
+    if (animator)
+    {
+        CHECK(animator->layerCount() == 4);
+        CHECK(animator->layer(0).isPlaying("Move"));
+    }
+
+    Animations().destroy(animationSet);
+}
+
+// seek()/get_wrapped_time()/get_normalized_time()/is_finished() against a
+// known 2s clip. The clip is started from C++ and the scene ticked once with
+// dt=0 first, so mCurrent is already resolved (Animator::update() only fills
+// it in after play() - Animation.cpp:126-127) before the script's own seek()
+// runs; the second update also uses dt=0 so nothing advances mTime past the
+// exact value the script and the C++ assertions below both check.
+void testAnimationLayerTimeAndSeek()
+{
+    const AnimationSetHandle animationSet = makeMoveAnimationSet();
+    Scene scene;
+    GameObject* object = scene.createGameObject("LayerSeek");
+    Animator* animator = object->addComponent<Animator>();
+    CHECK(animator != nullptr);
+    if (animator)
+    {
+        animator->bind(animationSet);
+        animator->play("Move", PlayMode::Loop, 0.0f);
+    }
+
+    scene.setRunningInEditor(false);
+    scene.update(0.0f);
+
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+    const char* script =
+        "class LayerSeek:\n"
+        "    def on_start(self):\n"
+        "        a = self.node.get_component(Animator)\n"
+        "        l = a.get_layer(0)\n"
+        "        l.seek(3.0)\n"
+        "        wrapped = l.get_wrapped_time()\n"
+        "        normalized = l.get_normalized_time()\n"
+        "        finished = l.is_finished()\n"
+        "        if wrapped == 1.0 and normalized == 1.5 and finished == False:\n"
+        "            self.node.set_name(\"SeekOk\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.update(0.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "SeekOk");
+    CHECK(animator != nullptr);
+    if (animator)
+    {
+        CHECK(std::abs(animator->layer(0).time() - 3.0f) < 0.0001f);
+        CHECK(std::abs(animator->layer(0).wrappedTime() - 1.0f) < 0.0001f);
+        CHECK(std::abs(animator->layer(0).normalizedTime() - 1.5f) < 0.0001f);
+        CHECK(!animator->layer(0).finished());
+    }
+
+    Animations().destroy(animationSet);
+}
+
+// GameObject's hierarchy binding: get_child_count()/get_child(i)/find_child()/
+// get_parent()/get_root(), against a parent with two children created from
+// C++ - checked from the script itself (the actual values never leave Zen
+// until the whole walk agrees), then confirmed from C++ through the real
+// GameObject::parent() pointers.
+void testGameObjectHierarchyFromScript()
+{
+    Scene scene;
+    GameObject* parent = scene.createGameObject("Parent");
+    GameObject* childA = scene.createGameObject("ChildA", parent);
+    GameObject* childB = scene.createGameObject("ChildB", parent);
+    CHECK(parent != nullptr);
+    CHECK(childA != nullptr);
+    CHECK(childB != nullptr);
+
+    ZenBehaviour* behaviour = parent->addComponent<ZenBehaviour>();
+    const char* script =
+        "class HierarchyWalk:\n"
+        "    def on_start(self):\n"
+        "        count = self.node.get_child_count()\n"
+        "        first = self.node.get_child(0)\n"
+        "        second = self.node.get_child(1)\n"
+        "        missing = self.node.get_child(5)\n"
+        "        found = self.node.find_child(\"ChildB\")\n"
+        "        parent_of_self = self.node.get_parent()\n"
+        "        root = self.node.get_root()\n"
+        "        root_parent = root.get_parent()\n"
+        "        ok = count == 2\n"
+        "        if first.get_name() != \"ChildA\":\n"
+        "            ok = False\n"
+        "        if second.get_name() != \"ChildB\":\n"
+        "            ok = False\n"
+        "        if missing != None:\n"
+        "            ok = False\n"
+        "        if found == None:\n"
+        "            ok = False\n"
+        "        if parent_of_self == None:\n"
+        "            ok = False\n"
+        "        if root_parent != None:\n"
+        "            ok = False\n"
+        "        if ok:\n"
+        "            self.node.set_name(\"HierarchyOk\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(parent->name() == "HierarchyOk");
+    CHECK(childA->parent() == parent);
+    CHECK(childB->parent() == parent);
+}
+
+// GameObject::dispose() only raises a flag (GameObject.cpp:123-127) - the
+// object is not deleted on the spot. Scene::update() is what turns the flag
+// into an actual removal: its own end-of-frame sweep queues every disposed
+// object for destruction (Scene.cpp:522-529), and the flushChanges() right
+// after is what finally deletes it (Scene.cpp:534).
+//
+// The disposing script here runs inside that very same scene.update() call
+// (its own Component-update phase, which runs before the sweep), so the
+// sweep+flush that follow still belong to that one call - confirmed by
+// having the script itself read is_disposed() and re-find the object through
+// the scene the instant after calling dispose(), before Scene::update()'s
+// sweep has had a chance to run. The C++ side then confirms the object is
+// actually gone once that one scene.update() call has returned.
+void testGameObjectDisposeIsDeferred()
+{
+    Scene scene;
+    GameObject* target = scene.createGameObject("Target");
+    GameObject* controller = scene.createGameObject("Controller");
+    CHECK(target != nullptr);
+    CHECK(controller != nullptr);
+
+    ZenBehaviour* behaviour = controller->addComponent<ZenBehaviour>();
+    const char* script =
+        "class Disposer:\n"
+        "    def on_start(self):\n"
+        "        found = self.scene.find(\"Target\")\n"
+        "        found.dispose()\n"
+        "        still_reachable = self.scene.find(\"Target\") != None\n"
+        "        if found.is_disposed() and still_reachable:\n"
+        "            self.node.set_name(\"FlagSeenBeforeSweep\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    // dispose() only raised the flag - the script that called it could still
+    // read it back true and still find the object through the scene.
+    CHECK(controller->name() == "FlagSeenBeforeSweep");
+    // By the time this one scene.update() call has returned, its own sweep
+    // and the flushChanges() that follows (Scene.cpp:522-534) have already
+    // destroyed Target.
+    CHECK(scene.findGameObject("Target") == nullptr);
+    (void)target;
+}
+
+// add_component(Camera) hands back a usable handle (a method is called on it
+// and the value read straight back), has_component(Camera) tracks it, and
+// remove_component(Camera) takes it off - each step confirmed from C++
+// through GameObject::getComponent<Camera>() on the real object, one frame
+// at a time so the live Camera can still be inspected before it is removed.
+void testGameObjectAddAndRemoveComponent()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Rigged");
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class RigCamera:\n"
+        "    def on_update(self, dt):\n"
+        "        if self.node.has_component(Camera):\n"
+        "            self.node.remove_component(Camera)\n"
+        "            self.node.set_name(\"Removed\")\n"
+        "        else:\n"
+        "            cam = self.node.add_component(Camera)\n"
+        "            cam.set_aspect(1.5)\n"
+        "            self.node.set_name(\"Added\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Added");
+    Camera* camera = object->getComponent<Camera>();
+    CHECK(camera != nullptr);
+    if (camera)
+        CHECK(std::abs(camera->aspect() - 1.5f) < 0.0001f);
+
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Removed");
+    CHECK(object->getComponent<Camera>() == nullptr);
+}
+
+// get_position() (local) and get_global_position() (world) on a child whose
+// parent is itself offset - both read from the script, both checked against
+// the real GameObject transform from C++.
+void testGameObjectGlobalTransform()
+{
+    Scene scene;
+    GameObject* parent = scene.createGameObject("Parent");
+    parent->setPosition(glm::vec3(10.0f, 0.0f, 0.0f));
+    GameObject* child = scene.createGameObject("Child", parent);
+    child->setPosition(glm::vec3(1.0f, 2.0f, 3.0f));
+
+    ZenBehaviour* behaviour = child->addComponent<ZenBehaviour>();
+    const char* script =
+        "class ReadTransform:\n"
+        "    def on_start(self):\n"
+        "        local = self.node.get_position()\n"
+        "        world = self.node.get_global_position()\n"
+        "        if local.x != world.x:\n"
+        "            self.node.set_name(\"TransformsDiffer\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(child->name() == "TransformsDiffer");
+    CHECK(child->position() == glm::vec3(1.0f, 2.0f, 3.0f));
+    CHECK(child->globalPosition() == glm::vec3(11.0f, 2.0f, 3.0f));
+}
+
+// scene.create(name, parent) - the child is born under the right parent,
+// checked from C++ once it has left the pending-add queue. scene.reparent()
+// is then exercised once the child is actually registered (reparent()
+// requires an existing parent - Scene.cpp:375-388 - so it cannot run in the
+// very frame create() queued the object in), and its effect is checked
+// straight from C++ right after the one scene.update() call that ran it -
+// no extra update needed, since reparent() moves the object immediately.
+void testSceneCreateWithParentAndReparent()
+{
+    Scene scene;
+    GameObject* parentA = scene.createGameObject("ParentA");
+    GameObject* parentB = scene.createGameObject("ParentB");
+    GameObject* controller = scene.createGameObject("Controller");
+    ZenBehaviour* behaviour = controller->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class SpawnAndMove:\n"
+        "    def on_start(self):\n"
+        "        self.parent_a = self.scene.find(\"ParentA\")\n"
+        "        self.parent_b = self.scene.find(\"ParentB\")\n"
+        "        self.child = self.scene.create(\"Child\", self.parent_a)\n"
+        "        self.reparented = False\n"
+        "    def on_update(self, dt):\n"
+        "        if self.reparented == False:\n"
+        "            if self.child.get_parent() != None:\n"
+        "                moved = self.scene.reparent(self.child, self.parent_b)\n"
+        "                self.reparented = True\n"
+        "                if moved:\n"
+        "                    self.node.set_name(\"ReparentOk\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    GameObject* child = scene.findGameObject("Child");
+    CHECK(child != nullptr);
+    if (child)
+        CHECK(child->parent() == parentA);
+
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(controller->name() == "ReparentOk");
+    if (child)
+        CHECK(child->parent() == parentB);
+}
+
+// readGameObject() (SceneScriptBindings.cpp) has to check the argument's
+// class, not merely that it carries a native_data pointer - a Camera handle
+// has one too. Passing one to scene.destroy() must be refused (false), and
+// the object it actually belongs to must be left completely alone.
+void testReadGameObjectRejectsOtherHandles()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Camwielder");
+    Camera* camera = object->addComponent<Camera>();
+    CHECK(camera != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class BadDestroy:\n"
+        "    def on_start(self):\n"
+        "        cam = self.node.get_component(Camera)\n"
+        "        result = self.scene.destroy(cam)\n"
+        "        if result == False:\n"
+        "            self.node.set_name(\"RejectedNonGameObject\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "RejectedNonGameObject");
+    CHECK(scene.findGameObject(object->id()) == object);
+    CHECK(!object->disposed());
+    CHECK(object->getComponent<Camera>() == camera);
+}
+
 // ScriptVM::call()/setGlobal() directly - the generic C++ <-> script call
 // path, independent of ZenBehaviour's own class-based dispatch.
 void testCallAndGlobalRoundTrip()
@@ -1042,6 +1721,171 @@ void testCallAndGlobalRoundTrip()
     CHECK(vm.call("bump", nullptr, 0, result, error));
     CHECK(result.kind == ScriptValue::Kind::Number);
     CHECK(result.numberValue == 42.0);
+}
+
+// A GameObject handle resolves the object by id on every call
+// (SceneScriptBindings.cpp's selfGameObject/resolveGameObjectById), and
+// Scene::flushChanges() drops the destroyed object's id (forgetIdBranch)
+// before the delete that follows it (Scene.cpp:1884-1885) - so a handle held
+// across the destruction simply stops resolving instead of reading freed
+// memory. The script keeps its own field pointed at the dead object and
+// exercises a getter, a setter and a second getter on it in the frame right
+// after; none of them may error, and the getter has to answer the same
+// "empty" value goGetName()/goGetChildCount() already give for that case.
+void testGameObjectHandleSurvivesOwnerDestruction()
+{
+    Scene scene;
+    GameObject* holder = scene.createGameObject("Holder");
+    GameObject* target = scene.createGameObject("Target");
+    CHECK(holder != nullptr);
+    CHECK(target != nullptr);
+
+    ZenBehaviour* behaviour = holder->addComponent<ZenBehaviour>();
+    const char* script =
+        "class HoldTarget:\n"
+        "    def on_start(self):\n"
+        "        self.target = self.scene.find(\"Target\")\n"
+        "    def on_update(self, dt):\n"
+        "        name = self.target.get_name()\n"
+        "        self.target.set_name(\"x\")\n"
+        "        count = self.target.get_child_count()\n"
+        "        if name == \"\" and count == 0:\n"
+        "            self.node.set_name(\"Survived\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f); // on_start binds self.target while it is still alive.
+    CHECK(!behaviour->hasError());
+
+    scene.destroy(target);
+    scene.update(1.0f / 60.0f); // Target still resolves during this frame's on_update; the
+                                // flushChanges() at the end of this same call deletes it.
+    CHECK(!behaviour->hasError());
+
+    scene.update(1.0f / 60.0f); // self.target no longer resolves.
+    CHECK(!behaviour->hasError());
+    CHECK(holder->name() == "Survived");
+}
+
+// Same shape as above, over a Light handle: a component handle's native_data
+// is a raw Camera/Light/.../pointer, and Scene::componentRemoved() now clears
+// it (ScriptCache::forgetInstance()) before the cache forgets it. The class is
+// persistent (never collected), so the handle itself survives; it just stops
+// pointing at anything. get_intensity() has to answer 0, matching every other
+// component getter's already-null-safe default.
+void testComponentHandleSurvivesComponentRemoval()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Lit");
+    DirectionalLight* light = object->addComponent<DirectionalLight>();
+    CHECK(light != nullptr);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class HoldLightHandle:\n"
+        "    def on_start(self):\n"
+        "        self.light = self.node.get_component(Light)\n"
+        "    def on_update(self, dt):\n"
+        "        self.light.set_intensity(5.0)\n"
+        "        value = self.light.get_intensity()\n"
+        "        if value == 0.0:\n"
+        "            self.node.set_name(\"Survived\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+    CHECK(!behaviour->hasError());
+
+    object->removeComponent<DirectionalLight>();
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Survived");
+    CHECK(object->getComponent<Light>() == nullptr);
+}
+
+// Same again, over an AnimationLayer handle: it resolves its owning GameObject
+// by id and then asks it for whatever Animator it currently has
+// (animatorForLayerHandle), rather than keeping the original Animator*
+// (SceneScriptBindings.cpp) - so removing the Animator makes the handle stop
+// resolving the same way losing the GameObject or the Light does above.
+void testAnimationLayerHandleSurvivesAnimatorRemoval()
+{
+    const AnimationSetHandle animationSet = makeMoveAnimationSet();
+    Scene scene;
+    GameObject* object = scene.createGameObject("Animated");
+    Animator* animator = object->addComponent<Animator>();
+    CHECK(animator != nullptr);
+    if (animator)
+        animator->bind(animationSet);
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+
+    const char* script =
+        "class HoldLayerHandle:\n"
+        "    def on_start(self):\n"
+        "        a = self.node.get_component(Animator)\n"
+        "        self.layer = a.get_layer(0)\n"
+        "    def on_update(self, dt):\n"
+        "        self.layer.play(\"Move\")\n"
+        "        duration = self.layer.get_duration()\n"
+        "        if duration == 0.0:\n"
+        "            self.node.set_name(\"Survived\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+    CHECK(!behaviour->hasError());
+
+    object->removeComponent<Animator>();
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    CHECK(object->name() == "Survived");
+    CHECK(object->getComponent<Animator>() == nullptr);
+
+    Animations().destroy(animationSet);
+}
+
+// The point a raw-pointer handle could never make: a GameObject handle
+// resolves by id, and Scene never reuses an id (Scene::stampId() only ever
+// draws a new one from mNextId - Scene.cpp:300-318). Destroying the held
+// object and creating a fresh one - which the allocator is free to place at
+// the exact address the old one occupied - must still leave the old handle
+// resolving to nothing, never quietly retargeted onto the new object.
+void testGameObjectHandleFollowsIdNotPointer()
+{
+    Scene scene;
+    GameObject* holder = scene.createGameObject("Holder");
+    GameObject* target = scene.createGameObject("Target");
+    CHECK(holder != nullptr);
+    CHECK(target != nullptr);
+
+    ZenBehaviour* behaviour = holder->addComponent<ZenBehaviour>();
+    const char* script =
+        "class HoldTarget:\n"
+        "    def on_start(self):\n"
+        "        self.target = self.scene.find(\"Target\")\n"
+        "    def on_update(self, dt):\n"
+        "        name = self.target.get_name()\n"
+        "        if name == \"\":\n"
+        "            self.node.set_name(\"StillGone\")\n"
+        "        else:\n"
+        "            self.node.set_name(name)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+    CHECK(!behaviour->hasError());
+
+    scene.destroy(target);
+    scene.update(1.0f / 60.0f); // Target is actually freed by the end of this call.
+
+    GameObject* freshObject = scene.createGameObject("NewOne");
+    CHECK(freshObject != nullptr);
+
+    scene.update(1.0f / 60.0f);
+    CHECK(!behaviour->hasError());
+    CHECK(holder->name() == "StillGone");
 }
 
 } // namespace
@@ -1075,6 +1919,28 @@ int main()
     testComponentHandleIsCached();
     testHandleForgottenWhenOwnerDies();
     testHandleSurvivesBetweenFrames();
+    testMeshRendererVisibleInReflections();
+    testMeshRendererSubmeshVisibility();
+    testMeshRendererCountsAreIntegers();
+    testMeshRendererSubmeshCount();
+    testCharacterControllerTuning();
+    testCharacterControllerMoveReturnsResult();
+    testCharacterControllerMoveInputRoundTrip();
+    testVec3ArgumentTypeIsChecked();
+    testAnimatorPlaysClipFromScript();
+    testAnimatorPlayModeConstants();
+    testAnimationLayerHandleSurvivesLayerGrowth();
+    testAnimationLayerTimeAndSeek();
+    testGameObjectHierarchyFromScript();
+    testGameObjectDisposeIsDeferred();
+    testGameObjectAddAndRemoveComponent();
+    testGameObjectGlobalTransform();
+    testSceneCreateWithParentAndReparent();
+    testReadGameObjectRejectsOtherHandles();
+    testGameObjectHandleSurvivesOwnerDestruction();
+    testComponentHandleSurvivesComponentRemoval();
+    testAnimationLayerHandleSurvivesAnimatorRemoval();
+    testGameObjectHandleFollowsIdNotPointer();
 
     if (gFailures)
         std::fprintf(stderr, "%d zen behaviour test(s) failed\n", gFailures);

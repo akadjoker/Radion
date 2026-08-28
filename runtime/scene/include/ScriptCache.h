@@ -157,6 +157,12 @@ public:
     zen::ObjClass* cameraClass() const;
     void setLightClass(zen::ObjClass* klass);
     zen::ObjClass* lightClass() const;
+    void setMeshRendererClass(zen::ObjClass* klass);
+    zen::ObjClass* meshRendererClass() const;
+    void setCharacterControllerClass(zen::ObjClass* klass);
+    zen::ObjClass* characterControllerClass() const;
+    void setAnimatorClass(zen::ObjClass* klass);
+    zen::ObjClass* animatorClass() const;
 
 private:
     ScriptCache();
@@ -180,6 +186,9 @@ private:
     std::unordered_map<void*, CachedInstance> mInstances;
     zen::ObjClass* mCameraClass = nullptr;
     zen::ObjClass* mLightClass = nullptr;
+    zen::ObjClass* mMeshRendererClass = nullptr;
+    zen::ObjClass* mCharacterControllerClass = nullptr;
+    zen::ObjClass* mAnimatorClass = nullptr;
 };
 
 } // namespace Radion

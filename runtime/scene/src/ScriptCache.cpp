@@ -446,7 +446,17 @@ bool ScriptCache::hasCachedInstance(const void* pointer) const
 
 void ScriptCache::forgetInstance(void* pointer)
 {
-    mInstances.erase(pointer);
+    auto found = mInstances.find(pointer);
+    if (found == mInstances.end())
+        return;
+    // The cached handle's class is persistent (registerComponentClasses()),
+    // so it is never collected - dropping the cache entry alone would leave
+    // native_data pointing at whatever the component's freed memory becomes
+    // next. Clearing it here is what every component native's own
+    // self*(args) null check (selfCamera, selfLight, ...) then sees.
+    if (zen::is_instance(found->second.value))
+        zen::as_instance(found->second.value)->native_data = nullptr;
+    mInstances.erase(found);
 }
 
 void ScriptCache::setCameraClass(zen::ObjClass* klass)
@@ -467,6 +477,36 @@ void ScriptCache::setLightClass(zen::ObjClass* klass)
 zen::ObjClass* ScriptCache::lightClass() const
 {
     return mLightClass;
+}
+
+void ScriptCache::setMeshRendererClass(zen::ObjClass* klass)
+{
+    mMeshRendererClass = klass;
+}
+
+zen::ObjClass* ScriptCache::meshRendererClass() const
+{
+    return mMeshRendererClass;
+}
+
+void ScriptCache::setCharacterControllerClass(zen::ObjClass* klass)
+{
+    mCharacterControllerClass = klass;
+}
+
+zen::ObjClass* ScriptCache::characterControllerClass() const
+{
+    return mCharacterControllerClass;
+}
+
+void ScriptCache::setAnimatorClass(zen::ObjClass* klass)
+{
+    mAnimatorClass = klass;
+}
+
+zen::ObjClass* ScriptCache::animatorClass() const
+{
+    return mAnimatorClass;
 }
 
 } // namespace Radion
