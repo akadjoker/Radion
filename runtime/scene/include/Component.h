@@ -44,6 +44,13 @@ enum class ComponentType : u8
     NavMeshSurface,
     VoxelWorld,
     Collider,
+    AudioPlayer,
+    UiCanvas,
+    UiPanel,
+    UiLabel,
+    UiButton,
+    UiCheckBox,
+    UiSlider,
     Count
 };
 

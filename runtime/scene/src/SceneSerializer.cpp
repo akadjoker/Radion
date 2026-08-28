@@ -4,6 +4,7 @@
 
 #include "Animation.h"
 #include "AssetManager.h"
+#include "AudioPlayer.h"
 #include "Billboard.h"
 #include "BoneAttachment.h"
 #include "Camera.h"
@@ -16,13 +17,14 @@
 #include "GameObject.h"
 #include "Grass.h"
 #include "Hair.h"
+#include "Landscape.h"
 #include "LensFlarePass.h"
 #include "Light.h"
-#include "Landscape.h"
 #include "Lighting.h"
 #include "MaterialManager.h"
 #include "MaterialSlotNames.h"
 #include "MeshRenderer.h"
+#include "NavMeshSurface.h"
 #include "Ocean.h"
 #include "ParticleEffect.h"
 #include "ParticleEmitter.h"
@@ -32,16 +34,16 @@
 #include "RibbonTrail.h"
 #include "Road.h"
 #include "Scene.h"
+#include "SelfDestroy.h"
 #include "Shadows.h"
 #include "Sky.h"
-#include "NavMeshSurface.h"
-#include "SelfDestroy.h"
-#include "ZenBehaviour.h"
-#include "Waypoints.h"
-#include "Text3D.h"
 #include "Terrain.h"
-#include "VoxelWorldComponent.h"
+#include "Text3D.h"
+#include "UiControls.h"
 #include "VolumetricPass.h"
+#include "VoxelWorldComponent.h"
+#include "Waypoints.h"
+#include "ZenBehaviour.h"
 
 #include <cmath>
 #include <type_traits>
@@ -2883,6 +2885,263 @@ void readSelfDestroy(GameObject& object, const nlohmann::json& json, const std::
         selfDestroy->setActive(false);
 }
 
+// ------------------------------------------------------ AudioPlayer
+
+nlohmann::json writeAudioPlayer(AudioPlayer& player)
+{
+    nlohmann::json json;
+    json["type"] = "AudioPlayer";
+    json["version"] = 1;
+    json["active"] = player.active();
+    json["source"] = player.source();
+    json["music"] = player.music();
+    json["autoplay"] = player.autoplay();
+    json["loop"] = player.loop();
+    json["volume"] = player.volume();
+    json["pitch"] = player.pitch();
+    json["pan"] = player.pan();
+    json["spatial"] = player.spatial();
+    json["minDistance"] = player.minDistance();
+    json["maxDistance"] = player.maxDistance();
+    json["rolloff"] = player.rolloff();
+    return json;
+}
+
+void readAudioPlayer(GameObject& object, const nlohmann::json& json, const std::string& path,
+                     SceneLoadResult& result)
+{
+    AudioPlayer* player = object.addComponent<AudioPlayer>();
+    if (!player)
+    {
+        result.addError(path, "object already has an AudioPlayer component");
+        return;
+    }
+
+    // Before setSource(): switching music on or off releases the loaded
+    // sound, so setting it afterwards would throw away the file just read.
+    player->setMusic(readBoolOr(json, "music", false));
+
+    const auto sourceField = json.find("source");
+    if (sourceField != json.end() && sourceField->is_string())
+        player->setSource(sourceField->get<std::string>());
+
+    player->setAutoplay(readBoolOr(json, "autoplay", false));
+    player->setLoop(readBoolOr(json, "loop", false));
+
+    f32 value = 0.0f;
+    if (readFloatField(json, "volume", value, path, result))
+        player->setVolume(value);
+    if (readFloatField(json, "pitch", value, path, result))
+        player->setPitch(value);
+    if (readFloatField(json, "pan", value, path, result))
+        player->setPan(value);
+    // Distances before spatial(): setSpatial pushes min/max/rolloff to a
+    // live voice, and would push the defaults if it ran first.
+    if (readFloatField(json, "minDistance", value, path, result))
+        player->setMinDistance(value);
+    if (readFloatField(json, "maxDistance", value, path, result))
+        player->setMaxDistance(value);
+    if (readFloatField(json, "rolloff", value, path, result))
+        player->setRolloff(value);
+    player->setSpatial(readBoolOr(json, "spatial", false));
+
+    player->setActive(readBoolOr(json, "active", true));
+}
+
+// ------------------------------------------------------ UiControl (shared)
+
+void writeUiControl(const UiControl& control, nlohmann::json& json)
+{
+    json["anchors"] = writeVec4(control.anchors());
+    json["offsets"] = writeVec4(control.offsets());
+    json["interactive"] = control.interactive();
+    json["layer"] = control.layer();
+}
+
+void readUiControl(UiControl& control, const nlohmann::json& json)
+{
+    glm::vec4 anchors = control.anchors();
+    const auto anchorsField = json.find("anchors");
+    if (anchorsField != json.end() && readVec4(*anchorsField, anchors))
+        control.setAnchors(anchors);
+
+    glm::vec4 offsets = control.offsets();
+    const auto offsetsField = json.find("offsets");
+    if (offsetsField != json.end() && readVec4(*offsetsField, offsets))
+        control.setOffsets(offsets);
+
+    control.setInteractive(readBoolOr(json, "interactive", control.interactive()));
+    control.setLayer(
+        static_cast<s32>(readNumberOr(json, "layer", static_cast<f32>(control.layer()))));
+}
+
+// ------------------------------------------------------------- UiPanel
+
+nlohmann::json writeUiPanel(UiPanel& panel)
+{
+    nlohmann::json json;
+    json["type"] = "UiPanel";
+    json["version"] = 1;
+    json["active"] = panel.active();
+    writeUiControl(panel, json);
+    json["color"] = panel.color().value();
+    return json;
+}
+
+void readUiPanel(GameObject& object, const nlohmann::json& json, const std::string& path,
+                 SceneLoadResult& result)
+{
+    UiPanel* panel = object.addComponent<UiPanel>();
+    if (!panel)
+    {
+        result.addError(path, "object already has a UiPanel component");
+        return;
+    }
+    readUiControl(*panel, json);
+
+    const auto colorField = json.find("color");
+    if (colorField != json.end() && colorField->is_number_unsigned())
+        panel->setColor(Color(colorField->get<u32>()));
+
+    panel->setActive(readBoolOr(json, "active", true));
+}
+
+// ------------------------------------------------------------- UiLabel
+
+nlohmann::json writeUiLabel(UiLabel& label)
+{
+    nlohmann::json json;
+    json["type"] = "UiLabel";
+    json["version"] = 1;
+    json["active"] = label.active();
+    writeUiControl(label, json);
+    json["text"] = label.text();
+    json["fontSize"] = label.fontSize();
+    json["color"] = label.color().value();
+    return json;
+}
+
+void readUiLabel(GameObject& object, const nlohmann::json& json, const std::string& path,
+                 SceneLoadResult& result)
+{
+    UiLabel* label = object.addComponent<UiLabel>();
+    if (!label)
+    {
+        result.addError(path, "object already has a UiLabel component");
+        return;
+    }
+    readUiControl(*label, json);
+
+    const auto textField = json.find("text");
+    if (textField != json.end() && textField->is_string())
+        label->setText(textField->get<std::string>());
+    label->setFontSize(readNumberOr(json, "fontSize", label->fontSize()));
+
+    const auto colorField = json.find("color");
+    if (colorField != json.end() && colorField->is_number_unsigned())
+        label->setColor(Color(colorField->get<u32>()));
+
+    label->setActive(readBoolOr(json, "active", true));
+}
+
+// ------------------------------------------------------------ UiButton
+
+nlohmann::json writeUiButton(UiButton& button)
+{
+    nlohmann::json json;
+    json["type"] = "UiButton";
+    json["version"] = 1;
+    json["active"] = button.active();
+    writeUiControl(button, json);
+    json["text"] = button.text();
+    return json;
+}
+
+void readUiButton(GameObject& object, const nlohmann::json& json, const std::string& path,
+                  SceneLoadResult& result)
+{
+    UiButton* button = object.addComponent<UiButton>();
+    if (!button)
+    {
+        result.addError(path, "object already has a UiButton component");
+        return;
+    }
+    readUiControl(*button, json);
+
+    const auto textField = json.find("text");
+    if (textField != json.end() && textField->is_string())
+        button->setText(textField->get<std::string>());
+
+    button->setActive(readBoolOr(json, "active", true));
+}
+
+// ----------------------------------------------------------- UiCheckBox
+
+nlohmann::json writeUiCheckBox(UiCheckBox& checkBox)
+{
+    nlohmann::json json;
+    json["type"] = "UiCheckBox";
+    json["version"] = 1;
+    json["active"] = checkBox.active();
+    writeUiControl(checkBox, json);
+    json["text"] = checkBox.text();
+    json["checked"] = checkBox.checked();
+    return json;
+}
+
+void readUiCheckBox(GameObject& object, const nlohmann::json& json, const std::string& path,
+                    SceneLoadResult& result)
+{
+    UiCheckBox* checkBox = object.addComponent<UiCheckBox>();
+    if (!checkBox)
+    {
+        result.addError(path, "object already has a UiCheckBox component");
+        return;
+    }
+    readUiControl(*checkBox, json);
+
+    const auto textField = json.find("text");
+    if (textField != json.end() && textField->is_string())
+        checkBox->setText(textField->get<std::string>());
+    checkBox->setChecked(readBoolOr(json, "checked", false));
+
+    checkBox->setActive(readBoolOr(json, "active", true));
+}
+
+// ------------------------------------------------------------- UiSlider
+
+nlohmann::json writeUiSlider(UiSlider& slider)
+{
+    nlohmann::json json;
+    json["type"] = "UiSlider";
+    json["version"] = 1;
+    json["active"] = slider.active();
+    writeUiControl(slider, json);
+    json["minimum"] = slider.minimum();
+    json["maximum"] = slider.maximum();
+    json["value"] = slider.value();
+    return json;
+}
+
+void readUiSlider(GameObject& object, const nlohmann::json& json, const std::string& path,
+                  SceneLoadResult& result)
+{
+    UiSlider* slider = object.addComponent<UiSlider>();
+    if (!slider)
+    {
+        result.addError(path, "object already has a UiSlider component");
+        return;
+    }
+    readUiControl(*slider, json);
+
+    const f32 minimum = readNumberOr(json, "minimum", slider->minimum());
+    const f32 maximum = readNumberOr(json, "maximum", slider->maximum());
+    slider->setRange(minimum, maximum);
+    slider->setValue(readNumberOr(json, "value", slider->value()));
+
+    slider->setActive(readBoolOr(json, "active", true));
+}
+
 // --------------------------------------------------------- Collider
 
 const char* colliderShapeName(ColliderShape shape)
@@ -3906,6 +4165,18 @@ nlohmann::json writeComponents(GameObject& object)
         array.push_back(writeText3D(*text));
     if (SelfDestroy* selfDestroy = object.getComponent<SelfDestroy>())
         array.push_back(writeSelfDestroy(*selfDestroy));
+    if (AudioPlayer* audioPlayer = object.getComponent<AudioPlayer>())
+        array.push_back(writeAudioPlayer(*audioPlayer));
+    if (UiPanel* panel = object.getComponent<UiPanel>())
+        array.push_back(writeUiPanel(*panel));
+    if (UiLabel* label = object.getComponent<UiLabel>())
+        array.push_back(writeUiLabel(*label));
+    if (UiButton* button = object.getComponent<UiButton>())
+        array.push_back(writeUiButton(*button));
+    if (UiCheckBox* checkBox = object.getComponent<UiCheckBox>())
+        array.push_back(writeUiCheckBox(*checkBox));
+    if (UiSlider* slider = object.getComponent<UiSlider>())
+        array.push_back(writeUiSlider(*slider));
     if (Collider* collider = object.getComponent<Collider>())
         array.push_back(writeCollider(*collider));
     if (Waypoints* waypoints = object.getComponent<Waypoints>())
@@ -3933,6 +4204,8 @@ nlohmann::json writeComponents(GameObject& object)
         array.push_back(writeTerrain(*component));
     if (Landscape* component = object.getComponent<Landscape>())
         array.push_back(writeMarker("Landscape", *component));
+    if (UiCanvas* canvas = object.getComponent<UiCanvas>())
+        array.push_back(writeMarker("UiCanvas", *canvas));
     if (Road* component = object.getComponent<Road>())
         array.push_back(writeRoad(*component));
     if (Grass* component = object.getComponent<Grass>())
@@ -4027,6 +4300,20 @@ void readComponent(GameObject& object, const nlohmann::json& json, const std::st
         readText3D(object, json, path, result);
     else if (type == "SelfDestroy")
         readSelfDestroy(object, json, path, result);
+    else if (type == "AudioPlayer")
+        readAudioPlayer(object, json, path, result);
+    else if (type == "UiCanvas")
+        readMarker(static_cast<UiCanvas*>(nullptr));
+    else if (type == "UiPanel")
+        readUiPanel(object, json, path, result);
+    else if (type == "UiLabel")
+        readUiLabel(object, json, path, result);
+    else if (type == "UiButton")
+        readUiButton(object, json, path, result);
+    else if (type == "UiCheckBox")
+        readUiCheckBox(object, json, path, result);
+    else if (type == "UiSlider")
+        readUiSlider(object, json, path, result);
     else if (type == "Collider")
         readCollider(object, json, path, result);
     else if (type == "ZenBehaviour")
@@ -5071,6 +5358,15 @@ bool SceneSerializer::fromJson(const nlohmann::json& root, Scene& out, SceneLoad
 GameObject* SceneSerializer::cloneObject(GameObject& source, Scene& out, GameObject* newParent,
                                          SceneLoadResult& result) const
 {
+    return subtreeFromJson(subtreeToJson(source), out, newParent, result);
+}
+
+nlohmann::json SceneSerializer::subtreeToJson(GameObject& source) const
+{
+    Scene* scene = source.scene();
+    if (!scene)
+        return nlohmann::json();
+
     std::vector<GameObject*> objects;
     objects.push_back(&source);
     collectPreOrder(source, objects);
@@ -5082,16 +5378,46 @@ GameObject* SceneSerializer::cloneObject(GameObject& source, Scene& out, GameObj
     // descendant). `source`'s own real parent lies outside the subtree (or
     // is Scene's root, which nothing here was ever going to reference
     // anyway) - forced to null right after so buildCreationOrder() never
-    // has to resolve an id it was never given. reparent() below is what
-    // actually places the clone; this only has to parse successfully.
+    // has to resolve an id it was never given. Whoever reads this document
+    // is what places the subtree; this only has to parse successfully.
     nlohmann::json objectsJson = nlohmann::json::array();
     for (GameObject* object : objects)
-        objectsJson.push_back(writeObject(*object, out.root()));
+        objectsJson.push_back(writeObject(*object, scene->root()));
     objectsJson[0]["parent"] = nullptr;
+
+    nlohmann::json sceneJson;
+    sceneJson["name"] = source.name();
+    sceneJson["activeCamera"] = nullptr;
+    sceneJson["objects"] = objectsJson;
+
+    nlohmann::json document;
+    document["format"] = kFormatName;
+    document["version"] = kFormatVersion;
+    document["scene"] = sceneJson;
+    return document;
+}
+
+GameObject* SceneSerializer::subtreeFromJson(const nlohmann::json& document, Scene& out,
+                                             GameObject* newParent, SceneLoadResult& result) const
+{
+    const auto sceneField = document.find("scene");
+    if (sceneField == document.end() || !sceneField->is_object())
+    {
+        result.addError("/", "document has no scene object");
+        return nullptr;
+    }
+    const auto objectsField = sceneField->find("objects");
+    if (objectsField == sceneField->end() || !objectsField->is_array() || objectsField->empty())
+    {
+        result.addError("/scene/objects", "subtree has no objects");
+        return nullptr;
+    }
+
+    nlohmann::json objectsJson = *objectsField;
 
     // Fresh ids throughout, minted up front from the same counter
     // createGameObject() itself draws from - creating these into `out` (very
-    // often the exact Scene `source` already lives in) must never collide
+    // often the exact Scene the subtree was written from) must never collide
     // with the originals sitting right next to them. One remap pass, applied
     // to both "id" and every "parent" that points within this same set.
     HashMap<u64, u64> remap;
@@ -5103,27 +5429,34 @@ GameObject* SceneSerializer::cloneObject(GameObject& source, Scene& out, GameObj
         entry["id"] = newId;
     }
     for (nlohmann::json& entry : objectsJson)
-        if (!entry["parent"].is_null())
+        if (entry.contains("parent") && !entry["parent"].is_null())
         {
             const auto found = remap.find(entry["parent"].get<u64>());
             entry["parent"] =
                 found != remap.end() ? nlohmann::json(found->second) : nlohmann::json(nullptr);
         }
 
+    // The subtree's own root is the first entry - subtreeToJson() writes it
+    // there and nulls its parent.
+    const u64 rootId = objectsJson[0].value("id", u64(0));
+
+    // Built fresh rather than copied from the document: everything else a
+    // scene object can carry - the root's name, culling, render settings -
+    // belongs to the scene the subtree came from, and must not follow it
+    // into the one it is being dropped into.
     nlohmann::json sceneJson;
-    sceneJson["name"] = out.root().name();
-    sceneJson["activeCamera"] = nullptr;
     sceneJson["objects"] = objectsJson;
+    sceneJson["activeCamera"] = nullptr;
 
-    nlohmann::json document;
-    document["format"] = kFormatName;
-    document["version"] = kFormatVersion;
-    document["scene"] = sceneJson;
+    nlohmann::json patched;
+    patched["format"] = kFormatName;
+    patched["version"] = kFormatVersion;
+    patched["scene"] = sceneJson;
 
-    if (!fromJson(document, out, result))
+    if (!fromJson(patched, out, result))
         return nullptr;
 
-    GameObject* clone = out.findGameObject(remap.at(source.id()));
+    GameObject* clone = out.findGameObject(rootId);
     if (clone && newParent)
         out.reparent(clone, newParent);
     return clone;

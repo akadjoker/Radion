@@ -51,10 +51,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BUILD_SHARED_LIBS "Build Radion libraries as shared libraries" OFF)
 option(RADION_ENABLE_SANITIZERS "Enable sanitizers in Debug builds" ON)
+option(RADION_STATIC_MINGW_RUNTIME "Link the MinGW GCC runtimes into Radion executables" ON)
 option(RADION_BUILD_EDITOR "Build the Radion editor" ON)
 option(RADION_BUILD_RUNNER "Build the standalone Radion game runner" ON)
 option(RADION_BUILD_BLENDER "Build the Radion Blender tool" ON)
 option(RADION_BUILD_VOXEL_DEMO "Build the voxel terrain demo" ON)
+option(RADION_BUILD_BISTRO_DEMO "Build the large scene demo" ON)
  
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -80,6 +82,7 @@ add_subdirectory(runtime/core)
 # the default pack it compiles in.
 add_subdirectory(tools/packer)
 
+add_subdirectory(runtime/audio)
 add_subdirectory(runtime/gpu)
 add_subdirectory(runtime/render)
 add_subdirectory(runtime/physics)
@@ -114,6 +117,10 @@ endif()
 
 if(RADION_BUILD_VOXEL_DEMO)
     add_subdirectory(examples/voxel_demo)
+endif()
+
+if(RADION_BUILD_BISTRO_DEMO)
+    add_subdirectory(examples/bistro_demo)
 endif()
 
 add_subdirectory(tools/lightmapbake)

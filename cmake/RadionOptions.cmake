@@ -30,6 +30,15 @@ else()
     )
 endif()
 
+# MinGW's GCC runtime is otherwise a DLL dependency - libgcc_s_seh-1.dll,
+# libstdc++-6.dll, and libwinpthread-1.dll on posix-threaded toolchains - so a
+# binary copied to a clean Windows machine refuses to start. -static pulls all
+# three in. Every module links radion_options, so this reaches each executable
+# without a global add_link_options().
+if(MINGW AND RADION_STATIC_MINGW_RUNTIME)
+    target_link_options(radion_options INTERFACE -static-libgcc -static-libstdc++ -static)
+endif()
+
 if(RADION_ENABLE_SANITIZERS)
     if(MSVC)
         target_compile_options(radion_options INTERFACE
