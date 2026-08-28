@@ -2,6 +2,7 @@
 
 #include "ActionRunner.h"
 #include "AssetManager.h"
+#include "AudioPlayer.h"
 #include "ByteArray.h"
 #include "DebugDraw3D.h"
 #include "EnvironmentProbe.h"
@@ -20,6 +21,7 @@
 #include "ParticleEffect.h"
 #include "ParticleEffectPool.h"
 #include "PostProcess.h"
+#include "Prefab.h"
 #include "Profiler.h"
 #include "RadionFormat.h"
 #include "RenderList.h"
@@ -30,6 +32,7 @@
 #include "Shadows.h"
 #include "Sky.h"
 #include "Terrain.h"
+#include "UiControls.h"
 #include "VolumetricPass.h"
 
 #include <cstdio>
@@ -1109,6 +1112,297 @@ void testSceneSerializerComponentValidation()
     }
 }
 
+void testAudioPlayerRoundTrip()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("speaker");
+    AudioPlayer* player = object->addComponent<AudioPlayer>();
+    CHECK(player != nullptr);
+    if (!player)
+        return;
+
+    player->setSource("sounds/engine.ogg");
+    player->setMusic(false);
+    player->setAutoplay(true);
+    player->setLoop(true);
+    player->setVolume(0.75f);
+    player->setPitch(1.25f);
+    player->setPan(-0.5f);
+    player->setMinDistance(3.0f);
+    player->setMaxDistance(42.0f);
+    player->setRolloff(2.0f);
+    player->setSpatial(true);
+
+    scene.update(0.016f);
+
+    SceneSerializer serializer;
+    const nlohmann::json document = serializer.toJson(scene);
+
+    Scene reloaded;
+    SceneLoadResult result;
+    CHECK(serializer.fromJson(document, reloaded, result));
+    CHECK(result.success());
+
+    GameObject* reObject = reloaded.findGameObject(object->id());
+    AudioPlayer* rePlayer = reObject ? reObject->getComponent<AudioPlayer>() : nullptr;
+    CHECK(rePlayer != nullptr);
+    if (!rePlayer)
+        return;
+
+    CHECK(rePlayer->source() == "sounds/engine.ogg");
+    CHECK(!rePlayer->music());
+    CHECK(rePlayer->autoplay());
+    CHECK(rePlayer->loop());
+    CHECK(std::fabs(rePlayer->volume() - 0.75f) < 1e-5f);
+    CHECK(std::fabs(rePlayer->pitch() - 1.25f) < 1e-5f);
+    CHECK(std::fabs(rePlayer->pan() + 0.5f) < 1e-5f);
+    CHECK(rePlayer->spatial());
+    CHECK(std::fabs(rePlayer->minDistance() - 3.0f) < 1e-5f);
+    CHECK(std::fabs(rePlayer->maxDistance() - 42.0f) < 1e-5f);
+    CHECK(std::fabs(rePlayer->rolloff() - 2.0f) < 1e-5f);
+
+    // Music releases the loaded sound, so it has to be applied before the
+    // source on read - otherwise the file read is thrown away.
+    GameObject* musicObject = scene.createGameObject("radio");
+    AudioPlayer* music = musicObject->addComponent<AudioPlayer>();
+    music->setMusic(true);
+    music->setSource("music/theme.ogg");
+    scene.update(0.016f);
+
+    Scene musicReloaded;
+    SceneLoadResult musicResult;
+    CHECK(serializer.fromJson(serializer.toJson(scene), musicReloaded, musicResult));
+    GameObject* reMusicObject = musicReloaded.findGameObject(musicObject->id());
+    AudioPlayer* reMusic = reMusicObject ? reMusicObject->getComponent<AudioPlayer>() : nullptr;
+    CHECK(reMusic != nullptr);
+    CHECK(reMusic && reMusic->music());
+    CHECK(reMusic && reMusic->source() == "music/theme.ogg");
+}
+
+void testUiControlsRoundTrip()
+{
+    Scene scene;
+    GameObject* canvasObject = scene.createGameObject("hud");
+    UiCanvas* canvas = canvasObject->addComponent<UiCanvas>();
+    CHECK(canvas != nullptr);
+
+    GameObject* panelObject = scene.createGameObject("panel", canvasObject);
+    UiPanel* panel = panelObject->addComponent<UiPanel>();
+    CHECK(panel != nullptr);
+    if (!panel)
+        return;
+    panel->setAnchors(glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+    panel->setOffsets(glm::vec4(4.0f, 8.0f, -4.0f, 96.0f));
+    panel->setInteractive(true);
+    panel->setLayer(3);
+    panel->setColor(Color::fromRGBFloat(0.2f, 0.3f, 0.4f, 0.5f));
+
+    GameObject* labelObject = scene.createGameObject("label", panelObject);
+    UiLabel* label = labelObject->addComponent<UiLabel>();
+    CHECK(label != nullptr);
+    if (!label)
+        return;
+    label->setText("Score: 0");
+    label->setFontSize(24.0f);
+    label->setColor(Color::fromRGBFloat(1.0f, 0.8f, 0.2f));
+
+    GameObject* buttonObject = scene.createGameObject("button", panelObject);
+    UiButton* button = buttonObject->addComponent<UiButton>();
+    CHECK(button != nullptr);
+    if (!button)
+        return;
+    button->setText("Start");
+    button->setRect(10.0f, 20.0f, 140.0f, 36.0f);
+
+    GameObject* checkObject = scene.createGameObject("check", panelObject);
+    UiCheckBox* checkBox = checkObject->addComponent<UiCheckBox>();
+    CHECK(checkBox != nullptr);
+    if (!checkBox)
+        return;
+    checkBox->setText("Fullscreen");
+    checkBox->setChecked(true);
+
+    GameObject* sliderObject = scene.createGameObject("slider", panelObject);
+    UiSlider* slider = sliderObject->addComponent<UiSlider>();
+    CHECK(slider != nullptr);
+    if (!slider)
+        return;
+    slider->setRange(0.0f, 200.0f);
+    slider->setValue(75.0f);
+
+    scene.update(0.016f);
+
+    SceneSerializer serializer;
+    const nlohmann::json document = serializer.toJson(scene);
+
+    Scene reloaded;
+    SceneLoadResult result;
+    CHECK(serializer.fromJson(document, reloaded, result));
+    CHECK(result.success());
+
+    GameObject* reCanvasObject = reloaded.findGameObject(canvasObject->id());
+    CHECK(reCanvasObject != nullptr);
+    CHECK(reCanvasObject && reCanvasObject->getComponent<UiCanvas>() != nullptr);
+
+    GameObject* rePanelObject = reloaded.findGameObject(panelObject->id());
+    UiPanel* rePanel = rePanelObject ? rePanelObject->getComponent<UiPanel>() : nullptr;
+    CHECK(rePanel != nullptr);
+    if (!rePanel)
+        return;
+    CHECK(rePanel->anchors() == glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+    CHECK(rePanel->offsets() == glm::vec4(4.0f, 8.0f, -4.0f, 96.0f));
+    CHECK(rePanel->interactive());
+    CHECK(rePanel->layer() == 3);
+    CHECK(rePanel->color() == Color::fromRGBFloat(0.2f, 0.3f, 0.4f, 0.5f));
+
+    GameObject* reLabelObject = reloaded.findGameObject(labelObject->id());
+    UiLabel* reLabel = reLabelObject ? reLabelObject->getComponent<UiLabel>() : nullptr;
+    CHECK(reLabel != nullptr);
+    CHECK(reLabel && reLabel->text() == "Score: 0");
+    CHECK(reLabel && std::fabs(reLabel->fontSize() - 24.0f) < 1e-5f);
+    CHECK(reLabel && reLabel->color() == Color::fromRGBFloat(1.0f, 0.8f, 0.2f));
+
+    GameObject* reButtonObject = reloaded.findGameObject(buttonObject->id());
+    UiButton* reButton = reButtonObject ? reButtonObject->getComponent<UiButton>() : nullptr;
+    CHECK(reButton != nullptr);
+    CHECK(reButton && reButton->text() == "Start");
+    CHECK(reButton && !reButton->consumeClick());
+    if (reButton)
+    {
+        const glm::vec4 expectedOffsets(10.0f, 20.0f, 150.0f, 56.0f);
+        CHECK(reButton->offsets() == expectedOffsets);
+    }
+
+    GameObject* reCheckObject = reloaded.findGameObject(checkObject->id());
+    UiCheckBox* reCheckBox = reCheckObject ? reCheckObject->getComponent<UiCheckBox>() : nullptr;
+    CHECK(reCheckBox != nullptr);
+    CHECK(reCheckBox && reCheckBox->text() == "Fullscreen");
+    CHECK(reCheckBox && reCheckBox->checked());
+
+    GameObject* reSliderObject = reloaded.findGameObject(sliderObject->id());
+    UiSlider* reSlider = reSliderObject ? reSliderObject->getComponent<UiSlider>() : nullptr;
+    CHECK(reSlider != nullptr);
+    CHECK(reSlider && std::fabs(reSlider->minimum() - 0.0f) < 1e-5f);
+    CHECK(reSlider && std::fabs(reSlider->maximum() - 200.0f) < 1e-5f);
+    CHECK(reSlider && std::fabs(reSlider->value() - 75.0f) < 1e-5f);
+
+    // Hierarchy rides along with the rest of a scene save: every widget
+    // is still parented under the panel, itself under the canvas.
+    CHECK(rePanelObject && rePanelObject->parent() == reCanvasObject);
+    CHECK(reLabelObject && reLabelObject->parent() == rePanelObject);
+    CHECK(reButtonObject && reButtonObject->parent() == rePanelObject);
+    CHECK(reCheckObject && reCheckObject->parent() == rePanelObject);
+    CHECK(reSliderObject && reSliderObject->parent() == rePanelObject);
+}
+
+void testPrefabRoundTrip()
+{
+    Scene scene;
+    GameObject* root = scene.createGameObject("turret");
+    root->setPosition(glm::vec3(4.0f, 0.0f, -2.0f));
+    root->setTag("enemy");
+    GameObject* barrel = scene.createGameObject("barrel", root);
+    barrel->setPosition(glm::vec3(0.0f, 1.5f, 0.0f));
+    GameObject* muzzle = scene.createGameObject("muzzle", barrel);
+    AudioPlayer* player = muzzle->addComponent<AudioPlayer>();
+    player->setSource("sounds/shot.wav");
+    player->setSpatial(true);
+
+    scene.update(0.016f);
+
+    Prefab prefab;
+    prefab.saveFromObject(*root);
+    CHECK(prefab.valid());
+    CHECK(prefab.data()["scene"]["objects"].size() == 3);
+    // The subtree root's parent is nulled, so the document parses without
+    // needing an id that was never written into it.
+    CHECK(prefab.data()["scene"]["objects"][0]["parent"].is_null());
+
+    // Into the same scene it came from: fresh ids, originals untouched.
+    SceneLoadResult result;
+    GameObject* first = prefab.instantiate(scene, nullptr, result);
+    scene.update(0.016f);
+    CHECK(result.success());
+    CHECK(first != nullptr);
+    if (!first)
+        return;
+    CHECK(first != root);
+    CHECK(first->id() != root->id());
+    CHECK(first->name() == "turret");
+    CHECK(first->tag() == "enemy");
+    CHECK(first->childCount() == 1);
+    CHECK(scene.gameObjectCount() == 6);
+    // The scene's own root keeps its name - the document's belongs to the
+    // subtree, not to what it is dropped into.
+    CHECK(scene.root().name() != "turret");
+
+    // A second instance is independent of the first.
+    GameObject* second = prefab.instantiate(scene, nullptr, result);
+    scene.update(0.016f);
+    CHECK(second != nullptr);
+    CHECK(second && second->id() != first->id());
+    CHECK(scene.gameObjectCount() == 9);
+
+    // Components ride along: the grandchild's AudioPlayer came back.
+    GameObject* cloneBarrel = first->childCount() > 0 ? first->child(0) : nullptr;
+    GameObject* cloneMuzzle = cloneBarrel && cloneBarrel->childCount() > 0 ? cloneBarrel->child(0)
+                                                                          : nullptr;
+    AudioPlayer* clonePlayer = cloneMuzzle ? cloneMuzzle->getComponent<AudioPlayer>() : nullptr;
+    CHECK(clonePlayer != nullptr);
+    CHECK(clonePlayer && clonePlayer->source() == "sounds/shot.wav");
+    CHECK(clonePlayer && clonePlayer->spatial());
+
+    // Under an explicit parent.
+    GameObject* holder = scene.createGameObject("holder");
+    scene.update(0.016f);
+    GameObject* third = prefab.instantiate(scene, holder, result);
+    scene.update(0.016f);
+    CHECK(third != nullptr);
+    CHECK(third && third->parent() == holder);
+
+    // Into a scene that never saw the original.
+    Scene other;
+    SceneLoadResult otherResult;
+    GameObject* elsewhere = prefab.instantiate(other, nullptr, otherResult);
+    other.update(0.016f);
+    CHECK(otherResult.success());
+    CHECK(elsewhere != nullptr);
+    CHECK(other.gameObjectCount() == 3);
+
+    // Through disk and back.
+    const std::filesystem::path file =
+        std::filesystem::temp_directory_path() / "radion_prefab_test.rprefab";
+    CHECK(prefab.saveToFile(file.string(), *root));
+    Prefab reloaded;
+    CHECK(reloaded.load(file.string()));
+    CHECK(reloaded.valid());
+    CHECK(reloaded.data() == prefab.data());
+    Scene fromDisk;
+    SceneLoadResult diskResult;
+    GameObject* diskObject = reloaded.instantiate(fromDisk, nullptr, diskResult);
+    fromDisk.update(0.016f);
+    CHECK(diskResult.success());
+    CHECK(diskObject != nullptr);
+    CHECK(diskObject && diskObject->name() == "turret");
+    CHECK(fromDisk.gameObjectCount() == 3);
+    std::filesystem::remove(file);
+
+    // An unloaded prefab instantiates nothing rather than half a subtree.
+    Prefab empty;
+    CHECK(!empty.valid());
+    SceneLoadResult emptyResult;
+    CHECK(empty.instantiate(scene, nullptr, emptyResult) == nullptr);
+
+    // A document with no objects is an error, not a crash.
+    Prefab malformed;
+    nlohmann::json bad;
+    bad["scene"]["objects"] = nlohmann::json::array();
+    malformed.loadFromJson(bad);
+    SceneLoadResult badResult;
+    CHECK(malformed.instantiate(scene, nullptr, badResult) == nullptr);
+    CHECK(!badResult.success());
+}
+
 void testTransforms()
 {
     Scene scene;
@@ -2100,6 +2394,9 @@ int main()
     testSceneSerializerCameraRoundTrip();
     testSceneSerializerLightRoundTrip();
     testSceneSerializerComponentValidation();
+    testAudioPlayerRoundTrip();
+    testUiControlsRoundTrip();
+    testPrefabRoundTrip();
     testTransforms();
     testSceneQueues();
     testLights();

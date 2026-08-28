@@ -4,6 +4,7 @@
 #include "Thread.h"
 
 #include "AssetManager.h"
+#include "AudioEngine.h"
 #include "DebugDraw3D.h"
 #include "FileSystem.h"
 #include "GPUCaps.h"
@@ -14,6 +15,7 @@
 #include "Profiler.h"
 #include "ScriptCache.h"
 #include "RenderList.h"
+#include "UiControls.h"
 
 #include <cmath>
 #include <cstring>
@@ -41,6 +43,21 @@ template <typename T> void removePointer(std::vector<T*>& values, T* value)
 bool queued(const std::vector<GameObject*>& queue, const GameObject* object)
 {
     return std::find(queue.begin(), queue.end(), object) != queue.end();
+}
+
+// The listener rides the active camera. Orientation goes with the position:
+// a listener that only moves pans every spatial voice wrongly the moment
+// the camera turns on the spot.
+void syncAudioListener(const Camera* camera)
+{
+    AudioEngine& audio = Audio();
+    if (!audio.ready())
+        return;
+    const GameObject* owner = camera ? camera->owner() : nullptr;
+    if (!owner)
+        return;
+    audio.setListenerPosition(owner->globalPosition());
+    audio.setListenerOrientation(owner->forward(), owner->up());
 }
 
 // Nearest live, captured probe to `position` - render/'s RenderInstance
@@ -479,6 +496,13 @@ void Scene::update(f32 deltaTime)
             }
         }
     }
+    // Layout and hit-test every UI control once, before the component update
+    // below draws them: a control renders the rectangle this pass just gave
+    // it, not the one from last frame.
+    {
+        RADION_PROFILE_SCOPE("UI update");
+        UiSystems().refresh();
+    }
     // Capture the count: a component attached from on_start/on_update joins
     // the list immediately, but must not run until the next frame. Removal
     // writes a tombstone, so callbacks can safely remove themselves or one
@@ -530,6 +554,14 @@ void Scene::update(f32 deltaTime)
     }
 
     ParticleEffectPool::getSingleton().reclaim();
+
+    // After late update, so a camera controller that moved this frame is
+    // already where the listener should hear from.
+    {
+        RADION_PROFILE_SCOPE("Audio update");
+        syncAudioListener(mActiveCamera);
+        Audio().update();
+    }
 
     flushChanges();
     compactComponentLists();

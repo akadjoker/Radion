@@ -16,6 +16,7 @@
 
 #include "AssetManager.h"
 #include "AsyncTextureLoader.h"
+#include "AudioEngine.h"
 #include "Batch.h"
 #include "DebugDraw3D.h"
 #include "DefaultPack.h"
@@ -36,6 +37,7 @@
 #include "Scene.h"
 #include "ScreenDraw.h"
 #include "ScreenDrawPass.h"
+#include "UiControls.h"
 #include "TrailRender.h"
 #include "TreeRender.h"
 #include "Thread.h"
@@ -136,6 +138,10 @@ bool Engine::initialize(const EngineConfig& config)
     // Ahead of everything: addDefaultPasses() below asks for its first shader
     // before this function returns, and the fallback has to already be there.
     DefaultPack::mount(FileSystem::getSingleton());
+
+    // A machine with no output device still runs the game, silently: every
+    // AudioEngine call is a no-op until a later initialize() succeeds.
+    Audio().initialize();
 
 #if defined(RADION_DEBUG)
     mWindow.setDebugContext(true);
@@ -283,6 +289,10 @@ void Engine::shutdown()
     // first, then the pipelines they referenced, then whatever the device
     // still has live. Leaving any of it to a destructor would put GL calls
     // at whatever point the owner happened to die.
+    // Before FileSystem goes: every voice still playing holds decoded bytes
+    // this owns, and the device thread is reading them until it stops.
+    Audio().shutdown();
+
     GPUProfiler::getSingleton().shutdown();
     // Joins the worker thread before anything it might still be touching
     // (FileSystem, the texture cache below) goes away.
@@ -321,6 +331,16 @@ bool Engine::update()
     Profiler::getSingleton().addSample("Present (frame anterior)", mPresentMilliseconds);
     DebugDraw().clear();
     ScreenDraws().clear();
+    // The UI lays out in the same pixels ScreenDrawPass resolves into, so it
+    // takes the drawable size and not the window's own. Set here, at the top
+    // of the frame, because Scene::update() consumes it before anything has
+    // reached the renderer.
+    {
+        int uiWidth = 0;
+        int uiHeight = 0;
+        mWindow.getDrawableSize(uiWidth, uiHeight);
+        UiSystems().setScreenSize(static_cast<f32>(uiWidth), static_cast<f32>(uiHeight));
+    }
     TrailDraws().clear();
     ParticleDraws().clear();
     GrassDraws().clear();

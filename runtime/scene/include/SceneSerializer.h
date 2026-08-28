@@ -113,6 +113,22 @@ public:
     // Null on failure; check result for why.
     GameObject* cloneObject(GameObject& source, Scene& out, GameObject* newParent,
                             SceneLoadResult& result) const;
+
+    // The two halves of cloneObject(), with the document in the middle
+    // exposed so it can go to disk and come back - what Prefab is built on.
+    //
+    // subtreeToJson() writes `source` and every descendant as a standalone
+    // document in the same format save() writes. Empty json if `source` is
+    // not in a Scene.
+    nlohmann::json subtreeToJson(GameObject& source) const;
+
+    // Reads such a document into `out`, minting fresh ids so it never
+    // collides with what is already there, attached under `newParent`
+    // (root() if null). Only the objects are read: the scene-level settings
+    // of wherever the subtree came from are not applied to `out`. Null on
+    // failure; check result for why.
+    GameObject* subtreeFromJson(const nlohmann::json& document, Scene& out,
+                                GameObject* newParent, SceneLoadResult& result) const;
 };
 
 } // namespace Radion
