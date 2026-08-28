@@ -9,6 +9,7 @@
 #include "Camera.h"
 #include "CameraControllers.h"
 #include "EditorApplication.h"
+#include "FileSystem.h"
 #include "Forest.h"
 #include "GameObject.h"
 #include "Grass.h"
@@ -18,6 +19,7 @@
 #include "Ocean.h"
 #include "ParticleEffect.h"
 #include "ParticleEmitter.h"
+#include "Prefab.h"
 #include "ReflectionProbe.h"
 #include "Road.h"
 #include "Scene.h"
@@ -148,6 +150,7 @@ void HierarchyPanel::onImGui()
     drawPendingTerrainPopup();
     drawPendingOceanPopup();
     drawPendingGridDuplicatePopup();
+    drawSavePrefabPopup();
 
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D))
         if (GameObject* selected = app().selection().resolve(app().scene()))
@@ -561,6 +564,38 @@ void HierarchyPanel::drawPendingGridDuplicatePopup()
     ImGui::EndPopup();
 }
 
+void HierarchyPanel::drawSavePrefabPopup()
+{
+    const std::string root = app().assetBrowserRoot();
+    if (!mSavePrefabDialog.Render(root, root, root))
+        return;
+
+    const ImGuiFileDialog::Result result = mSavePrefabDialog.ConsumeResult();
+    if (!result.accepted)
+        return;
+    app().settings().lastSaveDirectory = result.path.parent_path().string();
+
+    GameObject* source = app().scene().findGameObject(mSavePrefabSource);
+    if (!source)
+    {
+        app().toasts().error("The object no longer exists");
+        return;
+    }
+
+    const std::string path = result.path.string();
+    Prefab prefab;
+    if (prefab.saveToFile(path, *source))
+    {
+        Log::info("HierarchyPanel: saved prefab '%s'", path.c_str());
+        app().toasts().success("Saved " + FileSystem::fileName(path));
+    }
+    else
+    {
+        Log::error("HierarchyPanel: could not save prefab '%s'", path.c_str());
+        app().toasts().error("Could not save " + FileSystem::fileName(path));
+    }
+}
+
 void HierarchyPanel::drawObjectActions()
 {
     Scene& scene = app().scene();
@@ -793,6 +828,17 @@ void HierarchyPanel::drawNode(GameObject& object)
             mPendingGridDuplicate.open = true;
             mPendingGridDuplicate.source = object.id();
         }
+        ImGui::Separator();
+        if (ImGui::MenuItem(ICON_MDI_PACKAGE_VARIANT_CLOSED " Save as Prefab..."))
+        {
+            mSavePrefabSource = object.id();
+            const std::string suggested =
+                (object.name().empty() ? std::string("Prefab") : object.name()) + ".rprefab";
+            const std::string& last = app().settings().lastSaveDirectory;
+            mSavePrefabDialog.Open(ImGuiFileDialog::Mode::SaveFile,
+                                   last.empty() ? app().assetBrowserRoot() : last, suggested);
+        }
+        ImGui::Separator();
         if (ImGui::MenuItem(ICON_MDI_DELETE " Delete"))
         {
             app().recordUndo();

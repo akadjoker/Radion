@@ -149,6 +149,14 @@ private:
     void drawImportPopup();
     std::string importOutputBase();
 
+    // Double-click or right-click > Instantiate on a .rprefab. Unlike mesh
+    // Import there is no popup asking for a starting transform - a prefab is
+    // already in this engine's own coordinate space, saved by this same
+    // editor, so the only thing that needs deciding is where in this scene it
+    // lands, and that is the 3D cursor - the same spot every other freshly
+    // created object appears at.
+    void instantiatePrefab(const std::string& relativePath);
+
     // Right-click > Delete. Queued the same way Import is, because deleting
     // a file cannot be undone by the editor's own undo stack - the popup is
     // the only thing standing between a stray click and a lost asset, and it
