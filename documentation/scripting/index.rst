@@ -18,6 +18,5 @@ cheap instance with its own state, through ``ScriptCache``.
 Contents
 --------
 
-* :doc:`reference` — the script API registered so far: the component handle
-  classes (``Component``, ``GameObject``, ``Camera``, ``Light``) and their
-  methods.
+* :doc:`reference` — where the class-by-class script API reference is kept,
+  and why it is not repeated here.
