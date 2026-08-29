@@ -22,7 +22,9 @@ void applyAgentAvoidance(Radion::Agent& agent, float avoidDistance, float turnRa
 
     for (Radion::Agent* other : scene->agents())
     {
-        if (other == &agent)
+        // Null while an agent is being destroyed mid-update - see
+        // Scene::agents().
+        if (!other || other == &agent)
             continue;
 
         glm::vec3 away = position - other->position();

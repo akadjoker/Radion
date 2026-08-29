@@ -196,6 +196,10 @@ public:
 
     void addAgent(Agent& agent);
     void removeAgent(Agent& agent);
+    // Every agent in the scene. While updateAgents() is running this can
+    // contain null entries - an agent destroyed by a behavior or a state
+    // machine callback leaves a hole until the pass finishes - so anything
+    // walking this from inside an agent's own update has to skip them.
     const std::vector<Agent*>& agents() const
     {
         return mAgents;
@@ -826,7 +830,11 @@ private:
     void* mPhysicsStepUserData = nullptr;
 
     // ----------------------------------------------------------------- AI
+    // Holds appear in mAgents while updateAgents() is running - an agent
+    // destroyed by its own callback - and are swept up when it finishes.
     std::vector<Agent*> mAgents;
+    bool mAgentsUpdating = false;
+    bool mAgentsDirty = false;
 
     // Every Obstacle component attached, and the shapes of the live subset
     // of them - the second is derived from the first by rebuildObstacleGroup()

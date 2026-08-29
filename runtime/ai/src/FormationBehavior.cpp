@@ -81,21 +81,23 @@ void FormationBehavior::iterate(float timeDelta, Agent& entity)
     if (entity.squadId() == 0)
         return;
 
-    mSquadLeader = nullptr;
+    // The leader comes from this agent's own squad link, not from a scan of
+    // the scene. Scanning found "the last agent with squadId 0 anywhere",
+    // which is one squad's leader picked at random once a second squad
+    // exists - members of A formed up on B's leader. The link also makes
+    // this O(1) instead of a walk over every agent, per member, per frame.
+    mSquadLeader = entity.squadLeader();
     mPointMan = nullptr;
-
-    // Cache pointers to the squad leader (id 0) and point man (id 1). The
-    // reference scanned every Group in the World (squadmate.world().groups());
-    // without Group/World the Scene's flat agent list is the equivalent scan.
-    Scene* scene = entity.scene();
-    if (!scene)
+    if (!mSquadLeader)
         return;
-    for (Agent* other : scene->agents())
+
+    for (Agent* member : mSquadLeader->squadMembers())
     {
-        if (other->squadId() == 0)
-            mSquadLeader = other;
-        if (other->squadId() == 1)
-            mPointMan = other;
+        if (member && member->squadId() == 1)
+        {
+            mPointMan = member;
+            break;
+        }
     }
 
     if (!mPointMan || !mSquadLeader)
