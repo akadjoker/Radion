@@ -15,6 +15,7 @@
 #include "dynamics/WheelJoint.h"
 
 #include <cstdio>
+#include <limits>
 #include <vector>
 
 using namespace Radion;
@@ -113,6 +114,11 @@ bool finite(const RigidBody& body)
 {
     return std::isfinite(body.position().x) && std::isfinite(body.position().y) &&
            std::isfinite(body.position().z) && std::isfinite(body.orientation().w);
+}
+
+bool finiteVec(const glm::vec3& v)
+{
+    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
 
 // -------------------------------------------------------------- DistanceJoint
@@ -1123,6 +1129,194 @@ void testSteeringMotorTurnsWithinLimits()
     CHECK(wheelJoint.steeringAngle() > 0.0f);
 }
 
+// ---------------------------------------------------------- servo edge cases
+//
+// The values a caller gets wrong, a script sends by accident, or a save file
+// arrives with. None of these may crash, produce NaN, or silently do
+// something other than what was asked.
+void testServoRejectsNonFiniteInput()
+{
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    RigidBody arm = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    HingeJoint joint(anchor, arm, glm::vec3(0.5f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    joint.setServo(0.5f, 100.0f, 2.0f);
+    const f32 good = joint.servoTargetAngle();
+
+    // Each of these must leave the last good setting standing.
+    const f32 nan = std::numeric_limits<f32>::quiet_NaN();
+    const f32 inf = std::numeric_limits<f32>::infinity();
+    joint.setServo(nan, 100.0f, 2.0f);
+    CHECK(joint.servoTargetAngle() == good);
+    joint.setServo(1.0f, nan, 2.0f);
+    CHECK(joint.servoTargetAngle() == good);
+    joint.setServo(1.0f, 100.0f, inf);
+    CHECK(joint.servoTargetAngle() == good);
+
+    for (u32 i = 0; i < 120; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
+    CHECK(std::isfinite(joint.currentAngle()));
+    CHECK(finiteVec(arm.angularVelocity()));
+}
+
+// Zero torque is the documented way to switch a motor off, and a servo has
+// to honour it rather than driving with no budget.
+void testServoWithNoTorqueIsOff()
+{
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    RigidBody arm = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    HingeJoint joint(anchor, arm, glm::vec3(0.5f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    joint.setServo(1.0f, 0.0f);
+    CHECK(!joint.servoEnabled());
+    CHECK(!joint.motorEnabled());
+
+    for (u32 i = 0; i < 240; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
+    // Free to fall under gravity: nothing is holding it up.
+    CHECK(joint.currentAngle() < 0.0f);
+    CHECK(std::isfinite(joint.currentAngle()));
+}
+
+// A zero-length step is what a paused editor hands the solver.
+void testServoSurvivesZeroTimestep()
+{
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    RigidBody arm = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    HingeJoint joint(anchor, arm, glm::vec3(0.5f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    joint.setServo(0.5f, 200.0f, 2.0f);
+
+    for (u32 i = 0; i < 10; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), 0.0f);
+
+    CHECK(std::isfinite(joint.currentAngle()));
+    CHECK(finiteVec(arm.angularVelocity()));
+    CHECK(finiteVec(arm.position()));
+}
+
+// Limits given the wrong way round, and a target inside the inverted pair.
+// setLimits() clamps each side into its own half, so this cannot open a hole
+// the servo would fall through - but it must not spin or NaN either.
+void testServoWithInvertedLimits()
+{
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    RigidBody arm = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    HingeJoint joint(anchor, arm, glm::vec3(0.5f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    joint.setLimits(0.8f, -0.8f); // backwards on purpose
+    joint.setServo(0.4f, 200.0f, 2.0f);
+
+    for (u32 i = 0; i < 300; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
+
+    CHECK(std::isfinite(joint.currentAngle()));
+    CHECK(std::abs(joint.currentAngle()) < glm::pi<f32>());
+    CHECK(finiteVec(arm.angularVelocity()));
+}
+
+// Suspension with damping but no spring: a pure damper, which is a valid
+// setup and used to be the one branch that skipped the spring entirely.
+void testSuspensionDamperWithoutSpring()
+{
+    RigidBody chassis = makeChassis();
+    RigidBody wheel = makeWheel(glm::vec3(0.0f, 0.3f, 0.0f));
+    WheelJoint wheelJoint(chassis, wheel, wheel.position(), glm::vec3(0.0f, -1.0f, 0.0f),
+                         glm::vec3(1.0f, 0.0f, 0.0f));
+    wheelJoint.setSuspension(0.5f, 0.0f, 500.0f);
+
+    const f32 dt = 1.0f / 120.0f;
+    for (int i = 0; i < 240; ++i)
+    {
+        wheel.setAcceleration(glm::vec3(0.0f, -9.81f, 0.0f));
+        wheel.integrateForces(dt);
+        wheelJoint.setup(dt);
+        wheelJoint.warmStart();
+        wheelJoint.solveVelocity();
+        wheel.integrateVelocity(dt);
+        wheelJoint.solvePosition(0.2f);
+    }
+
+    CHECK(std::isfinite(wheelJoint.suspensionTravel()));
+    CHECK(finiteVec(wheel.position()));
+}
+
+// A wheel joint whose two axes are parallel - the one case the constructor's
+// own comment says must be avoided. It has to degrade, not explode.
+void testWheelJointWithDegenerateAxes()
+{
+    RigidBody chassis = makeChassis();
+    RigidBody wheel = makeWheel(glm::vec3(0.0f, 0.5f, 0.0f));
+    WheelJoint wheelJoint(chassis, wheel, wheel.position(), glm::vec3(0.0f, -1.0f, 0.0f),
+                         glm::vec3(0.0f, -1.0f, 0.0f)); // spin axis == suspension axis
+    wheelJoint.setSuspension(0.5f, 4000.0f, 400.0f);
+    wheelJoint.setSpinMotor(10.0f, 100.0f);
+
+    const f32 dt = 1.0f / 120.0f;
+    for (int i = 0; i < 120; ++i)
+    {
+        wheel.setAcceleration(glm::vec3(0.0f, -9.81f, 0.0f));
+        wheel.integrateForces(dt);
+        wheelJoint.setup(dt);
+        wheelJoint.warmStart();
+        wheelJoint.solveVelocity();
+        wheel.integrateVelocity(dt);
+        wheelJoint.solvePosition(0.2f);
+    }
+
+    CHECK(finiteVec(wheel.position()));
+    CHECK(finiteVec(wheel.velocity()));
+    CHECK(finiteVec(wheel.angularVelocity()));
+}
+
+// A steering wheel is turned to an angle, not spun at a speed. The rack
+// reaches the commanded angle, holds it, follows a new one, and refuses to
+// be sent past its own stops.
+void testSteeringServoHoldsCommandedAngle()
+{
+    RigidBody chassis = makeChassis();
+    RigidBody wheel = makeWheel(glm::vec3(0.0f, 0.5f, 0.0f));
+
+    WheelJoint wheelJoint(chassis, wheel, wheel.position(), glm::vec3(0.0f, -1.0f, 0.0f),
+                         glm::vec3(1.0f, 0.0f, 0.0f));
+    wheelJoint.setSuspension(0.5f, 4000.0f, 400.0f);
+    wheelJoint.setSteeringLimits(glm::radians(-35.0f), glm::radians(35.0f));
+
+    const f32 dt = 1.0f / 120.0f;
+    const auto drive = [&](int steps) {
+        for (int i = 0; i < steps; ++i)
+        {
+            wheel.setAcceleration(glm::vec3(0.0f, -9.81f, 0.0f));
+            wheel.integrateForces(dt);
+            wheelJoint.setup(dt);
+            wheelJoint.warmStart();
+            wheelJoint.solveVelocity();
+            wheel.integrateVelocity(dt);
+            wheelJoint.solvePosition(0.2f);
+        }
+    };
+
+    // 4 rad/s is a fast rack; a road car's is slower, a racing one faster.
+    wheelJoint.setSteeringServo(glm::radians(20.0f), 600.0f, 4.0f);
+    CHECK(wheelJoint.steeringServoEnabled());
+    drive(240);
+    CHECK(near(wheelJoint.steeringAngle(), glm::radians(20.0f), 0.02f));
+
+    // Holds: still there after as long again.
+    drive(240);
+    CHECK(near(wheelJoint.steeringAngle(), glm::radians(20.0f), 0.02f));
+
+    // Steer the other way, without re-enabling anything.
+    wheelJoint.setSteeringServo(glm::radians(-25.0f), 600.0f, 4.0f);
+    drive(360);
+    CHECK(near(wheelJoint.steeringAngle(), glm::radians(-25.0f), 0.02f));
+
+    // Past the stops: clamped to the limit, not driven through it.
+    wheelJoint.setSteeringServo(glm::radians(80.0f), 600.0f, 4.0f);
+    drive(480);
+    CHECK(wheelJoint.steeringAngle() <= glm::radians(36.0f));
+    CHECK(wheelJoint.steeringAngle() > glm::radians(30.0f));
+}
+
 void testSpinMotorDrivesWheelWithoutLimit()
 {
     RigidBody chassis = makeChassis();
@@ -1190,6 +1384,13 @@ int main()
     testWarmStartDoesNotInjectEnergy();
     testSuspensionSettlesAtRestLength();
     testSuspensionHoldsStiffSprings();
+    testSteeringServoHoldsCommandedAngle();
+    testServoRejectsNonFiniteInput();
+    testServoWithNoTorqueIsOff();
+    testServoSurvivesZeroTimestep();
+    testServoWithInvertedLimits();
+    testSuspensionDamperWithoutSpring();
+    testWheelJointWithDegenerateAxes();
     testSteeringMotorTurnsWithinLimits();
     testSpinMotorDrivesWheelWithoutLimit();
     testLoosePointJointDeregistersOnDestruction();

@@ -531,6 +531,7 @@ void testJointSerializerRoundTrip()
     wheel->setSteeringLimits(glm::radians(-35.0f), glm::radians(35.0f));
     wheel->setSteeringMotor(1.5f, 800.0f);
     wheel->setSpinMotor(48.0f, 260.0f);
+    wheel->setSteeringServo(glm::radians(12.0f), 800.0f, 4.0f);
 
     GameObject* armObject = scene.createGameObject("arm");
     Physics::RigidBody* arm = armObject->addComponent<Physics::RigidBody>();
@@ -570,6 +571,9 @@ void testJointSerializerRoundTrip()
     CHECK(near(reloadedWheel->steeringMotorMaxTorque(), 800.0f, 1e-2f));
     CHECK(near(reloadedWheel->spinMotorTargetVelocity(), 48.0f, 1e-3f));
     CHECK(near(reloadedWheel->spinMotorMaxTorque(), 260.0f, 1e-2f));
+    CHECK(reloadedWheel->steeringServoEnabled());
+    CHECK(near(reloadedWheel->steeringServoTargetAngle(), glm::radians(12.0f), 1e-4f));
+    CHECK(near(reloadedWheel->steeringServoMaxAngularVelocity(), 4.0f, 1e-4f));
     CHECK(reloadedWheel->connectedBody() != nullptr);
 
     GameObject* reloadedArm = reloaded.findGameObject("arm");

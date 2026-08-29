@@ -4883,17 +4883,58 @@ void InspectorPanel::drawJointComponent(GameObject& object, Physics::Joint& join
             ImGui::SetTooltip("How far this wheel may turn. Around 35 degrees on the front "
                               "pair; 0/0 locks the rear pair straight.");
 
-        f32 steerVelocity = wheel.steeringMotorTargetVelocity();
-        f32 steerTorque = wheel.steeringMotorMaxTorque();
-        bool steerMotorChanged = ImGui::DragFloat("Steer Velocity", &steerVelocity, 0.01f);
-        steerMotorChanged |= ImGui::DragFloat("Steer Max Torque", &steerTorque, 1.0f, 0.0f, 1.0e5f);
-        if (steerMotorChanged)
+        bool steerServo = wheel.steeringServoEnabled();
+        if (ImGui::Checkbox("Steer To Angle", &steerServo))
         {
-            wheel.setSteeringMotor(steerVelocity, steerTorque);
+            if (steerServo)
+                wheel.setSteeringServo(wheel.steeringServoTargetAngle(),
+                                       wheel.steeringMotorMaxTorque(),
+                                       wheel.steeringServoMaxAngularVelocity());
+            else
+                wheel.disableSteeringServo();
             app().markDirty();
         }
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("The steering rack. Max Torque 0 disables it.");
+            ImGui::SetTooltip("On: the rack is commanded to an angle, the way a steering wheel "
+                              "is. Off: it is commanded to a turning speed instead.");
+
+        f32 steerTorque = wheel.steeringMotorMaxTorque();
+        if (steerServo)
+        {
+            f32 targetAngle = glm::degrees(wheel.steeringServoTargetAngle());
+            f32 rackSpeed = wheel.steeringServoMaxAngularVelocity();
+            bool servoChanged = ImGui::DragFloat("Steer Target", &targetAngle, 0.5f, -90.0f, 90.0f,
+                                                 "%.1f deg");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Where the wheel is being told to point. Clamped into the "
+                                  "steering limits above.");
+            servoChanged |= ImGui::DragFloat("Rack Speed", &rackSpeed, 0.1f, 0.0f, 30.0f,
+                                             "%.2f rad/s");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("How fast the rack may turn. A road car is around 4 rad/s; 0 "
+                                  "means unlimited, which lets a strong rack overshoot and "
+                                  "oscillate.");
+            servoChanged |= ImGui::DragFloat("Steer Max Torque", &steerTorque, 1.0f, 0.0f, 1.0e5f);
+            if (servoChanged)
+            {
+                wheel.setSteeringServo(glm::radians(targetAngle), steerTorque, rackSpeed);
+                app().markDirty();
+            }
+        }
+        else
+        {
+            f32 steerVelocity = wheel.steeringMotorTargetVelocity();
+            bool steerMotorChanged = ImGui::DragFloat("Steer Velocity", &steerVelocity, 0.01f);
+            steerMotorChanged |= ImGui::DragFloat("Steer Max Torque", &steerTorque, 1.0f, 0.0f,
+                                                  1.0e5f);
+            if (steerMotorChanged)
+            {
+                wheel.setSteeringMotor(steerVelocity, steerTorque);
+                app().markDirty();
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("The steering rack. Max Torque 0 disables it.");
+        }
 
         f32 spinVelocity = wheel.spinMotorTargetVelocity();
         f32 spinTorque = wheel.spinMotorMaxTorque();
