@@ -10,9 +10,13 @@ namespace Radion::Physics
 class PointJoint final : public Joint
 {
 public:
+    PointJoint();
     PointJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor);
     PointJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
                const glm::vec3& localAnchorB);
+    PointJoint(PointJoint&& other) noexcept;
+    void configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor);
+    void rebuild() override;
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -20,6 +24,9 @@ public:
     void warmStart() override;
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
+
+    glm::vec3 anchorWorldA() const override;
+    glm::vec3 anchorWorldB() const override;
 
     const glm::vec3& localAnchorA() const;
     const glm::vec3& localAnchorB() const;

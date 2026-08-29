@@ -34,6 +34,7 @@
 #include "Terrain.h"
 #include "UiControls.h"
 #include "VolumetricPass.h"
+#include "dynamics/HingeJoint.h"
 #include "dynamics/RigidBody.h"
 
 #include <cstdio>
@@ -1366,6 +1367,46 @@ void testRigidBodyTeleportInPlay()
     CHECK(afterTeleport.y > 5.5f && afterTeleport.y <= 6.0f);
 }
 
+// A Joint component builds itself lazily: rebuild() runs on the first
+// physics step once both sides have a RigidBody, and the anchor it picks
+// (this object's own position) then holds the two bodies together instead
+// of letting the dynamic one fall away under gravity.
+void testJointComponentRebuildsAndHoldsAnchor()
+{
+    Scene scene;
+
+    GameObject* anchorObject = scene.createGameObject("jointAnchor");
+    Physics::RigidBody* anchor = anchorObject->addComponent<Physics::RigidBody>();
+    CHECK(anchor != nullptr);
+    if (!anchor)
+        return;
+    anchor->setBodyType(Physics::BodyType::Static);
+    anchor->setBox(glm::vec3(0.5f));
+
+    GameObject* armObject = scene.createGameObject("jointArm");
+    Physics::RigidBody* arm = armObject->addComponent<Physics::RigidBody>();
+    CHECK(arm != nullptr);
+    if (!arm)
+        return;
+    arm->setSphere(0.3f);
+    armObject->setPosition(glm::vec3(0.6f, 0.0f, 0.0f));
+
+    Physics::HingeJoint* joint = armObject->addComponent<Physics::HingeJoint>();
+    CHECK(joint != nullptr);
+    if (!joint)
+        return;
+    joint->setConnectedBody(anchorObject);
+
+    scene.update(1.0f / 60.0f);
+    CHECK(scene.jointCount() == 1);
+    CHECK(joint->built());
+
+    for (int i = 0; i < 60; ++i)
+        scene.update(1.0f / 60.0f);
+
+    CHECK(near(armObject->globalPosition(), glm::vec3(0.6f, 0.0f, 0.0f), 0.3f));
+}
+
 void testUiControlsRoundTrip()
 {
     Scene scene;
@@ -2587,6 +2628,7 @@ int main()
     testRigidBodyDestroyedMidSimulation();
     testRigidBodyRunningInEditorFreezesSimulation();
     testRigidBodyTeleportInPlay();
+    testJointComponentRebuildsAndHoldsAnchor();
     testUiControlsRoundTrip();
     testPrefabRoundTrip();
     testTransforms();

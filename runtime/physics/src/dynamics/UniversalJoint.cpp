@@ -2,6 +2,8 @@
 
 #include "dynamics/UniversalJoint.h"
 
+#include "GameObject.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 namespace Radion::Physics
@@ -37,22 +39,75 @@ glm::vec3 normalizedPerpendicular(const glm::vec3& v)
     return glm::vec3(0.0f, v.z, -v.y) / length;
 }
 
+glm::vec3 deriveSecondAxis(const glm::vec3& worldAxisA)
+{
+    glm::vec3 candidate = glm::cross(worldAxisA, glm::vec3(0.0f, 0.0f, 1.0f));
+    if (glm::length(candidate) < 1.0e-3f)
+        candidate = glm::cross(worldAxisA, glm::vec3(1.0f, 0.0f, 0.0f));
+    return glm::normalize(candidate);
+}
+
+}
+
+UniversalJoint::UniversalJoint() : Joint(JointKind::Universal)
+{
 }
 
 UniversalJoint::UniversalJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
                                const glm::vec3& worldAxisA, const glm::vec3& worldAxisB)
-    : UniversalJoint(a, a.pointToLocal(worldAnchor), a.directionToLocal(glm::normalize(worldAxisA)),
-                     b, b.pointToLocal(worldAnchor), b.directionToLocal(glm::normalize(worldAxisB)))
+    : Joint(JointKind::Universal)
 {
+    configure(a, b, worldAnchor, worldAxisA, worldAxisB);
 }
 
 UniversalJoint::UniversalJoint(RigidBody& a, const glm::vec3& localAnchorA,
                                const glm::vec3& localAxisA, RigidBody& b,
                                const glm::vec3& localAnchorB, const glm::vec3& localAxisB)
-    : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
-      mLocalAxisA(glm::normalize(localAxisA)), mLocalAxisB(glm::normalize(localAxisB)),
+    : Joint(JointKind::Universal), mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA),
+      mLocalAnchorB(localAnchorB), mLocalAxisA(glm::normalize(localAxisA)),
+      mLocalAxisB(glm::normalize(localAxisB)),
       mInverseInitialOrientation(glm::conjugate(b.orientation()) * a.orientation())
 {
+}
+
+void UniversalJoint::configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                               const glm::vec3& worldAxisA, const glm::vec3& worldAxisB)
+{
+    mBodyA = &a;
+    mBodyB = &b;
+    mLocalAnchorA = a.pointToLocal(worldAnchor);
+    mLocalAnchorB = b.pointToLocal(worldAnchor);
+    mLocalAxisA = glm::normalize(a.directionToLocal(glm::normalize(worldAxisA)));
+    mLocalAxisB = glm::normalize(b.directionToLocal(glm::normalize(worldAxisB)));
+    mInverseInitialOrientation = glm::conjugate(b.orientation()) * a.orientation();
+}
+
+void UniversalJoint::rebuild()
+{
+    GameObject* self = owner();
+    GameObject* other = connectedBody();
+    if (!self || !other)
+        return;
+    RigidBody* a = self->getComponent<RigidBody>();
+    RigidBody* b = other->getComponent<RigidBody>();
+    if (!a || !b)
+        return;
+    const glm::vec3 worldAxisA = self->globalRotation() * glm::normalize(mAuthoredAxis);
+    const glm::vec3 worldAxisB = deriveSecondAxis(worldAxisA);
+    configure(*a, *b, self->globalPosition(), worldAxisA, worldAxisB);
+    self->scene()->addJoint(this);
+    mBuilt = true;
+}
+
+void UniversalJoint::setAuthoredAxis(const glm::vec3& axis)
+{
+    if (glm::length(axis) > 1.0e-6f)
+        mAuthoredAxis = glm::normalize(axis);
+}
+
+const glm::vec3& UniversalJoint::authoredAxis() const
+{
+    return mAuthoredAxis;
 }
 
 RigidBody* UniversalJoint::bodyA() const
@@ -63,6 +118,21 @@ RigidBody* UniversalJoint::bodyA() const
 RigidBody* UniversalJoint::bodyB() const
 {
     return mBodyB;
+}
+
+glm::vec3 UniversalJoint::anchorWorldA() const
+{
+    return mBodyA->pointToWorld(mLocalAnchorA);
+}
+
+glm::vec3 UniversalJoint::anchorWorldB() const
+{
+    return mBodyB->pointToWorld(mLocalAnchorB);
+}
+
+glm::vec3 UniversalJoint::axisWorld() const
+{
+    return mBodyA->directionToWorld(mLocalAxisA);
 }
 
 void UniversalJoint::setLimitsA(f32 minAngle, f32 maxAngle)

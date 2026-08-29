@@ -2,6 +2,8 @@
 
 #include "dynamics/SliderJoint.h"
 
+#include "GameObject.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 namespace Radion::Physics
@@ -33,29 +35,75 @@ glm::vec3 normalizedPerpendicular(const glm::vec3& v)
 
 }
 
+SliderJoint::SliderJoint() : Joint(JointKind::Slider)
+{
+}
+
 SliderJoint::SliderJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
                          const glm::vec3& worldSliderAxis)
-    : SliderJoint(a, a.pointToLocal(worldAnchor),
-                 a.directionToLocal(glm::normalize(worldSliderAxis)),
-                 a.directionToLocal(normalizedPerpendicular(glm::normalize(worldSliderAxis))), b,
-                 b.pointToLocal(worldAnchor),
-                 b.directionToLocal(glm::normalize(worldSliderAxis)),
-                 b.directionToLocal(normalizedPerpendicular(glm::normalize(worldSliderAxis))))
+    : Joint(JointKind::Slider)
 {
+    configure(a, b, worldAnchor, worldSliderAxis);
 }
 
 SliderJoint::SliderJoint(RigidBody& a, const glm::vec3& localAnchorA,
                          const glm::vec3& localSliderAxisA, const glm::vec3& localNormalAxisA,
                          RigidBody& b, const glm::vec3& localAnchorB,
                          const glm::vec3& localSliderAxisB, const glm::vec3& localNormalAxisB)
-    : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
-      mLocalSliderAxisA(glm::normalize(localSliderAxisA)),
+    : Joint(JointKind::Slider), mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA),
+      mLocalAnchorB(localAnchorB), mLocalSliderAxisA(glm::normalize(localSliderAxisA)),
       mLocalNormalAxisA(glm::normalize(localNormalAxisA)),
       mLocalNormalAxisA2(glm::cross(mLocalSliderAxisA, mLocalNormalAxisA)),
       mInverseInitialOrientation(invInitialOrientationXY(
           mLocalSliderAxisA, mLocalNormalAxisA, glm::normalize(localSliderAxisB),
           glm::normalize(localNormalAxisB)))
 {
+}
+
+void SliderJoint::configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                            const glm::vec3& worldSliderAxis)
+{
+    mBodyA = &a;
+    mBodyB = &b;
+    mLocalAnchorA = a.pointToLocal(worldAnchor);
+    mLocalAnchorB = b.pointToLocal(worldAnchor);
+    mLocalSliderAxisA = glm::normalize(a.directionToLocal(glm::normalize(worldSliderAxis)));
+    mLocalNormalAxisA = glm::normalize(
+        a.directionToLocal(normalizedPerpendicular(glm::normalize(worldSliderAxis))));
+    mLocalNormalAxisA2 = glm::cross(mLocalSliderAxisA, mLocalNormalAxisA);
+    const glm::vec3 localSliderAxisB = b.directionToLocal(glm::normalize(worldSliderAxis));
+    const glm::vec3 localNormalAxisB =
+        b.directionToLocal(normalizedPerpendicular(glm::normalize(worldSliderAxis)));
+    mInverseInitialOrientation = invInitialOrientationXY(
+        mLocalSliderAxisA, mLocalNormalAxisA, glm::normalize(localSliderAxisB),
+        glm::normalize(localNormalAxisB));
+}
+
+void SliderJoint::rebuild()
+{
+    GameObject* self = owner();
+    GameObject* other = connectedBody();
+    if (!self || !other)
+        return;
+    RigidBody* a = self->getComponent<RigidBody>();
+    RigidBody* b = other->getComponent<RigidBody>();
+    if (!a || !b)
+        return;
+    const glm::vec3 worldAxis = self->globalRotation() * glm::normalize(mAuthoredAxis);
+    configure(*a, *b, self->globalPosition(), worldAxis);
+    self->scene()->addJoint(this);
+    mBuilt = true;
+}
+
+void SliderJoint::setAuthoredAxis(const glm::vec3& axis)
+{
+    if (glm::length(axis) > 1.0e-6f)
+        mAuthoredAxis = glm::normalize(axis);
+}
+
+const glm::vec3& SliderJoint::authoredAxis() const
+{
+    return mAuthoredAxis;
 }
 
 RigidBody* SliderJoint::bodyA() const
@@ -68,11 +116,36 @@ RigidBody* SliderJoint::bodyB() const
     return mBodyB;
 }
 
+glm::vec3 SliderJoint::anchorWorldA() const
+{
+    return mBodyA->pointToWorld(mLocalAnchorA);
+}
+
+glm::vec3 SliderJoint::anchorWorldB() const
+{
+    return mBodyB->pointToWorld(mLocalAnchorB);
+}
+
+glm::vec3 SliderJoint::axisWorld() const
+{
+    return mBodyA->directionToWorld(mLocalSliderAxisA);
+}
+
 void SliderJoint::setLimits(f32 minDistance, f32 maxDistance)
 {
     mLimitsMin = minDistance;
     mLimitsMax = maxDistance;
     mHasLimits = mLimitsMin != -M_INFINITY || mLimitsMax != M_INFINITY;
+}
+
+f32 SliderJoint::minDistance() const
+{
+    return mLimitsMin;
+}
+
+f32 SliderJoint::maxDistance() const
+{
+    return mLimitsMax;
 }
 
 f32 SliderJoint::currentPosition() const
@@ -90,6 +163,21 @@ void SliderJoint::setMotor(f32 targetVelocity, f32 maxForce)
     mMotorTargetVelocity = targetVelocity;
     mMotorMaxForce = glm::max(maxForce, 0.0f);
     mMotorEnabled = mMotorMaxForce > 0.0f;
+}
+
+f32 SliderJoint::motorTargetVelocity() const
+{
+    return mMotorTargetVelocity;
+}
+
+f32 SliderJoint::motorMaxForce() const
+{
+    return mMotorMaxForce;
+}
+
+bool SliderJoint::motorEnabled() const
+{
+    return mMotorEnabled;
 }
 
 void SliderJoint::disableMotor()

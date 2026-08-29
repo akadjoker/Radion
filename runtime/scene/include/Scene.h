@@ -26,6 +26,7 @@
 #include "Terrain.h"
 #include "collision/Broadphase.h"
 #include "dynamics/ContactSolver.h"
+#include "dynamics/JointMatch.h"
 #include "dynamics/PhysicsEvents.h"
 #include "dynamics/RigidBody.h"
 
@@ -215,7 +216,12 @@ public:
     void updatePhysics(f32 deltaTime);
     // One step, exactly. What the tests drive.
     void stepPhysics(f32 duration);
-    void debugDrawPhysics() const;
+    // Split so a debug panel can isolate one technique at a time - a shape
+    // hides a contact sitting inside it, and a stack of contact normals
+    // clutters the read on which shape is which.
+    void debugDrawPhysicsShapes() const;
+    void debugDrawPhysicsContacts() const;
+    void debugDrawPhysicsJoints() const;
 
     bool raycast(const Ray& ray, f32 maxDistance, const Physics::QueryFilter& filter,
                 Physics::WorldRayHit& hit) const;
@@ -726,8 +732,7 @@ private:
     };
     static u64 pairKey(const Physics::RigidBody& a, const Physics::RigidBody& b);
     void rebuildStaticBroadphase();
-    void warmStartFromCache(const Physics::RigidBody& a, const Physics::RigidBody& b,
-                            Physics::ContactManifold& manifold);
+    void warmStartFromCache(const CachedContactPair* cached, Physics::ContactManifold& manifold);
     void storeInCache(const Physics::RigidBody& a, const Physics::RigidBody& b,
                       const Physics::ContactManifold& manifold);
     void emitContactExits();
@@ -751,6 +756,7 @@ private:
     std::vector<Physics::ContactManifold> mManifolds;
     std::vector<Physics::Contact> mContacts;
     std::vector<Physics::Joint*> mJoints;
+    std::vector<Physics::Joint*> mJointComponents;
     std::vector<Physics::ContactEventInfo> mContactEventQueue, mContactEventsDispatching;
     HashMap<u64, CachedContactPair> mContactCache;
     std::vector<u32> mIslandParent;

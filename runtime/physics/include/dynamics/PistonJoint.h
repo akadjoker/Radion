@@ -17,11 +17,15 @@ namespace Radion::Physics
 class PistonJoint final : public Joint
 {
 public:
+    PistonJoint();
     PistonJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
                 const glm::vec3& worldAxis);
     PistonJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localAxisA,
                 const glm::vec3& localNormalAxisA, RigidBody& b, const glm::vec3& localAnchorB,
                 const glm::vec3& localAxisB, const glm::vec3& localNormalAxisB);
+    void configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                  const glm::vec3& worldAxis);
+    void rebuild() override;
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -30,14 +34,33 @@ public:
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
 
+    glm::vec3 anchorWorldA() const override;
+    glm::vec3 anchorWorldB() const override;
+    bool hasAxis() const override
+    {
+        return true;
+    }
+    glm::vec3 axisWorld() const override;
+
     void setLinearLimits(f32 minDistance, f32 maxDistance);
+    f32 minLinearDistance() const;
+    f32 maxLinearDistance() const;
     void setAngularLimits(f32 minAngle, f32 maxAngle);
+    f32 minAngularAngle() const;
+    f32 maxAngularAngle() const;
     f32 currentPosition() const;
     f32 currentAngle() const;
     void setLinearMotor(f32 targetVelocity, f32 maxForce);
     void disableLinearMotor();
+    f32 linearMotorTargetVelocity() const;
+    f32 linearMotorMaxForce() const;
     void setAngularMotor(f32 targetAngularVelocity, f32 maxTorque);
     void disableAngularMotor();
+    f32 angularMotorTargetVelocity() const;
+    f32 angularMotorMaxTorque() const;
+
+    void setAuthoredAxis(const glm::vec3& axis);
+    const glm::vec3& authoredAxis() const;
 
 private:
     void calculateArmsAndOffset();
@@ -60,6 +83,7 @@ private:
     glm::vec3 mLocalNormalAxisA;
     glm::vec3 mLocalNormalAxisA2;
     glm::quat mInverseInitialOrientation;
+    glm::vec3 mAuthoredAxis{0.0f, 1.0f, 0.0f};
 
     glm::vec3 mArmA{0.0f};
     glm::vec3 mArmB{0.0f};

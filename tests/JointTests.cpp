@@ -692,6 +692,107 @@ void testMouseJointGrabsASleepingBodyInAWorld()
     CHECK(crate.position().y > 1.0f);
 }
 
+// ---------------------------------------------------- Scene registration safety
+
+// A loose joint's destructor must pull it out of any Scene it was added to
+// directly (Scene::addJoint(), no GameObject involved) - otherwise the
+// Scene's own joint list outlives the memory it points at the moment this
+// scope ends.
+void testLoosePointJointDeregistersOnDestruction()
+{
+    RigidBody a = makeStaticBox(glm::vec3(0.0f));
+    RigidBody b = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f));
+    Radion::Scene world;
+    world.addBody(a);
+    world.addBody(b);
+    CHECK(world.jointCount() == 0);
+    {
+        PointJoint joint(a, b, glm::vec3(0.5f, 0.0f, 0.0f));
+        world.addJoint(&joint);
+        CHECK(world.jointCount() == 1);
+    }
+    CHECK(world.jointCount() == 0);
+}
+
+// std::vector<PointJoint> reallocates by moving its elements to new storage.
+// PointJoint is the one joint class other code (a chain, a car's wheel
+// mounts) keeps in a vector rather than one at a time, so its move
+// constructor is the one that actually runs here - every other joint test in
+// this file sidesteps that with an upfront reserve(). A reserve() upfront is
+// the supported way to keep several registered joints in one vector - with
+// no reallocation, nothing ever moves, and every joint stays registered (see
+// the next test for what a growth WITHOUT the reserve does instead).
+void testPointJointVectorGrowthKeepsSceneRegistrationCorrect()
+{
+    Radion::Scene world;
+    world.setGravity(glm::vec3(0.0f, -10.0f, 0.0f));
+
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    world.addBody(anchor);
+
+    // Reserved up front - RigidBody's own pointer stability across a vector
+    // growth is a separate concern, covered in DynamicsTests.cpp.
+    std::vector<RigidBody> links;
+    links.reserve(6);
+    std::vector<PointJoint> joints;
+    joints.reserve(6);
+    for (u32 i = 0; i < 6; ++i)
+    {
+        links.push_back(makeDynamicBox(glm::vec3(static_cast<f32>(i + 1), 0.0f, 0.0f)));
+        world.addBody(links.back());
+        RigidBody& previous = i == 0 ? anchor : links[i - 1];
+        joints.emplace_back(previous, links.back(),
+                            glm::vec3(static_cast<f32>(i) + 0.5f, 0.0f, 0.0f));
+        world.addJoint(&joints.back());
+    }
+    CHECK(world.jointCount() == 6);
+
+    for (u32 step = 0; step < 300; ++step)
+        world.stepPhysics(1.0f / 60.0f);
+
+    CHECK(world.jointCount() == 6);
+    for (const RigidBody& link : links)
+        CHECK(finite(link));
+    for (const PointJoint& joint : joints)
+        CHECK(glm::length(joint.worldAnchorA() - joint.worldAnchorB()) < 0.1f);
+}
+
+// The unsupported counterpart to the test above, with no reserve() on
+// `joints`: every emplace_back past the small starting capacity reallocates
+// and moves the existing joints, and Joint::moveJointStateFrom() deregisters
+// each one from the Scene rather than leave a dangling mJoints entry pointing
+// at the freed old buffer. The guarantee this checks is narrower than "it
+// still works" - only that it fails SAFELY (no crash, no stale pointer ever
+// dereferenced by stepPhysics(), the count exactly matches what survived)
+// rather than corrupting the Scene.
+void testPointJointVectorGrowthWithoutReserveDropsRegistrationSafely()
+{
+    Radion::Scene world;
+    world.setGravity(glm::vec3(0.0f, -10.0f, 0.0f));
+
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    world.addBody(anchor);
+
+    std::vector<RigidBody> links;
+    links.reserve(6);
+    std::vector<PointJoint> joints;
+    for (u32 i = 0; i < 6; ++i)
+    {
+        links.push_back(makeDynamicBox(glm::vec3(static_cast<f32>(i + 1), 0.0f, 0.0f)));
+        world.addBody(links.back());
+        RigidBody& previous = i == 0 ? anchor : links[i - 1];
+        joints.emplace_back(previous, links.back(),
+                            glm::vec3(static_cast<f32>(i) + 0.5f, 0.0f, 0.0f));
+        world.addJoint(&joints.back());
+    }
+    CHECK(world.jointCount() <= joints.size());
+
+    for (u32 step = 0; step < 300; ++step)
+        world.stepPhysics(1.0f / 60.0f);
+    for (const RigidBody& link : links)
+        CHECK(finite(link));
+}
+
 // ------------------------------------------------------------- warm start energy
 
 void testWarmStartDoesNotInjectEnergy()
@@ -858,6 +959,9 @@ int main()
     testSuspensionSettlesAtRestLength();
     testSteeringMotorTurnsWithinLimits();
     testSpinMotorDrivesWheelWithoutLimit();
+    testLoosePointJointDeregistersOnDestruction();
+    testPointJointVectorGrowthKeepsSceneRegistrationCorrect();
+    testPointJointVectorGrowthWithoutReserveDropsRegistrationSafely();
     if (gFailures)
         std::fprintf(stderr, "%d joint test(s) failed\n", gFailures);
     return gFailures == 0 ? 0 : 1;

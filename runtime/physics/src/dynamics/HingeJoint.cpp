@@ -2,6 +2,8 @@
 
 #include "dynamics/HingeJoint.h"
 
+#include "GameObject.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 namespace Radion::Physics
@@ -49,27 +51,73 @@ glm::quat invInitialOrientationXZ(const glm::vec3& xAxisA, const glm::vec3& zAxi
 
 }
 
+HingeJoint::HingeJoint() : Joint(JointKind::Hinge)
+{
+}
+
 HingeJoint::HingeJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
                        const glm::vec3& worldHingeAxis)
-    : HingeJoint(a, a.pointToLocal(worldAnchor), a.directionToLocal(glm::normalize(worldHingeAxis)),
-                a.directionToLocal(normalizedPerpendicular(glm::normalize(worldHingeAxis))), b,
-                b.pointToLocal(worldAnchor), b.directionToLocal(glm::normalize(worldHingeAxis)),
-                b.directionToLocal(normalizedPerpendicular(glm::normalize(worldHingeAxis))))
+    : Joint(JointKind::Hinge)
 {
+    configure(a, b, worldAnchor, worldHingeAxis);
 }
 
 HingeJoint::HingeJoint(RigidBody& a, const glm::vec3& localAnchorA,
                        const glm::vec3& localHingeAxisA, const glm::vec3& localNormalAxisA,
                        RigidBody& b, const glm::vec3& localAnchorB,
                        const glm::vec3& localHingeAxisB, const glm::vec3& localNormalAxisB)
-    : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
-      mLocalHingeAxisA(glm::normalize(localHingeAxisA)),
+    : Joint(JointKind::Hinge), mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA),
+      mLocalAnchorB(localAnchorB), mLocalHingeAxisA(glm::normalize(localHingeAxisA)),
       mLocalHingeAxisB(glm::normalize(localHingeAxisB)),
       mLocalNormalAxisA(glm::normalize(localNormalAxisA)),
       mLocalNormalAxisB(glm::normalize(localNormalAxisB)),
       mInverseInitialOrientation(invInitialOrientationXZ(mLocalNormalAxisA, mLocalHingeAxisA,
                                                           mLocalNormalAxisB, mLocalHingeAxisB))
 {
+}
+
+void HingeJoint::configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                           const glm::vec3& worldHingeAxis)
+{
+    mBodyA = &a;
+    mBodyB = &b;
+    mLocalAnchorA = a.pointToLocal(worldAnchor);
+    mLocalAnchorB = b.pointToLocal(worldAnchor);
+    mLocalHingeAxisA = glm::normalize(a.directionToLocal(glm::normalize(worldHingeAxis)));
+    mLocalHingeAxisB = glm::normalize(b.directionToLocal(glm::normalize(worldHingeAxis)));
+    mLocalNormalAxisA = glm::normalize(
+        a.directionToLocal(normalizedPerpendicular(glm::normalize(worldHingeAxis))));
+    mLocalNormalAxisB = glm::normalize(
+        b.directionToLocal(normalizedPerpendicular(glm::normalize(worldHingeAxis))));
+    mInverseInitialOrientation = invInitialOrientationXZ(mLocalNormalAxisA, mLocalHingeAxisA,
+                                                         mLocalNormalAxisB, mLocalHingeAxisB);
+}
+
+void HingeJoint::rebuild()
+{
+    GameObject* self = owner();
+    GameObject* other = connectedBody();
+    if (!self || !other)
+        return;
+    RigidBody* a = self->getComponent<RigidBody>();
+    RigidBody* b = other->getComponent<RigidBody>();
+    if (!a || !b)
+        return;
+    const glm::vec3 worldAxis = self->globalRotation() * glm::normalize(mAuthoredAxis);
+    configure(*a, *b, self->globalPosition(), worldAxis);
+    self->scene()->addJoint(this);
+    mBuilt = true;
+}
+
+void HingeJoint::setAuthoredAxis(const glm::vec3& axis)
+{
+    if (glm::length(axis) > 1.0e-6f)
+        mAuthoredAxis = glm::normalize(axis);
+}
+
+const glm::vec3& HingeJoint::authoredAxis() const
+{
+    return mAuthoredAxis;
 }
 
 RigidBody* HingeJoint::bodyA() const
@@ -82,11 +130,36 @@ RigidBody* HingeJoint::bodyB() const
     return mBodyB;
 }
 
+glm::vec3 HingeJoint::anchorWorldA() const
+{
+    return mBodyA->pointToWorld(mLocalAnchorA);
+}
+
+glm::vec3 HingeJoint::anchorWorldB() const
+{
+    return mBodyB->pointToWorld(mLocalAnchorB);
+}
+
+glm::vec3 HingeJoint::axisWorld() const
+{
+    return glm::normalize(mBodyA->directionToWorld(mLocalHingeAxisA));
+}
+
 void HingeJoint::setLimits(f32 minAngle, f32 maxAngle)
 {
     mLimitsMin = glm::clamp(minAngle, -glm::pi<f32>(), 0.0f);
     mLimitsMax = glm::clamp(maxAngle, 0.0f, glm::pi<f32>());
     mHasLimits = mLimitsMin > -glm::pi<f32>() || mLimitsMax < glm::pi<f32>();
+}
+
+f32 HingeJoint::minAngle() const
+{
+    return mLimitsMin;
+}
+
+f32 HingeJoint::maxAngle() const
+{
+    return mLimitsMax;
 }
 
 f32 HingeJoint::currentAngle() const
@@ -103,6 +176,21 @@ void HingeJoint::setMotor(f32 targetAngularVelocity, f32 maxTorque)
     mMotorTargetVelocity = targetAngularVelocity;
     mMotorMaxTorque = glm::max(maxTorque, 0.0f);
     mMotorEnabled = mMotorMaxTorque > 0.0f;
+}
+
+f32 HingeJoint::motorTargetVelocity() const
+{
+    return mMotorTargetVelocity;
+}
+
+f32 HingeJoint::motorMaxTorque() const
+{
+    return mMotorMaxTorque;
+}
+
+bool HingeJoint::motorEnabled() const
+{
+    return mMotorEnabled;
 }
 
 void HingeJoint::disableMotor()

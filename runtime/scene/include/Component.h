@@ -45,6 +45,7 @@ enum class ComponentType : u8
     VoxelWorld,
     Collider,
     AudioPlayer,
+    TiledTerrain,
     UiCanvas,
     UiPanel,
     UiLabel,
@@ -52,6 +53,7 @@ enum class ComponentType : u8
     UiCheckBox,
     UiSlider,
     RigidBody,
+    Joint,
     Count
 };
 

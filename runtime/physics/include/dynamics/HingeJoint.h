@@ -10,11 +10,15 @@ namespace Radion::Physics
 class HingeJoint final : public Joint
 {
 public:
+    HingeJoint();
     HingeJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
                const glm::vec3& worldHingeAxis);
     HingeJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localHingeAxisA,
                const glm::vec3& localNormalAxisA, RigidBody& b, const glm::vec3& localAnchorB,
                const glm::vec3& localHingeAxisB, const glm::vec3& localNormalAxisB);
+    void configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                  const glm::vec3& worldHingeAxis);
+    void rebuild() override;
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -23,10 +27,26 @@ public:
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
 
+    glm::vec3 anchorWorldA() const override;
+    glm::vec3 anchorWorldB() const override;
+    bool hasAxis() const override
+    {
+        return true;
+    }
+    glm::vec3 axisWorld() const override;
+
     void setLimits(f32 minAngle, f32 maxAngle);
+    f32 minAngle() const;
+    f32 maxAngle() const;
     f32 currentAngle() const;
     void setMotor(f32 targetAngularVelocity, f32 maxTorque);
     void disableMotor();
+    f32 motorTargetVelocity() const;
+    f32 motorMaxTorque() const;
+    bool motorEnabled() const;
+
+    void setAuthoredAxis(const glm::vec3& axis);
+    const glm::vec3& authoredAxis() const;
 
 private:
     void calculatePositionProperties();
@@ -48,6 +68,7 @@ private:
     glm::vec3 mLocalNormalAxisA;
     glm::vec3 mLocalNormalAxisB;
     glm::quat mInverseInitialOrientation;
+    glm::vec3 mAuthoredAxis{0.0f, 1.0f, 0.0f};
 
     glm::vec3 mArmA{0.0f};
     glm::vec3 mArmB{0.0f};

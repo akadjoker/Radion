@@ -2,20 +2,64 @@
 
 #include "dynamics/PointJoint.h"
 
+#include "GameObject.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 namespace Radion::Physics
 {
 
-PointJoint::PointJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor)
-    : PointJoint(a, a.pointToLocal(worldAnchor), b, b.pointToLocal(worldAnchor))
+PointJoint::PointJoint() : Joint(JointKind::Point)
 {
+}
+
+PointJoint::PointJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor)
+    : Joint(JointKind::Point)
+{
+    configure(a, b, worldAnchor);
 }
 
 PointJoint::PointJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
                        const glm::vec3& localAnchorB)
-    : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB)
+    : Joint(JointKind::Point), mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA),
+      mLocalAnchorB(localAnchorB)
 {
+}
+
+PointJoint::PointJoint(PointJoint&& other) noexcept
+    : Joint(JointKind::Point), mBodyA(other.mBodyA), mBodyB(other.mBodyB),
+      mLocalAnchorA(other.mLocalAnchorA), mLocalAnchorB(other.mLocalAnchorB), mArmA(other.mArmA),
+      mArmB(other.mArmB), mEffectiveMass(other.mEffectiveMass), mTotalImpulse(other.mTotalImpulse),
+      mMotorLocalAxisA(other.mMotorLocalAxisA), mMotorWorldAxis(other.mMotorWorldAxis),
+      mMotorTargetVelocity(other.mMotorTargetVelocity), mMotorMaxTorque(other.mMotorMaxTorque),
+      mMotorEffectiveMass(other.mMotorEffectiveMass),
+      mMotorTotalImpulse(other.mMotorTotalImpulse), mMotorMaxImpulse(other.mMotorMaxImpulse),
+      mMotorEnabled(other.mMotorEnabled), mPreviousDuration(other.mPreviousDuration)
+{
+    moveJointStateFrom(other);
+}
+
+void PointJoint::configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor)
+{
+    mBodyA = &a;
+    mBodyB = &b;
+    mLocalAnchorA = a.pointToLocal(worldAnchor);
+    mLocalAnchorB = b.pointToLocal(worldAnchor);
+}
+
+void PointJoint::rebuild()
+{
+    GameObject* self = owner();
+    GameObject* other = connectedBody();
+    if (!self || !other)
+        return;
+    RigidBody* a = self->getComponent<RigidBody>();
+    RigidBody* b = other->getComponent<RigidBody>();
+    if (!a || !b)
+        return;
+    configure(*a, *b, self->globalPosition());
+    self->scene()->addJoint(this);
+    mBuilt = true;
 }
 
 RigidBody* PointJoint::bodyA() const
@@ -46,6 +90,16 @@ glm::vec3 PointJoint::worldAnchorA() const
 glm::vec3 PointJoint::worldAnchorB() const
 {
     return mBodyB->pointToWorld(mLocalAnchorB);
+}
+
+glm::vec3 PointJoint::anchorWorldA() const
+{
+    return worldAnchorA();
+}
+
+glm::vec3 PointJoint::anchorWorldB() const
+{
+    return worldAnchorB();
 }
 
 void PointJoint::setMotor(const glm::vec3& localAxisA, f32 targetVelocity, f32 maxTorque)

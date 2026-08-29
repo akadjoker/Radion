@@ -10,10 +10,14 @@ namespace Radion::Physics
 class DistanceJoint final : public Joint
 {
 public:
+    DistanceJoint();
     DistanceJoint(RigidBody& a, const glm::vec3& worldAnchorA, RigidBody& b,
                   const glm::vec3& worldAnchorB);
     DistanceJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
                   const glm::vec3& localAnchorB, f32 minDistance, f32 maxDistance);
+    void configure(RigidBody& a, const glm::vec3& worldAnchorA, RigidBody& b,
+                  const glm::vec3& worldAnchorB);
+    void rebuild() override;
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -22,6 +26,9 @@ public:
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
 
+    glm::vec3 anchorWorldA() const override;
+    glm::vec3 anchorWorldB() const override;
+
     const glm::vec3& localAnchorA() const;
     const glm::vec3& localAnchorB() const;
     glm::vec3 worldAnchorA() const;
@@ -29,6 +36,10 @@ public:
     void setDistance(f32 minDistance, f32 maxDistance);
     f32 minDistance() const;
     f32 maxDistance() const;
+
+    void setAuthoredDistance(f32 minDistance, f32 maxDistance);
+    f32 authoredMinDistance() const;
+    f32 authoredMaxDistance() const;
 
 private:
     void calculateProperties();
@@ -40,6 +51,8 @@ private:
     glm::vec3 mLocalAnchorB;
     f32 mMinDistance = 0.0f;
     f32 mMaxDistance = 0.0f;
+    f32 mAuthoredMinDistance = 0.0f;
+    f32 mAuthoredMaxDistance = 1.0f;
     glm::vec3 mWorldNormal{0.0f, 1.0f, 0.0f};
     glm::vec3 mArmA{0.0f};
     glm::vec3 mArmB{0.0f};

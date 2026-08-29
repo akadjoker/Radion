@@ -13,6 +13,7 @@
 namespace Radion::Physics
 {
 class RigidBody;
+class Joint;
 }
 
 namespace Radion
@@ -72,6 +73,7 @@ private:
     void drawSelfDestroyComponent(GameObject& object, class SelfDestroy& selfDestroy);
     void drawColliderComponent(GameObject& object, class Collider& collider);
     void drawRigidBodyComponent(GameObject& object, Physics::RigidBody& body);
+    void drawJointComponent(GameObject& object, Physics::Joint& joint);
     void drawWaypointsComponent(GameObject& object, class Waypoints& waypoints);
     void drawNavMeshSurfaceComponent(GameObject& object, class NavMeshSurface& surface);
     void drawZenBehaviourComponent(GameObject& object, class ZenBehaviour& behaviour);

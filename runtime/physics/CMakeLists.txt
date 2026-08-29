@@ -9,6 +9,7 @@ set(RADION_PHYSICS_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/ContactSolver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/RaycastVehicle.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/MotorcycleController.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/Joint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/PointJoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/DistanceJoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/FixedJoint.cpp

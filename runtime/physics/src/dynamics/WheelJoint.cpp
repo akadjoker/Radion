@@ -42,7 +42,8 @@ f32 centerAngleAroundZero(f32 angle)
 
 WheelJoint::WheelJoint(RigidBody& chassis, RigidBody& wheel, const glm::vec3& worldAnchor,
                        const glm::vec3& worldSuspensionAxis, const glm::vec3& worldSpinAxis)
-    : mChassis(&chassis), mWheel(&wheel), mLocalAnchorChassis(chassis.pointToLocal(worldAnchor)),
+    : Joint(JointKind::Wheel), mChassis(&chassis), mWheel(&wheel),
+      mLocalAnchorChassis(chassis.pointToLocal(worldAnchor)),
       mLocalAnchorWheel(wheel.pointToLocal(worldAnchor)),
       mLocalSuspensionAxis(chassis.directionToLocal(glm::normalize(worldSuspensionAxis))),
       mLocalSpinAxis(wheel.directionToLocal(glm::normalize(worldSpinAxis))),
@@ -59,6 +60,21 @@ RigidBody* WheelJoint::bodyA() const
 RigidBody* WheelJoint::bodyB() const
 {
     return mWheel;
+}
+
+glm::vec3 WheelJoint::anchorWorldA() const
+{
+    return mChassis->pointToWorld(mLocalAnchorChassis);
+}
+
+glm::vec3 WheelJoint::anchorWorldB() const
+{
+    return mWheel->pointToWorld(mLocalAnchorWheel);
+}
+
+glm::vec3 WheelJoint::axisWorld() const
+{
+    return mChassis->directionToWorld(mLocalSuspensionAxis);
 }
 
 void WheelJoint::setSteeringLimits(f32 minAngle, f32 maxAngle)

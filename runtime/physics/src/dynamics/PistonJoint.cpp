@@ -2,6 +2,8 @@
 
 #include "dynamics/PistonJoint.h"
 
+#include "GameObject.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 namespace Radion::Physics
@@ -49,27 +51,76 @@ glm::quat invInitialOrientationXZ(const glm::vec3& xAxisA, const glm::vec3& zAxi
 
 }
 
+PistonJoint::PistonJoint() : Joint(JointKind::Piston)
+{
+}
+
 PistonJoint::PistonJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
                          const glm::vec3& worldAxis)
-    : PistonJoint(a, a.pointToLocal(worldAnchor), a.directionToLocal(glm::normalize(worldAxis)),
-                 a.directionToLocal(normalizedPerpendicular(glm::normalize(worldAxis))), b,
-                 b.pointToLocal(worldAnchor), b.directionToLocal(glm::normalize(worldAxis)),
-                 b.directionToLocal(normalizedPerpendicular(glm::normalize(worldAxis))))
+    : Joint(JointKind::Piston)
 {
+    configure(a, b, worldAnchor, worldAxis);
 }
 
 PistonJoint::PistonJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localAxisA,
                          const glm::vec3& localNormalAxisA, RigidBody& b,
                          const glm::vec3& localAnchorB, const glm::vec3& localAxisB,
                          const glm::vec3& localNormalAxisB)
-    : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
-      mLocalAxisA(glm::normalize(localAxisA)), mLocalAxisB(glm::normalize(localAxisB)),
+    : Joint(JointKind::Piston), mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA),
+      mLocalAnchorB(localAnchorB), mLocalAxisA(glm::normalize(localAxisA)),
+      mLocalAxisB(glm::normalize(localAxisB)),
       mLocalNormalAxisA(glm::normalize(localNormalAxisA)),
       mLocalNormalAxisA2(glm::cross(mLocalAxisA, mLocalNormalAxisA)),
       mInverseInitialOrientation(invInitialOrientationXZ(mLocalNormalAxisA, mLocalAxisA,
                                                           glm::normalize(localNormalAxisB),
                                                           mLocalAxisB))
 {
+}
+
+void PistonJoint::configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                            const glm::vec3& worldAxis)
+{
+    mBodyA = &a;
+    mBodyB = &b;
+    mLocalAnchorA = a.pointToLocal(worldAnchor);
+    mLocalAnchorB = b.pointToLocal(worldAnchor);
+    mLocalAxisA = glm::normalize(a.directionToLocal(glm::normalize(worldAxis)));
+    mLocalAxisB = glm::normalize(b.directionToLocal(glm::normalize(worldAxis)));
+    mLocalNormalAxisA =
+        glm::normalize(a.directionToLocal(normalizedPerpendicular(glm::normalize(worldAxis))));
+    mLocalNormalAxisA2 = glm::cross(mLocalAxisA, mLocalNormalAxisA);
+    const glm::vec3 localNormalAxisB =
+        b.directionToLocal(normalizedPerpendicular(glm::normalize(worldAxis)));
+    mInverseInitialOrientation = invInitialOrientationXZ(mLocalNormalAxisA, mLocalAxisA,
+                                                         glm::normalize(localNormalAxisB),
+                                                         mLocalAxisB);
+}
+
+void PistonJoint::rebuild()
+{
+    GameObject* self = owner();
+    GameObject* other = connectedBody();
+    if (!self || !other)
+        return;
+    RigidBody* a = self->getComponent<RigidBody>();
+    RigidBody* b = other->getComponent<RigidBody>();
+    if (!a || !b)
+        return;
+    const glm::vec3 worldAxis = self->globalRotation() * glm::normalize(mAuthoredAxis);
+    configure(*a, *b, self->globalPosition(), worldAxis);
+    self->scene()->addJoint(this);
+    mBuilt = true;
+}
+
+void PistonJoint::setAuthoredAxis(const glm::vec3& axis)
+{
+    if (glm::length(axis) > 1.0e-6f)
+        mAuthoredAxis = glm::normalize(axis);
+}
+
+const glm::vec3& PistonJoint::authoredAxis() const
+{
+    return mAuthoredAxis;
 }
 
 RigidBody* PistonJoint::bodyA() const
@@ -82,6 +133,21 @@ RigidBody* PistonJoint::bodyB() const
     return mBodyB;
 }
 
+glm::vec3 PistonJoint::anchorWorldA() const
+{
+    return mBodyA->pointToWorld(mLocalAnchorA);
+}
+
+glm::vec3 PistonJoint::anchorWorldB() const
+{
+    return mBodyB->pointToWorld(mLocalAnchorB);
+}
+
+glm::vec3 PistonJoint::axisWorld() const
+{
+    return mBodyA->directionToWorld(mLocalAxisA);
+}
+
 void PistonJoint::setLinearLimits(f32 minDistance, f32 maxDistance)
 {
     mLinearLimitsMin = minDistance;
@@ -89,11 +155,31 @@ void PistonJoint::setLinearLimits(f32 minDistance, f32 maxDistance)
     mHasLinearLimits = mLinearLimitsMin != -M_INFINITY || mLinearLimitsMax != M_INFINITY;
 }
 
+f32 PistonJoint::minLinearDistance() const
+{
+    return mLinearLimitsMin;
+}
+
+f32 PistonJoint::maxLinearDistance() const
+{
+    return mLinearLimitsMax;
+}
+
 void PistonJoint::setAngularLimits(f32 minAngle, f32 maxAngle)
 {
     mAngularLimitsMin = glm::clamp(minAngle, -glm::pi<f32>(), 0.0f);
     mAngularLimitsMax = glm::clamp(maxAngle, 0.0f, glm::pi<f32>());
     mHasAngularLimits = mAngularLimitsMin > -glm::pi<f32>() || mAngularLimitsMax < glm::pi<f32>();
+}
+
+f32 PistonJoint::minAngularAngle() const
+{
+    return mAngularLimitsMin;
+}
+
+f32 PistonJoint::maxAngularAngle() const
+{
+    return mAngularLimitsMax;
 }
 
 f32 PistonJoint::currentPosition() const
@@ -120,6 +206,16 @@ void PistonJoint::setLinearMotor(f32 targetVelocity, f32 maxForce)
     mLinearMotorEnabled = mLinearMotorMaxForce > 0.0f;
 }
 
+f32 PistonJoint::linearMotorTargetVelocity() const
+{
+    return mLinearMotorTargetVelocity;
+}
+
+f32 PistonJoint::linearMotorMaxForce() const
+{
+    return mLinearMotorMaxForce;
+}
+
 void PistonJoint::disableLinearMotor()
 {
     mLinearMotorEnabled = false;
@@ -133,6 +229,16 @@ void PistonJoint::setAngularMotor(f32 targetAngularVelocity, f32 maxTorque)
     mAngularMotorTargetVelocity = targetAngularVelocity;
     mAngularMotorMaxTorque = glm::max(maxTorque, 0.0f);
     mAngularMotorEnabled = mAngularMotorMaxTorque > 0.0f;
+}
+
+f32 PistonJoint::angularMotorTargetVelocity() const
+{
+    return mAngularMotorTargetVelocity;
+}
+
+f32 PistonJoint::angularMotorMaxTorque() const
+{
+    return mAngularMotorMaxTorque;
 }
 
 void PistonJoint::disableAngularMotor()

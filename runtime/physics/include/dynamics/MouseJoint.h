@@ -23,6 +23,12 @@ public:
     void warmStart() override;
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
+    void rebuild() override
+    {
+    }
+
+    glm::vec3 anchorWorldA() const override;
+    glm::vec3 anchorWorldB() const override;
 
     // Wakes the body: a sleeping body under a moving cursor must follow.
     void setTarget(const glm::vec3& target);

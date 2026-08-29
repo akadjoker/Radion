@@ -25,6 +25,17 @@ public:
     void warmStart() override;
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
+    void rebuild() override
+    {
+    }
+
+    glm::vec3 anchorWorldA() const override;
+    glm::vec3 anchorWorldB() const override;
+    bool hasAxis() const override
+    {
+        return true;
+    }
+    glm::vec3 axisWorld() const override;
 
     // Spring-damper along the suspension axis. `restLength` is the anchor
     // separation (in the suspension direction) where the spring applies no

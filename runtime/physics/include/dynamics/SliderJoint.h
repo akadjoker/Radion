@@ -10,11 +10,15 @@ namespace Radion::Physics
 class SliderJoint final : public Joint
 {
 public:
+    SliderJoint();
     SliderJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
                 const glm::vec3& worldSliderAxis);
     SliderJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localSliderAxisA,
                 const glm::vec3& localNormalAxisA, RigidBody& b, const glm::vec3& localAnchorB,
                 const glm::vec3& localSliderAxisB, const glm::vec3& localNormalAxisB);
+    void configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                  const glm::vec3& worldSliderAxis);
+    void rebuild() override;
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -23,10 +27,26 @@ public:
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
 
+    glm::vec3 anchorWorldA() const override;
+    glm::vec3 anchorWorldB() const override;
+    bool hasAxis() const override
+    {
+        return true;
+    }
+    glm::vec3 axisWorld() const override;
+
     void setLimits(f32 minDistance, f32 maxDistance);
+    f32 minDistance() const;
+    f32 maxDistance() const;
     f32 currentPosition() const;
     void setMotor(f32 targetVelocity, f32 maxForce);
     void disableMotor();
+    f32 motorTargetVelocity() const;
+    f32 motorMaxForce() const;
+    bool motorEnabled() const;
+
+    void setAuthoredAxis(const glm::vec3& axis);
+    const glm::vec3& authoredAxis() const;
 
 private:
     void calculateArmsAndOffset();
@@ -46,6 +66,7 @@ private:
     glm::vec3 mLocalNormalAxisA;
     glm::vec3 mLocalNormalAxisA2;
     glm::quat mInverseInitialOrientation;
+    glm::vec3 mAuthoredAxis{1.0f, 0.0f, 0.0f};
 
     glm::vec3 mArmA{0.0f};
     glm::vec3 mArmB{0.0f};
