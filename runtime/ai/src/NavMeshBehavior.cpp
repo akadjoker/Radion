@@ -136,7 +136,12 @@ void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
         !route.hasRoute ||
         glm::length(goal - route.goalWhenFound) > mSettings.goalMoveThreshold;
     const bool outOfCorners = route.next >= route.corners.size();
-    if ((route.sinceRepath >= mSettings.repathInterval && goalMoved) || outOfCorners)
+    // Running out of corners is a reason to search again, but not a reason to
+    // skip the interval: when findPath() fails - goal off the mesh, nothing
+    // reachable - the corner list stays empty, so outOfCorners stays true and
+    // an uncapped retry ran a full A* every frame, for every agent, exactly
+    // when the level is hardest to search.
+    if (route.sinceRepath >= mSettings.repathInterval && (goalMoved || outOfCorners))
     {
         route.sinceRepath = 0.0f;
         std::vector<glm::vec3> fresh;

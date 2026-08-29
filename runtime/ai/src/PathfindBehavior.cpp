@@ -119,6 +119,7 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
 
     // If we can see the destination, short-circuit the pathfinding and go
     // straight there.
+    mSinceRepath += timeDelta;
     squadmate.incrementTimeSinceLOSTest(timeDelta);
     if (squadmate.timeSinceLOSTest() > mSettings.maxTimeBeforeLineOfSight)
     {
@@ -151,10 +152,14 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
             squadmate.resetTimeSinceWaypointReached();
             return;
         }
-        else if (!squadmate.losStatus())
+        else if (!squadmate.losStatus() && mSinceRepath >= mSettings.repathInterval)
         {
             // No waypoint, no path, no line of sight and not at the goal:
-            // generate a fresh path to get there.
+            // generate a fresh path to get there. Rate limited, because a
+            // search that finds nothing leaves the path empty and lands right
+            // back here on the next frame - unbounded, that is a full A* per
+            // agent per frame for as long as the goal stays unreachable.
+            mSinceRepath = 0.0f;
             network->findPath(entityPos, squadmate.goal(), visibility, path);
             squadmate.setPath(path);
             wpID = squadmate.nextWaypoint();
