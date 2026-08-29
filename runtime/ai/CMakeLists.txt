@@ -43,6 +43,7 @@ set(RADION_AI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/GridMap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/GridPathfinder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Obstacle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/AgentAvoidance.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PathfindBehavior.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PointOfInterest.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/SquadAI.cpp

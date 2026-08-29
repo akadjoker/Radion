@@ -3,6 +3,7 @@
 #include "NavMeshBehavior.h"
 
 #include "AIInternal.h"
+#include "AgentAvoidance.h"
 #include "Agent.h"
 #include "NavMesh.h"
 #include "Scene.h"
@@ -224,58 +225,7 @@ void NavMeshBehavior::constrainToSurface(Agent& entity, Route& route)
 
 void NavMeshBehavior::applyAvoidance(Agent& entity)
 {
-    if (mSettings.avoidDistance <= 0.0f)
-        return;
-
-    Scene* scene = entity.scene();
-    if (!scene)
-        return;
-
-    // Same repulsion PathfindBehavior::applyAvoidance() applies: summed over
-    // every neighbour inside the radius and weighted (1 - d/r), so it grows
-    // as they close rather than switching on at the edge.
-    glm::vec3 repulsion(0.0f);
-    const glm::vec3 position = entity.position();
-    const float avoidRadius = mSettings.avoidDistance;
-
-    for (Agent* other : scene->agents())
-    {
-        if (other == &entity)
-            continue;
-
-        glm::vec3 away = position - other->position();
-        away.y = 0.0f;
-        const float distance = glm::length(away);
-        if (distance >= avoidRadius)
-            continue;
-
-        if (distance > 1e-5f)
-            repulsion += (away / distance) * (1.0f - distance / avoidRadius);
-        else
-            // Coincident agents need opposite deterministic directions, or
-            // both pick the same escape and stay stuck together.
-            repulsion += (&entity < other) ? entity.side() : -entity.side();
-    }
-
-    const float repulsionLength = glm::length(repulsion);
-    if (repulsionLength <= 1e-5f)
-        return;
-
-    glm::vec3 desired = entity.desiredMove();
-    const float desiredLength = glm::length(desired);
-    const glm::vec3 escape = repulsion / repulsionLength;
-    const float weight = glm::clamp(mSettings.turnRate, 0.0f, 1.0f);
-
-    if (desiredLength > 1e-5f)
-    {
-        glm::vec3 direction = desired / desiredLength;
-        direction = glm::normalize(direction * (1.0f - weight) + escape * weight);
-        desired = direction * desiredLength;
-    }
-    else
-        desired = escape * mSettings.turnRate;
-
-    entity.setDesiredMove(desired);
+    detail::applyAgentAvoidance(entity, mSettings.avoidDistance, mSettings.turnRate);
 }
 
 } // namespace Radion::AI

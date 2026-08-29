@@ -75,6 +75,16 @@ glm::vec3 PathIntersection::steerToAvoidIfNeeded(const Agent& vehicle,
         // lateral (perpendicular to the vehicle's forward), set its length to
         // the vehicle's maxForce.
         glm::vec3 lateral = perpendicularComponent(steerHint, vehicle.forward());
+
+        // Dead ahead, the hint has no lateral component at all: aimed at the
+        // centre the radial term is zero, leaving only the surface normal,
+        // which points straight back along the vehicle's own heading. The
+        // force came out zero and the vehicle drove through the one obstacle
+        // it was certain to hit. Any sideways direction avoids it, so pick
+        // the vehicle's own - deterministic, and the same one every frame,
+        // which is what keeps it from dithering between left and right.
+        if (glm::dot(lateral, lateral) < 1.0e-8f)
+            lateral = vehicle.side();
         return safeNormalize(lateral) * vehicle.maxForce();
     }
     else
