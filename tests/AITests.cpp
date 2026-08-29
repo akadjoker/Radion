@@ -325,7 +325,7 @@ void testSquadMovement()
 
     // Force pathfinding: block line of sight so the member has to route.
     member->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
-        0.2f, 50.0f, 0.0f, 25.0f, 0.5f, glm::vec3(0.0f, 1.0f, 0.0f), &network, nullptr});
+        0.2f, 50.0f, 0.0f, 25.0f, 0.5f, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), &network, nullptr});
 
     // Owned by the agent now (Agent::setStateMachine()) - no manual delete.
     member->setStateMachine(buildMemberStateMachine(*member));
@@ -1023,7 +1023,8 @@ void testPathfindLineOfSight()
     member->setNextWaypoint(wpDetour->id());
 
     member->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
-        0.3f, 1.0f, 0.0f, 25.0f, 0.05f, glm::vec3(0.0f, 1.0f, 0.0f), &network, &visibility});
+        0.3f, 1.0f, 0.0f, 25.0f, 0.05f, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), &network,
+        &visibility});
 
     // No LOS: the member walks toward the seeded waypoint, off toward +Z.
     for (int i = 0; i < 30; ++i)
@@ -1306,6 +1307,54 @@ void testAgentBehaviorsAreOwned()
     CHECK(scene.destroy(b->owner()));
     scene.update(0.0f);
     CHECK(scene.agentCount() == 0);
+}
+
+// An agent that cannot reach its goal must not search for it every frame.
+// A failed search leaves the path empty, which is the very condition that
+// triggers the search - so without a rate limit it was a full A* per agent
+// per frame, worst exactly when the graph is hardest to search.
+void testPathfindRepathIsRateLimited()
+{
+    Scene scene;
+
+    // Two waypoints with no edge between them: reachable by neither, so
+    // every search fails and the retry path is the one under test.
+    WaypointNetwork network;
+    Waypoint* wpStart =
+        new Waypoint(glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
+    Waypoint* wpIsland =
+        new Waypoint(glm::vec3(80.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
+    network.addWaypoint(wpStart);
+    network.addWaypoint(wpIsland);
+
+    Agent* agent = makeAgent(scene, defaultAgentSettings(), "walker");
+    scene.update(0.0f);
+    agent->setWaypointNetwork(&network);
+    agent->setSquadId(1);
+    agent->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    agent->setGoal(glm::vec3(80.0f, 0.0f, 0.0f));
+    agent->setGoalRadius(2.0f);
+
+    NoVisibility blocked; // never any line of sight, so it must route
+    PathfindBehavior* pathfind = agent->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
+        0.2f, 2.0f, 0.0f, 25.0f, 0.05f, 1.0f, glm::vec3(0.0f, 1.0f, 0.0f), &network, &blocked});
+    CHECK(pathfind != nullptr);
+    if (!pathfind)
+        return;
+    CHECK(std::abs(pathfind->settings().repathInterval - 1.0f) < 1e-5f);
+
+    // Half the interval: no search may have run yet, so nothing is set.
+    for (u32 i = 0; i < 30; ++i)
+        scene.updateAgents(1.0f / 60.0f);
+    CHECK(agent->nextWaypoint() == 0);
+
+    // Well past it: the search has been allowed to run, and still finds
+    // nothing (the island has no edges) - which is the case that used to
+    // retry forever.
+    for (u32 i = 0; i < 300; ++i)
+        scene.updateAgents(1.0f / 60.0f);
+    CHECK(finiteVec(agent->position()));
+    CHECK(agent->path().empty()); // no route exists, and none was invented
 }
 
 // Destroying a squad member takes it out of its leader's member list. It
@@ -1644,6 +1693,7 @@ int main()
     testSensingByGroupId();
     testAgentPoseSyncFlipsForward();
     testAgentBehaviorsAreOwned();
+    testPathfindRepathIsRateLimited();
     testDestroyedMemberLeavesTheSquad();
     testLeaderWithoutWaypointNetwork();
     testBehaviorFactoryRoundTrip();

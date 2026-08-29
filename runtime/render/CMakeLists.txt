@@ -15,6 +15,7 @@ add_library(radion_render
     src/DepthPass.cpp
     src/MaterialManager.cpp
     src/MeshLoader.cpp
+    src/MorphAnimation.cpp
     src/MeshClipper.cpp
     src/ObjImporter.cpp
     src/OgreMeshImporter.cpp
