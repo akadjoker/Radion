@@ -2696,9 +2696,62 @@ void InspectorPanel::drawAnimatorComponent(Animator& animator)
     if (const AnimationSet* set = Animations().get(animator.animationSet()))
     {
         ImGui::TextUnformatted("Clips");
-        for (const AnimationClip& clip : set->clips)
-            ImGui::BulletText("%s (%.2fs)", clip.name().c_str(),
-                             static_cast<double>(clip.duration()));
+        // Non-const so events can be added: they belong to the clip, and the
+        // set is what everyone playing it shares - which is the point, since
+        // "attack hits at 0.4s" is a property of the animation and not of
+        // whoever happens to be playing it.
+        AnimationSet* editable = const_cast<AnimationSet*>(set);
+        for (AnimationClip& clip : editable->clips)
+        {
+            ImGui::PushID(clip.name().c_str());
+            const bool open = ImGui::TreeNode(
+                clip.name().c_str(), "%s (%.2fs, %zu event%s)", clip.name().c_str(),
+                static_cast<double>(clip.duration()), clip.events().size(),
+                clip.events().size() == 1 ? "" : "s");
+            if (open)
+            {
+                std::string toRemove;
+                for (const AnimationEvent& event : clip.events())
+                {
+                    ImGui::PushID(event.name.c_str());
+                    ImGui::BulletText("%.3fs  %s", static_cast<double>(event.time),
+                                     event.name.c_str());
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        toRemove = event.name;
+                    ImGui::PopID();
+                }
+                if (!toRemove.empty())
+                {
+                    app().recordUndo();
+                    clip.removeEvent(toRemove);
+                    app().markDirty();
+                }
+
+                // Adding one: a time and a name. The name is what the script
+                // compares against, so it is free text rather than a list.
+                ImGui::SetNextItemWidth(80.0f);
+                ImGui::DragFloat("##eventTime", &mAnimationEventTime, 0.01f, 0.0f,
+                                glm::max(clip.duration(), 0.01f), "%.3fs");
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(140.0f);
+                ImGui::InputText("##eventName", mAnimationEventName,
+                                sizeof(mAnimationEventName));
+                ImGui::SameLine();
+                if (ImGui::Button("Add Event") && mAnimationEventName[0] != '\0')
+                {
+                    app().recordUndo();
+                    clip.addEvent(mAnimationEventTime, mAnimationEventName);
+                    app().markDirty();
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("A named moment in this clip. A script reads what fired "
+                                      "this frame with layer.event_count() and layer.event(i) - "
+                                      "no polling the clip time against a number.");
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
         if (set->clips.empty())
             ImGui::TextDisabled("No clips bound yet.");
     }

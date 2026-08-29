@@ -488,6 +488,82 @@ void testGameObjectIds()
     CHECK(scene.findGameObject(300) == parked);
 }
 
+// Animation events: the frames a footstep lands or a hit connects. The
+// interval a frame crossed is what fires them, so the cases that matter are
+// the ones a naive "is the time past it" gets wrong - a loop that wrapped,
+// and a frame long enough to skip over one.
+void testAnimationEventsFireOnTheFrameTheyAreCrossed()
+{
+    Skeleton skeleton;
+    CHECK(skeleton.addBone("root", -1, glm::mat4(1.0f), glm::mat4(1.0f)));
+    CHECK(skeleton.finalize());
+
+    AnimationClip clip;
+    clip.setName("Walk");
+    clip.setDuration(1.0f);
+    BoneTrack track;
+    track.bone = 0;
+    track.times = {0.0f, 1.0f};
+    track.positions = {glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f)};
+    track.rotations = {glm::quat(1, 0, 0, 0), glm::quat(1, 0, 0, 0)};
+    track.scales = {glm::vec3(1.0f), glm::vec3(1.0f)};
+    clip.tracks().push_back(track);
+
+    // Deliberately added out of order: they have to come back sorted.
+    clip.addEvent(0.75f, "right_foot");
+    clip.addEvent(0.25f, "left_foot");
+    CHECK(clip.events().size() == 2);
+    CHECK(clip.events()[0].name == "left_foot");
+    CHECK(clip.events()[1].name == "right_foot");
+
+    const AnimationSetHandle set = Animations().create(skeleton, {clip});
+
+    Scene scene;
+    GameObject* object = scene.createGameObject("walker");
+    Animator* animator = object->addComponent<Animator>();
+    CHECK(animator != nullptr);
+    if (!animator)
+        return;
+    animator->bind(set);
+    animator->play("Walk", PlayMode::Loop, 0.0f);
+
+    AnimationLayer& layer = animator->layer(0);
+
+    // Nothing yet: the first event is at 0.25.
+    animator->update(0.1f);
+    CHECK(layer.firedEvents().empty());
+
+    // Crossing 0.25 fires exactly one, and it is the right one.
+    animator->update(0.2f);
+    CHECK(layer.firedEvents().size() == 1);
+    CHECK(layer.firedEvents()[0]->name == "left_foot");
+
+    // And it does not fire again while sitting past it.
+    animator->update(0.1f);
+    CHECK(layer.firedEvents().empty());
+
+    // A frame that wraps the loop fires the tail then the head, in that
+    // order: from 0.4 a jump of 0.9 lands at 0.3, crossing right_foot at
+    // 0.75 on the way out and left_foot at 0.25 on the way back in.
+    animator->update(0.9f);
+    CHECK(layer.firedEvents().size() == 2);
+    CHECK(layer.firedEvents()[0]->name == "right_foot");
+    CHECK(layer.firedEvents()[1]->name == "left_foot");
+
+    // A frame longer than the whole clip fires each event once, not once per
+    // lap: a stutter must not spawn ten footsteps.
+    animator->update(5.0f);
+    CHECK(layer.firedEvents().size() == 2);
+
+    // Removing one takes it out of the list too. On the local copy - the
+    // animator is still bound to the set built from it.
+    clip.removeEvent("left_foot");
+    CHECK(clip.events().size() == 1);
+    CHECK(clip.events()[0].name == "right_foot");
+    clip.clearEvents();
+    CHECK(clip.events().empty());
+}
+
 void testSceneSerializerEmptyRoundTrip()
 {
     Scene scene;
@@ -2796,6 +2872,7 @@ int main()
     testInverseKinematics();
     testHierarchyAndOrder();
     testGameObjectIds();
+    testAnimationEventsFireOnTheFrameTheyAreCrossed();
     testSceneSerializerEmptyRoundTrip();
     testJointSerializerRoundTrip();
     testRecordingCameraRoundTrip();

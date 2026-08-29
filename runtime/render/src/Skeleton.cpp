@@ -558,6 +558,44 @@ void AnimationClip::removeKeyframe(s32 bone, f32 time)
     }
 }
 
+void AnimationClip::addEvent(f32 time, const std::string& name)
+{
+    if (name.empty() || !std::isfinite(time))
+        return;
+    AnimationEvent event;
+    event.time = glm::clamp(time, 0.0f, mDuration > 0.0f ? mDuration : time);
+    event.name = name;
+    // Sorted by time, which is what lets a layer fire a whole frame's worth
+    // with one walk instead of searching per event.
+    const auto position =
+        std::upper_bound(mEvents.begin(), mEvents.end(), event,
+                         [](const AnimationEvent& a, const AnimationEvent& b)
+                         { return a.time < b.time; });
+    mEvents.insert(position, event);
+}
+
+void AnimationClip::removeEvent(const std::string& name)
+{
+    for (usize i = mEvents.size(); i > 0; --i)
+        if (mEvents[i - 1].name == name)
+            mEvents.erase(mEvents.begin() + static_cast<ptrdiff_t>(i - 1));
+}
+
+void AnimationClip::clearEvents()
+{
+    mEvents.clear();
+}
+
+const std::vector<AnimationEvent>& AnimationClip::events() const
+{
+    return mEvents;
+}
+
+const std::vector<const AnimationEvent*>& AnimationLayer::firedEvents() const
+{
+    return mFiredEvents;
+}
+
 void AnimationLayer::play(const std::string& clip, PlayMode mode, f32 blendTime)
 {
     if (mCurrentName == clip && mMode == mode)
