@@ -8,11 +8,16 @@
 
 #include <vector>
 
+namespace Radion
+{
+class Scene;
+}
+
 namespace Radion::Physics
 {
 
-class PhysicsWorld;
- 
+class RigidBody;
+
 class SoftBody
 {
 public:
@@ -70,7 +75,7 @@ public:
     {
         bool active = false;
         glm::vec3 normal{0.0f, 1.0f, 0.0f};
-        u32 bodyId = 0xFFFFFFFFu;
+        const RigidBody* body = nullptr;
     };
     Contact contact(u32 index) const;
 
@@ -154,11 +159,11 @@ public:
     {
         mWind = wind;
     }
-    // Non-owning world used for particle contacts. Shapes, transforms,
+    // Non-owning scene used for particle contacts. Shapes, transforms,
     // velocities and collision filtering come from the engine's bodies.
-    void setCollisionWorld(const PhysicsWorld* world)
+    void setCollisionScene(const Radion::Scene* scene)
     {
-        mCollisionWorld = world;
+        mCollisionScene = scene;
     }
     void setCollisionFilter(const CollisionFilter& filter)
     {
@@ -167,9 +172,9 @@ public:
     // Excluded from every collision query this body makes - the body a
     // splash of particles just came out of, say, so it does not immediately
     // recollide with the very thing that spawned it.
-    void setIgnoredBody(u32 bodyId)
+    void setIgnoredBody(const RigidBody* body)
     {
-        mCollisionQuery.ignoredBody = bodyId;
+        mCollisionQuery.ignoredBody = body;
     }
     // Kept off the surface by this much, so a sheet does not shimmer with its
     // own thickness against the collider it rests on.
@@ -216,7 +221,7 @@ private:
     {
         glm::vec3 normal{0.0f, 1.0f, 0.0f};
         f32 offset = 0.0f;
-        u32 bodyId = 0;
+        const RigidBody* body = nullptr;
         f32 friction = 0.0f;
         f32 restitution = 0.0f;
         bool active = false;
@@ -235,9 +240,9 @@ private:
     std::vector<DihedralBendConstraint> mBendConstraints;
     std::vector<LongRangeAttachment> mAttachments;
     std::vector<ContactPlane> mContactPlanes;
-    const PhysicsWorld* mCollisionWorld = nullptr;
+    const Radion::Scene* mCollisionScene = nullptr;
     QueryFilter mCollisionQuery;
-    std::vector<u32> mCollisionCandidates;
+    std::vector<RigidBody*> mCollisionCandidates;
     std::vector<ContactManifold> mCollisionManifolds;
     glm::vec3 mGravity{0.0f, -9.81f, 0.0f};
     glm::vec3 mWind{0.0f};

@@ -16,6 +16,9 @@
 #include "ScriptCache.h"
 #include "RenderList.h"
 #include "UiControls.h"
+#include "collision/CollisionShape.h"
+#include "collision/Narrowphase.h"
+#include "dynamics/Joint.h"
 
 #include <cmath>
 #include <cstring>
@@ -25,6 +28,8 @@
 
 namespace Radion
 {
+
+using namespace Physics;
 
 namespace
 {
@@ -233,6 +238,11 @@ Scene::~Scene()
         delete object;
     mRoot.deleteChildrenRaw();
     mRoot.mScene = nullptr;
+    // Whatever is left is loose bodies (tests, ragdolls, characters) never
+    // attached to a GameObject - deleteChildrenRaw() above already unregistered
+    // every attached one through componentRemoved(). Detach them rather than
+    // leave them pointing at a Scene about to go away.
+    clearPhysics();
 
     // mStaticIndex's own destructor releases the per-entry queries; only the
     // shared occlusion-pass resources (created lazily, see
@@ -536,16 +546,14 @@ void Scene::update(f32 deltaTime)
     // falls while it is being placed and Play starts from where it was left.
     {
         RADION_PROFILE_SCOPE("Physics step");
-        for (PhysicsBody* body : mPhysicsBodies)
-            if (body->simulating() &&
-                (mRunningInEditor || body->bodyType() != Physics::BodyType::Dynamic ||
-                 body->ownerMoved()))
+        for (Physics::RigidBody* body : mRigidBodies)
+            if (body->simulating() && body->ownerMoved())
                 body->pushOwnerPose();
         if (!mRunningInEditor)
         {
-            mPhysicsWorld.update(mDeltaTime);
-            for (PhysicsBody* body : mPhysicsBodies)
-                if (body->simulating() && body->bodyType() == Physics::BodyType::Dynamic)
+            updatePhysics(mDeltaTime);
+            for (Physics::RigidBody* body : mRigidBodies)
+                if (body->simulating() && body->isDynamic() && body->owner())
                     body->pullBodyPose();
         }
     }
@@ -1767,9 +1775,8 @@ void Scene::componentAdded(Component* component)
     case ComponentType::Collider:
         mColliders.push_back(static_cast<Collider*>(component));
         break;
-    case ComponentType::PhysicsBody:
-        mPhysicsBodies.push_back(static_cast<PhysicsBody*>(component));
-        static_cast<PhysicsBody*>(component)->bindToWorld(mPhysicsWorld);
+    case ComponentType::RigidBody:
+        addBody(*static_cast<Physics::RigidBody*>(component));
         break;
     default:
         break;
@@ -1857,9 +1864,8 @@ void Scene::componentRemoved(Component* component)
     case ComponentType::Collider:
         removePointer(mColliders, static_cast<Collider*>(component));
         break;
-    case ComponentType::PhysicsBody:
-        static_cast<PhysicsBody*>(component)->unbindFromWorld();
-        removePointer(mPhysicsBodies, static_cast<PhysicsBody*>(component));
+    case ComponentType::RigidBody:
+        removeBody(*static_cast<Physics::RigidBody*>(component));
         break;
     default:
         break;
@@ -2163,6 +2169,833 @@ s32 Scene::pickSubmeshAtPoint(const GameObject& object, const glm::vec3& point, 
         }
     }
     return best;
+}
+
+// ----------------------------------------------------------------- physics
+
+namespace
+{
+// How close a new contact point has to be to a cached one to count as the
+// same point. Too tight and the impulse is thrown away every step, which is
+// warm starting not happening at all; too loose and a point that slid across
+// a face inherits an impulse meant for somewhere else.
+constexpr f32 kMatchDistance = 0.02f;
+
+bool finiteVector(const glm::vec3& value)
+{
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+f32 radialWeight(const glm::vec3& centre, const glm::vec3& position, f32 radius,
+                 glm::vec3* direction = nullptr)
+{
+    const glm::vec3 offset = position - centre;
+    const f32 distanceSquared = glm::dot(offset, offset);
+    if (distanceSquared >= radius * radius)
+        return 0.0f;
+
+    const f32 distance = std::sqrt(distanceSquared);
+    if (direction)
+        *direction = distance > 1.0e-6f ? offset / distance : glm::vec3(0.0f, 1.0f, 0.0f);
+    return 1.0f - distance / radius;
+}
+
+bool bodyCollides(const RigidBody* body)
+{
+    return body && body->shape() && body->enabled();
+}
+} // namespace
+
+// ----------------------------------------------------------------- bodies
+
+void Scene::addBody(RigidBody& body)
+{
+    if (mPhysicsStepping)
+    {
+        Log::error("Scene: cannot add/remove a body during a physics step");
+        return;
+    }
+    if (body.mScene == this)
+        return;
+    if (body.mScene)
+        body.mScene->removeBody(body);
+    if (body.shape() && body.isDynamic() &&
+        (body.shape()->type() == ShapeType::Trimesh || body.shape()->type() == ShapeType::Plane))
+    {
+        Log::error("Scene: a dynamic body cannot use a static collision shape");
+        return;
+    }
+    body.mScene = this;
+    body.mBodyKey = mNextBodyKey++;
+    // Sleep becomes this scene's decision the moment a body joins it - see
+    // propagateSleep() for why it cannot be the body's own.
+    body.setSleepDeferred(true);
+    body.pushOwnerPose();
+    mRigidBodies.push_back(&body);
+    if (body.bodyType() == BodyType::Static)
+        mStaticBroadphaseDirty = true;
+}
+
+void Scene::removeBody(RigidBody& body)
+{
+    if (mPhysicsStepping)
+    {
+        Log::error("Scene: cannot add/remove a body during a physics step");
+        return;
+    }
+    if (body.mScene != this)
+        return;
+    const auto found = std::find(mRigidBodies.begin(), mRigidBodies.end(), &body);
+    if (found == mRigidBodies.end())
+    {
+        body.mScene = nullptr;
+        return;
+    }
+    if (body.bodyType() == BodyType::Static)
+        mStaticBroadphaseDirty = true;
+    for (usize i = 0; i < mJoints.size();)
+    {
+        Joint* joint = mJoints[i];
+        if (!joint || joint->bodyA() == &body || joint->bodyB() == &body)
+        {
+            mJoints[i] = mJoints.back();
+            mJoints.pop_back();
+        }
+        else
+            ++i;
+    }
+    body.setSleepDeferred(false);
+    *found = mRigidBodies.back();
+    mRigidBodies.pop_back();
+
+    // Every cached pair naming it goes too, or a body handed this key later
+    // would inherit impulses from one that no longer exists; a queued event
+    // naming it must not reach a callback that could dereference it.
+    const u32 key = body.mBodyKey;
+    for (auto it = mContactCache.begin(); it != mContactCache.end();)
+    {
+        const u32 a = static_cast<u32>(it->first >> 32);
+        const u32 b = static_cast<u32>(it->first & 0xFFFFFFFFull);
+        if (a == key || b == key)
+            it = mContactCache.erase(it);
+        else
+            ++it;
+    }
+    for (usize i = 0; i < mContacts.size();)
+    {
+        if (mContacts[i].a == &body || mContacts[i].b == &body)
+        {
+            mContacts[i] = mContacts.back();
+            mContacts.pop_back();
+        }
+        else
+            ++i;
+    }
+    for (ContactEventInfo& info : mContactEventQueue)
+        if (info.bodyA == &body || info.bodyB == &body)
+            info.bodyA = info.bodyB = nullptr;
+    for (ContactEventInfo& info : mContactEventsDispatching)
+        if (info.bodyA == &body || info.bodyB == &body)
+            info.bodyA = info.bodyB = nullptr;
+    body.mScene = nullptr;
+    body.mBodyKey = 0;
+}
+
+void Scene::clearPhysics()
+{
+    if (mPhysicsStepping)
+    {
+        Log::error("Scene: cannot add/remove a body during a physics step");
+        return;
+    }
+    for (RigidBody* body : mRigidBodies)
+    {
+        body->setSleepDeferred(false);
+        body->mScene = nullptr;
+        body->mBodyKey = 0;
+    }
+    mRigidBodies.clear();
+    mContactCache.clear();
+    mContacts.clear();
+    mJoints.clear();
+    mStaticBroadphase.clear();
+    mStaticBounds.clear();
+    mStaticBodies.clear();
+    mStaticBroadphaseDirty = true;
+    mContactEventQueue.clear();
+    mPairs.clear();
+    mPhysicsAccumulator = 0.0f;
+    mPhysicsStepIndex = 0;
+}
+
+// ----------------------------------------------------------------- joints
+
+void Scene::addJoint(Joint* joint)
+{
+    if (!joint || !joint->bodyA() || !joint->bodyB())
+        return;
+    if (joint->bodyA() == joint->bodyB() && !joint->singleBody())
+        return;
+    if (std::find(mJoints.begin(), mJoints.end(), joint) != mJoints.end())
+        return;
+    mJoints.push_back(joint);
+    joint->bodyA()->setAwake(true);
+    joint->bodyB()->setAwake(true);
+}
+
+void Scene::removeJoint(Joint* joint)
+{
+    const auto found = std::find(mJoints.begin(), mJoints.end(), joint);
+    if (found == mJoints.end())
+        return;
+    *found = mJoints.back();
+    mJoints.pop_back();
+}
+
+// --------------------------------------------------------------- settings
+
+void Scene::setGravity(const glm::vec3& gravity)
+{
+    mGravity = gravity;
+}
+
+void Scene::setFixedStep(f32 seconds)
+{
+    if (seconds > 0.0f && std::isfinite(seconds))
+        mFixedStep = seconds;
+}
+
+void Scene::setSolverSettings(const ContactSolverSettings& settings)
+{
+    mContactSolver.setSettings(settings);
+}
+
+void Scene::setContactEventCallback(ContactEventCallback callback, void* userData)
+{
+    mContactEventCallback = callback;
+    mContactEventUserData = userData;
+}
+
+void Scene::setPhysicsStepCallback(PhysicsStepCallback callback, void* userData)
+{
+    mPhysicsStepCallback = callback;
+    mPhysicsStepUserData = userData;
+}
+
+void Scene::setContactPersistence(u32 steps)
+{
+    mContactPersistence = glm::max(steps, 1u);
+}
+
+void Scene::setContactMargin(f32 margin)
+{
+    mContactMargin = glm::max(margin, 0.0f);
+    mStaticBroadphaseDirty = true;
+}
+
+void Scene::markStaticBroadphaseDirty()
+{
+    mStaticBroadphaseDirty = true;
+}
+
+// ------------------------------------------------------------- broadphase
+
+void Scene::rebuildStaticBroadphase()
+{
+    mStaticBounds.clear();
+    mStaticBodies.clear();
+    mStaticBounds.reserve(mRigidBodies.size());
+    mStaticBodies.reserve(mRigidBodies.size());
+    for (RigidBody* body : mRigidBodies)
+    {
+        if (!bodyCollides(body) || body->bodyType() != BodyType::Static)
+            continue;
+        AABB bounds = body->shape()->bounds(body->transform());
+        bounds.min -= glm::vec3(mContactMargin);
+        bounds.max += glm::vec3(mContactMargin);
+        mStaticBounds.push_back(bounds);
+        mStaticBodies.push_back(body);
+    }
+    mStaticBroadphase.build(mStaticBounds.data(), static_cast<u32>(mStaticBounds.size()));
+    mStaticBroadphaseDirty = false;
+}
+
+// ---------------------------------------------------------- contact cache
+
+u64 Scene::pairKey(const RigidBody& a, const RigidBody& b)
+{
+    const u32 low = a.mBodyKey < b.mBodyKey ? a.mBodyKey : b.mBodyKey;
+    const u32 high = a.mBodyKey < b.mBodyKey ? b.mBodyKey : a.mBodyKey;
+    return (static_cast<u64>(low) << 32) | high;
+}
+
+void Scene::warmStartFromCache(const RigidBody& a, const RigidBody& b, ContactManifold& manifold)
+{
+    const auto found = mContactCache.find(pairKey(a, b));
+    if (found == mContactCache.end())
+        return;
+    const CachedContactPair& cached = found->second;
+    for (u32 i = 0; i < manifold.count; ++i)
+    {
+        ContactPoint& point = manifold.points[i];
+        // Matched by position, not by an index: the narrowphase can emit the
+        // same patch in a different order from one step to the next, and
+        // carrying impulses by slot would then swap them around the face.
+        f32 best = kMatchDistance;
+        const CachedContactPoint* match = nullptr;
+        for (u32 j = 0; j < cached.count; ++j)
+        {
+            const f32 distance = glm::length(point.position - cached.points[j].position);
+            if (distance < best)
+            {
+                best = distance;
+                match = &cached.points[j];
+            }
+        }
+        if (!match)
+            continue;
+        point.normalImpulse = match->normalImpulse;
+        point.tangentImpulse[0] = match->tangentImpulse[0];
+        point.tangentImpulse[1] = match->tangentImpulse[1];
+    }
+}
+
+void Scene::storeInCache(const RigidBody& a, const RigidBody& b, const ContactManifold& manifold)
+{
+    CachedContactPair& cached = mContactCache[pairKey(a, b)];
+    // The first manifold of this step starts the list; the rest of the pair's
+    // manifolds append to it rather than replacing what came before, or only
+    // the last triangle a body rests on keeps its impulses.
+    if (cached.lastStep != mPhysicsStepIndex)
+        cached.count = 0;
+    for (u32 i = 0; i < manifold.count && cached.count < CachedContactPair::MaxPoints; ++i)
+    {
+        CachedContactPoint& point = cached.points[cached.count++];
+        point.position = manifold.points[i].position;
+        point.normalImpulse = manifold.points[i].normalImpulse;
+        point.tangentImpulse[0] = manifold.points[i].tangentImpulse[0];
+        point.tangentImpulse[1] = manifold.points[i].tangentImpulse[1];
+    }
+    cached.lastStep = mPhysicsStepIndex;
+}
+
+void Scene::emitContactExits()
+{
+    for (auto it = mContactCache.begin(); it != mContactCache.end();)
+    {
+        if (mPhysicsStepIndex - it->second.lastStep < mContactPersistence)
+        {
+            ++it;
+            continue;
+        }
+        // Not touched this step, so the pair stopped touching. Reported once
+        // and then dropped, which is also what stops the cache growing with
+        // every pair that ever met.
+        if (it->second.reported)
+        {
+            ContactEventInfo info;
+            info.bodyA = it->second.bodyA;
+            info.bodyB = it->second.bodyB;
+            info.event = ContactEvent::Exit;
+            mContactEventQueue.push_back(info);
+        }
+        it = mContactCache.erase(it);
+    }
+}
+
+// ------------------------------------------------------------------ sleep
+
+u32 Scene::islandRoot(u32 index)
+{
+    while (mIslandParent[index] != index)
+    {
+        // Path halving: every lookup shortens the chain it walked, so a long
+        // stack does not pay for its own depth on every query.
+        mIslandParent[index] = mIslandParent[mIslandParent[index]];
+        index = mIslandParent[index];
+    }
+    return index;
+}
+
+void Scene::propagateSleep()
+{
+    const usize count = mRigidBodies.size();
+    mIslandParent.resize(count);
+    mIslandAwake.assign(count, 0);
+    for (usize i = 0; i < count; ++i)
+        mIslandParent[i] = static_cast<u32>(i);
+
+    // Static and kinematic bodies are deliberately left out. They never sleep
+    // and never wake, and joining them would put every dynamic body resting
+    // on the same floor into one island - which would mean a box dropped at
+    // one end of the level keeping a stack awake at the other.
+    for (const Contact& contact : mContacts)
+    {
+        if (!contact.a->isDynamic() || !contact.b->isDynamic())
+            continue;
+        const u32 rootA = islandRoot(contact.a->mStepSlot);
+        const u32 rootB = islandRoot(contact.b->mStepSlot);
+        if (rootA != rootB)
+            mIslandParent[rootB] = rootA;
+    }
+
+    // An island sleeps only when EVERY body in it has gone quiet. One still
+    // moving keeps the whole island awake, which is what stops a box
+    // dropping out of a stack that has not finished settling.
+    for (usize i = 0; i < count; ++i)
+    {
+        const RigidBody* body = mRigidBodies[i];
+        if (!body->enabled() || !body->isDynamic())
+            continue;
+        if (!body->canSleep() || body->motion() >= body->sleepEpsilon())
+            mIslandAwake[islandRoot(static_cast<u32>(i))] = 1;
+    }
+
+    for (usize i = 0; i < count; ++i)
+    {
+        RigidBody* body = mRigidBodies[i];
+        if (!body->enabled() || !body->isDynamic())
+            continue;
+        const bool shouldBeAwake = mIslandAwake[islandRoot(static_cast<u32>(i))] != 0;
+        if (shouldBeAwake != body->awake())
+            body->setAwake(shouldBeAwake);
+    }
+}
+
+// ---------------------------------------------------------------- bullets
+
+void Scene::solveBulletSweeps()
+{
+    const f32 slop = mContactSolver.settings().slop;
+    for (const BulletSweep& sweep : mBulletSweeps)
+    {
+        RigidBody* sweptBody = sweep.body;
+        const glm::vec3 newPosition = sweptBody->position();
+        const glm::vec3 delta = newPosition - sweep.previousPosition;
+
+        const f32 distSq = glm::dot(delta, delta);
+        if (distSq < slop * slop)
+            continue;
+
+        const f32 dist = std::sqrt(distSq);
+        Ray ray;
+        ray.origin = sweep.previousPosition;
+        ray.direction = delta / dist;
+
+        QueryFilter filter;
+        filter.ignoredBody = sweptBody;
+        WorldRayHit hit;
+        if (!raycast(ray, dist, filter, hit))
+            continue;
+        if (!hit.body || hit.body->isDynamic())
+            continue;
+
+        const f32 endSide = glm::dot(newPosition - hit.point, hit.normal);
+        if (endSide >= -slop)
+            continue;
+
+        f32 safeFraction = hit.distance / dist - slop / dist;
+        if (safeFraction < 0.0f)
+            safeFraction = 0.0f;
+        sweptBody->setPosition(sweep.previousPosition + safeFraction * delta);
+    }
+}
+
+// ------------------------------------------------------------------- step
+
+void Scene::stepPhysics(f32 duration)
+{
+    if (duration <= 0.0f || !std::isfinite(duration))
+        return;
+    if (mPhysicsStepping || mDispatchingContactEvents)
+    {
+        Log::error("Scene: recursive stepPhysics() is not supported");
+        return;
+    }
+    mPhysicsStepping = true;
+    ++mPhysicsStepIndex;
+
+    // Gravity is set on every dynamic body rather than added as a force, so
+    // it reaches them whatever their mass - and so a body the caller gave its
+    // own acceleration keeps it only until the scene overwrites it, which is
+    // the honest behaviour for a scene that owns gravity.
+    for (u32 i = 0; i < mRigidBodies.size(); ++i)
+    {
+        RigidBody* body = mRigidBodies[i];
+        body->mStepSlot = i;
+        if (body->enabled() && body->isDynamic())
+        {
+            body->setAcceleration(mGravity);
+            body->integrateForces(duration);
+        }
+    }
+
+    if (mStaticBroadphaseDirty)
+        rebuildStaticBroadphase();
+    mDynamicBroadphase.clear();
+    mDynamicBroadphase.reserve(mRigidBodies.size());
+    mDynamicProxies.clear();
+    mDynamicProxies.reserve(mRigidBodies.size());
+    for (u32 i = 0; i < mRigidBodies.size(); ++i)
+    {
+        const RigidBody* body = mRigidBodies[i];
+        if (!bodyCollides(body) || body->bodyType() == BodyType::Static)
+            continue;
+        BroadphaseProxy proxy;
+        proxy.id = i;
+        proxy.filter = body->filter();
+        proxy.movable = true;
+        proxy.bounds = body->shape()->bounds(body->transform());
+        // Grown by the contact margin, or the broadphase throws away exactly
+        // the pairs the margin exists to keep: a body resting on a surface
+        // has its AABB ending where the other one starts, they do not
+        // overlap, and the narrowphase is never even asked.
+        proxy.bounds.min -= glm::vec3(mContactMargin);
+        proxy.bounds.max += glm::vec3(mContactMargin);
+        mDynamicBroadphase.add(proxy);
+        mDynamicProxies.push_back(proxy);
+    }
+    mPairs.clear();
+    for (const BroadphaseProxy& dynamic : mDynamicProxies)
+    {
+        mStaticBroadphase.queryCandidates(dynamic.bounds, mStaticCandidates);
+        for (u32 candidate : mStaticCandidates)
+        {
+            const AABB& staticBounds = mStaticBroadphase.itemBounds(candidate);
+            const RigidBody* staticBody = mStaticBodies[candidate];
+            if (staticBody->mScene != this)
+                continue;
+            if (!shouldCollide(dynamic.filter, staticBody->filter()) ||
+                !Broadphase::overlaps(dynamic.bounds, staticBounds))
+                continue;
+            const u32 staticSlot = staticBody->mStepSlot;
+            mPairs.push_back({glm::min(dynamic.id, staticSlot), glm::max(dynamic.id, staticSlot)});
+        }
+    }
+    mDynamicBroadphase.findPairs(mDynamicPairs);
+    mPairs.insert(mPairs.end(), mDynamicPairs.begin(), mDynamicPairs.end());
+
+    mContacts.clear();
+    mContacts.reserve(mPairs.size());
+    for (const BroadphasePair& pair : mPairs)
+    {
+        RigidBody& a = *mRigidBodies[pair.a];
+        RigidBody& b = *mRigidBodies[pair.b];
+
+        // A trimesh answers with one manifold per triangle touched, so the
+        // single-manifold path cannot serve it. Both go through the same
+        // vector below and become one Contact each.
+        mManifolds.clear();
+        const bool aIsMesh = a.shape()->type() == ShapeType::Trimesh;
+        const bool bIsMesh = b.shape()->type() == ShapeType::Trimesh;
+        if (aIsMesh && bIsMesh)
+            continue; // two static meshes never move; nothing to solve
+        if (aIsMesh || bIsMesh)
+        {
+            const RigidBody& convex = aIsMesh ? b : a;
+            const RigidBody& mesh = aIsMesh ? a : b;
+            if (!Narrowphase::convexTrimesh(*convex.shape(), convex.transform(),
+                                            static_cast<const TrimeshShape&>(*mesh.shape()),
+                                            mesh.transform(), mManifolds, mContactMargin))
+                continue;
+            // convexTrimesh() reports convex-to-mesh. When the mesh is body A
+            // the contact's normal has to run A to B like every other pair.
+            if (aIsMesh)
+                for (ContactManifold& flipped : mManifolds)
+                {
+                    flipped.normal = -flipped.normal;
+                    flipped.buildTangents();
+                }
+        }
+        else
+        {
+            ContactManifold manifold;
+            if (!Narrowphase::collide(*a.shape(), a.transform(), *b.shape(), b.transform(),
+                                      manifold, mContactMargin))
+                continue;
+            mManifolds.push_back(manifold);
+        }
+
+        const auto existing = mContactCache.find(pairKey(a, b));
+        const bool isNew = existing == mContactCache.end();
+
+        ContactManifold& manifold = mManifolds[0];
+        for (ContactManifold& current : mManifolds)
+        {
+            warmStartFromCache(a, b, current);
+
+            Contact contact;
+            contact.a = &a;
+            contact.b = &b;
+            contact.manifold = current;
+            // Combined the usual way: the geometric mean for friction, the
+            // larger for restitution, so one bouncy body is enough to bounce.
+            contact.friction = std::sqrt(a.friction() * b.friction());
+            contact.restitution = glm::max(a.restitution(), b.restitution());
+            mContacts.push_back(contact);
+        }
+
+        if (isNew)
+        {
+            // A new contact is the one moment a sleeping body has to wake -
+            // the solver deliberately does not, because a resting stack has
+            // contacts every single step.
+            a.setAwake(true);
+            b.setAwake(true);
+        }
+        ContactEventInfo info;
+        info.bodyA = &a;
+        info.bodyB = &b;
+        info.event = isNew ? ContactEvent::Enter : ContactEvent::Stay;
+        info.normal = manifold.normal;
+        info.point = manifold.points[0].position;
+        info.penetration = manifold.points[0].penetration;
+        mContactEventQueue.push_back(info);
+        CachedContactPair& cached = mContactCache[pairKey(a, b)];
+        cached.bodyA = &a;
+        cached.bodyB = &b;
+        cached.lastStep = mPhysicsStepIndex;
+        cached.reported = true;
+    }
+
+    mContactSolver.solve(mContacts.data(), static_cast<u32>(mContacts.size()), mJoints.data(),
+                         static_cast<u32>(mJoints.size()), duration);
+
+    // Stored after solving, so what carries into the next step is the impulse
+    // the solver settled on rather than the one it started from.
+    for (const Contact& contact : mContacts)
+        storeInCache(*contact.a, *contact.b, contact.manifold);
+
+    emitContactExits();
+
+    mBulletSweeps.clear();
+    for (RigidBody* body : mRigidBodies)
+        if (body->enabled() && body->isDynamic() && body->isBullet() && body->awake())
+            mBulletSweeps.push_back({body, body->position()});
+
+    for (RigidBody* body : mRigidBodies)
+        if (body->enabled())
+            body->integrateVelocity(duration);
+
+    solveBulletSweeps();
+
+    // Actions - a vehicle, anything else that reaches into bodies each step -
+    // run here, once positions for this step are final and before sleep
+    // state is decided from them.
+    if (mPhysicsStepCallback)
+        mPhysicsStepCallback(duration, mPhysicsStepUserData);
+
+    // After integrating, because the motion average this reads is what
+    // integrate() has just updated. Bodies added to this scene have their own
+    // sleep deferred, so nothing has dropped out on its own in the meantime.
+    propagateSleep();
+    mPhysicsStepping = false;
+    dispatchContactEvents();
+}
+
+void Scene::dispatchContactEvents()
+{
+    if (!mContactEventCallback || mContactEventQueue.empty())
+    {
+        mContactEventQueue.clear();
+        return;
+    }
+
+    // Callbacks are deliberately outside the simulation lock. A body removed
+    // by one callback is scrubbed from the events still queued behind it, so
+    // a later event never hands the callback a body that is already gone.
+    mContactEventsDispatching.swap(mContactEventQueue);
+    mDispatchingContactEvents = true;
+    for (usize i = 0; i < mContactEventsDispatching.size(); ++i)
+    {
+        const ContactEventInfo& info = mContactEventsDispatching[i];
+        if (info.bodyA && info.bodyB && mContactEventCallback)
+            mContactEventCallback(info, mContactEventUserData);
+    }
+    mDispatchingContactEvents = false;
+    mContactEventsDispatching.clear();
+}
+
+void Scene::updatePhysics(f32 deltaTime)
+{
+    if (deltaTime <= 0.0f || !std::isfinite(deltaTime))
+        return;
+    mPhysicsAccumulator += deltaTime;
+    const f32 budget = mFixedStep * static_cast<f32>(mMaxPhysicsStepsPerUpdate);
+    if (mPhysicsAccumulator > budget)
+        mPhysicsAccumulator = budget;
+    while (mPhysicsAccumulator >= mFixedStep)
+    {
+        stepPhysics(mFixedStep);
+        mPhysicsAccumulator -= mFixedStep;
+    }
+}
+
+// -------------------------------------------------------------- debug draw
+
+void Scene::debugDrawPhysics() const
+{
+    for (const RigidBody* body : mRigidBodies)
+    {
+        if (!bodyCollides(body))
+            continue;
+        // Hue says which shape it is, brightness says what the simulation is
+        // doing with it. Both matter and they do not compete: telling a
+        // capsule from a box at a glance is how a wrong collider is spotted,
+        // and a body that never dims is one that never settled.
+        Color color = Color::Gray;
+        if (body->bodyType() == BodyType::Kinematic)
+            color = Color(230, 200, 60, 255);
+        else if (body->isDynamic())
+        {
+            switch (body->shape()->type())
+            {
+            case ShapeType::Sphere:  color = Color(80, 220, 200, 255); break;
+            case ShapeType::Box:     color = Color(110, 220, 90, 255); break;
+            case ShapeType::Capsule: color = Color(220, 110, 220, 255); break;
+            case ShapeType::ConvexHull: color = Color(230, 150, 60, 255); break;
+            default:                 color = Color::White; break;
+            }
+            // Asleep is the same colour at a third of the brightness, so a
+            // stack settling reads as the whole tower dimming together.
+            if (!body->awake())
+                color = Color(static_cast<u8>(color.r() / 3), static_cast<u8>(color.g() / 3),
+                              static_cast<u8>(color.b() / 3), 255);
+        }
+        body->shape()->debugDraw(body->transform(), color);
+    }
+
+    for (const Contact& contact : mContacts)
+        for (u32 i = 0; i < contact.manifold.count; ++i)
+        {
+            const glm::vec3& point = contact.manifold.points[i].position;
+            // The normal is drawn scaled by the impulse it is carrying, so a
+            // stack shows where the weight actually goes.
+            const f32 scale = 0.05f + contact.manifold.points[i].normalImpulse * 0.02f;
+            DebugDraw().line(point, point + contact.manifold.normal * scale, Color::Red);
+        }
+}
+
+// ---------------------------------------------------------------- queries
+
+bool Scene::raycast(const Ray& ray, f32 maxDistance, const QueryFilter& filter,
+                    WorldRayHit& hit) const
+{
+    bool found = false;
+    f32 nearest = maxDistance;
+    for (RigidBody* body : mRigidBodies)
+    {
+        if (!bodyCollides(body) || !filter.accepts(body, body->filter()))
+            continue;
+
+        ShapeRayHit shapeHit;
+        if (!Narrowphase::raycast(*body->shape(), body->transform(), ray, nearest, shapeHit))
+            continue;
+
+        nearest = shapeHit.distance;
+        hit.body = body;
+        hit.point = shapeHit.point;
+        hit.normal = shapeHit.normal;
+        hit.distance = shapeHit.distance;
+        found = true;
+    }
+    return found;
+}
+
+void Scene::overlapSphere(const glm::vec3& centre, f32 radius, const QueryFilter& filter,
+                          std::vector<RigidBody*>& out) const
+{
+    out.clear();
+    for (RigidBody* body : mRigidBodies)
+    {
+        if (!bodyCollides(body) || !filter.accepts(body, body->filter()))
+            continue;
+        if (Narrowphase::overlapSphere(*body->shape(), body->transform(), centre, radius))
+            out.push_back(body);
+    }
+}
+
+void Scene::queryAABB(const AABB& bounds, const QueryFilter& filter,
+                      std::vector<RigidBody*>& out) const
+{
+    out.clear();
+    for (RigidBody* body : mRigidBodies)
+    {
+        if (!bodyCollides(body) || !filter.accepts(body, body->filter()))
+            continue;
+        if (Broadphase::overlaps(bounds, body->shape()->bounds(body->transform())))
+            out.push_back(body);
+    }
+}
+
+// ---------------------------------------------------------- area effects
+
+u32 Scene::applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 strength,
+                              const QueryFilter& filter)
+{
+    if (!finiteVector(centre) || !(radius > 0.0f) || !std::isfinite(radius) ||
+        !std::isfinite(strength) || strength == 0.0f)
+        return 0;
+
+    u32 affected = 0;
+    for (RigidBody* body : mRigidBodies)
+    {
+        if (!body->enabled() || !body->isDynamic() || !filter.accepts(body, body->filter()))
+            continue;
+
+        glm::vec3 direction;
+        const f32 weight = radialWeight(centre, body->position(), radius, &direction);
+        if (weight <= 0.0f)
+            continue;
+        body->applyLinearImpulse(direction * (strength * weight));
+        ++affected;
+    }
+    return affected;
+}
+
+u32 Scene::addRadialForce(const glm::vec3& centre, f32 radius, f32 strength,
+                          const QueryFilter& filter)
+{
+    if (!finiteVector(centre) || !(radius > 0.0f) || !std::isfinite(radius) ||
+        !std::isfinite(strength) || strength == 0.0f)
+        return 0;
+
+    u32 affected = 0;
+    for (RigidBody* body : mRigidBodies)
+    {
+        if (!body->enabled() || !body->isDynamic() || !filter.accepts(body, body->filter()))
+            continue;
+
+        glm::vec3 direction;
+        const f32 weight = radialWeight(centre, body->position(), radius, &direction);
+        if (weight <= 0.0f)
+            continue;
+        body->addForce(direction * (strength * weight));
+        ++affected;
+    }
+    return affected;
+}
+
+u32 Scene::addDirectionalForce(const glm::vec3& centre, f32 radius, const glm::vec3& force,
+                               const QueryFilter& filter)
+{
+    if (!finiteVector(centre) || !finiteVector(force) || !(radius > 0.0f) ||
+        !std::isfinite(radius) || glm::dot(force, force) == 0.0f)
+        return 0;
+
+    u32 affected = 0;
+    for (RigidBody* body : mRigidBodies)
+    {
+        if (!body->enabled() || !body->isDynamic() || !filter.accepts(body, body->filter()))
+            continue;
+
+        const f32 weight = radialWeight(centre, body->position(), radius);
+        if (weight <= 0.0f)
+            continue;
+        body->addForce(force * weight);
+        ++affected;
+    }
+    return affected;
 }
 
 } // namespace Radion

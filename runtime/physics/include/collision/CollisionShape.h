@@ -232,7 +232,7 @@ private:
 
 // A static concave mesh. Dynamics has no meaning for one - a concave body has
 // no single inertia tensor - so a body carrying this must be static or
-// kinematic, which PhysicsWorld enforces.
+// kinematic, which Scene::addBody() enforces.
 class TrimeshShape final : public CollisionShape
 {
 public:

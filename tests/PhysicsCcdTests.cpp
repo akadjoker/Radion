@@ -1,7 +1,7 @@
 #include "PCH.h"
 
+#include "Scene.h"
 #include "collision/CollisionShape.h"
-#include "dynamics/PhysicsWorld.h"
 #include "dynamics/RigidBody.h"
 
 #include <cstdio>
@@ -52,21 +52,18 @@ void testBulletStopsAtThinWall()
     RigidBody wall;
     wall.setBodyType(BodyType::Static);
     wall.setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
+    wall.setShape(&wallShape);
 
     RigidBody bullet = makeBullet(glm::vec3(0.0f), glm::vec3(200.0f, 0.0f, 0.0f), bulletShape);
+    bullet.setShape(&bulletShape);
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f));
-    BodyEntry entry;
-    entry.shape = &wallShape;
-    entry.body = &wall;
-    world.addBody(entry);
-    entry.shape = &bulletShape;
-    entry.body = &bullet;
-    world.addBody(entry);
+    world.addBody(wall);
+    world.addBody(bullet);
 
     // 200 * 0.1 = 20 units of travel against a wall 0.1 units thick at x in [4.95, 5.05].
-    world.step(0.1f);
+    world.stepPhysics(0.1f);
 
     CHECK(bullet.position().x < 5.0f);
     CHECK(near(bullet.position().x, 4.945f, 1e-3f));
@@ -85,6 +82,7 @@ void testNonBulletTunnelsThroughSameWall()
     RigidBody wall;
     wall.setBodyType(BodyType::Static);
     wall.setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
+    wall.setShape(&wallShape);
 
     RigidBody bullet;
     bullet.setMass(1.0f);
@@ -93,18 +91,14 @@ void testNonBulletTunnelsThroughSameWall()
     bullet.setVelocity(glm::vec3(200.0f, 0.0f, 0.0f));
     bullet.setDamping(1.0f, 1.0f);
     bullet.setCanSleep(false);
+    bullet.setShape(&bulletShape);
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f));
-    BodyEntry entry;
-    entry.shape = &wallShape;
-    entry.body = &wall;
-    world.addBody(entry);
-    entry.shape = &bulletShape;
-    entry.body = &bullet;
-    world.addBody(entry);
+    world.addBody(wall);
+    world.addBody(bullet);
 
-    world.step(0.1f);
+    world.stepPhysics(0.1f);
 
     CHECK(bullet.position().x > 5.05f);
     CHECK(near(bullet.position().x, 20.0f, 1e-3f));
@@ -121,6 +115,8 @@ void testBulletRestsNormallyAtLowSpeed()
     RigidBody ground;
     ground.setBodyType(BodyType::Static);
     ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
+    ground.setShape(&groundShape);
+    ground.setFriction(0.5f);
 
     RigidBody ball;
     ball.setMass(1.0f);
@@ -128,20 +124,15 @@ void testBulletRestsNormallyAtLowSpeed()
     ball.setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
     ball.setDamping(0.999f, 0.999f);
     ball.setBullet(true);
+    ball.setShape(&ballShape);
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
-    BodyEntry entry;
-    entry.friction = 0.5f;
-    entry.shape = &groundShape;
-    entry.body = &ground;
-    world.addBody(entry);
-    entry.shape = &ballShape;
-    entry.body = &ball;
-    world.addBody(entry);
+    world.addBody(ground);
+    world.addBody(ball);
 
     for (u32 i = 0; i < 300; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
 
     CHECK(std::abs(ball.position().y - 0.5f) < 0.05f);
     CHECK(glm::length(ball.velocity()) < 0.5f);
@@ -162,20 +153,17 @@ void testBulletSweepSkipsDynamicObstacles()
     obstacle.setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
     obstacle.setDamping(1.0f, 1.0f);
     obstacle.setCanSleep(false);
+    obstacle.setShape(&obstacleShape);
 
     RigidBody bullet = makeBullet(glm::vec3(0.0f), glm::vec3(200.0f, 0.0f, 0.0f), bulletShape);
+    bullet.setShape(&bulletShape);
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f));
-    BodyEntry entry;
-    entry.shape = &obstacleShape;
-    entry.body = &obstacle;
-    world.addBody(entry);
-    entry.shape = &bulletShape;
-    entry.body = &bullet;
-    world.addBody(entry);
+    world.addBody(obstacle);
+    world.addBody(bullet);
 
-    world.step(0.1f);
+    world.stepPhysics(0.1f);
 
     CHECK(bullet.position().x > 5.05f);
 }

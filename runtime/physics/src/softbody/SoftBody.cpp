@@ -2,9 +2,9 @@
 
 #include "softbody/SoftBody.h"
 
+#include "Scene.h"
 #include "collision/CollisionShape.h"
 #include "collision/Narrowphase.h"
-#include "dynamics/PhysicsWorld.h"
 
 #include <algorithm>
 
@@ -360,7 +360,7 @@ void SoftBody::projectAttachments()
 void SoftBody::determineContactPlanes(f32 dt)
 {
     mContactPlanes.assign(mParticles.size(), ContactPlane{});
-    if (!mCollisionWorld || dt <= 0.0f || mParticles.empty())
+    if (!mCollisionScene || dt <= 0.0f || mParticles.empty())
         return;
 
     const glm::vec3 windPerParticle = mWind / static_cast<f32>(mParticles.size());
@@ -374,7 +374,7 @@ void SoftBody::determineContactPlanes(f32 dt)
         bounds.min = glm::min(bounds.min, particle.position - glm::vec3(reach));
         bounds.max = glm::max(bounds.max, particle.position + glm::vec3(reach));
     }
-    mCollisionWorld->queryAABB(bounds, mCollisionQuery, mCollisionCandidates);
+    mCollisionScene->queryAABB(bounds, mCollisionQuery, mCollisionCandidates);
     if (mCollisionCandidates.empty())
         return;
 
@@ -394,34 +394,33 @@ void SoftBody::determineContactPlanes(f32 dt)
         particleTransform[3] = glm::vec4(particle.position, 1.0f);
 
         f32 deepest = -std::numeric_limits<f32>::max();
-        for (u32 id : mCollisionCandidates)
+        for (RigidBody* candidate : mCollisionCandidates)
         {
-            const BodyEntry* entry = mCollisionWorld->body(id);
-            if (!entry || !entry->body || !entry->shape || !entry->enabled)
+            if (!candidate || !candidate->shape() || !candidate->enabled())
                 continue;
 
             manifolds.clear();
-            if (entry->shape->type() == ShapeType::Trimesh)
+            if (candidate->shape()->type() == ShapeType::Trimesh)
             {
                 Narrowphase::convexTrimesh(
                     particleShape, particleTransform,
-                    static_cast<const TrimeshShape&>(*entry->shape), entry->body->transform(),
+                    static_cast<const TrimeshShape&>(*candidate->shape()), candidate->transform(),
                     manifolds, search);
             }
-            else if (entry->shape->type() == ShapeType::Triangle)
+            else if (candidate->shape()->type() == ShapeType::Triangle)
             {
                 ContactManifold manifold;
                 if (Narrowphase::sphereTriangle(
                         particleShape, particleTransform,
-                        static_cast<const TriangleShape&>(*entry->shape), entry->body->transform(),
+                        static_cast<const TriangleShape&>(*candidate->shape()), candidate->transform(),
                         manifold, search))
                     manifolds.push_back(manifold);
             }
             else
             {
                 ContactManifold manifold;
-                if (Narrowphase::collide(particleShape, particleTransform, *entry->shape,
-                                         entry->body->transform(), manifold, search))
+                if (Narrowphase::collide(particleShape, particleTransform, *candidate->shape(),
+                                         candidate->transform(), manifold, search))
                     manifolds.push_back(manifold);
             }
 
@@ -443,9 +442,9 @@ void SoftBody::determineContactPlanes(f32 dt)
                     // later position measures its true clearance against it.
                     plane.offset = glm::dot(plane.normal, particle.position) -
                                    (mCollisionMargin - deepest);
-                    plane.bodyId = id;
-                    plane.friction = entry->friction;
-                    plane.restitution = entry->restitution;
+                    plane.body = candidate;
+                    plane.friction = candidate->friction();
+                    plane.restitution = candidate->restitution();
                     plane.active = true;
                 }
             }
@@ -455,7 +454,7 @@ void SoftBody::determineContactPlanes(f32 dt)
 
 void SoftBody::applyContactPlanes(f32 dt)
 {
-    if (!mCollisionWorld || dt <= 0.0f || mContactPlanes.size() != mParticles.size())
+    if (!mCollisionScene || dt <= 0.0f || mContactPlanes.size() != mParticles.size())
         return;
 
     const f32 restitutionThreshold = -2.0f * glm::length(mGravity) * dt;
@@ -481,9 +480,8 @@ void SoftBody::applyContactPlanes(f32 dt)
         // carries the cloth; the reference's simple path assumes a static
         // collider and works on absolute velocity.
         glm::vec3 colliderVelocity(0.0f);
-        if (const BodyEntry* entry = mCollisionWorld->body(plane.bodyId))
-            if (entry->body)
-                colliderVelocity = entry->body->velocityAtPoint(particle.position);
+        if (plane.body)
+            colliderVelocity = plane.body->velocityAtPoint(particle.position);
 
         const glm::vec3 relativeVelocity = particle.velocity - colliderVelocity;
         const f32 normalVelocity = glm::dot(relativeVelocity, plane.normal);
@@ -576,7 +574,7 @@ SoftBody::Contact SoftBody::contact(u32 index) const
     const ContactPlane& plane = mContactPlanes[index];
     result.active = plane.active;
     result.normal = plane.normal;
-    result.bodyId = plane.bodyId;
+    result.body = plane.body;
     return result;
 }
 

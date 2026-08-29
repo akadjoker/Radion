@@ -14,13 +14,6 @@ struct Contact
 {
     RigidBody* a = nullptr;
     RigidBody* b = nullptr;
-    // Which bodies these are, in the owner's own numbering. The solver never
-    // reads them; they are here so a contact can be traced back to its pair
-    // without keeping a second array in step with this one - which is
-    // precisely what went wrong when they were separate, since only the
-    // pairs the narrowphase confirms become contacts.
-    u32 idA = 0;
-    u32 idB = 0;
     ContactManifold manifold;
     // Combined from the two materials by the caller; kept here so the solver
     // never has to know what a material is.

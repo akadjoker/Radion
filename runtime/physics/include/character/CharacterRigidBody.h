@@ -9,10 +9,13 @@
 
 #include <vector>
 
+namespace Radion
+{
+class Scene;
+}
+
 namespace Radion::Physics
 {
-
-class PhysicsWorld;
 
 class CharacterRigidBody
 {
@@ -24,8 +27,6 @@ public:
         NotSupported,
         InAir
     };
-
-    static constexpr u32 kInvalidBodyId = 0xFFFFFFFFu;
 
     CharacterRigidBody();
 
@@ -81,11 +82,11 @@ public:
         return mMask;
     }
 
-    void addToWorld(PhysicsWorld& world, const glm::vec3& position);
+    void addToWorld(Radion::Scene& scene, const glm::vec3& position);
     void removeFromWorld();
-    u32 bodyId() const
+    bool isInWorld() const
     {
-        return mBodyId;
+        return mBody.scene() != nullptr;
     }
 
     void setLinearVelocity(const glm::vec3& velocity);
@@ -114,9 +115,9 @@ public:
     {
         return mGroundVelocity;
     }
-    u32 groundBodyId() const
+    RigidBody* groundBody() const
     {
-        return mGroundBodyId;
+        return mGroundBody;
     }
     bool isSupported() const
     {
@@ -126,9 +127,6 @@ public:
 private:
     RigidBody mBody;
     CapsuleShape mShape{0.4f, 0.6f};
-
-    PhysicsWorld* mWorld = nullptr;
-    u32 mBodyId = kInvalidBodyId;
 
     f32 mRadius = 0.4f;
     f32 mHeight = 1.2f;
@@ -143,11 +141,11 @@ private:
     f32 mMaxSlopeAngleCosine = 0.64278759f;
 
     GroundState mGroundState = GroundState::InAir;
-    u32 mGroundBodyId = kInvalidBodyId;
+    RigidBody* mGroundBody = nullptr;
     glm::vec3 mGroundNormal{0.0f};
     glm::vec3 mGroundPosition{0.0f};
     glm::vec3 mGroundVelocity{0.0f};
-    std::vector<u32> mCandidates;
+    std::vector<RigidBody*> mCandidates;
     std::vector<ContactManifold> mManifolds;
 };
 

@@ -1,8 +1,8 @@
 #include "PCH.h"
 
+#include "Scene.h"
 #include "collision/CollisionShape.h"
 #include "dynamics/MotorcycleController.h"
-#include "dynamics/PhysicsWorld.h"
 #include "dynamics/RaycastVehicle.h"
 #include "dynamics/RigidBody.h"
 
@@ -49,8 +49,7 @@ struct CarFixture
     RigidBody ground;
     RigidBody chassis;
 
-    PhysicsWorld world;
-    u32 chassisId = 0;
+    Radion::Scene world;
     RaycastVehicle* vehicle = nullptr;
 
     explicit CarFixture(bool withGround = true)
@@ -62,11 +61,9 @@ struct CarFixture
         {
             ground.setBodyType(BodyType::Static);
             ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
-            BodyEntry groundEntry;
-            groundEntry.body = &ground;
-            groundEntry.shape = &groundShape;
-            groundEntry.friction = 0.9f;
-            world.addBody(groundEntry);
+            ground.setShape(&groundShape);
+            ground.setFriction(0.9f);
+            world.addBody(ground);
         }
 
         chassis.setMass(800.0f);
@@ -74,16 +71,14 @@ struct CarFixture
         chassis.setPosition(glm::vec3(0.0f, 0.6f, 0.0f));
         chassis.setDamping(1.0f, 1.0f);
         chassis.setCanSleep(false);
-        BodyEntry chassisEntry;
-        chassisEntry.body = &chassis;
-        chassisEntry.shape = &chassisShape;
-        chassisEntry.friction = 0.5f;
-        chassisId = world.addBody(chassisEntry);
+        chassis.setShape(&chassisShape);
+        chassis.setFriction(0.5f);
+        world.addBody(chassis);
     }
 
     void buildVehicle()
     {
-        vehicle = new RaycastVehicle(chassis, &world, chassisId);
+        vehicle = new RaycastVehicle(chassis, &world);
 
         RaycastVehicle::Tuning tuning;
         const glm::vec3 direction(0.0f, -1.0f, 0.0f);
@@ -102,7 +97,7 @@ struct CarFixture
         for (u32 i = 0; i < 4; ++i)
             vehicle->addWheel(corners[i], direction, axle, restLength, radius, tuning, isFront[i]);
 
-        world.setStepCallback(&stepVehicle, vehicle);
+        world.setPhysicsStepCallback(&stepVehicle, vehicle);
     }
 
     ~CarFixture()
@@ -117,11 +112,11 @@ void testSuspensionHoldsTheCarUp()
     fixture.buildVehicle();
 
     for (u32 i = 0; i < 120; ++i)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
     const f32 heightAfterOneSecond = fixture.chassis.position().y;
 
     for (u32 i = 0; i < 240; ++i)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
     const f32 heightAfterThreeSeconds = fixture.chassis.position().y;
 
     CHECK(std::isfinite(heightAfterThreeSeconds));
@@ -136,13 +131,13 @@ void testEngineForceAcceleratesForward()
     fixture.buildVehicle();
 
     for (u32 i = 0; i < 120; ++i)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
 
     for (u32 i = 0; i < 4; ++i)
         fixture.vehicle->setEngineForce(3000.0f, i);
 
     for (u32 i = 0; i < 240; ++i)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
 
     const glm::vec3 forward = fixture.chassis.directionToWorld(glm::vec3(0.0f, 0.0f, 1.0f));
     const f32 forwardSpeed = glm::dot(forward, fixture.chassis.velocity());
@@ -156,12 +151,12 @@ void testBrakeSlowsTheCarDown()
     fixture.buildVehicle();
 
     for (u32 i = 0; i < 120; ++i)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
 
     for (u32 i = 0; i < 4; ++i)
         fixture.vehicle->setEngineForce(3000.0f, i);
     for (u32 i = 0; i < 240; ++i)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
 
     for (u32 i = 0; i < 4; ++i)
     {
@@ -172,7 +167,7 @@ void testBrakeSlowsTheCarDown()
     // so the linear speed at the centre of mass does not fall monotonically
     // - it needs the full transient to settle before this checks it is slow.
     for (u32 i = 0; i < 480; ++i)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
 
     CHECK(finiteVec(fixture.chassis.velocity()));
     CHECK(glm::length(fixture.chassis.velocity()) < 1.0f);
@@ -184,7 +179,7 @@ void testSteeringTurnsTheCar()
     fixture.buildVehicle();
 
     for (u32 i = 0; i < 120; ++i)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
 
     for (u32 i = 0; i < 4; ++i)
         fixture.vehicle->setEngineForce(2500.0f, i);
@@ -197,7 +192,7 @@ void testSteeringTurnsTheCar()
     // its z coordinate would have come back down through zero again.
     for (u32 i = 0; i < 180; ++i)
     {
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
         CHECK(finiteVec(fixture.chassis.position()));
     }
 
@@ -215,7 +210,7 @@ void testFreeFallWithoutGroundStaysFinite()
 
     for (u32 i = 0; i < 240; ++i)
     {
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
         CHECK(finiteVec(fixture.chassis.position()));
         CHECK(finiteVec(fixture.chassis.velocity()));
     }
@@ -251,8 +246,7 @@ struct BikeFixture
     RigidBody ground;
     RigidBody chassis;
 
-    PhysicsWorld world;
-    u32 chassisId = 0;
+    Radion::Scene world;
     RaycastVehicle* vehicle = nullptr;
     MotorcycleController* controller = nullptr;
     BikeStep stepData;
@@ -264,24 +258,20 @@ struct BikeFixture
 
         ground.setBodyType(BodyType::Static);
         ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
-        BodyEntry groundEntry;
-        groundEntry.body = &ground;
-        groundEntry.shape = &groundShape;
-        groundEntry.friction = 0.9f;
-        world.addBody(groundEntry);
+        ground.setShape(&groundShape);
+        ground.setFriction(0.9f);
+        world.addBody(ground);
 
         chassis.setMass(240.0f);
         chassis.setInertiaTensor(Inertia::box(240.0f, glm::vec3(0.2f, 0.3f, 0.9f)));
         chassis.setPosition(glm::vec3(0.0f, 0.6f, 0.0f));
         chassis.setDamping(1.0f, 1.0f);
         chassis.setCanSleep(false);
-        BodyEntry chassisEntry;
-        chassisEntry.body = &chassis;
-        chassisEntry.shape = &chassisShape;
-        chassisEntry.friction = 0.5f;
-        chassisId = world.addBody(chassisEntry);
+        chassis.setShape(&chassisShape);
+        chassis.setFriction(0.5f);
+        world.addBody(chassis);
 
-        vehicle = new RaycastVehicle(chassis, &world, chassisId);
+        vehicle = new RaycastVehicle(chassis, &world);
         RaycastVehicle::Tuning tuning;
         tuning.suspensionStiffness = 20.0f;
         tuning.suspensionCompression = 2.0f;
@@ -303,7 +293,7 @@ struct BikeFixture
 
         stepData.vehicle = vehicle;
         stepData.controller = controller;
-        world.setStepCallback(&stepBike, &stepData);
+        world.setPhysicsStepCallback(&stepBike, &stepData);
     }
 
     ~BikeFixture()
@@ -319,7 +309,7 @@ void testMotorcycleStaysUprightDrivingStraight()
     fixture.vehicle->setEngineForce(600.0f, 1);
 
     for (u32 step = 0; step < 480; ++step)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
 
     CHECK(finiteVec(fixture.chassis.position()));
     const glm::vec3 up = fixture.chassis.directionToWorld(glm::vec3(0.0f, 1.0f, 0.0f));
@@ -334,12 +324,12 @@ void testMotorcycleLeansIntoATurn()
     fixture.vehicle->setEngineForce(600.0f, 1);
 
     for (u32 step = 0; step < 360; ++step)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
     fixture.controller->setSteerInput(0.5f);
     f32 deepestLean = 0.0f;
     for (u32 step = 0; step < 480; ++step)
     {
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
         CHECK(finiteVec(fixture.chassis.position()));
         deepestLean = glm::max(deepestLean,
                                std::abs(fixture.controller->currentLeanAngle()));
@@ -360,7 +350,7 @@ void testMotorcycleFallsWithTheLeanSpringOff()
     fixture.chassis.setAngularVelocity(glm::vec3(0.0f, 0.0f, 0.3f));
 
     for (u32 step = 0; step < 480; ++step)
-        fixture.world.step(1.0f / 120.0f);
+        fixture.world.stepPhysics(1.0f / 120.0f);
 
     CHECK(finiteVec(fixture.chassis.position()));
     const glm::vec3 up = fixture.chassis.directionToWorld(glm::vec3(0.0f, 1.0f, 0.0f));

@@ -16,13 +16,13 @@
 #include "MeshRenderer.h"
 #include "PostProcess.h"
 #include "NavMeshSurface.h"
-#include "PhysicsBody.h"
 #include "Road.h"
 #include "Waypoints.h"
 #include "Scene.h"
 #include "Terrain.h"
 
 #include "collision/CollisionShape.h"
+#include "dynamics/RigidBody.h"
 
 #include <IconsMaterialDesignIcons.h>
 #include <ImGuizmo.h>
@@ -941,34 +941,39 @@ void ViewportPanel::onImGui()
                 }
             }
         }
-        if (PhysicsBody* physicsBody = selected->getComponent<PhysicsBody>())
+        if (Physics::RigidBody* rigidBody = selected->getComponent<Physics::RigidBody>())
         {
             Color color = Color::Gray;
-            if (physicsBody->bodyType() == Physics::BodyType::Kinematic)
+            if (rigidBody->bodyType() == Physics::BodyType::Kinematic)
                 color = Color(230, 200, 60, 255);
-            else if (physicsBody->bodyType() == Physics::BodyType::Dynamic)
+            else if (rigidBody->bodyType() == Physics::BodyType::Dynamic)
             {
-                switch (physicsBody->shape())
+                switch (rigidBody->shapeKind())
                 {
-                case PhysicsBodyShape::Sphere:  color = Color(80, 220, 200, 255); break;
-                case PhysicsBodyShape::Box:     color = Color(110, 220, 90, 255); break;
-                case PhysicsBodyShape::Capsule: color = Color(220, 110, 220, 255); break;
+                case Physics::RigidBodyShape::Sphere:  color = Color(80, 220, 200, 255); break;
+                case Physics::RigidBodyShape::Box:     color = Color(110, 220, 90, 255); break;
+                case Physics::RigidBodyShape::Capsule: color = Color(220, 110, 220, 255); break;
+                default: break;
                 }
             }
 
             const glm::mat4 bodyTransform = glm::translate(glm::mat4(1.0f), selected->globalPosition()) *
                                             glm::mat4_cast(selected->globalRotation());
-            switch (physicsBody->shape())
+            switch (rigidBody->shapeKind())
             {
-            case PhysicsBodyShape::Sphere:
-                Physics::SphereShape(physicsBody->radius()).debugDraw(bodyTransform, color);
+            case Physics::RigidBodyShape::Sphere:
+                Physics::SphereShape(rigidBody->radius()).debugDraw(bodyTransform, color);
                 break;
-            case PhysicsBodyShape::Box:
-                Physics::BoxShape(physicsBody->halfExtents()).debugDraw(bodyTransform, color);
+            case Physics::RigidBodyShape::Box:
+                Physics::BoxShape(rigidBody->halfExtents()).debugDraw(bodyTransform, color);
                 break;
-            case PhysicsBodyShape::Capsule:
-                Physics::CapsuleShape(physicsBody->radius(), physicsBody->capsuleSegmentHalfHeight())
+            case Physics::RigidBodyShape::Capsule:
+                Physics::CapsuleShape(rigidBody->radius(), rigidBody->capsuleSegmentHalfHeight())
                     .debugDraw(bodyTransform, color);
+                break;
+            case Physics::RigidBodyShape::None:
+                if (rigidBody->shape())
+                    rigidBody->shape()->debugDraw(bodyTransform, color);
                 break;
             }
         }

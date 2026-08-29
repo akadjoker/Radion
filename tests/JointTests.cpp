@@ -1,8 +1,8 @@
 #include "PCH.h"
 
+#include "Scene.h"
 #include "collision/CollisionShape.h"
 #include "dynamics/ContactSolver.h"
-#include "dynamics/PhysicsWorld.h"
 #include "dynamics/DistanceJoint.h"
 #include "dynamics/FixedJoint.h"
 #include "dynamics/HingeJoint.h"
@@ -649,9 +649,9 @@ void testMouseJointGrabsASleepingBodyInAWorld()
 {
     // The exact grab-in-a-level scenario: a crate settled on the floor long
     // enough to fall asleep, then grabbed. Everything runs through
-    // PhysicsWorld::update with its fixed-step accumulator, not through the
+    // Scene::updatePhysics() with its fixed-step accumulator, not through the
     // solver directly, because that is the path a demo actually takes.
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
     world.setFixedStep(1.0f / 120.0f);
 
@@ -659,25 +659,21 @@ void testMouseJointGrabsASleepingBodyInAWorld()
     RigidBody ground;
     ground.setBodyType(BodyType::Static);
     ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
-    BodyEntry groundEntry;
-    groundEntry.body = &ground;
-    groundEntry.shape = &groundShape;
-    groundEntry.friction = 0.7f;
-    world.addBody(groundEntry);
+    ground.setShape(&groundShape);
+    ground.setFriction(0.7f);
+    world.addBody(ground);
 
     BoxShape crateShape(glm::vec3(0.4f));
     RigidBody crate;
     crate.setMass(1.5f);
     crate.setInertiaTensor(Inertia::box(1.5f, glm::vec3(0.4f)));
     crate.setPosition(glm::vec3(0.0f, 0.4f, 0.0f));
-    BodyEntry crateEntry;
-    crateEntry.body = &crate;
-    crateEntry.shape = &crateShape;
-    crateEntry.friction = 0.6f;
-    world.addBody(crateEntry);
+    crate.setShape(&crateShape);
+    crate.setFriction(0.6f);
+    world.addBody(crate);
 
     for (u32 step = 0; step < 600; ++step)
-        world.update(1.0f / 60.0f);
+        world.updatePhysics(1.0f / 60.0f);
     CHECK(!crate.awake());
 
     MouseJoint joint(crate, crate.position() + glm::vec3(0.0f, 0.4f, 0.0f));
@@ -687,7 +683,7 @@ void testMouseJointGrabsASleepingBodyInAWorld()
     joint.setTarget(crate.position() + glm::vec3(0.0f, 2.0f, 0.0f));
 
     for (u32 step = 0; step < 240; ++step)
-        world.update(1.0f / 60.0f);
+        world.updatePhysics(1.0f / 60.0f);
     world.removeJoint(&joint);
 
     CHECK(finite(crate));
@@ -733,9 +729,9 @@ RigidBody makeWheel(const glm::vec3& position)
     body.setPosition(position);
     body.setMass(15.0f);
     body.setInertiaTensor(Inertia::box(15.0f, glm::vec3(0.3f, 0.3f, 0.3f)));
-    // These tests drive the body directly, without a PhysicsWorld to manage
-    // the joint's sleep island (PhysicsWorld::addJoint wakes both bodies and
-    // keeps them awake together) - without this the body falls asleep the
+    // These tests drive the body directly, without a Scene to manage the
+    // joint's sleep island (Scene::addJoint wakes both bodies and keeps
+    // them awake together) - without this the body falls asleep the
     // moment it settles, and the spring keeps nudging a velocity that no
     // longer gets integrated.
     body.setCanSleep(false);

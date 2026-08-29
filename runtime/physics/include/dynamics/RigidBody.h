@@ -1,12 +1,21 @@
 #ifndef RADION_PHYSICS_DYNAMICS_RIGIDBODY_H
 #define RADION_PHYSICS_DYNAMICS_RIGIDBODY_H
 
+#include "Component.h"
 #include "ConvexHullComputer.h"
 #include "Math.h"
 #include "Types.h"
+#include "collision/CollisionFilter.h"
+
+namespace Radion
+{
+class Scene;
+}
 
 namespace Radion::Physics
 {
+
+class CollisionShape;
 
 // What the simulation is allowed to do with a body.
 enum class BodyType : u8
@@ -49,18 +58,41 @@ struct Inertia
                                 u32 edgeCount, const int* faces, u32 faceCount);
 };
 
+enum class RigidBodyShape : u8
+{
+    None,
+    Sphere,
+    Box,
+    Capsule
+};
+
 // One rigid body: position and orientation, their first derivatives, and the
 // accumulators a step's forces and torques land in. It knows nothing about
 // collision, about the scene, or about who owns it - contacts and constraints
 // reach it through the impulse and force calls like anything else does.
 //
+// As a Component it also carries what a Scene needs to simulate it - shape,
+// filter, friction, restitution, enabled - and the pose sync with its owner
+// GameObject. A loose body (a Ragdoll part, a CharacterRigidBody, a test)
+// never attaches to a GameObject and simply has no owner to sync with.
+//
 // The inertia tensor is kept in body space and rotated into world space once
 // per step. Deviations from the reference port are marked where they occur:
 // the three body types above and a per-body sleep epsilon.
-class RigidBody
+class RigidBody : public Radion::Component
 {
 public:
+    static constexpr ComponentType Type = ComponentType::RigidBody;
+
     RigidBody();
+    ~RigidBody() override;
+    // Component deletes copy; move is what lets a loose body (never attached
+    // to a GameObject) live in a std::vector or come back from a factory
+    // function by value - the tests and Ragdoll::build() both want that.
+    // Shape ownership moves with it; the source is left with no shape so its
+    // own destructor does not free what the destination now owns.
+    RigidBody(RigidBody&& other) noexcept;
+    RigidBody& operator=(RigidBody&& other) noexcept;
 
     void setBodyType(BodyType type);
     BodyType bodyType() const
@@ -76,6 +108,11 @@ public:
 
     // Mass of zero is refused rather than silently producing infinities: a
     // body with no mass is not a body, and "immovable" is setBodyType(Static).
+    // mass() answers from the value the caller last set, not from the
+    // currently active inverse mass - a Static or Kinematic body still has
+    // an authored mass waiting for it if it is ever switched back to
+    // Dynamic, and that is what the inspector and the serializer both want,
+    // not the infinity inverseMass() reports while it is not Dynamic.
     void setMass(f32 mass);
     f32 mass() const;
     void setInverseMass(f32 inverseMass);
@@ -207,10 +244,10 @@ public:
     }
 
     // With this set, integrate() still keeps the motion average up to date
-    // but never falls asleep on its own - the caller decides. PhysicsWorld
-    // sets it, because sleep belongs to a whole contact island and not to one
-    // body: a box that stops moving before the stack under it has finished
-    // settling must not drop out on its own, or it hangs in the air.
+    // but never falls asleep on its own - the caller decides. Scene sets it,
+    // because sleep belongs to a whole contact island and not to one body: a
+    // box that stops moving before the stack under it has finished settling
+    // must not drop out on its own, or it hangs in the air.
     void setSleepDeferred(bool deferred);
     bool sleepDeferred() const
     {
@@ -219,9 +256,9 @@ public:
 
     // Fast, small dynamic bodies (bullets, thrown projectiles) tunnel through
     // thin static geometry when the discrete step moves them further than
-    // their own size in one go. PhysicsWorld sweeps a marked body's centre
-    // from its pre-step to post-step position each step and clamps it back
-    // to just short of the first static hit - see PhysicsWorld::solveBulletSweeps().
+    // their own size in one go. Scene sweeps a marked body's centre from its
+    // pre-step to post-step position each step and clamps it back to just
+    // short of the first static hit - see Scene::solveBulletSweeps().
     // Costs a raycast per bullet body per step, so leave it off for anything
     // that does not need it.
     void setBullet(bool bullet)
@@ -246,8 +283,80 @@ public:
     // Convenience path for standalone users and the focused body tests.
     void integrate(f32 duration);
 
+    void setShape(CollisionShape* shape); // non-owning; frees a previously owned one
+    CollisionShape* shape() const
+    {
+        return mShape;
+    }
+    void setSphere(f32 radius);
+    void setBox(const glm::vec3& halfExtents);
+    void setCapsule(f32 radius, f32 height); // height is total, cap to cap
+    RigidBodyShape shapeKind() const
+    {
+        return mShapeKind;
+    }
+    f32 radius() const
+    {
+        return mRadius;
+    }
+    const glm::vec3& halfExtents() const
+    {
+        return mHalfExtents;
+    }
+    f32 height() const
+    {
+        return mHeight;
+    }
+    f32 capsuleSegmentHalfHeight() const;
+
+    void setFilter(const CollisionFilter& filter);
+    const CollisionFilter& filter() const
+    {
+        return mFilter;
+    }
+    void setCollisionGroup(u32 group);
+    u32 collisionGroup() const
+    {
+        return mFilter.group;
+    }
+    void setCollisionMask(u32 mask);
+    u32 collisionMask() const
+    {
+        return mFilter.mask;
+    }
+    void setFriction(f32 friction);
+    f32 friction() const
+    {
+        return mFriction;
+    }
+    void setRestitution(f32 restitution);
+    f32 restitution() const
+    {
+        return mRestitution;
+    }
+    void setEnabled(bool enabled);
+    bool enabled() const
+    {
+        return mEnabled;
+    }
+
+    Radion::Scene* scene() const
+    {
+        return mScene;
+    }
+
 private:
+    friend class Radion::Scene;
+
     void applyBodyTypeMass();
+
+    bool simulating() const;
+    void pushOwnerPose();
+    bool ownerMoved() const;
+    void pullBodyPose();
+    void rebuildOwnedShape();
+    void notifyShapeChanged();
+    void moveFrom(RigidBody& other) noexcept;
 
     BodyType mBodyType = BodyType::Dynamic;
 
@@ -283,6 +392,23 @@ private:
     bool mBullet = false;
     f32 mMotion = 0.0f;
     f32 mSleepEpsilon = 0.3f;
+
+    CollisionShape* mShape = nullptr;
+    bool mOwnsShape = false;
+    RigidBodyShape mShapeKind = RigidBodyShape::None;
+    f32 mRadius = 0.5f;
+    glm::vec3 mHalfExtents{0.5f};
+    f32 mHeight = 1.0f;
+    CollisionFilter mFilter;
+    f32 mFriction = 0.5f;
+    f32 mRestitution = 0.0f;
+    bool mEnabled = true;
+
+    Radion::Scene* mScene = nullptr;
+    u32 mBodyKey = 0;
+    u32 mStepSlot = 0;
+    glm::vec3 mSyncedPosition{0.0f};
+    glm::quat mSyncedRotation{1.0f, 0.0f, 0.0f, 0.0f};
 };
 
 } // namespace Radion::Physics

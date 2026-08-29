@@ -1,8 +1,9 @@
 #include "PCH.h"
 
 #include "softbody/SoftBody.h"
+#include "Scene.h"
 #include "collision/CollisionShape.h"
-#include "dynamics/PhysicsWorld.h"
+#include "dynamics/RigidBody.h"
 
 #include <cstdio>
 
@@ -250,24 +251,20 @@ void testDenseSheetDoesNotLaunchFromSphere()
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 1.0e-4f);
     body.setCollisionMargin(0.02f);
     body.setMaxLinearVelocity(20.0f);
-    PhysicsWorld collisionWorld;
+    Radion::Scene collisionWorld;
     SphereShape sphereShape(1.4f);
     PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Static);
     sphereBody.setPosition(glm::vec3(0.0f, 3.0f, 0.0f));
+    sphereBody.setShape(&sphereShape);
+    collisionWorld.addBody(sphereBody);
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
     groundBody.setPosition(glm::vec3(0.0f));
-    BodyEntry sphereEntry;
-    sphereEntry.body = &sphereBody;
-    sphereEntry.shape = &sphereShape;
-    collisionWorld.addBody(sphereEntry);
-    BodyEntry groundEntry;
-    groundEntry.body = &groundBody;
-    groundEntry.shape = &groundShape;
-    collisionWorld.addBody(groundEntry);
-    body.setCollisionWorld(&collisionWorld);
+    groundBody.setShape(&groundShape);
+    collisionWorld.addBody(groundBody);
+    body.setCollisionScene(&collisionWorld);
 
     f32 highest = 6.0f;
     f32 furthest = 3.0f;
@@ -311,24 +308,20 @@ void testHangingSheetRemainsStableAgainstSphere()
     body.buildAttachments(1.02f);
     body.setCollisionMargin(0.02f);
     body.setMaxLinearVelocity(20.0f);
-    PhysicsWorld collisionWorld;
+    Radion::Scene collisionWorld;
     SphereShape sphereShape(1.4f);
     PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Kinematic);
     sphereBody.setPosition(glm::vec3(0.0f, 5.5f, 0.0f));
+    sphereBody.setShape(&sphereShape);
+    collisionWorld.addBody(sphereBody);
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
     groundBody.setPosition(glm::vec3(0.0f));
-    BodyEntry sphereEntry;
-    sphereEntry.body = &sphereBody;
-    sphereEntry.shape = &sphereShape;
-    collisionWorld.addBody(sphereEntry);
-    BodyEntry groundEntry;
-    groundEntry.body = &groundBody;
-    groundEntry.shape = &groundShape;
-    collisionWorld.addBody(groundEntry);
-    body.setCollisionWorld(&collisionWorld);
+    groundBody.setShape(&groundShape);
+    collisionWorld.addBody(groundBody);
+    body.setCollisionScene(&collisionWorld);
     f32 maximumSpeed = 0.0f;
     f32 previousSphereZ = 0.0f;
     for (u32 step = 0; step < 720; ++step)
@@ -370,19 +363,17 @@ void slideRestingSheet(f32 friction, f32& averageSpeed, f32& displacement,
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 1.0f);
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 0.0f);
     body.setCollisionMargin(0.02f);
-    PhysicsWorld collisionWorld;
+    Radion::Scene collisionWorld;
     PlaneShape planeShape(glm::vec3(0.0f, 1.0f, 0.0f));
     BoxShape boxShape(glm::vec3(15.0f, 0.5f, 15.0f));
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
     groundBody.setPosition(boxGround ? glm::vec3(0.0f, -0.5f, 0.0f) : glm::vec3(0.0f));
-    BodyEntry groundEntry;
-    groundEntry.body = &groundBody;
-    groundEntry.shape = boxGround ? static_cast<CollisionShape*>(&boxShape)
-                                  : static_cast<CollisionShape*>(&planeShape);
-    groundEntry.friction = friction;
-    collisionWorld.addBody(groundEntry);
-    body.setCollisionWorld(&collisionWorld);
+    groundBody.setShape(boxGround ? static_cast<CollisionShape*>(&boxShape)
+                                  : static_cast<CollisionShape*>(&planeShape));
+    groundBody.setFriction(friction);
+    collisionWorld.addBody(groundBody);
+    body.setCollisionScene(&collisionWorld);
 
     glm::vec3 startCentre(0.0f);
     for (u32 i = 0; i < body.particleCount(); ++i)
@@ -453,7 +444,7 @@ void testFallenSheetComesToRest(bool withSphere = true)
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 1.0e-4f);
     body.setCollisionMargin(0.02f);
     body.setMaxLinearVelocity(20.0f);
-    PhysicsWorld collisionWorld;
+    Radion::Scene collisionWorld;
     SphereShape sphereShape(1.4f);
     PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody sphereBody;
@@ -464,18 +455,14 @@ void testFallenSheetComesToRest(bool withSphere = true)
     groundBody.setPosition(glm::vec3(0.0f));
     if (withSphere)
     {
-        BodyEntry sphereEntry;
-        sphereEntry.body = &sphereBody;
-        sphereEntry.shape = &sphereShape;
-        sphereEntry.friction = 0.6f;
-        collisionWorld.addBody(sphereEntry);
+        sphereBody.setShape(&sphereShape);
+        sphereBody.setFriction(0.6f);
+        collisionWorld.addBody(sphereBody);
     }
-    BodyEntry groundEntry;
-    groundEntry.body = &groundBody;
-    groundEntry.shape = &groundShape;
-    groundEntry.friction = 0.6f;
-    collisionWorld.addBody(groundEntry);
-    body.setCollisionWorld(&collisionWorld);
+    groundBody.setShape(&groundShape);
+    groundBody.setFriction(0.6f);
+    collisionWorld.addBody(groundBody);
+    body.setCollisionScene(&collisionWorld);
 
     f32 averageSpeed = 0.0f;
     bool finite = true;
@@ -584,26 +571,22 @@ void testHeavyFallenSheetDoesNotTremble()
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 1.0e-4f);
     body.setCollisionMargin(0.02f);
     body.setMaxLinearVelocity(20.0f);
-    PhysicsWorld collisionWorld;
+    Radion::Scene collisionWorld;
     SphereShape sphereShape(1.4f);
     PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Static);
     sphereBody.setPosition(glm::vec3(0.0f, 3.0f, 0.0f));
+    sphereBody.setShape(&sphereShape);
+    sphereBody.setFriction(0.6f);
+    collisionWorld.addBody(sphereBody);
     RigidBody groundBody;
     groundBody.setBodyType(BodyType::Static);
     groundBody.setPosition(glm::vec3(0.0f));
-    BodyEntry sphereEntry;
-    sphereEntry.body = &sphereBody;
-    sphereEntry.shape = &sphereShape;
-    sphereEntry.friction = 0.6f;
-    collisionWorld.addBody(sphereEntry);
-    BodyEntry groundEntry;
-    groundEntry.body = &groundBody;
-    groundEntry.shape = &groundShape;
-    groundEntry.friction = 0.6f;
-    collisionWorld.addBody(groundEntry);
-    body.setCollisionWorld(&collisionWorld);
+    groundBody.setShape(&groundShape);
+    groundBody.setFriction(0.6f);
+    collisionWorld.addBody(groundBody);
+    body.setCollisionScene(&collisionWorld);
 
     // Reference point, measured: the Jolt library itself, run headless on the
     // pressed-curtain scenario below, trembles at 0.33-3.98 m/frame. Ours
@@ -633,19 +616,17 @@ void testCurtainPressedBySphereComesToRest()
     body.buildAttachments(1.02f);
     body.setCollisionMargin(0.02f);
     body.setMaxLinearVelocity(20.0f);
-    PhysicsWorld collisionWorld;
+    Radion::Scene collisionWorld;
     SphereShape sphereShape(1.4f);
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Static);
     // Pressed 0.3 m through the curtain's rest plane, the way the demo's
     // slider pushes the sphere back into the hanging sheet.
     sphereBody.setPosition(glm::vec3(0.0f, 4.0f, -1.5f));
-    BodyEntry sphereEntry;
-    sphereEntry.body = &sphereBody;
-    sphereEntry.shape = &sphereShape;
-    sphereEntry.friction = 0.6f;
-    collisionWorld.addBody(sphereEntry);
-    body.setCollisionWorld(&collisionWorld);
+    sphereBody.setShape(&sphereShape);
+    sphereBody.setFriction(0.6f);
+    collisionWorld.addBody(sphereBody);
+    body.setCollisionScene(&collisionWorld);
 
     const f32 tremor = tremorAfterSettling(body, 600, 240);
     if (tremor >= 0.08f)

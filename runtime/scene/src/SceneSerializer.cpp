@@ -29,12 +29,12 @@
 #include "ParticleEffect.h"
 #include "ParticleEmitter.h"
 #include "ParticlePass.h"
-#include "PhysicsBody.h"
 #include "PostProcess.h"
 #include "ReflectionProbe.h"
 #include "RibbonTrail.h"
 #include "Road.h"
 #include "Scene.h"
+#include "dynamics/RigidBody.h"
 #include "SelfDestroy.h"
 #include "Shadows.h"
 #include "Sky.h"
@@ -3284,36 +3284,40 @@ void readCollider(GameObject& object, const nlohmann::json& json, const std::str
         collider->setActive(false);
 }
 
-// ----------------------------------------------------- PhysicsBody
+// ----------------------------------------------------- RigidBody
 
-const char* physicsBodyShapeName(PhysicsBodyShape shape)
+const char* rigidBodyShapeName(Physics::RigidBodyShape shape)
 {
     switch (shape)
     {
-    case PhysicsBodyShape::Sphere:
+    case Physics::RigidBodyShape::None:
+        return "None";
+    case Physics::RigidBodyShape::Sphere:
         return "Sphere";
-    case PhysicsBodyShape::Box:
+    case Physics::RigidBodyShape::Box:
         return "Box";
-    case PhysicsBodyShape::Capsule:
+    case Physics::RigidBodyShape::Capsule:
         return "Capsule";
     }
-    return "Sphere";
+    return "None";
 }
 
-bool physicsBodyShapeFromName(const std::string& name, PhysicsBodyShape& out)
+bool rigidBodyShapeFromName(const std::string& name, Physics::RigidBodyShape& out)
 {
-    if (name == "Sphere")
-        out = PhysicsBodyShape::Sphere;
+    if (name == "None")
+        out = Physics::RigidBodyShape::None;
+    else if (name == "Sphere")
+        out = Physics::RigidBodyShape::Sphere;
     else if (name == "Box")
-        out = PhysicsBodyShape::Box;
+        out = Physics::RigidBodyShape::Box;
     else if (name == "Capsule")
-        out = PhysicsBodyShape::Capsule;
+        out = Physics::RigidBodyShape::Capsule;
     else
         return false;
     return true;
 }
 
-const char* physicsBodyTypeName(Physics::BodyType type)
+const char* rigidBodyTypeName(Physics::BodyType type)
 {
     switch (type)
     {
@@ -3327,7 +3331,7 @@ const char* physicsBodyTypeName(Physics::BodyType type)
     return "Dynamic";
 }
 
-bool physicsBodyTypeFromName(const std::string& name, Physics::BodyType& out)
+bool rigidBodyTypeFromName(const std::string& name, Physics::BodyType& out)
 {
     if (name == "Static")
         out = Physics::BodyType::Static;
@@ -3340,14 +3344,14 @@ bool physicsBodyTypeFromName(const std::string& name, Physics::BodyType& out)
     return true;
 }
 
-nlohmann::json writePhysicsBody(PhysicsBody& body)
+nlohmann::json writeRigidBody(Physics::RigidBody& body)
 {
     nlohmann::json json;
-    json["type"] = "PhysicsBody";
+    json["type"] = "RigidBody";
     json["version"] = 1;
     json["active"] = body.active();
-    json["bodyType"] = physicsBodyTypeName(body.bodyType());
-    json["shape"] = physicsBodyShapeName(body.shape());
+    json["bodyType"] = rigidBodyTypeName(body.bodyType());
+    json["shape"] = rigidBodyShapeName(body.shapeKind());
     json["radius"] = body.radius();
     json["halfExtents"] = writeVec3(body.halfExtents());
     json["height"] = body.height();
@@ -3360,22 +3364,22 @@ nlohmann::json writePhysicsBody(PhysicsBody& body)
     return json;
 }
 
-void readPhysicsBody(GameObject& object, const nlohmann::json& json, const std::string& path,
-                     SceneLoadResult& result)
+void readRigidBody(GameObject& object, const nlohmann::json& json, const std::string& path,
+                   SceneLoadResult& result)
 {
-    PhysicsBodyShape shape = PhysicsBodyShape::Sphere;
+    Physics::RigidBodyShape shape = Physics::RigidBodyShape::None;
     const auto shapeField = json.find("shape");
     if (shapeField == json.end() || !shapeField->is_string() ||
-        !physicsBodyShapeFromName(shapeField->get<std::string>(), shape))
+        !rigidBodyShapeFromName(shapeField->get<std::string>(), shape))
     {
-        result.addError(path + ".shape", "missing or not one of Sphere/Box/Capsule");
+        result.addError(path + ".shape", "missing or not one of None/Sphere/Box/Capsule");
         return;
     }
 
     Physics::BodyType bodyType = Physics::BodyType::Dynamic;
     const auto bodyTypeField = json.find("bodyType");
     if (bodyTypeField == json.end() || !bodyTypeField->is_string() ||
-        !physicsBodyTypeFromName(bodyTypeField->get<std::string>(), bodyType))
+        !rigidBodyTypeFromName(bodyTypeField->get<std::string>(), bodyType))
     {
         result.addError(path + ".bodyType", "missing or not one of Static/Dynamic/Kinematic");
         return;
@@ -3403,23 +3407,25 @@ void readPhysicsBody(GameObject& object, const nlohmann::json& json, const std::
     if (maskField != json.end() && maskField->is_number_unsigned())
         collisionMask = maskField->get<u32>();
 
-    PhysicsBody* body = object.addComponent<PhysicsBody>();
+    Physics::RigidBody* body = object.addComponent<Physics::RigidBody>();
     if (!body)
     {
-        result.addError(path, "object already has a PhysicsBody component");
+        result.addError(path, "object already has a RigidBody component");
         return;
     }
 
     switch (shape)
     {
-    case PhysicsBodyShape::Sphere:
+    case Physics::RigidBodyShape::Sphere:
         body->setSphere(radius);
         break;
-    case PhysicsBodyShape::Box:
+    case Physics::RigidBodyShape::Box:
         body->setBox(halfExtents);
         break;
-    case PhysicsBodyShape::Capsule:
+    case Physics::RigidBodyShape::Capsule:
         body->setCapsule(radius, height);
+        break;
+    case Physics::RigidBodyShape::None:
         break;
     }
 
@@ -4332,8 +4338,8 @@ nlohmann::json writeComponents(GameObject& object)
         array.push_back(writeUiSlider(*slider));
     if (Collider* collider = object.getComponent<Collider>())
         array.push_back(writeCollider(*collider));
-    if (PhysicsBody* body = object.getComponent<PhysicsBody>())
-        array.push_back(writePhysicsBody(*body));
+    if (Physics::RigidBody* body = object.getComponent<Physics::RigidBody>())
+        array.push_back(writeRigidBody(*body));
     if (Waypoints* waypoints = object.getComponent<Waypoints>())
         array.push_back(writeWaypoints(*waypoints));
     if (NavMeshSurface* surface = object.getComponent<NavMeshSurface>())
@@ -4471,8 +4477,8 @@ void readComponent(GameObject& object, const nlohmann::json& json, const std::st
         readUiSlider(object, json, path, result);
     else if (type == "Collider")
         readCollider(object, json, path, result);
-    else if (type == "PhysicsBody")
-        readPhysicsBody(object, json, path, result);
+    else if (type == "RigidBody")
+        readRigidBody(object, json, path, result);
     else if (type == "ZenBehaviour")
         readZenBehaviour(object, json, path, result);
     else if (type == "Waypoints")

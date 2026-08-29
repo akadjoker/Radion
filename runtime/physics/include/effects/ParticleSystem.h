@@ -4,8 +4,8 @@
 // ParticleSystem.h - cheap point/sphere projectiles for VFX-driven physics:
 // explosion debris, sparks, blood drops. Not RigidBody: no inertia tensor, no
 // joints, no sleeping - just position/velocity integrated in bulk and swept
-// against the world with PhysicsWorld::raycast(), which reuses whatever
-// broadphase the world already has. On a hit, a callback tells the caller
+// against the world with Scene::raycast(), which reuses whatever broadphase
+// the scene already has. On a hit, a callback tells the caller
 // (renderer/gameplay) where and with what normal/velocity, so it can spawn a
 // decal, a shard mesh, whatever - this module has no opinion on visuals.
 
@@ -15,10 +15,13 @@
 #include "Math.h"
 #include <vector>
 
+namespace Radion
+{
+class Scene;
+}
+
 namespace Radion::Physics
 {
-
-class PhysicsWorld;
 
 // What a particle does the moment it hits something.
 enum class ParticleResponse : u8
@@ -57,7 +60,7 @@ class ParticleSystem
 public:
     using HitCallback = void (*)(const ParticleHit& hit, void* userData);
 
-    explicit ParticleSystem(PhysicsWorld& world);
+    explicit ParticleSystem(Radion::Scene& scene);
 
     void setGravity(const glm::vec3& gravity)
     {
@@ -117,7 +120,7 @@ private:
         bool settled = false; // Stick response after it has come to rest: skip integration
     };
 
-    PhysicsWorld& mWorld;
+    Radion::Scene& mScene;
     std::vector<Particle> mParticles;
     glm::vec3 mGravity{0.0f, -9.81f, 0.0f};
     QueryFilter mFilter;
