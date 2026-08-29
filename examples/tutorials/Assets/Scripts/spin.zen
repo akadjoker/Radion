@@ -1,0 +1,5 @@
+class Spin:
+    speed = 60.0
+
+    def on_update(self, dt):
+        self.node.yaw(self.speed * dt)

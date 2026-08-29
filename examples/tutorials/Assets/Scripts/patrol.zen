@@ -1,0 +1,14 @@
+import math
+
+class Patrol:
+    speed = 1.5
+    distance = 3.0
+    _time = 0.0
+
+    def on_start(self):
+        self.origin = self.node.get_position()
+
+    def on_update(self, dt):
+        self._time = self._time + dt
+        offset = math.sin(self._time * self.speed) * self.distance
+        self.node.set_position(Vec3(self.origin.x + offset, self.origin.y, self.origin.z))
