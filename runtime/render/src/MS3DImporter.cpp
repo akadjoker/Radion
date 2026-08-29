@@ -125,12 +125,16 @@ MS3DFile parseMS3D(ByteArray& data)
             t.normal[i].y = data.readF32();
             t.normal[i].z = data.readF32();
         }
+        // MS3D stores the three s (u) values contiguously, then the three t
+        // (v) values contiguously - not interleaved per corner.
+        f32 s[3];
+        f32 v[3];
         for (int i = 0; i < 3; ++i)
-        {
-            const f32 u = data.readF32();
-            const f32 v = data.readF32();
-            t.uv[i] = glm::vec2(u, 1.0f - v);
-        }
+            s[i] = data.readF32();
+        for (int i = 0; i < 3; ++i)
+            v[i] = data.readF32();
+        for (int i = 0; i < 3; ++i)
+            t.uv[i] = glm::vec2(s[i], 1.0f - v[i]);
         data.readU8();
         data.readU8();
     }
@@ -192,48 +196,51 @@ MS3DFile parseMS3D(ByteArray& data)
 
     data.readF32();
     data.readF32();
-    if (!data.canRead(4))
-        return file;
-    data.readS32();
+    if (data.canRead(4))
+        data.readS32();
 
-    if (!data.canRead(2))
-        return file;
-    const u16 jointCount = data.readU16();
-    file.joints.resize(jointCount);
-    for (MS3DJoint& j : file.joints)
+    // The joints/keyframes chunk is optional - a purely static export can
+    // legitimately end right here. Missing it is not a parse failure, just
+    // an empty file.joints.
+    if (data.canRead(2))
     {
-        if (!data.canRead(1 + 32 + 32 + 24 + 4))
-            return file;
-        data.readU8();
-        j.name = readFixedString(data, 32);
-        j.parentName = readFixedString(data, 32);
-        j.rotation.x = data.readF32();
-        j.rotation.y = data.readF32();
-        j.rotation.z = data.readF32();
-        j.translation.x = data.readF32();
-        j.translation.y = data.readF32();
-        j.translation.z = data.readF32();
-        const u16 rotKeyCount = data.readU16();
-        const u16 transKeyCount = data.readU16();
-        j.rotKeys.resize(rotKeyCount);
-        for (MS3DKeyframe& k : j.rotKeys)
+        const u16 jointCount = data.readU16();
+        file.joints.resize(jointCount);
+        for (MS3DJoint& j : file.joints)
         {
-            if (!data.canRead(16))
+            if (!data.canRead(1 + 32 + 32 + 24 + 4))
                 return file;
-            k.time = data.readF32();
-            k.param.x = data.readF32();
-            k.param.y = data.readF32();
-            k.param.z = data.readF32();
-        }
-        j.transKeys.resize(transKeyCount);
-        for (MS3DKeyframe& k : j.transKeys)
-        {
-            if (!data.canRead(16))
-                return file;
-            k.time = data.readF32();
-            k.param.x = data.readF32();
-            k.param.y = data.readF32();
-            k.param.z = data.readF32();
+            data.readU8();
+            j.name = readFixedString(data, 32);
+            j.parentName = readFixedString(data, 32);
+            j.rotation.x = data.readF32();
+            j.rotation.y = data.readF32();
+            j.rotation.z = data.readF32();
+            j.translation.x = data.readF32();
+            j.translation.y = data.readF32();
+            j.translation.z = data.readF32();
+            const u16 rotKeyCount = data.readU16();
+            const u16 transKeyCount = data.readU16();
+            j.rotKeys.resize(rotKeyCount);
+            for (MS3DKeyframe& k : j.rotKeys)
+            {
+                if (!data.canRead(16))
+                    return file;
+                k.time = data.readF32();
+                k.param.x = data.readF32();
+                k.param.y = data.readF32();
+                k.param.z = data.readF32();
+            }
+            j.transKeys.resize(transKeyCount);
+            for (MS3DKeyframe& k : j.transKeys)
+            {
+                if (!data.canRead(16))
+                    return file;
+                k.time = data.readF32();
+                k.param.x = data.readF32();
+                k.param.y = data.readF32();
+                k.param.z = data.readF32();
+            }
         }
     }
 
@@ -245,6 +252,15 @@ std::string directoryOf(const std::string& filename)
 {
     const usize slash = filename.find_last_of("/\\");
     return slash == std::string::npos ? std::string() : filename.substr(0, slash + 1);
+}
+
+// MS3D embeds a Windows path for a material's texture, relative or
+// absolute - never trusted directly. Only the filename is kept; the real
+// mesh directory (directoryOf(filename) above) supplies the rest.
+std::string textureBasename(const std::string& reference)
+{
+    const usize slash = reference.find_last_of("/\\");
+    return slash == std::string::npos ? reference : reference.substr(slash + 1);
 }
 
 std::string joinPath(const std::string& directory, const std::string& name)
@@ -365,7 +381,7 @@ bool MS3DImporter::import(const std::string& filename, ByteArray& data, FileSyst
             mesh.materials[i].nameHash = hashName(material.name);
             mesh.materials[i].params.baseColor = glm::vec4(material.diffuse, 1.0f);
             mesh.materials[i].params.surface.x = shininessToRoughness(material.shininess);
-            mesh.materialTextureFiles[i] = joinPath(directory, material.textureFile);
+            mesh.materialTextureFiles[i] = joinPath(directory, textureBasename(material.textureFile));
         }
     }
 
@@ -442,7 +458,9 @@ bool parseJoints(ByteArray& data, std::vector<JointData>& joints)
     if (!data.canRead(2))
         return false;
     count = data.readU16();
-    if (!skipFixed(data, static_cast<u32>(count) * 76))
+    // flags(2) + idx[3](6) + normal[3][3](36) + s[3](12) + t[3](12) +
+    // smoothingGroup(1) + groupIndex(1) = 70 bytes per triangle.
+    if (!skipFixed(data, static_cast<u32>(count) * 70))
         return false;
 
     if (!data.canRead(2))
@@ -450,7 +468,9 @@ bool parseJoints(ByteArray& data, std::vector<JointData>& joints)
     count = data.readU16();
     for (u16 i = 0; i < count; ++i)
     {
-        if (!skipFixed(data, 1 + 32 + 2))
+        if (!skipFixed(data, 1 + 32))
+            return false;
+        if (!data.canRead(2))
             return false;
         const u16 triCount = data.readU16();
         if (!skipFixed(data, static_cast<u32>(triCount) * 2 + 1))

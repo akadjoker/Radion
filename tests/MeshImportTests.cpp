@@ -7,6 +7,8 @@
 #include "Material.h"
 #include "Mesh.h"
 #include "MeshLoader.h"
+#include "MS3DImporter.h"
+#include "Skeleton.h"
 
 #include <cstdio>
 #include <filesystem>
@@ -27,6 +29,11 @@ void check(bool condition, const char* expression, int line)
 }
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
+
+bool near(const glm::vec2& a, const glm::vec2& b, f32 epsilon = 1e-4f)
+{
+    return glm::length(a - b) <= epsilon;
+}
 
 void importPath(MeshLoader& loader, const std::string& path, const char* label)
 {
@@ -186,6 +193,106 @@ void testGltf()
     CHECK(size.y > size.x && size.y > size.z);
 }
 
+// crate.ms3d is static geometry only (no joints). Covers MS3DImporter::import()
+// end to end: chunk parsing, the per-corner UV read (regression for a fixed
+// s[3]/t[3]-vs-interleaved read order bug), and material texture path
+// resolution (regression for a fixed Windows-path-basename bug).
+void testMs3dStatic()
+{
+    FileSystem& files = FileSystem::getSingleton();
+    const std::string path = std::string(RADION_TEST_ASSET_DIR) + "/ms3d/crate.ms3d";
+    if (!std::filesystem::is_regular_file(path))
+    {
+        std::fprintf(stderr, "  skipping optional import fixture: ms3d/crate.ms3d\n");
+        return;
+    }
+
+    MeshLoader loader;
+    loader.addImporter(new MS3DImporter());
+    importOne(loader, "ms3d/crate.ms3d");
+
+    ByteArray data = files.readBinary(path);
+    MeshData mesh;
+    MS3DImporter importer;
+    CHECK(importer.import(path, data, files, mesh));
+    if (mesh.positions.empty())
+        return;
+
+    CHECK(mesh.uvs.size() >= 3);
+    if (mesh.uvs.size() >= 3)
+    {
+        // Ground truth read directly from the file's first triangle: s = (0,
+        // 0, 1), t = (0, 1, 0) -> uv[i] = (s[i], 1 - t[i]).
+        CHECK(near(mesh.uvs[0], glm::vec2(0.0f, 1.0f)));
+        CHECK(near(mesh.uvs[1], glm::vec2(0.0f, 0.0f)));
+        CHECK(near(mesh.uvs[2], glm::vec2(1.0f, 1.0f)));
+    }
+
+    u32 resolved = 0;
+    for (const std::string& file : mesh.materialTextureFiles)
+    {
+        if (file.empty())
+            continue;
+        CHECK(file.find('\\') == std::string::npos);
+        if (files.exists(file))
+            ++resolved;
+    }
+    CHECK(resolved > 0);
+}
+
+// ninja.ms3d is a rigged, keyframed character - covers loadMS3DSkeleton() +
+// loadMS3DAnimation() end to end (the standalone parseJoints() path, a
+// regression for two fixed byte-offset bugs that previously misaligned every
+// read past the triangle chunk).
+void testMs3dAnimated()
+{
+    FileSystem& files = FileSystem::getSingleton();
+    const std::string path = std::string(RADION_TEST_ASSET_DIR) + "/ms3d/ninja.ms3d";
+    if (!std::filesystem::is_regular_file(path))
+    {
+        std::fprintf(stderr, "  skipping optional import fixture: ms3d/ninja.ms3d\n");
+        return;
+    }
+
+    Skeleton skeleton;
+    CHECK(loadMS3DSkeleton(path, files, skeleton));
+    CHECK(!skeleton.empty());
+    CHECK(skeleton.boneCount() == 28);
+
+    AnimationClip clip;
+    CHECK(loadMS3DAnimation(path, files, skeleton, clip));
+    CHECK(clip.duration() > 0.0f);
+    CHECK(!clip.tracks().empty());
+
+    const s32 boneIndex = skeleton.findBone("Joint2");
+    CHECK(boneIndex >= 0);
+    if (boneIndex < 0)
+        return;
+
+    std::vector<LocalPose> poseStart, poseMid;
+    skeleton.bindPose(poseStart);
+    skeleton.bindPose(poseMid);
+    clip.sample(0.0f, poseStart);
+    clip.sample(clip.duration() * 0.5f, poseMid);
+    CHECK(static_cast<usize>(boneIndex) < poseStart.size());
+    CHECK(static_cast<usize>(boneIndex) < poseMid.size());
+    if (static_cast<usize>(boneIndex) >= poseStart.size() ||
+        static_cast<usize>(boneIndex) >= poseMid.size())
+        return;
+
+    const LocalPose& start = poseStart[static_cast<usize>(boneIndex)];
+    const LocalPose& mid = poseMid[static_cast<usize>(boneIndex)];
+    CHECK(std::isfinite(start.position.x) && std::isfinite(start.position.y) &&
+         std::isfinite(start.position.z));
+    CHECK(std::isfinite(mid.position.x) && std::isfinite(mid.position.y) &&
+         std::isfinite(mid.position.z));
+    CHECK(std::isfinite(mid.rotation.x) && std::isfinite(mid.rotation.y) &&
+         std::isfinite(mid.rotation.z) && std::isfinite(mid.rotation.w));
+    CHECK(glm::length(start.position - mid.position) > 1e-5f ||
+         glm::length(glm::vec3(start.rotation.x, start.rotation.y, start.rotation.z) -
+                     glm::vec3(mid.rotation.x, mid.rotation.y, mid.rotation.z)) > 1e-5f);
+}
+
 } // namespace
 
 // Any path given on the command line is imported and reported instead of the
@@ -220,6 +327,8 @@ int main(int argc, char** argv)
     }
 
     testGltf();
+    testMs3dStatic();
+    testMs3dAnimated();
     if (gFailures)
         std::fprintf(stderr, "%d mesh import test(s) failed\n", gFailures);
     return gFailures == 0 ? 0 : 1;
