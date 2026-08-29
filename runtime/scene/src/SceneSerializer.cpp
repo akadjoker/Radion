@@ -41,6 +41,7 @@
 #include "Sky.h"
 #include "Terrain.h"
 #include "Text3D.h"
+#include "TiledTerrain.h"
 #include "UiControls.h"
 #include "VolumetricPass.h"
 #include "VoxelWorldComponent.h"
@@ -578,6 +579,24 @@ nlohmann::json writeTerrain(Terrain& terrain)
     return json;
 }
 
+nlohmann::json writeTiledTerrain(TiledTerrain& terrain)
+{
+    nlohmann::json json{{"type", "TiledTerrain"}, {"version", 1}, {"active", terrain.active()},
+                        {"tilesInSide", terrain.tilesInSide()},
+                        {"patchLength", terrain.patchLength()},
+                        {"tilesPerPatch", terrain.tilesPerPatch()},
+                        {"defaultTile", terrain.defaultTile()},
+                        {"atlasMaterial", terrain.atlasMaterial()},
+                        {"mapWidth", terrain.mapWidth()},
+                        {"mapHeight", terrain.mapHeight()}};
+    nlohmann::json tiles = nlohmann::json::array();
+    for (u32 z = 0; z < terrain.mapHeight(); ++z)
+        for (u32 x = 0; x < terrain.mapWidth(); ++x)
+            tiles.push_back(terrain.tile(x, z));
+    json["tiles"] = tiles;
+    return json;
+}
+
 nlohmann::json writeVoxelBlocks(VoxelWorldComponent& voxelWorld)
 {
     nlohmann::json blocks = nlohmann::json::array();
@@ -1060,6 +1079,47 @@ void readTerrain(GameObject& object, const nlohmann::json& json, const std::stri
     const auto treeGeneration = json.find("treeGeneration");
     if (treeGeneration != json.end())
         readTerrainVegetation(*treeGeneration, terrain->treeGenerationSettings());
+    const auto active = json.find("active");
+    if (active != json.end() && active->is_boolean())
+        terrain->setActive(active->get<bool>());
+}
+
+void readTiledTerrain(GameObject& object, const nlohmann::json& json, const std::string& path,
+                      SceneLoadResult& result)
+{
+    TiledTerrain* terrain = object.addComponent<TiledTerrain>();
+    if (!terrain)
+    {
+        result.addError(path, "object already has a TiledTerrain component");
+        return;
+    }
+
+    // Applied before loadTilemap() below so its own rebuild is the only one -
+    // each of these setters rebuilds immediately once the tile map is no
+    // longer empty, and the map is still empty at this point.
+    terrain->setTilesInSide(static_cast<int>(readNumberOr(json, "tilesInSide", 8.0f)));
+    terrain->setPatchLength(readNumberOr(json, "patchLength", 1.0f));
+    terrain->setTilesPerPatch(static_cast<int>(readNumberOr(json, "tilesPerPatch", 1.0f)));
+    terrain->setDefaultTile(static_cast<u8>(readNumberOr(json, "defaultTile", 0.0f)));
+    const auto atlasMaterial = json.find("atlasMaterial");
+    if (atlasMaterial != json.end() && atlasMaterial->is_string())
+        terrain->setAtlasMaterial(atlasMaterial->get<std::string>());
+
+    const u32 mapWidth = static_cast<u32>(glm::max(0.0f, readNumberOr(json, "mapWidth", 0.0f)));
+    const u32 mapHeight = static_cast<u32>(glm::max(0.0f, readNumberOr(json, "mapHeight", 0.0f)));
+    const auto tiles = json.find("tiles");
+    if (mapWidth > 0 && mapHeight > 0 && tiles != json.end() && tiles->is_array() &&
+        tiles->size() == static_cast<usize>(mapWidth) * mapHeight)
+    {
+        std::vector<u8> buffer;
+        buffer.reserve(tiles->size());
+        for (const nlohmann::json& value : *tiles)
+            buffer.push_back(static_cast<u8>(value.is_number() ? value.get<int>() : 0));
+        terrain->loadTilemap(mapWidth, mapHeight, buffer.data());
+    }
+    else if (mapWidth > 0 && mapHeight > 0)
+        result.addWarning(path, "TiledTerrain tile grid missing or size mismatch");
+
     const auto active = json.find("active");
     if (active != json.end() && active->is_boolean())
         terrain->setActive(active->get<bool>());
@@ -4610,6 +4670,8 @@ nlohmann::json writeComponents(GameObject& object)
     // an object created from Hierarchy must not reopen as an empty node.
     if (Terrain* component = object.getComponent<Terrain>())
         array.push_back(writeTerrain(*component));
+    if (TiledTerrain* component = object.getComponent<TiledTerrain>())
+        array.push_back(writeTiledTerrain(*component));
     if (Landscape* component = object.getComponent<Landscape>())
         array.push_back(writeMarker("Landscape", *component));
     if (UiCanvas* canvas = object.getComponent<UiCanvas>())
@@ -4674,6 +4736,8 @@ void readComponent(GameObject& object, const nlohmann::json& json, const std::st
         readReflectionProbe(object, json, path, result);
     else if (type == "Terrain")
         readTerrain(object, json, path, result);
+    else if (type == "TiledTerrain")
+        readTiledTerrain(object, json, path, result);
     else if (type == "Landscape")
         readMarker(static_cast<Landscape*>(nullptr));
     else if (type == "Road")

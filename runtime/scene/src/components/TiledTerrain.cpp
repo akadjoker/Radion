@@ -8,10 +8,20 @@
 #include "MaterialManager.h"
 #include "MeshRenderer.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace Radion
 {
+
+namespace
+{
+bool validCell(const TiledTerrain& terrain, int x, int z)
+{
+    return x >= 0 && x < static_cast<int>(terrain.mapWidth()) &&
+          z >= 0 && z < static_cast<int>(terrain.mapHeight());
+}
+} // namespace
 
 TiledTerrain::TiledTerrain() : Component(Type)
 {
@@ -116,6 +126,24 @@ const std::string& TiledTerrain::atlasMaterial() const
     return mAtlasMaterial;
 }
 
+bool TiledTerrain::atlasSize(u32& width, u32& height) const
+{
+    if (mAtlasMaterial.empty() || !GPU::ready())
+        return false;
+    std::vector<Material> loaded;
+    if (!MaterialManager::getSingleton().load(mAtlasMaterial, loaded) || loaded.empty())
+        return false;
+    const TextureHandle albedo = loaded.front().textures[SlotAlbedo].texture;
+    if (!albedo.valid())
+        return false;
+    TextureDesc desc;
+    if (!GPU::getSingleton().textureInfo(albedo, desc) || desc.width == 0 || desc.height == 0)
+        return false;
+    width = desc.width;
+    height = desc.height;
+    return true;
+}
+
 MeshHandle TiledTerrain::mesh() const
 {
     return mMesh;
@@ -150,6 +178,55 @@ void TiledTerrain::atlasUV(u8 tile, int tilesInSide, glm::vec2& uvMin, glm::vec2
     const int atlasZ = tile / tilesInSide;
     uvMin = glm::vec2(atlasX * stepUV, atlasZ * stepUV);
     uvMax = uvMin + glm::vec2(stepUV, stepUV);
+}
+
+void TiledTerrain::paintCell(TiledTerrain& terrain, int x, int z, u8 tileId)
+{
+    if (!validCell(terrain, x, z))
+        return;
+    terrain.setTile(static_cast<u32>(x), static_cast<u32>(z), tileId);
+}
+
+void TiledTerrain::fillCells(TiledTerrain& terrain, int startX, int startZ, u8 tileId)
+{
+    if (!validCell(terrain, startX, startZ))
+        return;
+    const u8 targetTile = terrain.tile(static_cast<u32>(startX), static_cast<u32>(startZ));
+    if (targetTile == tileId)
+        return;
+
+    struct Cell
+    {
+        int x;
+        int z;
+    };
+    std::vector<Cell> pending;
+    pending.push_back({startX, startZ});
+    while (!pending.empty())
+    {
+        const Cell cell = pending.back();
+        pending.pop_back();
+        if (!validCell(terrain, cell.x, cell.z))
+            continue;
+        if (terrain.tile(static_cast<u32>(cell.x), static_cast<u32>(cell.z)) != targetTile)
+            continue;
+        paintCell(terrain, cell.x, cell.z, tileId);
+        pending.push_back({cell.x - 1, cell.z});
+        pending.push_back({cell.x + 1, cell.z});
+        pending.push_back({cell.x, cell.z - 1});
+        pending.push_back({cell.x, cell.z + 1});
+    }
+}
+
+void TiledTerrain::paintRectangle(TiledTerrain& terrain, int x0, int z0, int x1, int z1, u8 tileId)
+{
+    const int left = std::max(0, std::min(x0, x1));
+    const int right = std::min(static_cast<int>(terrain.mapWidth()) - 1, std::max(x0, x1));
+    const int top = std::max(0, std::min(z0, z1));
+    const int bottom = std::min(static_cast<int>(terrain.mapHeight()) - 1, std::max(z0, z1));
+    for (int z = top; z <= bottom; ++z)
+        for (int x = left; x <= right; ++x)
+            paintCell(terrain, x, z, tileId);
 }
 
 void TiledTerrain::rebuild()

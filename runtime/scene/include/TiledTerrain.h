@@ -40,6 +40,10 @@ public:
 
     void setAtlasMaterial(const std::string& material);
     const std::string& atlasMaterial() const;
+    // Pixel size of the atlas material's albedo texture. False with width/
+    // height left untouched if there is no atlas material, no albedo
+    // texture on it, or no live GPU to ask.
+    bool atlasSize(u32& width, u32& height) const;
 
     MeshHandle mesh() const;
     u32 patchCount() const;
@@ -51,6 +55,14 @@ public:
                           int x, int z, u8 defaultTile);
     // Atlas UV rectangle for one tile ID in a tilesInSide x tilesInSide atlas.
     static void atlasUV(u8 tile, int tilesInSide, glm::vec2& uvMin, glm::vec2& uvMax);
+
+    // Tile-grid paint operations shared by the editor's Tile Painter panel
+    // and its unit tests - pure grid math over setTile()/tile(), no ImGui or
+    // GPU dependency, so a test binary linking only this component can
+    // exercise them directly.
+    static void paintCell(TiledTerrain& terrain, int x, int z, u8 tileId);
+    static void fillCells(TiledTerrain& terrain, int startX, int startZ, u8 tileId);
+    static void paintRectangle(TiledTerrain& terrain, int x0, int z0, int x1, int z1, u8 tileId);
 
 private:
     friend class GameObject;

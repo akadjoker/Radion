@@ -32,6 +32,7 @@
 #include "Shadows.h"
 #include "Sky.h"
 #include "Terrain.h"
+#include "TiledTerrain.h"
 #include "UiControls.h"
 #include "VolumetricPass.h"
 #include "dynamics/HingeJoint.h"
@@ -1407,6 +1408,57 @@ void testJointComponentRebuildsAndHoldsAnchor()
     CHECK(near(armObject->globalPosition(), glm::vec3(0.6f, 0.0f, 0.0f), 0.3f));
 }
 
+void testTiledTerrainRoundTrip()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("tiles");
+    TiledTerrain* terrain = object->addComponent<TiledTerrain>();
+    CHECK(terrain != nullptr);
+    if (!terrain)
+        return;
+
+    terrain->setTilesInSide(4);
+    terrain->setTilesPerPatch(2);
+    terrain->setPatchLength(2.5f);
+    terrain->setDefaultTile(3);
+    terrain->setAtlasMaterial("materials/tiles.material");
+
+    const u32 width = 3, height = 2;
+    std::vector<u8> tiles = {1, 2, 3, 4, 5, 6};
+    terrain->loadTilemap(width, height, tiles.data());
+    terrain->setTile(2, 1, 9);
+
+    scene.update(0.016f);
+
+    SceneSerializer serializer;
+    const nlohmann::json document = serializer.toJson(scene);
+
+    Scene reloaded;
+    SceneLoadResult result;
+    CHECK(serializer.fromJson(document, reloaded, result));
+    CHECK(result.success());
+
+    GameObject* reObject = reloaded.findGameObject(object->id());
+    TiledTerrain* reTerrain = reObject ? reObject->getComponent<TiledTerrain>() : nullptr;
+    CHECK(reTerrain != nullptr);
+    if (!reTerrain)
+        return;
+
+    CHECK(reTerrain->tilesInSide() == 4);
+    CHECK(reTerrain->tilesPerPatch() == 2);
+    CHECK(near(reTerrain->patchLength(), 2.5f));
+    CHECK(reTerrain->defaultTile() == 3);
+    CHECK(reTerrain->atlasMaterial() == "materials/tiles.material");
+    CHECK(reTerrain->mapWidth() == width);
+    CHECK(reTerrain->mapHeight() == height);
+    CHECK(reTerrain->tile(0, 0) == 1);
+    CHECK(reTerrain->tile(1, 0) == 2);
+    CHECK(reTerrain->tile(2, 0) == 3);
+    CHECK(reTerrain->tile(0, 1) == 4);
+    CHECK(reTerrain->tile(1, 1) == 5);
+    CHECK(reTerrain->tile(2, 1) == 9);
+}
+
 void testUiControlsRoundTrip()
 {
     Scene scene;
@@ -2629,6 +2681,7 @@ int main()
     testRigidBodyRunningInEditorFreezesSimulation();
     testRigidBodyTeleportInPlay();
     testJointComponentRebuildsAndHoldsAnchor();
+    testTiledTerrainRoundTrip();
     testUiControlsRoundTrip();
     testPrefabRoundTrip();
     testTransforms();
