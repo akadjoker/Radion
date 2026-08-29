@@ -19,11 +19,13 @@
 #include "MeshRenderer.h"
 #include "Ocean.h"
 #include "ParticleEffect.h"
+#include "PhysicsBody.h"
 #include "ReflectionProbe.h"
 #include "RenderList.h"
 #include "Road.h"
 #include "SceneBVH.h"
 #include "Terrain.h"
+#include "dynamics/PhysicsWorld.h"
 
 #include <vector>
 
@@ -155,6 +157,20 @@ public:
     const CollisionWorld& collisions() const
     {
         return mCollisionWorld;
+    }
+
+    const std::vector<PhysicsBody*>& physicsBodies() const
+    {
+        return mPhysicsBodies;
+    }
+
+    Physics::PhysicsWorld& physics()
+    {
+        return mPhysicsWorld;
+    }
+    const Physics::PhysicsWorld& physics() const
+    {
+        return mPhysicsWorld;
     }
 
     // Collects every visible object into `list` from the active camera, the
@@ -613,6 +629,8 @@ private:
     std::vector<ReflectionProbe*> mReflectionProbes;
     std::vector<Collider*> mColliders;
     CollisionWorld mCollisionWorld;
+    std::vector<PhysicsBody*> mPhysicsBodies;
+    Physics::PhysicsWorld mPhysicsWorld;
     std::vector<GameObject*> mDebugObjects;
     std::vector<PendingAdd> mPendingAdd;
     std::vector<GameObject*> mPendingRemove;

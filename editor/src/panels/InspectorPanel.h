@@ -66,6 +66,7 @@ private:
     void drawThirdPersonComponent(GameObject& object, class ThirdPerson& camera);
     void drawSelfDestroyComponent(GameObject& object, class SelfDestroy& selfDestroy);
     void drawColliderComponent(GameObject& object, class Collider& collider);
+    void drawPhysicsBodyComponent(GameObject& object, class PhysicsBody& body);
     void drawWaypointsComponent(GameObject& object, class Waypoints& waypoints);
     void drawNavMeshSurfaceComponent(GameObject& object, class NavMeshSurface& surface);
     void drawZenBehaviourComponent(GameObject& object, class ZenBehaviour& behaviour);
