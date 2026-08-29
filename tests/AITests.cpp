@@ -1234,6 +1234,49 @@ Agent* makeFormationLeader(Scene& scene, const Agent::Settings& settings)
     return leader;
 }
 
+// Two squads in one scene. Finding the leader by scanning for squadId 0
+// picked whichever came last in the scene's list, so members of one squad
+// formed up on the other one's leader - and which squad lost depended on
+// creation order.
+void testFormationFollowsItsOwnLeader()
+{
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
+
+    Agent* leaderA = makeAgent(scene, settings, "leaderA");
+    Agent* memberA = makeAgent(scene, settings, "memberA");
+    Agent* leaderB = makeAgent(scene, settings, "leaderB");
+    Agent* memberB = makeAgent(scene, settings, "memberB");
+    scene.update(0.0f);
+
+    // Squad A is at the origin, squad B is a hundred metres away.
+    leaderA->setSquadId(0);
+    leaderA->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    leaderA->setSquadFormation(static_cast<int>(SquadFormation::Abreast));
+    memberA->setSquadId(2);
+    memberA->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    leaderA->addSquadMember(memberA);
+
+    leaderB->setSquadId(0);
+    leaderB->setPosition(glm::vec3(100.0f, 0.0f, 0.0f));
+    leaderB->setSquadFormation(static_cast<int>(SquadFormation::Abreast));
+    memberB->setSquadId(2);
+    memberB->setPosition(glm::vec3(100.0f, 0.0f, 0.0f));
+    leaderB->addSquadMember(memberB);
+
+    CHECK(memberA->squadLeader() == leaderA);
+    CHECK(memberB->squadLeader() == leaderB);
+
+    memberA->addBehavior<FormationBehavior>(1.0f, 1.0f);
+    scene.updateAgents(0.016f);
+
+    // A's member must be pulled toward A's leader at the origin, not toward
+    // B's a hundred metres up +X. Scanning found B (created later), so the
+    // desired move used to point straight at it.
+    CHECK(finiteVec(memberA->desiredMove()));
+    CHECK(memberA->desiredMove().x < 1.0f);
+}
+
 void testFormationAbreast()
 {
     Scene scene;
@@ -1253,6 +1296,11 @@ void testFormationAbreast()
 
     rightFlank->setSquadId(2);
     rightFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+
+    // Which leader a member forms up on is the squad link, not a scan for
+    // whoever happens to have squadId 0.
+    leader->addSquadMember(pointMan);
+    leader->addSquadMember(rightFlank);
 
     // Each member owns its own FormationBehavior instance - the leader/
     // point-man cache in it is no longer shared (DESVIO 2).
@@ -1288,6 +1336,10 @@ void testFormationPentagonSymmetry()
 
     leftFlank->setSquadId(3);
     leftFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+
+    leader->addSquadMember(pointMan);
+    leader->addSquadMember(rightFlank);
+    leader->addSquadMember(leftFlank);
 
     pointMan->addBehavior<FormationBehavior>(1.0f, 1.0f);
     rightFlank->addBehavior<FormationBehavior>(1.0f, 1.0f);
@@ -1856,6 +1908,7 @@ int main()
     testObstacleAvoidance();
     testNearestApproach();
     testPathfindLineOfSight();
+    testFormationFollowsItsOwnLeader();
     testFormationAbreast();
     testFormationPentagonSymmetry();
     testAgentUnregisterInShuffledOrder();

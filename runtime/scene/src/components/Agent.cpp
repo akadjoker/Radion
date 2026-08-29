@@ -226,7 +226,9 @@ void Agent::updateVisibility()
 
     for (Agent* other : mScene->agents())
     {
-        if (other == this || !other->alive())
+        // Null while an agent is being destroyed mid-update - see
+        // Scene::agents().
+        if (!other || other == this || !other->alive())
             continue;
 
         f32 dist = 0.0f;

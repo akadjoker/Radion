@@ -2427,22 +2427,58 @@ void Scene::removeAgent(Agent& agent)
 {
     if (agent.mScene != this)
         return;
-    removePointer(mAgents, &agent);
+    if (mAgentsUpdating)
+    {
+        // Mid-update, the entry is left as a hole and swept up afterwards -
+        // the same trick the component event lists use. Compacting here
+        // would move an agent the loop has not reached yet down into a slot
+        // it has already passed, silently skipping its update; erasing would
+        // invalidate the loop outright. Refusing the removal is not an
+        // option: the agent is being destroyed either way, and a stale
+        // pointer left in the list is exactly what this avoids.
+        for (Agent*& entry : mAgents)
+            if (entry == &agent)
+                entry = nullptr;
+        mAgentsDirty = true;
+    }
+    else
+        removePointer(mAgents, &agent);
     agent.mScene = nullptr;
 }
 
 void Scene::updateAgents(f32 deltaTime)
 {
-    for (Agent* agent : mAgents)
-        if (agent->simulating())
+    // By index and re-reading size(): an agent's behaviors and state machine
+    // run user callbacks, and those can destroy an agent (leaving a hole
+    // above) or create one, which reallocates. A range-for over this would
+    // be walking a vector that moved.
+    mAgentsUpdating = true;
+    for (usize i = 0; i < mAgents.size(); ++i)
+    {
+        Agent* agent = mAgents[i];
+        if (agent && agent->simulating())
             agent->update(deltaTime);
+    }
+    mAgentsUpdating = false;
+
+    if (mAgentsDirty)
+    {
+        usize write = 0;
+        for (usize read = 0; read < mAgents.size(); ++read)
+            if (mAgents[read])
+                mAgents[write++] = mAgents[read];
+        mAgents.resize(write);
+        mAgentsDirty = false;
+    }
 }
 
 void Scene::clearAI()
 {
     for (Agent* agent : mAgents)
-        agent->mScene = nullptr;
+        if (agent)
+            agent->mScene = nullptr;
     mAgents.clear();
+    mAgentsDirty = false;
 }
 
 void Scene::addObstacle(Obstacle& obstacle)
