@@ -89,6 +89,7 @@ private:
     void drawHairComponent(class Hair& hair);
     void drawForestComponent(class Forest& forest);
     void drawTerrainComponent(class Terrain& terrain);
+    void drawTiledTerrainComponent(class TiledTerrain& terrain);
     void drawRoadComponent(GameObject& object, class Road& road);
     // "Add Component" - today just Animator, the one this editor otherwise
     // has no way at all to attach to an already-existing object (import only

@@ -1,13 +1,10 @@
 projects
+ms3d load static/animated DONE
 
-ms3d load static/animated
-
-converrt IQMLoader para nosos formato?
-
-TiledTerrainNode , draw tile on plane
-
+TiledTerrainNode , draw tile on plane DONE
  /media/projectos/projects/cpp/razor3d/scene/src 
 
+converrt IQMLoader para nosos formato?
 
 
  Fisica
