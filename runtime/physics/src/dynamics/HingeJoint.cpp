@@ -3,6 +3,7 @@
 #include "dynamics/HingeJoint.h"
 
 #include "GameObject.h"
+#include "JointAxis.h"
 #include "Scene.h"
 #include "dynamics/RigidBody.h"
 
@@ -67,10 +68,11 @@ HingeJoint::HingeJoint(RigidBody& a, const glm::vec3& localAnchorA,
                        RigidBody& b, const glm::vec3& localAnchorB,
                        const glm::vec3& localHingeAxisB, const glm::vec3& localNormalAxisB)
     : Joint(JointKind::Hinge), mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA),
-      mLocalAnchorB(localAnchorB), mLocalHingeAxisA(glm::normalize(localHingeAxisA)),
-      mLocalHingeAxisB(glm::normalize(localHingeAxisB)),
-      mLocalNormalAxisA(glm::normalize(localNormalAxisA)),
-      mLocalNormalAxisB(glm::normalize(localNormalAxisB)),
+      mLocalAnchorB(localAnchorB),
+      mLocalHingeAxisA(detail::normalizedAxisOr(localHingeAxisA, glm::vec3(0.0f, 1.0f, 0.0f))),
+      mLocalHingeAxisB(detail::normalizedAxisOr(localHingeAxisB, glm::vec3(0.0f, 1.0f, 0.0f))),
+      mLocalNormalAxisA(detail::normalizedAxisOr(localNormalAxisA, glm::vec3(1.0f, 0.0f, 0.0f))),
+      mLocalNormalAxisB(detail::normalizedAxisOr(localNormalAxisB, glm::vec3(1.0f, 0.0f, 0.0f))),
       mInverseInitialOrientation(invInitialOrientationXZ(mLocalNormalAxisA, mLocalHingeAxisA,
                                                           mLocalNormalAxisB, mLocalHingeAxisB))
 {
@@ -83,12 +85,13 @@ void HingeJoint::configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnc
     mBodyB = &b;
     mLocalAnchorA = a.pointToLocal(worldAnchor);
     mLocalAnchorB = b.pointToLocal(worldAnchor);
-    mLocalHingeAxisA = glm::normalize(a.directionToLocal(glm::normalize(worldHingeAxis)));
-    mLocalHingeAxisB = glm::normalize(b.directionToLocal(glm::normalize(worldHingeAxis)));
-    mLocalNormalAxisA = glm::normalize(
-        a.directionToLocal(normalizedPerpendicular(glm::normalize(worldHingeAxis))));
-    mLocalNormalAxisB = glm::normalize(
-        b.directionToLocal(normalizedPerpendicular(glm::normalize(worldHingeAxis))));
+    // One guarded normalise up front: everything below is derived from it,
+    // so a degenerate axis caught here cannot reach any of the four frames.
+    const glm::vec3 axis = detail::normalizedAxisOr(worldHingeAxis, glm::vec3(0.0f, 1.0f, 0.0f));
+    mLocalHingeAxisA = glm::normalize(a.directionToLocal(axis));
+    mLocalHingeAxisB = glm::normalize(b.directionToLocal(axis));
+    mLocalNormalAxisA = glm::normalize(a.directionToLocal(normalizedPerpendicular(axis)));
+    mLocalNormalAxisB = glm::normalize(b.directionToLocal(normalizedPerpendicular(axis)));
     mInverseInitialOrientation = invInitialOrientationXZ(mLocalNormalAxisA, mLocalHingeAxisA,
                                                          mLocalNormalAxisB, mLocalHingeAxisB);
 }

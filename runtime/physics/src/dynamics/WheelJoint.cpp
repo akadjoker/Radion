@@ -4,6 +4,7 @@
 #include "dynamics/WheelJoint.h"
 
 #include "GameObject.h"
+#include "JointAxis.h"
 #include "Scene.h"
 #include "dynamics/RigidBody.h"
 
@@ -56,13 +57,15 @@ WheelJoint::WheelJoint() : Joint(JointKind::Wheel)
 void WheelJoint::configure(RigidBody& chassis, RigidBody& wheel, const glm::vec3& worldAnchor,
                            const glm::vec3& worldSuspensionAxis, const glm::vec3& worldSpinAxis)
 {
-    const glm::vec3 suspension = glm::normalize(worldSuspensionAxis);
+    const glm::vec3 suspension =
+        detail::normalizedAxisOr(worldSuspensionAxis, glm::vec3(0.0f, -1.0f, 0.0f));
     mChassis = &chassis;
     mWheel = &wheel;
     mLocalAnchorChassis = chassis.pointToLocal(worldAnchor);
     mLocalAnchorWheel = wheel.pointToLocal(worldAnchor);
     mLocalSuspensionAxis = chassis.directionToLocal(suspension);
-    mLocalSpinAxis = wheel.directionToLocal(glm::normalize(worldSpinAxis));
+    mLocalSpinAxis = wheel.directionToLocal(
+        detail::normalizedAxisOr(worldSpinAxis, glm::vec3(1.0f, 0.0f, 0.0f)));
     mLocalNormalAxis = chassis.directionToLocal(normalizedPerpendicular(suspension));
     mInverseInitialOrientation = glm::conjugate(wheel.orientation()) * chassis.orientation();
 }
