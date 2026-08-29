@@ -28,9 +28,49 @@ namespace Radion::AI
 using Radion::Agent;
 using Radion::Scene;
 
+namespace
+{
+const BehaviorParam kFormationParams[] = {
+    {"Goal Radius", BehaviorParam::Kind::Float, 0.0f, 20.0f,
+     "Goal radius handed to the point man - how close it has to get to its own slot."},
+    {"Formation Radius", BehaviorParam::Kind::Float, 0.0f, 20.0f,
+     "Goal radius handed to every other member - how close it has to get to its formation slot."},
+};
+} // namespace
+
 FormationBehavior::FormationBehavior(float goalRadius, float formationRadius)
     : mGoalRadius(goalRadius), mFormationRadius(formationRadius)
 {
+}
+
+u32 FormationBehavior::paramCount() const
+{
+    return static_cast<u32>(sizeof(kFormationParams) / sizeof(kFormationParams[0]));
+}
+
+const BehaviorParam& FormationBehavior::paramInfo(u32 index) const
+{
+    return kFormationParams[index];
+}
+
+f32 FormationBehavior::paramFloat(u32 index) const
+{
+    switch (index)
+    {
+    case 0: return mGoalRadius;
+    case 1: return mFormationRadius;
+    default: return 0.0f;
+    }
+}
+
+void FormationBehavior::setParamFloat(u32 index, f32 value)
+{
+    switch (index)
+    {
+    case 0: mGoalRadius = value; break;
+    case 1: mFormationRadius = value; break;
+    default: break;
+    }
 }
 
 void FormationBehavior::iterate(float timeDelta, Agent& entity)

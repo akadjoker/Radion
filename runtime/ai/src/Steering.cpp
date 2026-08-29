@@ -4,6 +4,7 @@
 
 #include "AIInternal.h"
 #include "Agent.h"
+#include "Scene.h"
 
 #include <cfloat>
 
@@ -17,6 +18,90 @@ using detail::safeNormalize;
 using detail::scalarRandomWalk;
 using Radion::Agent;
 using Radion::EntityDist;
+using Radion::Scene;
+
+namespace
+{
+const BehaviorParam kSeekParams[] = {
+    {"Target", BehaviorParam::Kind::Vec3, 0.0f, 0.0f,
+     "World-space point this agent steers toward."},
+};
+const BehaviorParam kFleeParams[] = {
+    {"Threat", BehaviorParam::Kind::Vec3, 0.0f, 0.0f,
+     "World-space point this agent steers away from."},
+};
+const BehaviorParam kObstacleAvoidanceParams[] = {
+    {"Min Time To Collision", BehaviorParam::Kind::Float, 0.0f, 10.0f,
+     "How far ahead, in seconds of travel at the agent's current speed, an obstacle is worth "
+     "steering around."},
+};
+} // namespace
+
+u32 SeekBehavior::paramCount() const
+{
+    return static_cast<u32>(sizeof(kSeekParams) / sizeof(kSeekParams[0]));
+}
+
+const BehaviorParam& SeekBehavior::paramInfo(u32 index) const
+{
+    return kSeekParams[index];
+}
+
+glm::vec3 SeekBehavior::paramVec3(u32 index) const
+{
+    (void)index;
+    return mTarget;
+}
+
+void SeekBehavior::setParamVec3(u32 index, const glm::vec3& value)
+{
+    (void)index;
+    mTarget = value;
+}
+
+u32 FleeBehavior::paramCount() const
+{
+    return static_cast<u32>(sizeof(kFleeParams) / sizeof(kFleeParams[0]));
+}
+
+const BehaviorParam& FleeBehavior::paramInfo(u32 index) const
+{
+    return kFleeParams[index];
+}
+
+glm::vec3 FleeBehavior::paramVec3(u32 index) const
+{
+    (void)index;
+    return mThreat;
+}
+
+void FleeBehavior::setParamVec3(u32 index, const glm::vec3& value)
+{
+    (void)index;
+    mThreat = value;
+}
+
+u32 ObstacleAvoidanceBehavior::paramCount() const
+{
+    return static_cast<u32>(sizeof(kObstacleAvoidanceParams) / sizeof(kObstacleAvoidanceParams[0]));
+}
+
+const BehaviorParam& ObstacleAvoidanceBehavior::paramInfo(u32 index) const
+{
+    return kObstacleAvoidanceParams[index];
+}
+
+f32 ObstacleAvoidanceBehavior::paramFloat(u32 index) const
+{
+    (void)index;
+    return mMinTimeToCollision;
+}
+
+void ObstacleAvoidanceBehavior::setParamFloat(u32 index, f32 value)
+{
+    (void)index;
+    mMinTimeToCollision = value;
+}
 
 // --- seek / flee ------------------------------------------------------------
 
@@ -475,20 +560,32 @@ void WanderBehavior::iterate(float timeDelta, Agent& entity)
     entity.setDesiredMove(entity.desiredMove() + (mSteer.wander(timeDelta) * gain()));
 }
 
-ObstacleAvoidanceBehavior::ObstacleAvoidanceBehavior(float minTimeToCollision,
-                                                     const ObstacleGroup& obstacles)
-    : mMinTimeToCollision(minTimeToCollision), mObstacles(&obstacles)
+ObstacleAvoidanceBehavior::ObstacleAvoidanceBehavior(float minTimeToCollision)
+    : mMinTimeToCollision(minTimeToCollision)
 {
 }
 
 void ObstacleAvoidanceBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
-    if (!mObstacles)
+
+    // An explicit setObstacles() group wins; otherwise fall back to whatever
+    // the Scene collects from every Radion::Obstacle component - the caller
+    // no longer has to assemble a group by hand for the common case.
+    const ObstacleGroup* obstacles = mObstacles;
+    if (!obstacles)
+    {
+        Scene* scene = entity.scene();
+        if (!scene)
+            return;
+        obstacles = &scene->obstacleGroup();
+    }
+    if (obstacles->empty())
         return;
+
     mSteer.setVehicle(entity);
     entity.setDesiredMove(entity.desiredMove() +
-                          (mSteer.avoidObstacles(mMinTimeToCollision, *mObstacles) * gain()));
+                          (mSteer.avoidObstacles(mMinTimeToCollision, *obstacles) * gain()));
 }
 
 void SteerBehavior::iterate(float timeDelta, Agent& entity)

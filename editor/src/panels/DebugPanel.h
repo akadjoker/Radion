@@ -19,6 +19,7 @@ public:
 private:
     void drawSpatialDebugSection();
     void drawPhysicsDebugSection();
+    void drawAIDebugSection();
     void drawSubmeshBoundsReadout();
     void drawSurfaceProbeReadout();
     void drawCascadePreviews();

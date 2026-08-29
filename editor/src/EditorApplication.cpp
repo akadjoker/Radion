@@ -241,6 +241,7 @@ EditorApplication::EditorApplication(Engine& engine) : mEngine(engine)
     mEngine.debugShowPhysicsShapes = mSettings.showPhysicsShapes;
     mEngine.debugShowPhysicsContacts = mSettings.showPhysicsContacts;
     mEngine.debugShowPhysicsJoints = mSettings.showPhysicsJoints;
+    mEngine.debugShowAIObstacles = mSettings.showAIObstacles;
     mViewMode = mSettings.viewMode == 1 ? ViewMode::Game : ViewMode::Scene;
 
     mEngine.createScene();
@@ -306,6 +307,7 @@ EditorApplication::~EditorApplication()
     mSettings.showPhysicsShapes = mEngine.debugShowPhysicsShapes;
     mSettings.showPhysicsContacts = mEngine.debugShowPhysicsContacts;
     mSettings.showPhysicsJoints = mEngine.debugShowPhysicsJoints;
+    mSettings.showAIObstacles = mEngine.debugShowAIObstacles;
     for (EditorPanel* panel : mPanels)
         mSettings.panelOpen[panel->title()] = panel->active();
     mSettings.save(mSettingsFile);
@@ -1826,6 +1828,7 @@ void EditorApplication::runFrame(f32 deltaTime)
         mSettings.showPhysicsShapes = mEngine.debugShowPhysicsShapes;
         mSettings.showPhysicsContacts = mEngine.debugShowPhysicsContacts;
         mSettings.showPhysicsJoints = mEngine.debugShowPhysicsJoints;
+        mSettings.showAIObstacles = mEngine.debugShowAIObstacles;
         for (EditorPanel* panel : mPanels)
             mSettings.panelOpen[panel->title()] = panel->active();
         mSettings.save(mSettingsFile);

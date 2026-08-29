@@ -11,6 +11,7 @@
 #include "GPUCaps.h"
 #include "Log.h"
 #include "MaterialManager.h"
+#include "ObstacleComponent.h"
 #include "ParticleEffectPool.h"
 #include "GPUProfiler.h"
 #include "Profiler.h"
@@ -538,6 +539,19 @@ void Scene::update(f32 deltaTime)
         for (BoneAttachment* attachment : mBoneAttachments)
             if (attachment->active() && attachment->owner()->isActiveInHierarchy())
                 attachment->update();
+    }
+    // Obstacle transforms follow their owner unconditionally, in and out of
+    // Play - the shape has to track the gizmo while the scene is being
+    // edited, not just while running (2b.2). Runs before AI update so this
+    // same frame's ObstacleAvoidanceBehavior reads the current position.
+    {
+        RADION_PROFILE_SCOPE("Obstacle transform sync");
+        for (Obstacle* obstacle : mObstacleComponents)
+            obstacle->pushOwnerTransform();
+        // Nothing announces a component being switched off, so the live set
+        // is refilled here rather than tracked. Clearing a vector and
+        // refilling it costs no allocation after the first frame.
+        rebuildObstacleGroup();
     }
     // AI runs after Animation update and before Physics step, same reasoning
     // as the physics block below: an order given by script in onUpdate reaches
@@ -1805,6 +1819,9 @@ void Scene::componentAdded(Component* component)
     case ComponentType::Agent:
         addAgent(*static_cast<Agent*>(component));
         break;
+    case ComponentType::Obstacle:
+        addObstacle(*static_cast<Obstacle*>(component));
+        break;
     default:
         break;
     }
@@ -1899,6 +1916,9 @@ void Scene::componentRemoved(Component* component)
         break;
     case ComponentType::Agent:
         removeAgent(*static_cast<Agent*>(component));
+        break;
+    case ComponentType::Obstacle:
+        removeObstacle(*static_cast<Obstacle*>(component));
         break;
     default:
         break;
@@ -2423,6 +2443,40 @@ void Scene::clearAI()
     for (Agent* agent : mAgents)
         agent->mScene = nullptr;
     mAgents.clear();
+}
+
+void Scene::addObstacle(Obstacle& obstacle)
+{
+    if (obstacle.mScene == this)
+        return;
+    if (obstacle.mScene)
+        obstacle.mScene->removeObstacle(obstacle);
+    obstacle.mScene = this;
+    obstacle.pushOwnerTransform();
+    mObstacleComponents.push_back(&obstacle);
+    rebuildObstacleGroup();
+}
+
+void Scene::removeObstacle(Obstacle& obstacle)
+{
+    if (obstacle.mScene != this)
+        return;
+    removePointer(mObstacleComponents, &obstacle);
+    obstacle.mScene = nullptr;
+    rebuildObstacleGroup();
+}
+
+void Scene::rebuildObstacleGroup()
+{
+    mObstacleGroup.clear();
+    mObstacleGroup.reserve(mObstacleComponents.size());
+    for (Obstacle* obstacle : mObstacleComponents)
+    {
+        const GameObject* object = obstacle->owner();
+        if (!obstacle->active() || (object && (!object->isActiveInHierarchy() || object->disposed())))
+            continue;
+        mObstacleGroup.push_back(obstacle->obstacle());
+    }
 }
 
 // --------------------------------------------------------------- settings
@@ -2971,6 +3025,82 @@ void Scene::debugDrawPhysicsJoints() const
         if (joint->hasAxis())
             DebugDraw().line(anchorA, anchorA + joint->axisWorld() * axisLength, Color::Cyan);
     }
+}
+
+void Scene::debugDrawObstacles() const
+{
+    // The live set only: an obstacle switched off steers nobody, so drawing
+    // it here would show a wall that is not there. Selecting it in the
+    // editor still draws it, switched off or not.
+    const Color obstacleColor(200, 80, 220, 255);
+    for (const Obstacle* obstacle : mObstacleComponents)
+    {
+        const GameObject* object = obstacle->owner();
+        if (!obstacle->active() || (object && !object->isActiveInHierarchy()))
+            continue;
+        debugDrawObstacleShape(*obstacle, obstacleColor);
+    }
+}
+
+void Scene::debugDrawObstacleShape(const Obstacle& obstacle, Color color)
+{
+    const GameObject* object = obstacle.owner();
+    if (!object)
+        return;
+
+    constexpr f32 kNormalArrowLength = 0.75f;
+    constexpr f32 kNormalArrowHead = 0.15f;
+    constexpr f32 kPlaneHalfExtent = 1.0f; // finite 2m patch standing in for the infinite plane
+
+    const glm::vec3 position = object->globalPosition();
+    const glm::vec3 rightAxis = object->right();
+    const glm::vec3 upAxis = object->up();
+    const glm::vec3 forwardAxis = object->forward();
+    const glm::mat4 transform =
+        glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(object->globalRotation());
+
+    // Where the normal arrow(s) start from - the surface, not the centre, so
+    // it reads as pointing away from the shape rather than through it.
+    glm::vec3 arrowOrigin = position;
+
+    switch (obstacle.shape())
+    {
+    case ObstacleShape::Sphere:
+        SphereShape(obstacle.radius()).debugDraw(transform, color);
+        // A sphere has no single face normal; the forward axis stands in as
+        // one sampled meridian, just to show which way seenFrom() points.
+        arrowOrigin = position + forwardAxis * obstacle.radius();
+        break;
+    case ObstacleShape::Box:
+        BoxShape(glm::vec3(obstacle.width(), obstacle.height(), obstacle.depth()) * 0.5f)
+            .debugDraw(transform, color);
+        break;
+    case ObstacleShape::Rectangle:
+    case ObstacleShape::Plane:
+    {
+        const f32 halfWidth =
+            obstacle.shape() == ObstacleShape::Plane ? kPlaneHalfExtent : obstacle.width() * 0.5f;
+        const f32 halfHeight =
+            obstacle.shape() == ObstacleShape::Plane ? kPlaneHalfExtent : obstacle.height() * 0.5f;
+        const glm::vec3 halfSide = rightAxis * halfWidth;
+        const glm::vec3 halfUp = upAxis * halfHeight;
+        const glm::vec3 corners[4] = {position - halfSide - halfUp, position + halfSide - halfUp,
+                                      position + halfSide + halfUp, position - halfSide + halfUp};
+        for (u32 i = 0; i < 4; ++i)
+            DebugDraw().line(corners[i], corners[(i + 1) % 4], color);
+        break;
+    }
+    }
+
+    // seenFrom() decides which side steers agents away and is invisible in
+    // the geometry above - the arrow(s) are the only place it shows.
+    const AI::ObstacleSeenFrom seenFrom = obstacle.seenFrom();
+    if (seenFrom != AI::ObstacleSeenFrom::Inside)
+        DebugDraw().arrow(arrowOrigin, arrowOrigin + forwardAxis * kNormalArrowLength, 0.0f,
+                          kNormalArrowHead, color);
+    if (seenFrom != AI::ObstacleSeenFrom::Outside)
+        DebugDraw().arrow(arrowOrigin, arrowOrigin - forwardAxis * kNormalArrowLength, 0.0f,
+                          kNormalArrowHead, color);
 }
 
 // ---------------------------------------------------------------- queries

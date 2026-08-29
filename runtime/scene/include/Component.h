@@ -55,6 +55,7 @@ enum class ComponentType : u8
     RigidBody,
     Joint,
     Agent,
+    Obstacle,
     Count
 };
 

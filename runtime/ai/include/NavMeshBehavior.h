@@ -48,13 +48,39 @@ public:
         glm::vec3 searchExtents = glm::vec3(2.0f, 6.0f, 2.0f);
     };
 
-    NavMeshBehavior(const NavMesh& navMesh, const Settings& settings);
+    // The Settings-less overload default-constructs one in the .cpp rather
+    // than taking `= Settings()` here: a default argument that value-
+    // initializes a nested class through its own default member
+    // initializers cannot be evaluated mid-definition of the enclosing one.
+    explicit NavMeshBehavior(const NavMesh* navMesh = nullptr);
+    NavMeshBehavior(const NavMesh* navMesh, const Settings& settings);
+
+    // The resolved source (Fase 5 finds it from the scene's NavMeshSurface,
+    // or the inspector picks one); create() alone never has one.
+    void setNavMesh(const NavMesh* navMesh)
+    {
+        mNavMesh = navMesh;
+    }
+    const NavMesh* navMesh() const
+    {
+        return mNavMesh;
+    }
 
     void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "NavMesh Behavior";
     }
+    BehaviorType type() const override
+    {
+        return BehaviorType::NavMesh;
+    }
+    u32 paramCount() const override;
+    const BehaviorParam& paramInfo(u32 index) const override;
+    f32 paramFloat(u32 index) const override;
+    void setParamFloat(u32 index, f32 value) override;
+    glm::vec3 paramVec3(u32 index) const override;
+    void setParamVec3(u32 index, const glm::vec3& value) override;
 
     Settings& settings()
     {
@@ -87,7 +113,7 @@ private:
     void constrainToSurface(Radion::Agent& entity, Route& route);
     void applyAvoidance(Radion::Agent& entity);
 
-    const NavMesh& mNavMesh;
+    const NavMesh* mNavMesh;
     Settings mSettings;
     Route mRoute;
 };

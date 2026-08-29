@@ -911,7 +911,9 @@ void testObstacleAvoidance()
     vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X
     // Face +X so the vehicle's forward path intersects the sphere.
     vehicle->setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-    vehicle->addBehavior(*new ObstacleAvoidanceBehavior(2.0f, obstacles));
+    ObstacleAvoidanceBehavior* avoidance = new ObstacleAvoidanceBehavior(2.0f);
+    avoidance->setObstacles(obstacles);
+    vehicle->addBehavior(*avoidance);
 
     scene.updateAgents(0.016f);
     // The avoidance force is lateral: it must push toward -Z (past the sphere).
@@ -1322,6 +1324,251 @@ void testLeaderWithoutWaypointNetwork()
     CHECK(member->goal() == glm::vec3(0.0f)); // never handed a destination
 }
 
+// --- BehaviorFactory (Fase 2) ------------------------------------------------
+
+// Every BehaviorType round-trips through name()/fromName(), and create()
+// hands back a live instance whose own type() agrees.
+void testBehaviorFactoryRoundTrip()
+{
+    for (u8 i = 0; i < static_cast<u8>(BehaviorType::Count); ++i)
+    {
+        const BehaviorType type = static_cast<BehaviorType>(i);
+        BehaviorType parsed = BehaviorType::Count;
+        CHECK(BehaviorFactory::fromName(BehaviorFactory::name(type), parsed));
+        CHECK(parsed == type);
+
+        Behavior* behavior = BehaviorFactory::create(type);
+        CHECK(behavior != nullptr);
+        CHECK(behavior->type() == type);
+        delete behavior;
+    }
+
+    // SteerBehavior is deliberately outside the registry (Steering.h): no
+    // name, and BehaviorType::Count itself creates nothing.
+    BehaviorType outType = BehaviorType::Count;
+    CHECK(!BehaviorFactory::fromName("Steer", outType));
+    CHECK(BehaviorFactory::create(BehaviorType::Count) == nullptr);
+}
+
+// Each registered behavior's paramCount() matches its own kParams table, and
+// every parameter round-trips a written value back out through get/set by
+// index.
+void testBehaviorParamRoundTrip()
+{
+    struct Expected
+    {
+        BehaviorType type;
+        u32 count;
+    };
+    const Expected expected[] = {
+        {BehaviorType::Separation, 3},        {BehaviorType::Alignment, 1},
+        {BehaviorType::Cohesion, 1},           {BehaviorType::Avoidance, 2},
+        {BehaviorType::Cruising, 6},           {BehaviorType::StayWithinSphere, 2},
+        {BehaviorType::Combat, 3},             {BehaviorType::Seek, 1},
+        {BehaviorType::Flee, 1},               {BehaviorType::Wander, 0},
+        {BehaviorType::ObstacleAvoidance, 1},  {BehaviorType::Pathfind, 6},
+        {BehaviorType::NavMesh, 7},            {BehaviorType::Formation, 2},
+    };
+
+    for (const Expected& e : expected)
+    {
+        Behavior* behavior = BehaviorFactory::create(e.type);
+        CHECK(behavior != nullptr);
+        CHECK(behavior->paramCount() == e.count);
+
+        for (u32 i = 0; i < behavior->paramCount(); ++i)
+        {
+            const BehaviorParam& info = behavior->paramInfo(i);
+            CHECK(info.name != nullptr && info.name[0] != '\0');
+            CHECK(info.tooltip != nullptr && info.tooltip[0] != '\0');
+
+            if (info.kind == BehaviorParam::Kind::Float)
+            {
+                const f32 testValue =
+                    glm::clamp(info.minValue + 0.5f, info.minValue, info.maxValue);
+                behavior->setParamFloat(i, testValue);
+                CHECK(std::fabs(behavior->paramFloat(i) - testValue) < 0.0001f);
+            }
+            else if (info.kind == BehaviorParam::Kind::Vec3)
+            {
+                const glm::vec3 testValue(1.5f, -2.5f, 3.5f);
+                behavior->setParamVec3(i, testValue);
+                CHECK(near(behavior->paramVec3(i), testValue));
+            }
+        }
+
+        delete behavior;
+    }
+}
+
+// --- Radion::Obstacle (Fase 2b) ----------------------------------------------
+
+// Adding/removing the component enters/leaves the Scene's group; destroying
+// the GameObject (not just removeComponent()) has to reach the same path.
+void testObstacleRegistersWithScene()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("obstacle");
+    Radion::Obstacle* obstacle = object->addComponent<Radion::Obstacle>();
+    CHECK(obstacle != nullptr);
+    scene.update(0.0f);
+
+    CHECK(scene.obstacleCount() == 1);
+    CHECK(scene.obstacles()[0] == obstacle);
+    CHECK(scene.obstacleGroup()[0] == obstacle->obstacle());
+
+    CHECK(scene.destroy(object));
+    scene.update(0.0f);
+    CHECK(scene.obstacleCount() == 0);
+}
+
+// Switching an obstacle off takes it out of the group the avoidance
+// behaviors read, without taking it out of the scene - the rule colliders
+// and lights already follow. Same for its object being deactivated.
+void testInactiveObstacleLeavesTheGroup()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("obstacle");
+    Radion::Obstacle* obstacle = object->addComponent<Radion::Obstacle>();
+    obstacle->setSphere(2.0f);
+    scene.update(0.0f);
+    CHECK(scene.obstacleGroup().size() == 1);
+
+    obstacle->setActive(false);
+    scene.update(0.0f);
+    CHECK(scene.obstacleCount() == 1); // still attached
+    CHECK(scene.obstacleGroup().empty());
+
+    obstacle->setActive(true);
+    scene.update(0.0f);
+    CHECK(scene.obstacleGroup().size() == 1);
+
+    object->setActive(false);
+    scene.update(0.0f);
+    CHECK(scene.obstacleGroup().empty());
+
+    object->setActive(true);
+    scene.update(0.0f);
+    CHECK(scene.obstacleGroup().size() == 1);
+    CHECK(scene.obstacleGroup()[0] == obstacle->obstacle());
+}
+
+// Same shape as testAgentUnregisterInShuffledOrder(): N obstacles created
+// WITHOUT reserve(), so mObstacleComponents/mObstacleGroup are guaranteed to
+// reallocate, destroyed in a baralhada order. Each step also checks the two
+// arrays stayed paired index for index through every swap-and-pop removal.
+void testObstacleUnregisterInShuffledOrder()
+{
+    Scene scene;
+    constexpr int kCount = 29;
+    std::vector<GameObject*> objects;
+    for (int i = 0; i < kCount; ++i)
+    {
+        GameObject* object = scene.createGameObject("obstacle");
+        object->addComponent<Radion::Obstacle>();
+        objects.push_back(object);
+    }
+    scene.update(0.0f);
+    CHECK(scene.obstacleCount() == static_cast<usize>(kCount));
+
+    std::vector<int> order(static_cast<usize>(kCount));
+    for (int i = 0; i < kCount; ++i)
+        order[static_cast<usize>(i)] = i;
+    std::srand(777);
+    for (int i = kCount - 1; i > 0; --i)
+    {
+        const int j = std::rand() % (i + 1);
+        std::swap(order[static_cast<usize>(i)], order[static_cast<usize>(j)]);
+    }
+
+    int remaining = kCount;
+    for (int index : order)
+    {
+        CHECK(scene.destroy(objects[static_cast<usize>(index)]));
+        scene.update(0.0f);
+        --remaining;
+        CHECK(scene.obstacleCount() == static_cast<usize>(remaining));
+        for (usize k = 0; k < scene.obstacleCount(); ++k)
+            CHECK(scene.obstacleGroup()[k] == scene.obstacles()[k]->obstacle());
+    }
+    CHECK(scene.obstacleCount() == 0);
+
+    // If a deregistration were missed, this walks over the freed Obstacle.
+    scene.debugDrawObstacles();
+}
+
+// Swapping the shape reconstructs the owned AI::Obstacle instance (a new
+// address, not the old one mutated in place) and the Scene's ObstacleGroup
+// entry - refreshObstacle()'s whole job - follows it to the new address.
+void testObstacleShapeSwapRebuildsInstance()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("obstacle");
+    Radion::Obstacle* obstacle = object->addComponent<Radion::Obstacle>();
+    scene.update(0.0f);
+
+    obstacle->setSphere(2.0f);
+    AI::Obstacle* sphereInstance = obstacle->obstacle();
+    CHECK(sphereInstance != nullptr);
+    CHECK(obstacle->shape() == ObstacleShape::Sphere);
+    CHECK(obstacle->radius() == 2.0f);
+
+    obstacle->setBox(1.0f, 2.0f, 3.0f);
+    AI::Obstacle* boxInstance = obstacle->obstacle();
+    CHECK(boxInstance != nullptr);
+    CHECK(boxInstance != sphereInstance);
+    CHECK(obstacle->shape() == ObstacleShape::Box);
+    CHECK(obstacle->width() == 1.0f);
+    CHECK(obstacle->height() == 2.0f);
+    CHECK(obstacle->depth() == 3.0f);
+    CHECK(scene.obstacleGroup()[0] == boxInstance);
+
+    obstacle->setSeenFrom(AI::ObstacleSeenFrom::Both);
+    CHECK(obstacle->seenFrom() == AI::ObstacleSeenFrom::Both);
+    CHECK(obstacle->obstacle()->seenFrom() == AI::ObstacleSeenFrom::Both);
+
+    CHECK(scene.destroy(object));
+    scene.update(0.0f);
+}
+
+// ObstacleAvoidanceBehavior with no setObstacles() call at all: it has to
+// find the sphere entirely through Agent::scene()->obstacleGroup(). Same
+// geometry and same assertion as testObstacleAvoidance() above, which builds
+// its own ObstacleGroup by hand - matching results is what proves the
+// fallback wiring, not just that it does not crash.
+void testObstacleAvoidanceReadsSceneGroup()
+{
+    Scene scene;
+
+    GameObject* wall = scene.createGameObject("wall");
+    wall->setPosition(glm::vec3(8.0f, 0.0f, 2.0f));
+    Radion::Obstacle* wallObstacle = wall->addComponent<Radion::Obstacle>();
+    wallObstacle->setSphere(3.0f);
+    scene.update(0.0f);
+
+    Agent::Settings settings = defaultAgentSettings();
+    settings.radius = 0.5f;
+    Agent* vehicle = makeAgent(scene, settings, "vehicle");
+    scene.update(0.0f);
+    vehicle->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X
+    vehicle->setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    vehicle->addBehavior(*new ObstacleAvoidanceBehavior(2.0f)); // no setObstacles() call
+
+    scene.updateAgents(0.016f);
+    CHECK(finiteVec(vehicle->desiredMove()));
+    CHECK(vehicle->desiredMove().z < 0.0f);
+
+    for (int i = 0; i < 600; ++i)
+        scene.updateAgents(0.016f);
+
+    CHECK(finiteVec(vehicle->position()));
+    CHECK(vehicle->position().z < 0.0f);
+    // Sphere centre/radius as set above (8, 0, 2), 3.0 - the vehicle must
+    // have steered around it, not through it.
+    CHECK(glm::length(vehicle->position() - glm::vec3(8.0f, 0.0f, 2.0f)) > 3.0f);
+}
+
 } // namespace
 
 int main()
@@ -1358,6 +1605,13 @@ int main()
     testAgentPoseSyncFlipsForward();
     testAgentBehaviorsAreOwned();
     testLeaderWithoutWaypointNetwork();
+    testBehaviorFactoryRoundTrip();
+    testBehaviorParamRoundTrip();
+    testObstacleRegistersWithScene();
+    testInactiveObstacleLeavesTheGroup();
+    testObstacleUnregisterInShuffledOrder();
+    testObstacleShapeSwapRebuildsInstance();
+    testObstacleAvoidanceReadsSceneGroup();
 
     if (gFailures)
         std::fprintf(stderr, "%d AI test(s) failed\n", gFailures);

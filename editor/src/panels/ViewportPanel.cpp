@@ -15,6 +15,7 @@
 #include "Light.h"
 #include "Log.h"
 #include "MeshRenderer.h"
+#include "ObstacleComponent.h"
 #include "PostProcess.h"
 #include "NavMeshSurface.h"
 #include "Road.h"
@@ -884,6 +885,8 @@ void ViewportPanel::onImGui()
         app().scene().debugDrawPhysicsContacts();
     if (live && app().engine().debugShowPhysicsJoints)
         app().scene().debugDrawPhysicsJoints();
+    if (live && app().engine().debugShowAIObstacles)
+        app().scene().debugDrawObstacles();
     if (GameObject* selected = live ? app().selection().resolve(app().scene()) : nullptr)
     {
         if (MeshRenderer* renderer = selected->getComponent<MeshRenderer>())
@@ -1007,6 +1010,8 @@ void ViewportPanel::onImGui()
                 break;
             }
         }
+        if (Obstacle* obstacle = selected->getComponent<Obstacle>())
+            Scene::debugDrawObstacleShape(*obstacle, Color(200, 80, 220, 255));
     }
     const f32 cursorRadius = glm::max(0.1f, mOrbitDistance * 0.025f);
     const glm::vec3 forward(glm::sin(mOrbitYaw) * glm::cos(mOrbitPitch), glm::sin(mOrbitPitch),

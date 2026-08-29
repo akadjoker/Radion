@@ -340,6 +340,11 @@ public:
     bool debugShowPhysicsContacts = false;
     bool debugShowPhysicsJoints = false;
 
+    // Every Radion::Obstacle's shape and seenFrom() arrow - Scene::
+    // debugDrawObstacles(), same family as the physics flags above. The
+    // selected object's own Obstacle draws regardless, in ViewportPanel.cpp.
+    bool debugShowAIObstacles = false;
+
 private:
     struct GifRecorder;
 
