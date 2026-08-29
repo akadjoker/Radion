@@ -217,6 +217,22 @@ public:
         return mSleepDeferred;
     }
 
+    // Fast, small dynamic bodies (bullets, thrown projectiles) tunnel through
+    // thin static geometry when the discrete step moves them further than
+    // their own size in one go. PhysicsWorld sweeps a marked body's centre
+    // from its pre-step to post-step position each step and clamps it back
+    // to just short of the first static hit - see PhysicsWorld::solveBulletSweeps().
+    // Costs a raycast per bullet body per step, so leave it off for anything
+    // that does not need it.
+    void setBullet(bool bullet)
+    {
+        mBullet = bullet;
+    }
+    bool isBullet() const
+    {
+        return mBullet;
+    }
+
     // Rebuilds the transform and the world-space inverse inertia tensor from
     // position and orientation. integrate() ends with this; call it by hand
     // after setting state directly, or everything derived stays a step stale.
@@ -264,6 +280,7 @@ private:
     bool mAwake = true;
     bool mCanSleep = true;
     bool mSleepDeferred = false;
+    bool mBullet = false;
     f32 mMotion = 0.0f;
     f32 mSleepEpsilon = 0.3f;
 };

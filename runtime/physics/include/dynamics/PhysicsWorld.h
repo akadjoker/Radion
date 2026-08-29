@@ -244,6 +244,10 @@ private:
     void flushPendingMutations();
     void dispatchEvents();
     void rebuildStaticBroadphase();
+    // Sweeps every body marked RigidBody::setBullet(true) from where it was
+    // before this step's integrateVelocity() to where it ended up, and clamps
+    // it back to just short of the first non-dynamic body the sweep ray hits.
+    void solveBulletSweeps();
 
     // Bodies and their ids are parallel dense arrays. Public ids never move;
     // mIdToSlot is updated when the last slot is swapped over a removed one.
@@ -285,6 +289,13 @@ private:
     // Union-find scratch, kept as a member so a step allocates nothing.
     std::vector<u32> mIslandParent;
     std::vector<u8> mIslandAwake;
+
+    struct BulletSweep
+    {
+        u32 id = 0xFFFFFFFFu;
+        glm::vec3 previousPosition{0.0f};
+    };
+    std::vector<BulletSweep> mBulletSweeps;
 
     ContactSolver mSolver;
     glm::vec3 mGravity{0.0f, -9.81f, 0.0f};

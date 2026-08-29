@@ -15,6 +15,7 @@ add_library(radion_physics
     src/dynamics/PistonJoint.cpp
     src/dynamics/MouseJoint.cpp
     src/dynamics/UniversalJoint.cpp
+    src/dynamics/WheelJoint.cpp
     src/softbody/SoftBody.cpp
     src/character/CharacterBody.cpp
     src/character/CharacterRigidBody.cpp
@@ -22,6 +23,7 @@ add_library(radion_physics
     src/collision/CollisionShape.cpp
     src/collision/Narrowphase.cpp
     src/collision/Broadphase.cpp
+    src/effects/ParticleSystem.cpp
 )
 
 target_precompile_headers(radion_physics PRIVATE
