@@ -237,6 +237,9 @@ EditorApplication::EditorApplication(Engine& engine) : mEngine(engine)
     mShowSubmeshBounds = mSettings.showSubmeshBounds;
     mEngine.debugShowShadowCascades = mSettings.showShadowCascades;
     mEngine.debugShowShadowAtlas = mSettings.showShadowAtlas;
+    mEngine.debugShowPhysicsShapes = mSettings.showPhysicsShapes;
+    mEngine.debugShowPhysicsContacts = mSettings.showPhysicsContacts;
+    mEngine.debugShowPhysicsJoints = mSettings.showPhysicsJoints;
     mViewMode = mSettings.viewMode == 1 ? ViewMode::Game : ViewMode::Scene;
 
     mEngine.createScene();
@@ -299,6 +302,9 @@ EditorApplication::~EditorApplication()
     mSettings.showSubmeshBounds = mShowSubmeshBounds;
     mSettings.showShadowCascades = mEngine.debugShowShadowCascades;
     mSettings.showShadowAtlas = mEngine.debugShowShadowAtlas;
+    mSettings.showPhysicsShapes = mEngine.debugShowPhysicsShapes;
+    mSettings.showPhysicsContacts = mEngine.debugShowPhysicsContacts;
+    mSettings.showPhysicsJoints = mEngine.debugShowPhysicsJoints;
     for (EditorPanel* panel : mPanels)
         mSettings.panelOpen[panel->title()] = panel->active();
     mSettings.save(mSettingsFile);
@@ -1808,6 +1814,9 @@ void EditorApplication::runFrame(f32 deltaTime)
         mSettings.showSubmeshBounds = mShowSubmeshBounds;
         mSettings.showShadowCascades = mEngine.debugShowShadowCascades;
         mSettings.showShadowAtlas = mEngine.debugShowShadowAtlas;
+        mSettings.showPhysicsShapes = mEngine.debugShowPhysicsShapes;
+        mSettings.showPhysicsContacts = mEngine.debugShowPhysicsContacts;
+        mSettings.showPhysicsJoints = mEngine.debugShowPhysicsJoints;
         for (EditorPanel* panel : mPanels)
             mSettings.panelOpen[panel->title()] = panel->active();
         mSettings.save(mSettingsFile);

@@ -60,6 +60,9 @@ public:
     bool showSubmeshBounds = false;
     bool showShadowCascades = false;
     bool showShadowAtlas = false;
+    bool showPhysicsShapes = false;
+    bool showPhysicsContacts = false;
+    bool showPhysicsJoints = false;
 
     // Editor Viewport quality only. These never alter the scene or the Game
     // view; they remove expensive preview passes while authoring.
