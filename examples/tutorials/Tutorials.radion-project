@@ -1,0 +1,17 @@
+{
+  "format": "radion-project",
+  "version": 1,
+  "name": "Radion Tutorials",
+  "assetRoot": "Assets",
+  "scenes": [
+    "Scenes/01_scene_basics.scene.json",
+    "Scenes/02_hierarchy.scene.json",
+    "Scenes/03_first_script.scene.json",
+    "Scenes/04_movement.scene.json",
+    "Scenes/05_spawn_and_lifetime.scene.json",
+    "Scenes/06_components_from_script.scene.json",
+    "Scenes/07_build_from_script.scene.json"
+  ],
+  "activeScene": "Scenes/01_scene_basics.scene.json",
+  "searchPaths": []
+}

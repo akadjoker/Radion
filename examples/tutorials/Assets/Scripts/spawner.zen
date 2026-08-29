@@ -1,0 +1,33 @@
+class Spawner:
+    spawn_interval = 1.0
+    lifetime = 4.0
+    spacing = 1.0
+    _timer = 0.0
+    _clock = 0.0
+    _count = 0.0
+
+    def on_start(self):
+        self.origin = self.scene.find("Spawn Point").get_position()
+        self.spawned = []
+        self.spawn_times = []
+
+    def on_update(self, dt):
+        self._clock = self._clock + dt
+        self._timer = self._timer + dt
+
+        if self._timer >= self.spawn_interval:
+            self._timer = 0.0
+            spawned_object = self.scene.create("Spawned")
+            spawned_object.set_position(Vec3(self.origin.x + self.spacing * self._count,
+                                             self.origin.y,
+                                             self.origin.z))
+            spawned_object.add_component(MeshRenderer).set_box(0.6, 0.6, 0.6)
+            self._count = self._count + 1.0
+            self.spawned.append(spawned_object)
+            self.spawn_times.append(self._clock)
+
+        while self.spawned.len() > 0 and (self._clock - self.spawn_times[0]) >= self.lifetime:
+            oldest = self.spawned.remove(0)
+            self.spawn_times.remove(0)
+            if not oldest.is_disposed():
+                oldest.dispose()

@@ -1,0 +1,45 @@
+import math
+
+class Builder:
+    columns = 5
+    rows = 5
+    spacing = 1.6
+    wave_speed = 1.4
+    wave_height = 0.5
+    _time = 0.0
+
+    def on_start(self):
+        ground = self.scene.create("Ground")
+        ground.add_component(MeshRenderer).set_plane(20.0, 20.0)
+
+        self.tiles = []
+        self.bases = []
+
+        half_x = (self.columns - 1) * self.spacing * 0.5
+        half_z = (self.rows - 1) * self.spacing * 0.5
+
+        for row in range(self.rows):
+            for column in range(self.columns):
+                tile = self.scene.create("Tile")
+                position = Vec3(column * self.spacing - half_x, 0.6,
+                                row * self.spacing - half_z)
+                tile.set_position(position)
+
+                renderer = tile.add_component(MeshRenderer)
+                if (row + column) % 2 == 0:
+                    renderer.set_box(0.9, 0.9, 0.9)
+                else:
+                    renderer.set_sphere(0.5)
+
+                self.tiles.append(tile)
+                self.bases.append(position)
+
+    def on_update(self, dt):
+        self._time = self._time + dt
+        index = 0
+        while index < self.tiles.len():
+            base = self.bases[index]
+            phase = (base.x + base.z) * 0.6
+            lift = math.sin(self._time * self.wave_speed + phase) * self.wave_height
+            self.tiles[index].set_position(Vec3(base.x, base.y + lift, base.z))
+            index = index + 1

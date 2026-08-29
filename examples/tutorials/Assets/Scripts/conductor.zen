@@ -1,0 +1,32 @@
+import math
+
+class Conductor:
+    spin_speed = 90.0
+    bob_height = 0.6
+    bob_speed = 2.0
+    pulse_speed = 0.6
+    _time = 0.0
+
+    def on_start(self):
+        self.rotor_a = self.scene.find("Rotor A")
+        self.rotor_b = self.scene.find("Rotor B")
+        self.rotor_c = self.scene.find("Rotor C")
+        self.light = self.scene.find("Sun").get_component(Light)
+        self.base_b = self.rotor_b.get_position()
+
+    def on_update(self, dt):
+        self._time = self._time + dt
+
+        self.rotor_a.yaw(self.spin_speed * dt)
+
+        bob = math.sin(self._time * self.bob_speed) * self.bob_height
+        self.rotor_b.set_position(Vec3(self.base_b.x, self.base_b.y + bob, self.base_b.z))
+
+        if math.sin(self._time) > 0.0:
+            self.rotor_c.set_active(True)
+        else:
+            self.rotor_c.set_active(False)
+
+        glow = (math.sin(self._time * self.pulse_speed) + 1.0) * 0.5
+        self.light.set_intensity(0.6 + glow * 2.0)
+        self.light.set_color(Vec3(1.0, 0.55 + glow * 0.45, 0.35 + glow * 0.55))

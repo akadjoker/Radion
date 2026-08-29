@@ -1,0 +1,116 @@
+{
+  "format": "radion-scene",
+  "version": 1,
+  "scene": {
+    "name": "04 Input And Movement",
+    "activeCamera": 1,
+    "objects": [
+      {
+        "id": 1,
+        "parent": null,
+        "name": "Main Camera",
+        "tag": "",
+        "flags": { "active": true, "visible": true, "static": false },
+        "transform": {
+          "position": [0.0, 3.0, 9.0],
+          "rotation": [0.0, 0.0, 0.0, 1.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "components": [
+          {
+            "type": "Camera",
+            "version": 1,
+            "active": true,
+            "projection": "Perspective",
+            "fieldOfView": 60.0,
+            "orthographicSize": 5.0,
+            "aspect": 1.7777778,
+            "near": 0.1,
+            "far": 100.0
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "parent": null,
+        "name": "Ground",
+        "tag": "",
+        "flags": { "active": true, "visible": true, "static": false },
+        "transform": {
+          "position": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0, 1.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "components": [
+          {
+            "type": "MeshRenderer",
+            "version": 1,
+            "active": true,
+            "visibleInReflections": true,
+            "mesh": {
+              "source": "Plane",
+              "file": "",
+              "params": [14.0, 14.0, 4.0, 4.0, 4.0, 0.0, 0.0, 0.0]
+            }
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "parent": null,
+        "name": "Patroller",
+        "tag": "",
+        "flags": { "active": true, "visible": true, "static": false },
+        "transform": {
+          "position": [0.0, 0.9, 0.0],
+          "rotation": [0.0, 0.0, 0.0, 1.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "components": [
+          {
+            "type": "MeshRenderer",
+            "version": 1,
+            "active": true,
+            "visibleInReflections": true,
+            "mesh": {
+              "source": "Capsule",
+              "file": "",
+              "params": [0.4, 1.0, 8.0, 12.0, 0.0, 0.0, 0.0, 0.0]
+            }
+          },
+          {
+            "type": "ZenBehaviour",
+            "version": 1,
+            "active": true,
+            "script": "Scripts/patrol.zen"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "parent": null,
+        "name": "Sun",
+        "tag": "",
+        "flags": { "active": true, "visible": true, "static": false },
+        "transform": {
+          "position": [0.0, 4.0, 2.0],
+          "rotation": [0.0, 0.0, 0.0, 1.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "components": [
+          {
+            "type": "Light",
+            "version": 1,
+            "active": true,
+            "lightType": "Directional",
+            "color": [1.0, 0.96, 0.88],
+            "intensity": 1.0,
+            "castShadows": true,
+            "volumetric": false
+          }
+        ]
+      }
+    ],
+    "culling": { "static": true, "dynamic": false, "occlusion": false }
+  }
+}
