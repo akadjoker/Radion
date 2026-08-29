@@ -40,6 +40,7 @@ class Joint;
 namespace Radion
 {
 
+class Agent;
 class Engine;
 
 // Implements ShadowCasterSource (RenderList.h) so a render/ technique -
@@ -185,6 +186,19 @@ public:
     {
         return mJoints.size();
     }
+
+    void addAgent(Agent& agent);
+    void removeAgent(Agent& agent);
+    const std::vector<Agent*>& agents() const
+    {
+        return mAgents;
+    }
+    usize agentCount() const
+    {
+        return mAgents.size();
+    }
+    void updateAgents(f32 deltaTime);
+    void clearAI();
 
     void setGravity(const glm::vec3& gravity);
     const glm::vec3& gravity() const
@@ -774,6 +788,9 @@ private:
     void* mContactEventUserData = nullptr;
     Physics::PhysicsStepCallback mPhysicsStepCallback = nullptr;
     void* mPhysicsStepUserData = nullptr;
+
+    // ----------------------------------------------------------------- AI
+    std::vector<Agent*> mAgents;
 
     std::vector<GameObject*> mDebugObjects;
     std::vector<PendingAdd> mPendingAdd;

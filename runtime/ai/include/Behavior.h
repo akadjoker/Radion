@@ -3,10 +3,13 @@
 
 #include <glm/glm.hpp>
 
+namespace Radion
+{
+class Agent;
+}
+
 namespace Radion::AI
 {
-
-class Entity;
 
 class Behavior
 {
@@ -14,7 +17,7 @@ public:
     Behavior() = default;
     virtual ~Behavior() = default;
 
-    virtual void iterate(float timeDelta, Entity& entity) = 0;
+    virtual void iterate(float timeDelta, Radion::Agent& entity) = 0;
 
     float gain() const
     {
@@ -30,8 +33,21 @@ public:
         return "Base Behavior";
     }
 
+    // The agent that owns and will delete this behavior, or null while it is
+    // still loose. Agent::addBehavior() rejects one that already has an
+    // owner - the same guard Group::add() kept against an entity landing in
+    // two groups, and it matters more here: a behavior handed to two agents
+    // is deleted twice.
+    Radion::Agent* owner() const
+    {
+        return mOwner;
+    }
+
 private:
+    friend class Radion::Agent;
+
     float mGain = 1.0f;
+    Radion::Agent* mOwner = nullptr;
 };
 
 // Push away from the closest visible group member when inside the separation
@@ -40,7 +56,7 @@ class SeparationBehavior final : public Behavior
 {
 public:
     SeparationBehavior(float separationDistance, float minPercent, float maxPercent);
-    void iterate(float timeDelta, Entity& entity) override;
+    void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "Separation Behavior";
@@ -82,7 +98,7 @@ class AlignmentBehavior final : public Behavior
 {
 public:
     explicit AlignmentBehavior(float turnRate);
-    void iterate(float timeDelta, Entity& entity) override;
+    void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "Alignment Behavior";
@@ -106,7 +122,7 @@ class CohesionBehavior final : public Behavior
 {
 public:
     explicit CohesionBehavior(float turnRate);
-    void iterate(float timeDelta, Entity& entity) override;
+    void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "Cohesion Behavior";
@@ -130,7 +146,7 @@ class AvoidanceBehavior final : public Behavior
 {
 public:
     AvoidanceBehavior(float avoidanceDistance, float avoidanceSpeed);
-    void iterate(float timeDelta, Entity& entity) override;
+    void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "Avoidance Behavior";
@@ -165,7 +181,7 @@ class CruisingBehavior final : public Behavior
 public:
     CruisingBehavior(float randMoveXChance, float randMoveYChance, float randMoveZChance,
                      float minRandomMove, float maxRateChange, float minRateChange);
-    void iterate(float timeDelta, Entity& entity) override;
+    void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "Cruising Behavior";
@@ -234,7 +250,7 @@ class StayWithinSphereBehavior final : public Behavior
 {
 public:
     StayWithinSphereBehavior(const glm::vec3& center, float radius);
-    void iterate(float timeDelta, Entity& entity) override;
+    void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "Stay Within Sphere Behavior";
@@ -263,7 +279,7 @@ private:
 };
 
 // Deals damage to the nearest visible enemy once it is within fire range
-// and the entity's own attack cooldown (Entity::attackCooldown(), ticked
+// and the entity's own attack cooldown (Agent::attackCooldown(), ticked
 // here every frame regardless of range) has elapsed. Purely reactive - it
 // does not move the entity or pick a target beyond "nearest visible enemy";
 // closing the distance is PathfindBehavior/FormationBehavior's job, same
@@ -272,7 +288,7 @@ class CombatBehavior final : public Behavior
 {
 public:
     CombatBehavior(float fireRange, float damagePerHit, float fireInterval);
-    void iterate(float timeDelta, Entity& entity) override;
+    void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "Combat Behavior";

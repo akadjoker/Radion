@@ -1,9 +1,13 @@
 #ifndef RADION_AI_OBSTACLE_H
 #define RADION_AI_OBSTACLE_H
 
-#include "Entity.h"
-
+#include <glm/glm.hpp>
 #include <vector>
+
+namespace Radion
+{
+class Agent;
+}
 
 namespace Radion::AI
 {
@@ -35,7 +39,7 @@ struct PathIntersection
     // Determine steering once path intersections have been found: lateral
     // component of steerHint, scaled to the vehicle's maxForce, if the
     // intersection is inside minTimeToCollision seconds of travel.
-    glm::vec3 steerToAvoidIfNeeded(const Entity& vehicle, float minTimeToCollision) const;
+    glm::vec3 steerToAvoidIfNeeded(const Radion::Agent& vehicle, float minTimeToCollision) const;
 };
 
 class Obstacle
@@ -45,21 +49,21 @@ public:
     virtual ~Obstacle() = default;
 
     // Compute steering for a vehicle to avoid this obstacle, if needed.
-    glm::vec3 steerToAvoid(const Entity& vehicle, float minTimeToCollision) const;
+    glm::vec3 steerToAvoid(const Radion::Agent& vehicle, float minTimeToCollision) const;
 
     // Apply steerToAvoid to the nearest obstacle in a group.
-    static glm::vec3 steerToAvoidObstacles(const Entity& vehicle, float minTimeToCollision,
+    static glm::vec3 steerToAvoidObstacles(const Radion::Agent& vehicle, float minTimeToCollision,
                                            const ObstacleGroup& obstacles);
 
     // Find the first vehicle-path intersection in a group, storing the nearest
     // in `nearest`.
-    static void firstPathIntersectionWithObstacleGroup(const Entity& vehicle,
+    static void firstPathIntersectionWithObstacleGroup(const Radion::Agent& vehicle,
                                                        const ObstacleGroup& obstacles,
                                                        PathIntersection& nearest,
                                                        PathIntersection& next);
 
     // Find the first intersection of the vehicle's path with this obstacle.
-    virtual void findIntersectionWithVehiclePath(const Entity& vehicle,
+    virtual void findIntersectionWithVehiclePath(const Radion::Agent& vehicle,
                                                  PathIntersection& pi) const = 0;
 
     ObstacleSeenFrom seenFrom() const
@@ -87,7 +91,7 @@ public:
     {
     }
 
-    void findIntersectionWithVehiclePath(const Entity& vehicle,
+    void findIntersectionWithVehiclePath(const Radion::Agent& vehicle,
                                          PathIntersection& pi) const override;
 };
 
@@ -102,7 +106,7 @@ public:
     {
     }
 
-    void findIntersectionWithVehiclePath(const Entity& vehicle,
+    void findIntersectionWithVehiclePath(const Radion::Agent& vehicle,
                                          PathIntersection& pi) const override;
 
     // Is a point on the local XY plane inside this obstacle's 2D shape?
@@ -194,7 +198,7 @@ public:
     {
     }
 
-    void findIntersectionWithVehiclePath(const Entity& vehicle,
+    void findIntersectionWithVehiclePath(const Radion::Agent& vehicle,
                                          PathIntersection& pi) const override;
 };
 

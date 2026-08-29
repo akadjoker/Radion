@@ -3,32 +3,31 @@
 #include "NavMeshBehavior.h"
 
 #include "AIInternal.h"
-#include "Group.h"
+#include "Agent.h"
 #include "NavMesh.h"
-#include "SquadEntity.h"
-#include "World.h"
+#include "Scene.h"
 
 namespace Radion::AI
 {
 
 using detail::safeNormalize;
+using Radion::Agent;
+using Radion::Scene;
 
 NavMeshBehavior::NavMeshBehavior(const NavMesh& navMesh, const Settings& settings)
     : mNavMesh(navMesh), mSettings(settings)
 {
 }
 
-void NavMeshBehavior::iterate(float timeDelta, Entity& entity)
+void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
 {
-    // The goal lives on SquadEntity, same as PathfindBehavior requires.
-    SquadEntity* squadmate = dynamic_cast<SquadEntity*>(&entity);
-    if (!squadmate || !mNavMesh.valid())
+    if (!mNavMesh.valid())
         return;
 
-    Route& route = mRoutes[&entity];
+    Route& route = mRoute;
     route.sinceRepath += timeDelta;
 
-    // Entity::iterate() advances the position by the velocity before any
+    // Agent::update() advances the position by the velocity before any
     // behavior runs, so what it holds now is a freely integrated guess that
     // may already have crossed a wall. Slide that guess back onto the
     // walkable surface: this is what makes leaving the floor impossible
@@ -38,7 +37,7 @@ void NavMeshBehavior::iterate(float timeDelta, Entity& entity)
     constrainToSurface(entity, route);
 
     const glm::vec3 position = entity.position();
-    const glm::vec3 goal = squadmate->goal();
+    const glm::vec3 goal = entity.goal();
 
     glm::vec3 flatToGoal = goal - position;
     flatToGoal.y = 0.0f;
@@ -108,7 +107,7 @@ void NavMeshBehavior::iterate(float timeDelta, Entity& entity)
     applyAvoidance(entity);
 }
 
-void NavMeshBehavior::constrainToSurface(Entity& entity, Route& route)
+void NavMeshBehavior::constrainToSurface(Agent& entity, Route& route)
 {
     const glm::vec3 wanted = entity.position();
 
@@ -141,9 +140,13 @@ void NavMeshBehavior::constrainToSurface(Entity& entity, Route& route)
     entity.setPosition(glm::vec3(slid.x, wanted.y, slid.z));
 }
 
-void NavMeshBehavior::applyAvoidance(Entity& entity)
+void NavMeshBehavior::applyAvoidance(Agent& entity)
 {
     if (mSettings.avoidDistance <= 0.0f)
+        return;
+
+    Scene* scene = entity.scene();
+    if (!scene)
         return;
 
     // Same repulsion PathfindBehavior::applyAvoidance() applies: summed over
@@ -153,26 +156,23 @@ void NavMeshBehavior::applyAvoidance(Entity& entity)
     const glm::vec3 position = entity.position();
     const float avoidRadius = mSettings.avoidDistance;
 
-    for (Group* group : entity.world().groups())
+    for (Agent* other : scene->agents())
     {
-        for (Entity* other : group->entities())
-        {
-            if (other == &entity)
-                continue;
+        if (other == &entity)
+            continue;
 
-            glm::vec3 away = position - other->position();
-            away.y = 0.0f;
-            const float distance = glm::length(away);
-            if (distance >= avoidRadius)
-                continue;
+        glm::vec3 away = position - other->position();
+        away.y = 0.0f;
+        const float distance = glm::length(away);
+        if (distance >= avoidRadius)
+            continue;
 
-            if (distance > 1e-5f)
-                repulsion += (away / distance) * (1.0f - distance / avoidRadius);
-            else
-                // Coincident agents need opposite deterministic directions,
-                // or both pick the same escape and stay stuck together.
-                repulsion += (&entity < other) ? entity.side() : -entity.side();
-        }
+        if (distance > 1e-5f)
+            repulsion += (away / distance) * (1.0f - distance / avoidRadius);
+        else
+            // Coincident agents need opposite deterministic directions, or
+            // both pick the same escape and stay stuck together.
+            repulsion += (&entity < other) ? entity.side() : -entity.side();
     }
 
     const float repulsionLength = glm::length(repulsion);

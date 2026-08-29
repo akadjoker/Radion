@@ -1,12 +1,16 @@
-// AITests.cpp - smoke tests for the radion_ai library (runtime/ai).
+// AITests.cpp - smoke tests for the AI code that used to be radion_ai
+// (runtime/ai), now folded into radion_scene as Radion::Agent + the
+// steering/pathfinding/state-machine support it drives.
 //
 // Covers the subsystems: state machine, waypoint network A*, grid A*,
 // flocking, steering (seek/flee/wander/obstacle avoidance) and the squad
-// glue that ties them together.
+// glue that ties them together - driven through Scene + GameObject + Agent
+// instead of the old World/Group/Entity tree.
 
 #include "PCH.h"
 
 #include "AI.h"
+#include "Scene.h"
 
 #include <cmath>
 #include <cstdio>
@@ -47,15 +51,26 @@ struct NoVisibility final : WaypointVisibility
     }
 };
 
-Entity::Settings defaultEntitySettings()
+Agent::Settings defaultAgentSettings()
 {
-    Entity::Settings s;
+    Agent::Settings s;
     s.type = 1;
     s.senseRange = 8.0f;
     s.maxVelocityChange = 2.0f;
     s.maxSpeed = 5.0f;
     s.desiredSpeed = 2.0f;
     return s;
+}
+
+// Agent's constructor is private (GameObject::addComponent<Agent>() only),
+// so every agent in these tests is a Component on its own GameObject -
+// replaces `new Entity(world, settings)` + `group->add(*e)`.
+Agent* makeAgent(Scene& scene, const Agent::Settings& settings, const char* name = "agent")
+{
+    GameObject* object = scene.createGameObject(name);
+    Agent* agent = object->addComponent<Agent>();
+    agent->applySettings(settings);
+    return agent;
 }
 
 // --- State machine ----------------------------------------------------------
@@ -198,43 +213,47 @@ void testGridPathfinder()
 
 void testFlocking()
 {
-    World world;
-    Group* group = new Group(world);
-    world.add(*group);
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
 
-    Entity::Settings settings = defaultEntitySettings();
-    // Group owns its entities, so they must be heap-allocated (the World ->
-    // Group -> Entity ownership chain deletes them).
-    Entity* a = new Entity(world, settings);
-    Entity* b = new Entity(world, settings);
-    Entity* c = new Entity(world, settings);
+    Agent* a = makeAgent(scene, settings, "a");
+    Agent* b = makeAgent(scene, settings, "b");
+    Agent* c = makeAgent(scene, settings, "c");
+    // Registers a/b/c with the Scene (GameObject::add() is deferred) before
+    // any per-agent state is set - the flush itself runs one behavior-less
+    // update() per agent, so doing it before positions/behaviors exist keeps
+    // it a no-op rather than an extra, uncounted simulation step.
+    scene.update(0.0f);
+
     a->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     b->setPosition(glm::vec3(3.0f, 0.0f, 0.0f));
     c->setPosition(glm::vec3(1.5f, 0.0f, 2.5f));
+    // Same flock: groupId() replaces AI::Group membership (0 means "no group").
+    a->setGroupId(1);
+    b->setGroupId(1);
+    c->setGroupId(1);
 
-    SeparationBehavior separation(4.0f, 0.2f, 1.0f);
-    CohesionBehavior cohesion(2.0f);
-    AlignmentBehavior alignment(1.0f);
-    StayWithinSphereBehavior stayInSphere(glm::vec3(0.0f, 0.0f, 0.0f), 20.0f);
-    for (Entity* e : {a, b, c})
+    // Behaviors are owned per-agent now (Agent::addBehavior()), so each
+    // needs its own instance - a single shared one would be double-deleted
+    // when more than one owner's destructor ran.
+    for (Agent* e : {a, b, c})
     {
-        e->addBehavior(separation);
-        e->addBehavior(cohesion);
-        e->addBehavior(alignment);
-        e->addBehavior(stayInSphere);
-        group->add(*e);
+        e->addBehavior(*new SeparationBehavior(4.0f, 0.2f, 1.0f));
+        e->addBehavior(*new CohesionBehavior(2.0f));
+        e->addBehavior(*new AlignmentBehavior(1.0f));
+        e->addBehavior(*new StayWithinSphereBehavior(glm::vec3(0.0f, 0.0f, 0.0f), 20.0f));
     }
 
-    // The three start separated; after one step every entity should have a
+    // The three start separated; after one step every agent should have a
     // non-zero desired move (it sensed its flockmates).
-    world.iterate(0.016f);
+    scene.updateAgents(0.016f);
     CHECK(glm::length(a->desiredMove()) > 0.0f);
     CHECK(glm::length(b->desiredMove()) > 0.0f);
     CHECK(glm::length(c->desiredMove()) > 0.0f);
 
     // Run a while; the sim must stay finite and the flock roughly together.
     for (int i = 0; i < 300; ++i)
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
 
     CHECK(finiteVec(a->position()));
     CHECK(finiteVec(b->position()));
@@ -272,11 +291,8 @@ void testGridAlgorithms()
 
 void testSquadMovement()
 {
-    World world;
-    Group* squad = new Group(world);
-    world.add(*squad);
-
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
 
     // Simple two-waypoint network far along +X.
     WaypointNetwork network;
@@ -293,30 +309,27 @@ void testSquadMovement()
     PointOfInterest* target = new PointOfInterest(glm::vec3(50.0f, 0.0f, 0.0f), 5.0f);
     CHECK(pois.add(target));
 
-    // Group owns its entities, so they must be heap-allocated.
-    SquadLeaderEntity* leader = new SquadLeaderEntity(world, settings);
+    Agent* leader = makeAgent(scene, settings, "leader");
+    Agent* member = makeAgent(scene, settings, "member");
+    scene.update(0.0f); // register both before configuring them
+
     leader->setWaypointNetwork(&network);
     leader->setSquadId(0);
     leader->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    squad->add(*leader);
 
-    SquadMemberEntity* member = new SquadMemberEntity(world, settings);
     member->setWaypointNetwork(&network);
     member->setSquadId(1);
     member->setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
-    squad->add(*member);
 
     leader->addSquadMember(member);
 
     // Force pathfinding: block line of sight so the member has to route.
-    PathfindBehavior pathfind(PathfindBehavior::Settings{
-        0.2f, 50.0f, 0.0f, 25.0f, 0.5f, glm::vec3(0.0f, 1.0f, 0.0f), &network, nullptr});
-    member->addBehavior(pathfind);
+    member->addBehavior(*new PathfindBehavior(PathfindBehavior::Settings{
+        0.2f, 50.0f, 0.0f, 25.0f, 0.5f, glm::vec3(0.0f, 1.0f, 0.0f), &network, nullptr}));
 
-    StateMachine* memberMachine = buildMemberStateMachine(*member);
-    member->setStateMachine(memberMachine);
-    StateMachine* leaderMachine = buildLeaderStateMachine(*leader);
-    leader->setStateMachine(leaderMachine);
+    // Owned by the agent now (Agent::setStateMachine()) - no manual delete.
+    member->setStateMachine(buildMemberStateMachine(*member));
+    leader->setStateMachine(buildLeaderStateMachine(*leader));
 
     // Order the squad to the target POI.
     leader->setPointsOfInterest(&pois);
@@ -325,7 +338,7 @@ void testSquadMovement()
 
     for (int i = 0; i < 600; ++i)
     {
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
         if (!finiteVec(member->position()))
             break;
     }
@@ -333,30 +346,25 @@ void testSquadMovement()
     CHECK(finiteVec(member->position()));
     // With no LOS the member routes through the network and walks far along +X.
     CHECK(member->position().x > 15.0f);
-
-    delete memberMachine;
-    delete leaderMachine;
 }
 
 void testMemberStateMachine()
 {
-    World world;
-    Group* squad = new Group(world);
-    world.add(*squad);
-
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
 
     WaypointNetwork network;
     Waypoint* wp =
         new Waypoint(glm::vec3(50.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
     network.addWaypoint(wp);
 
-    SquadMemberEntity* member = new SquadMemberEntity(world, settings);
+    // Agent::update() is called directly here (not through the Scene's own
+    // agent list), so no scene.update() flush is needed first.
+    Agent* member = makeAgent(scene, settings, "member");
     member->setWaypointNetwork(&network);
     member->setSquadId(1);
     member->setPosition(glm::vec3(50.5f, 0.0f, 0.0f)); // inside wp radius
     member->setGoal(glm::vec3(50.0f, 0.0f, 0.0f));
-    squad->add(*member);
 
     StateMachine* machine = buildMemberStateMachine(*member);
     member->setStateMachine(machine);
@@ -367,39 +375,32 @@ void testMemberStateMachine()
     member->setCommand(SquadCommand::AttackTarget);
     member->setNextWaypoint(0);
     member->setPath(Path{wp->id()});
-    member->iterate(0.016f);
+    member->update(0.016f);
     CHECK(machine->currentState()->name() == "MovingToGoal");
 
     // Member sits inside the waypoint radius -> WaypointReached.
-    member->iterate(0.016f);
+    member->update(0.016f);
     CHECK(machine->currentState()->name() == "WaypointReached");
 
     // Standing ground pulls it back to WaitingForCommand.
     member->setCommand(SquadCommand::StandGround);
-    member->iterate(0.016f);
+    member->update(0.016f);
     CHECK(machine->currentState()->name() == "WaitingForCommand");
-
-    delete machine;
 }
 
 void testLeaderStateMachine()
 {
-    World world;
-    Group* squad = new Group(world);
-    world.add(*squad);
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
 
-    Entity::Settings settings = defaultEntitySettings();
-
-    SquadLeaderEntity* leader = new SquadLeaderEntity(world, settings);
+    Agent* leader = makeAgent(scene, settings, "leader");
     leader->setSquadId(0);
     leader->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    squad->add(*leader);
 
-    SquadMemberEntity* member = new SquadMemberEntity(world, settings);
+    Agent* member = makeAgent(scene, settings, "member");
     member->setSquadId(1);
     member->setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
     member->setGoal(member->position()); // already at its goal
-    squad->add(*member);
     leader->addSquadMember(member);
 
     StateMachine* machine = buildLeaderStateMachine(*leader);
@@ -408,31 +409,28 @@ void testLeaderStateMachine()
     CHECK(machine->currentState()->name() == "AwaitingSquadTaskCompletion");
 
     // Squad is at its goal -> issue the next command.
-    leader->iterate(0.016f);
+    leader->update(0.016f);
     CHECK(machine->currentState()->name() == "CommandSquadToPOI");
 
     // Stand ground -> CommandSquadToPOI hands off to StandingGround.
     leader->setCommand(SquadCommand::StandGround);
-    leader->iterate(0.016f);
+    leader->update(0.016f);
     CHECK(machine->currentState()->name() == "StandingGround");
-    leader->iterate(0.016f);
+    leader->update(0.016f);
     CHECK(machine->currentState()->name() == "StandingGround");
 
     // New command leaves StandingGround.
     leader->setCommand(SquadCommand::PatrolPointsOfInterest);
-    leader->iterate(0.016f);
+    leader->update(0.016f);
     CHECK(machine->currentState()->name() == "CommandSquadToPOI");
-
-    delete machine;
 }
 
 // --- steering --------------------------------------------------------------
 
 void testSteerLibrary()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
-    Entity e(world, settings);
+    Scene scene;
+    Agent& e = *makeAgent(scene, defaultAgentSettings());
     e.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     e.setVelocity(glm::vec3(2.0f, 0.0f, 0.0f));
     e.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward = +Z
@@ -454,10 +452,10 @@ void testSteerLibrary()
 
 void testPlaneAndRectangleObstacle()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
     settings.radius = 0.5f;
-    Entity vehicle(world, settings);
+    Agent& vehicle = *makeAgent(scene, settings);
 
     // Default plane: XY at the origin, +Z half-space is outside.
     PlaneObstacle plane;
@@ -517,10 +515,10 @@ void testPlaneAndRectangleObstacle()
 
 void testBoxObstacle()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
     settings.radius = 0.0f; // exact face bounds, no radius growth
-    Entity vehicle(world, settings);
+    Agent& vehicle = *makeAgent(scene, settings);
 
     // 2x2x2 box at the origin, world-aligned.
     BoxObstacle box(2.0f, 2.0f, 2.0f, glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
@@ -565,10 +563,10 @@ void testBoxObstacle()
 
 void testSphereObstacleSeenFrom()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
     settings.radius = 0.5f;
-    Entity vehicle(world, settings);
+    Agent& vehicle = *makeAgent(scene, settings);
 
     // A vehicle outside an Inside-only sphere must be pulled back toward it.
     SphereObstacle pen(2.0f, glm::vec3(0.0f));
@@ -602,9 +600,8 @@ void testSphereObstacleSeenFrom()
 
 void testCruisingAxisDistribution()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
-    Entity e(world, settings);
+    Scene scene;
+    Agent& e = *makeAgent(scene, defaultAgentSettings());
     e.setVelocity(glm::vec3(0.0f)); // below desiredSpeed, so signum is +1
 
     // The flocking demo's own chances: X larger than Y. The per-axis chances
@@ -730,15 +727,15 @@ void testPointsOfInterest()
 
 void testPursuitEvasion()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
 
-    Entity hunter(world, settings);
+    Agent& hunter = *makeAgent(scene, settings, "hunter");
     hunter.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     hunter.setVelocity(glm::vec3(0.0f, 0.0f, 2.0f));
     hunter.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
-    Entity quarry(world, settings);
+    Agent& quarry = *makeAgent(scene, settings, "quarry");
     quarry.setPosition(glm::vec3(0.0f, 0.0f, 10.0f));
 
     SteerLibrary steer(hunter);
@@ -755,7 +752,7 @@ void testPursuitEvasion()
 
     // A stationary menace is predicted at the cap rather than dividing by
     // zero, and its predicted position is where it already is.
-    Entity menace(world, settings);
+    Agent& menace = *makeAgent(scene, settings, "menace");
     menace.setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
     CHECK(near(steer.evasion(menace, 2.0f), steer.flee(menace.position())));
 
@@ -768,9 +765,8 @@ void testPursuitEvasion()
 
 void testDirectionalPredicates()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
-    Entity e(world, settings);
+    Scene scene;
+    Agent& e = *makeAgent(scene, defaultAgentSettings());
     e.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     e.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
@@ -804,19 +800,19 @@ void testDirectionalPredicates()
 
 void testBoidNeighborhoodAndSeparation()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
-    Entity self(world, settings);
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
+    Agent& self = *makeAgent(scene, settings, "self");
     self.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     self.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
-    Entity ahead(world, settings);
+    Agent& ahead = *makeAgent(scene, settings, "ahead");
     ahead.setPosition(glm::vec3(0.0f, 0.0f, 5.0f));
-    Entity behind(world, settings);
+    Agent& behind = *makeAgent(scene, settings, "behind");
     behind.setPosition(glm::vec3(0.0f, 0.0f, -5.0f));
-    Entity veryClose(world, settings);
+    Agent& veryClose = *makeAgent(scene, settings, "veryClose");
     veryClose.setPosition(glm::vec3(0.0f, 0.0f, -0.5f));
-    Entity far(world, settings);
+    Agent& far = *makeAgent(scene, settings, "far");
     far.setPosition(glm::vec3(0.0f, 0.0f, 50.0f));
 
     SteerLibrary steer(self);
@@ -836,9 +832,9 @@ void testBoidNeighborhoodAndSeparation()
 
 void testTargetSpeedClamp()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings(); // maxVelocityChange = 2
-    Entity e(world, settings);
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings(); // maxVelocityChange = 2
+    Agent& e = *makeAgent(scene, settings);
     e.setVelocity(glm::vec3(2.0f, 0.0f, 0.0f)); // speed 2
     e.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
@@ -851,35 +847,30 @@ void testTargetSpeedClamp()
 
 void testSeekFlee()
 {
-    World world;
-    Group* group = new Group(world);
-    world.add(*group);
-
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
 
     // A seeker converges on a target far along +X.
-    Entity* chaser = new Entity(world, settings);
+    Agent* chaser = makeAgent(scene, settings, "chaser");
+    scene.update(0.0f);
     chaser->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    group->add(*chaser);
     const glm::vec3 target(100.0f, 0.0f, 0.0f);
-    SeekBehavior seek(target);
-    chaser->addBehavior(seek);
+    chaser->addBehavior(*new SeekBehavior(target));
 
     for (int i = 0; i < 600; ++i)
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
 
     CHECK(finiteVec(chaser->position()));
     CHECK(chaser->position().x > 30.0f);
 
     // A runner flees from the same target and ends up on the opposite side.
-    Entity* runner = new Entity(world, settings);
+    Agent* runner = makeAgent(scene, settings, "runner");
+    scene.update(0.0f);
     runner->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    group->add(*runner);
-    FleeBehavior flee(target);
-    runner->addBehavior(flee);
+    runner->addBehavior(*new FleeBehavior(target));
 
     for (int i = 0; i < 600; ++i)
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
 
     CHECK(finiteVec(runner->position()));
     CHECK(runner->position().x < -30.0f);
@@ -887,20 +878,15 @@ void testSeekFlee()
 
 void testWander()
 {
-    World world;
-    Group* group = new Group(world);
-    world.add(*group);
-
-    Entity::Settings settings = defaultEntitySettings();
-    Entity* e = new Entity(world, settings);
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
+    Agent* e = makeAgent(scene, settings, "wanderer");
+    scene.update(0.0f);
     e->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    group->add(*e);
-
-    WanderBehavior wander;
-    e->addBehavior(wander);
+    e->addBehavior(*new WanderBehavior());
 
     for (int i = 0; i < 300; ++i)
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
 
     // Wandered away from the start, stayed finite and bounded.
     CHECK(finiteVec(e->position()));
@@ -910,11 +896,8 @@ void testWander()
 
 void testObstacleAvoidance()
 {
-    World world;
-    Group* group = new Group(world);
-    world.add(*group);
-
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
     settings.radius = 0.5f;
 
     // A sphere slightly off the +X travel line so there is a lateral component.
@@ -922,23 +905,21 @@ void testObstacleAvoidance()
     ObstacleGroup obstacles;
     obstacles.push_back(&sphere);
 
-    Entity* vehicle = new Entity(world, settings);
+    Agent* vehicle = makeAgent(scene, settings, "vehicle");
+    scene.update(0.0f);
     vehicle->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X
     // Face +X so the vehicle's forward path intersects the sphere.
     vehicle->setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-    group->add(*vehicle);
+    vehicle->addBehavior(*new ObstacleAvoidanceBehavior(2.0f, obstacles));
 
-    ObstacleAvoidanceBehavior avoid(2.0f, obstacles);
-    vehicle->addBehavior(avoid);
-
-    world.iterate(0.016f);
+    scene.updateAgents(0.016f);
     // The avoidance force is lateral: it must push toward -Z (past the sphere).
     CHECK(finiteVec(vehicle->desiredMove()));
     CHECK(vehicle->desiredMove().z < 0.0f);
 
     for (int i = 0; i < 600; ++i)
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
 
     // The vehicle steered around to the -Z side without entering the sphere.
     CHECK(finiteVec(vehicle->position()));
@@ -954,17 +935,17 @@ void testObstacleAvoidance()
 
 void testNearestApproach()
 {
-    World world;
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
     settings.radius = 1.0f;
 
     // Head-on: we move +X, the other moves -X from further down +X. Closing
     // distance, so the nearest approach must be in the future (time > 0).
-    Entity us(world, settings);
+    Agent& us = *makeAgent(scene, settings, "us");
     us.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     us.setVelocity(glm::vec3(1.0f, 0.0f, 0.0f));
 
-    Entity oncoming(world, settings);
+    Agent& oncoming = *makeAgent(scene, settings, "oncoming");
     oncoming.setPosition(glm::vec3(10.0f, 0.0f, 0.0f));
     oncoming.setVelocity(glm::vec3(-1.0f, 0.0f, 0.0f));
 
@@ -979,10 +960,10 @@ void testNearestApproach()
 
     // Receding: swap the velocities so both move apart. The nearest approach
     // was in the past (time < 0), so avoidNeighbors must ignore it.
-    Entity receding(world, settings);
+    Agent& receding = *makeAgent(scene, settings, "receding");
     receding.setPosition(glm::vec3(10.0f, 0.0f, 0.0f));
     receding.setVelocity(glm::vec3(1.0f, 0.0f, 0.0f)); // same direction as us, but faster gap
-    Entity fast(world, settings);
+    Agent& fast = *makeAgent(scene, settings, "fast");
     fast.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     fast.setVelocity(glm::vec3(-1.0f, 0.0f, 0.0f));
     SteerLibrary steerFast(fast);
@@ -1016,9 +997,7 @@ void testPathfindLineOfSight()
         }
     };
 
-    World world;
-    Group* squad = new Group(world);
-    world.add(*squad);
+    Scene scene;
 
     // A waypoint far off the direct line, so "heading to the waypoint" and
     // "heading straight to the goal" are distinguishable by Z position.
@@ -1030,8 +1009,9 @@ void testPathfindLineOfSight()
     ToggleVisibility visibility;
     visibility.visible = false; // goal not visible yet - keep following the seeded route
 
-    Entity::Settings settings = defaultEntitySettings();
-    SquadMemberEntity* member = new SquadMemberEntity(world, settings);
+    Agent::Settings settings = defaultAgentSettings();
+    Agent* member = makeAgent(scene, settings, "member");
+    scene.update(0.0f);
     member->setWaypointNetwork(&network);
     member->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     member->setGoal(glm::vec3(20.0f, 0.0f, 0.0f));
@@ -1040,15 +1020,13 @@ void testPathfindLineOfSight()
     // covered by testWaypointNetwork/testSquadMovement) - this test is only
     // about the LOS short-circuit in PathfindBehavior::iterate.
     member->setNextWaypoint(wpDetour->id());
-    squad->add(*member);
 
-    PathfindBehavior pathfind(PathfindBehavior::Settings{
-        0.3f, 1.0f, 0.0f, 25.0f, 0.05f, glm::vec3(0.0f, 1.0f, 0.0f), &network, &visibility});
-    member->addBehavior(pathfind);
+    member->addBehavior(*new PathfindBehavior(PathfindBehavior::Settings{
+        0.3f, 1.0f, 0.0f, 25.0f, 0.05f, glm::vec3(0.0f, 1.0f, 0.0f), &network, &visibility}));
 
     // No LOS: the member walks toward the seeded waypoint, off toward +Z.
     for (int i = 0; i < 30; ++i)
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
     CHECK(finiteVec(member->position()));
     CHECK(member->position().z > 1.0f);
 
@@ -1056,13 +1034,13 @@ void testPathfindLineOfSight()
     // switch to heading straight for the goal.
     visibility.visible = true;
     for (int i = 0; i < 10; ++i)
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
     CHECK(member->losStatus());
     CHECK(member->nextWaypoint() == 0);
     CHECK(!member->hasValidPath());
 
     for (int i = 0; i < 400; ++i)
-        world.iterate(0.016f);
+        scene.updateAgents(0.016f);
 
     CHECK(finiteVec(member->position()));
     // Walked toward the goal along +X, back off the Z=30 detour.
@@ -1078,43 +1056,41 @@ void testPathfindLineOfSight()
 // from that reference (see the comment in FormationBehavior.cpp) - checked
 // here for the symmetry it is supposed to have instead.
 
-SquadLeaderEntity* makeFormationLeader(World& world, Group& squad, const Entity::Settings& settings)
+Agent* makeFormationLeader(Scene& scene, const Agent::Settings& settings)
 {
-    SquadLeaderEntity* leader = new SquadLeaderEntity(world, settings);
+    Agent* leader = makeAgent(scene, settings, "leader");
     leader->setSquadId(0);
     leader->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     leader->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward = +Z
-    squad.add(*leader);
     return leader;
 }
 
 void testFormationAbreast()
 {
-    World world;
-    Group* squad = new Group(world);
-    world.add(*squad);
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
 
-    SquadLeaderEntity* leader = makeFormationLeader(world, *squad, settings);
+    Agent* leader = makeFormationLeader(scene, settings);
+    Agent* pointMan = makeAgent(scene, settings, "pointMan");
+    Agent* rightFlank = makeAgent(scene, settings, "rightFlank");
+    scene.update(0.0f); // register all three before FormationBehavior scans them
+
     leader->setSquadFormation(static_cast<int>(SquadFormation::Abreast));
 
-    SquadMemberEntity* pointMan = new SquadMemberEntity(world, settings);
     pointMan->setSquadId(1);
     pointMan->setPosition(glm::vec3(0.0f, 0.0f, 5.0f));
     pointMan->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
     pointMan->setGoal(glm::vec3(0.0f, 0.0f, 20.0f));
-    squad->add(*pointMan);
 
-    SquadMemberEntity* rightFlank = new SquadMemberEntity(world, settings);
     rightFlank->setSquadId(2);
     rightFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    squad->add(*rightFlank);
 
-    FormationBehavior formation(1.0f, 1.0f);
-    pointMan->addBehavior(formation);
-    rightFlank->addBehavior(formation);
+    // Each member owns its own FormationBehavior instance - the leader/
+    // point-man cache in it is no longer shared (DESVIO 2).
+    pointMan->addBehavior(*new FormationBehavior(1.0f, 1.0f));
+    rightFlank->addBehavior(*new FormationBehavior(1.0f, 1.0f));
 
-    world.iterate(0.016f);
+    scene.updateAgents(0.016f);
 
     // Abreast case 2: goal = pointMan.position + pointManRight * 40.
     // pointManRight is +X (side vector) while pointMan faces +Z.
@@ -1123,36 +1099,32 @@ void testFormationAbreast()
 
 void testFormationPentagonSymmetry()
 {
-    World world;
-    Group* squad = new Group(world);
-    world.add(*squad);
-    Entity::Settings settings = defaultEntitySettings();
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
 
-    SquadLeaderEntity* leader = makeFormationLeader(world, *squad, settings);
+    Agent* leader = makeFormationLeader(scene, settings);
+    Agent* pointMan = makeAgent(scene, settings, "pointMan");
+    Agent* rightFlank = makeAgent(scene, settings, "rightFlank");
+    Agent* leftFlank = makeAgent(scene, settings, "leftFlank");
+    scene.update(0.0f);
+
     leader->setSquadFormation(static_cast<int>(SquadFormation::Pentagon));
 
-    SquadMemberEntity* pointMan = new SquadMemberEntity(world, settings);
     pointMan->setSquadId(1);
     pointMan->setPosition(glm::vec3(1.0f, 0.0f, 1.0f));
     pointMan->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
-    squad->add(*pointMan);
 
-    SquadMemberEntity* rightFlank = new SquadMemberEntity(world, settings);
     rightFlank->setSquadId(2);
     rightFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    squad->add(*rightFlank);
 
-    SquadMemberEntity* leftFlank = new SquadMemberEntity(world, settings);
     leftFlank->setSquadId(3);
     leftFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    squad->add(*leftFlank);
 
-    FormationBehavior formation(1.0f, 1.0f);
-    pointMan->addBehavior(formation);
-    rightFlank->addBehavior(formation);
-    leftFlank->addBehavior(formation);
+    pointMan->addBehavior(*new FormationBehavior(1.0f, 1.0f));
+    rightFlank->addBehavior(*new FormationBehavior(1.0f, 1.0f));
+    leftFlank->addBehavior(*new FormationBehavior(1.0f, 1.0f));
 
-    world.iterate(0.016f);
+    scene.updateAgents(0.016f);
 
     // Pentagon's flank *goal* positions only use mLeaderLook/mLeaderRight, not
     // v1/v2, so they are symmetric regardless of the deviation. What v1/v2
@@ -1164,6 +1136,190 @@ void testFormationPentagonSymmetry()
     glm::vec3 forwardLeft = glm::mat3_cast(leftFlank->orientation())[2];
     CHECK(std::fabs(forwardRight.x + forwardLeft.x) < 0.01f);
     CHECK(std::fabs(forwardRight.z - forwardLeft.z) < 0.01f);
+}
+
+// --- Phase 1 tests: Agent replacing AI::World/Group/Entity ------------------
+
+// Test 1 (Fase 7 #1): every GameObject destroyed, in a shuffled (not
+// creation) order, must take its Agent's Scene registration with it -
+// exactly the bug radion-fisica-destrutor-desregista-scene already had for
+// RigidBody. Scene::mAgents is never reserve()d, so it reallocates as
+// agents register; ASan (this test binary's default) turns a dangling
+// pointer left behind by a bad deregistration into a hard failure rather
+// than a silent corruption.
+void testAgentUnregisterInShuffledOrder()
+{
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
+
+    constexpr int kCount = 37;
+    std::vector<GameObject*> objects;
+    for (int i = 0; i < kCount; ++i)
+        objects.push_back(makeAgent(scene, settings, "agent")->owner());
+    scene.update(0.0f);
+    CHECK(scene.agentCount() == static_cast<usize>(kCount));
+
+    // Fisher-Yates over a fixed seed: deterministic, but not creation order.
+    std::vector<int> order(static_cast<usize>(kCount));
+    for (int i = 0; i < kCount; ++i)
+        order[static_cast<usize>(i)] = i;
+    std::srand(4242);
+    for (int i = kCount - 1; i > 0; --i)
+    {
+        const int j = std::rand() % (i + 1);
+        std::swap(order[static_cast<usize>(i)], order[static_cast<usize>(j)]);
+    }
+
+    int remaining = kCount;
+    for (int index : order)
+    {
+        CHECK(scene.destroy(objects[static_cast<usize>(index)]));
+        scene.update(0.0f);
+        --remaining;
+        CHECK(scene.agentCount() == static_cast<usize>(remaining));
+    }
+    CHECK(scene.agentCount() == 0);
+
+    // If a deregistration were missed, this dereferences the freed Agent.
+    scene.updateAgents(0.016f);
+}
+
+// Test 2 (Fase 7 #2): groupId() replaces AI::Group membership. A groupId of
+// 0 means "no group" and must see no group members even standing among
+// others; enemy masks are independent of groupId and must still cross group
+// boundaries, exactly as updateEnemyVisibility() scanned every Group in the
+// World regardless of which one an agent belonged to.
+void testSensingByGroupId()
+{
+    Scene scene;
+    Agent::Settings friendlySettings = defaultAgentSettings(); // type = 1
+    Agent::Settings enemySettings = defaultAgentSettings();
+    enemySettings.type = 2;
+
+    Agent* a1 = makeAgent(scene, friendlySettings, "a1");
+    Agent* a2 = makeAgent(scene, friendlySettings, "a2");
+    Agent* b1 = makeAgent(scene, enemySettings, "b1");
+    Agent* b2 = makeAgent(scene, enemySettings, "b2");
+    Agent* lone = makeAgent(scene, friendlySettings, "lone");
+    scene.update(0.0f);
+
+    a1->setGroupId(1);
+    a2->setGroupId(1);
+    b1->setGroupId(2);
+    b2->setGroupId(2);
+    CHECK(lone->groupId() == 0); // default: no group
+
+    a1->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    a2->setPosition(glm::vec3(1.0f, 0.0f, 0.0f));
+    b1->setPosition(glm::vec3(2.0f, 0.0f, 0.0f));
+    b2->setPosition(glm::vec3(3.0f, 0.0f, 0.0f));
+    lone->setPosition(glm::vec3(0.5f, 0.0f, 0.0f));
+
+    scene.updateAgents(0.016f);
+
+    // No group (id 0) never populates visibleGroupMembers(), even standing
+    // in the middle of two groups well within sense range.
+    CHECK(lone->visibleGroupMembers().empty());
+
+    // Same-group sensing is unaffected by the switch from Group pointers to
+    // plain ids.
+    CHECK(a1->visibleGroupMembers().size() == 1);
+    CHECK(a1->visibleGroupMembers()[0].entity == a2);
+    CHECK(b1->visibleGroupMembers().size() == 1);
+    CHECK(b1->visibleGroupMembers()[0].entity == b2);
+
+    // Enemy masks cross groups: a1's enemyMask (~1) flags type 2, regardless
+    // of a1/b1/b2 belonging to different groups. Sorted by distance.
+    CHECK(a1->visibleEnemies().size() == 2);
+    CHECK(a1->visibleEnemies()[0].entity == b1);
+    CHECK(a1->visibleEnemies()[1].entity == b2);
+}
+
+// Test 3 (Fase 7 #3): the 180 degree turn pushOwnerPose()/pullAgentPose()
+// apply to reconcile Agent's forward = +Z with GameObject::forward() = -Z.
+void testAgentPoseSyncFlipsForward()
+{
+    Scene scene;
+    Agent* agent = makeAgent(scene, defaultAgentSettings(), "agent");
+    scene.update(0.0f); // register before touching velocity/orientation
+
+    agent->setVelocity(glm::vec3(1.0f, 0.0f, 0.0f));
+    agent->alignWithVelocity();
+    CHECK(near(agent->forward(), glm::vec3(1.0f, 0.0f, 0.0f)));
+
+    // pullAgentPose() is private (friend Scene) - driven the same way
+    // Scene::update() drives it every frame, through the AI block.
+    scene.update(0.016f);
+
+    CHECK(near(agent->owner()->forward(), glm::vec3(1.0f, 0.0f, 0.0f), 0.0001f));
+}
+
+// Test 4 (Fase 7 #4): behaviors are owned - addBehavior() takes them,
+// removeBehavior() deletes immediately, and the Agent's own destructor frees
+// whatever is left exactly once (a double free or a leak both fail this
+// test's run under ASan even though nothing here CHECK()s it directly).
+void testAgentBehaviorsAreOwned()
+{
+    Scene scene;
+    Agent* a = makeAgent(scene, defaultAgentSettings(), "a");
+    scene.update(0.0f);
+
+    Behavior* separation = new SeparationBehavior(4.0f, 0.2f, 1.0f);
+    a->addBehavior(*separation);
+    CHECK(a->behaviorCount() == 1);
+    CHECK(a->behaviorAt(0) == separation);
+
+    Behavior* cohesion = new CohesionBehavior(1.0f);
+    a->addBehavior(*cohesion);
+    CHECK(a->behaviorCount() == 2);
+
+    CHECK(a->removeBehavior(*separation));
+    CHECK(a->behaviorCount() == 1);
+    CHECK(a->behaviorAt(0) == cohesion);
+
+    // Removing one this agent never had answers false and touches nothing.
+    // (Asking again for `separation` would mean forming a reference to the
+    // instance removeBehavior() has just deleted.)
+    Behavior* stranger = new AlignmentBehavior(1.0f);
+    CHECK(!a->removeBehavior(*stranger));
+    CHECK(a->behaviorCount() == 1);
+
+    // A behavior belongs to exactly one agent: handing the same instance to
+    // a second one is refused, because accepting it would delete it twice.
+    Agent* b = makeAgent(scene, defaultAgentSettings(), "b");
+    scene.update(0.0f);
+    b->addBehavior(*cohesion);
+    CHECK(b->behaviorCount() == 0);
+    CHECK(a->behaviorCount() == 1);
+    CHECK(cohesion->owner() == a);
+
+    b->addBehavior(*stranger); // never owned - accepted, and freed with b
+    CHECK(b->behaviorCount() == 1);
+
+    CHECK(scene.destroy(a->owner()));
+    CHECK(scene.destroy(b->owner()));
+    scene.update(0.0f);
+    CHECK(scene.agentCount() == 0);
+}
+
+// A leader ordered to a random waypoint with no network attached returns
+// instead of dereferencing one: the guard used to sit one line below the
+// dereference it was guarding.
+void testLeaderWithoutWaypointNetwork()
+{
+    Scene scene;
+    Agent* leader = makeAgent(scene, defaultAgentSettings(), "leader");
+    Agent* member = makeAgent(scene, defaultAgentSettings(), "member");
+    scene.update(0.0f);
+
+    leader->setSquadId(0);
+    member->setSquadId(1);
+    leader->addSquadMember(member);
+    CHECK(leader->waypointNetwork() == nullptr);
+
+    leader->sendSquadToRandomWaypoint();
+    CHECK(leader->selectedWaypoint() == nullptr);
+    CHECK(member->goal() == glm::vec3(0.0f)); // never handed a destination
 }
 
 } // namespace
@@ -1197,6 +1353,11 @@ int main()
     testPathfindLineOfSight();
     testFormationAbreast();
     testFormationPentagonSymmetry();
+    testAgentUnregisterInShuffledOrder();
+    testSensingByGroupId();
+    testAgentPoseSyncFlipsForward();
+    testAgentBehaviorsAreOwned();
+    testLeaderWithoutWaypointNetwork();
 
     if (gFailures)
         std::fprintf(stderr, "%d AI test(s) failed\n", gFailures);

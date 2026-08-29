@@ -5,7 +5,7 @@
 #include "Behavior.h"
 
 #include "AIInternal.h"
-#include "Entity.h"
+#include "Agent.h"
 
 #include <cstdlib>
 
@@ -13,6 +13,8 @@ namespace Radion::AI
 {
 
 using detail::safeNormalize;
+using Radion::Agent;
+using Radion::EntityDist;
 
 // --- Separation -------------------------------------------------------------
 
@@ -22,7 +24,7 @@ SeparationBehavior::SeparationBehavior(float separationDistance, float minPercen
 {
 }
 
-void SeparationBehavior::iterate(float timeDelta, Entity& entity)
+void SeparationBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
@@ -70,7 +72,7 @@ AlignmentBehavior::AlignmentBehavior(float turnRate) : mTurnRate(turnRate)
 {
 }
 
-void AlignmentBehavior::iterate(float timeDelta, Entity& entity)
+void AlignmentBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
@@ -78,7 +80,7 @@ void AlignmentBehavior::iterate(float timeDelta, Entity& entity)
     if (groupMembers.empty())
         return;
 
-    const Entity& nearestGroupMember = *groupMembers.front().entity;
+    const Agent& nearestGroupMember = *groupMembers.front().entity;
 
     // Match the heading of our closest group member.
     glm::vec3 desiredMoveAdj = safeNormalize(nearestGroupMember.velocity()) * mTurnRate;
@@ -93,7 +95,7 @@ CohesionBehavior::CohesionBehavior(float turnRate) : mTurnRate(turnRate)
 {
 }
 
-void CohesionBehavior::iterate(float timeDelta, Entity& entity)
+void CohesionBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
@@ -128,7 +130,7 @@ AvoidanceBehavior::AvoidanceBehavior(float avoidanceDistance, float avoidanceSpe
 {
 }
 
-void AvoidanceBehavior::iterate(float timeDelta, Entity& entity)
+void AvoidanceBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
@@ -136,7 +138,7 @@ void AvoidanceBehavior::iterate(float timeDelta, Entity& entity)
     if (enemies.empty())
         return;
 
-    const Entity& nearestEnemy = *enemies.front().entity;
+    const Agent& nearestEnemy = *enemies.front().entity;
     float nearestEnemyDist = enemies.front().distance;
 
     // Head away from the enemy.
@@ -161,7 +163,7 @@ CruisingBehavior::CruisingBehavior(float randMoveXChance, float randMoveYChance,
 {
 }
 
-void CruisingBehavior::iterate(float timeDelta, Entity& entity)
+void CruisingBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
@@ -200,7 +202,7 @@ StayWithinSphereBehavior::StayWithinSphereBehavior(const glm::vec3& center, floa
 {
 }
 
-void StayWithinSphereBehavior::iterate(float timeDelta, Entity& entity)
+void StayWithinSphereBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
@@ -222,7 +224,7 @@ CombatBehavior::CombatBehavior(float fireRange, float damagePerHit, float fireIn
 {
 }
 
-void CombatBehavior::iterate(float timeDelta, Entity& entity)
+void CombatBehavior::iterate(float timeDelta, Agent& entity)
 {
     entity.tickAttackCooldown(timeDelta);
 

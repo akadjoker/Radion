@@ -3,6 +3,7 @@ add_library(radion_scene
     src/Octree.cpp
     src/Prefab.cpp
     src/components/ActionRunner.cpp
+    src/components/Agent.cpp
     src/components/AudioPlayer.cpp
     src/components/Beam.cpp
     src/components/Billboard.cpp
@@ -47,10 +48,14 @@ add_library(radion_scene
     src/SceneSerializer.cpp
     src/VegetationGrid.cpp
     ${RADION_PHYSICS_SOURCES}
+    ${RADION_AI_SOURCES}
 )
 
 target_precompile_headers(radion_scene PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
 )
-target_include_directories(radion_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${RADION_PHYSICS_INCLUDE_DIR})
-target_link_libraries(radion_scene PUBLIC radion_render radion_ai radion_audio radion_geometry radion_script radion_voxel zen_static)
+target_include_directories(radion_scene PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include ${RADION_PHYSICS_INCLUDE_DIR} ${RADION_AI_INCLUDE_DIR}
+)
+target_link_libraries(radion_scene PUBLIC radion_render radion_audio radion_geometry radion_script radion_voxel zen_static
+                       PRIVATE radion_recast)

@@ -1,19 +1,20 @@
 // PathfindBehavior.cpp - waypoint-path steering behavior.
 //
-// applyAvoidance() rotates the desired move away from nearby entities around
+// applyAvoidance() rotates the desired move away from nearby agents around
 // the up vector on the XZ plane. It stays off by default (avoidDistance <= 0).
 
 #include "PCH.h"
 
 #include "PathfindBehavior.h"
 
-#include "Entity.h"
-#include "Group.h"
-#include "SquadEntity.h"
-#include "World.h"
+#include "Agent.h"
+#include "Scene.h"
 
 namespace Radion::AI
 {
+
+using Radion::Agent;
+using Radion::Scene;
 
 namespace
 {
@@ -31,10 +32,9 @@ PathfindBehavior::PathfindBehavior(const Settings& settings) : mSettings(setting
 {
 }
 
-void PathfindBehavior::iterate(float timeDelta, Entity& entity)
+void PathfindBehavior::iterate(float timeDelta, Agent& entity)
 {
-    // Pathfinding only works on squad entities (reference dynamic_cast).
-    SquadEntity& squadmate = dynamic_cast<SquadEntity&>(entity);
+    Agent& squadmate = entity;
     WaypointNetwork* network = mSettings.waypointNetwork;
     if (!network)
         return;
@@ -149,38 +149,39 @@ void PathfindBehavior::iterate(float timeDelta, Entity& entity)
     applyAvoidance(entity);
 }
 
-void PathfindBehavior::applyAvoidance(Entity& entity)
+void PathfindBehavior::applyAvoidance(Agent& entity)
 {
     if (mSettings.avoidDistance <= 0.0f)
+        return;
+
+    Scene* scene = entity.scene();
+    if (!scene)
         return;
 
     glm::vec3 repulsion(0.0f);
     const glm::vec3 position = entity.position();
     const float avoidRadius = mSettings.avoidDistance;
 
-    for (Group* group : entity.world().groups())
+    for (Agent* other : scene->agents())
     {
-        for (Entity* other : group->entities())
+        if (other == &entity)
+            continue;
+
+        glm::vec3 away = position - other->position();
+        away.y = 0.0f;
+        float distance = glm::length(away);
+        if (distance >= avoidRadius)
+            continue;
+
+        if (distance > 1e-5f)
         {
-            if (other == &entity)
-                continue;
-
-            glm::vec3 away = position - other->position();
-            away.y = 0.0f;
-            float distance = glm::length(away);
-            if (distance >= avoidRadius)
-                continue;
-
-            if (distance > 1e-5f)
-            {
-                const float strength = 1.0f - distance / avoidRadius;
-                repulsion += (away / distance) * strength;
-            }
-            else
-            {
-                // Coincident agents need opposite deterministic directions.
-                repulsion += (&entity < other) ? entity.side() : -entity.side();
-            }
+            const float strength = 1.0f - distance / avoidRadius;
+            repulsion += (away / distance) * strength;
+        }
+        else
+        {
+            // Coincident agents need opposite deterministic directions.
+            repulsion += (&entity < other) ? entity.side() : -entity.side();
         }
     }
 

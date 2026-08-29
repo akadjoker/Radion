@@ -16,7 +16,7 @@ add_executable(radion_ai_tests AITests.cpp)
 target_precompile_headers(radion_ai_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
 )
-target_link_libraries(radion_ai_tests PRIVATE radion_ai)
+target_link_libraries(radion_ai_tests PRIVATE radion_scene)
 add_test(NAME ai_logic COMMAND radion_ai_tests)
 set_tests_properties(ai_logic PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 

@@ -4,22 +4,28 @@
 // SquadAI.h - builds the squad leader/member state machines.
 //
 // The machines are built from their definitions using CallbackAction /
-// CallbackTransition lambdas that capture the owning entity. Ownership of the
+// CallbackTransition lambdas that capture the owning agent. Ownership of the
 // returned StateMachine is transferred to the caller (assign it with
-// SquadEntity::setStateMachine and delete it before the entity dies - the
-// callbacks capture the entity by reference).
+// Agent::setStateMachine() and delete it before the agent dies - the
+// callbacks capture the agent by reference).
 
-#include "SquadEntity.h"
 #include "StateMachine.h"
+
+namespace Radion
+{
+class Agent;
+}
 
 namespace Radion::AI
 {
 
 // Leader machine: AwaitingSquadTaskCompletion <-> CommandSquadToPOI <-> StandingGround.
-StateMachine* buildLeaderStateMachine(SquadLeaderEntity& leader);
+// `leader` is expected to have squadId() == 0 (the leader-only methods this
+// calls - sendSquadToRandomPOI() etc. - are Agent's own until Squad exists).
+StateMachine* buildLeaderStateMachine(Radion::Agent& leader);
 
 // Member machine: WaitingForCommand -> MovingToGoal -> WaypointReached.
-StateMachine* buildMemberStateMachine(SquadEntity& member);
+StateMachine* buildMemberStateMachine(Radion::Agent& member);
 
 } // namespace Radion::AI
 

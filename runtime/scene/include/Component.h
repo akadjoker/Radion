@@ -54,6 +54,7 @@ enum class ComponentType : u8
     UiSlider,
     RigidBody,
     Joint,
+    Agent,
     Count
 };
 

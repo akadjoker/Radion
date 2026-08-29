@@ -4,24 +4,26 @@
 // AI.h - umbrella header for the Radion AI library.
 //
 // Contents:
+//   - Agent:          Agent.h (runtime/scene) - the flocking/steering/squad
+//                      Component the Scene drives; AI::World/Group/Entity/
+//                      SquadEntity are gone, folded into it and Scene.
 //   - State machine:  State.h, Action.h, Transition.h, StateMachine.h
 //   - Waypoints:      Waypoint.h, WaypointNetwork.h (A* over the graph),
 //                     PointOfInterest.h
 //   - Pathfinding:    GridMap.h, GridPathfinder.h (A* over a cost grid)
-//   - Flocking:       Behavior.h, Entity.h, Group.h, World.h
-//   - Steering:       Obstacle.h (obstacle avoidance), Steering.h
-//                     (seek/flee/wander/pursuit/evasion/...)
-//   - Squad glue:     PathfindBehavior.h, FormationBehavior.h, SquadEntity.h,
+//   - Flocking:       Behavior.h, Steering.h (seek/flee/wander/pursuit/
+//                     evasion/...), Obstacle.h (obstacle avoidance)
+//   - Squad glue:     PathfindBehavior.h, FormationBehavior.h,
+//                     NavMeshBehavior.h, SquadEntity.h (SquadCommand enum),
 //                     SquadAI.h
 //
 
 #include "Action.h"
+#include "Agent.h"
 #include "Behavior.h"
-#include "Entity.h"
 #include "FormationBehavior.h"
 #include "GridMap.h"
 #include "GridPathfinder.h"
-#include "Group.h"
 #include "Obstacle.h"
 #include "NavMeshBehavior.h"
 #include "PathfindBehavior.h"
@@ -34,6 +36,5 @@
 #include "Transition.h"
 #include "Waypoint.h"
 #include "WaypointNetwork.h"
-#include "World.h"
 
 #endif // RADION_AI_AI_H

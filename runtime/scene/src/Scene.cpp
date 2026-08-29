@@ -3,6 +3,7 @@
 #include "Scene.h"
 #include "Thread.h"
 
+#include "Agent.h"
 #include "AssetManager.h"
 #include "AudioEngine.h"
 #include "DebugDraw3D.h"
@@ -243,6 +244,7 @@ Scene::~Scene()
     // every attached one through componentRemoved(). Detach them rather than
     // leave them pointing at a Scene about to go away.
     clearPhysics();
+    clearAI();
 
     // mStaticIndex's own destructor releases the per-entry queries; only the
     // shared occlusion-pass resources (created lazily, see
@@ -536,6 +538,25 @@ void Scene::update(f32 deltaTime)
         for (BoneAttachment* attachment : mBoneAttachments)
             if (attachment->active() && attachment->owner()->isActiveInHierarchy())
                 attachment->update();
+    }
+    // AI runs after Animation update and before Physics step, same reasoning
+    // as the physics block below: an order given by script in onUpdate reaches
+    // the agent the same frame, and the velocity AI produces is integrated by
+    // physics the same frame instead of lagging by one. In the editor agents
+    // only track their owner's pose, so nothing steers while it is being
+    // placed and Play starts from where it was left.
+    {
+        RADION_PROFILE_SCOPE("AI update");
+        for (Agent* agent : mAgents)
+            if (agent->simulating() && agent->ownerMoved())
+                agent->pushOwnerPose();
+        if (!mRunningInEditor)
+        {
+            updateAgents(mDeltaTime);
+            for (Agent* agent : mAgents)
+                if (agent->simulating() && agent->owner())
+                    agent->pullAgentPose();
+        }
     }
     // Physics runs after Component update, so this frame's scripted forces
     // and impulses (applied from onUpdate) are already on the bodies before
@@ -1781,6 +1802,9 @@ void Scene::componentAdded(Component* component)
     case ComponentType::Joint:
         mJointComponents.push_back(static_cast<Physics::Joint*>(component));
         break;
+    case ComponentType::Agent:
+        addAgent(*static_cast<Agent*>(component));
+        break;
     default:
         break;
     }
@@ -1872,6 +1896,9 @@ void Scene::componentRemoved(Component* component)
         break;
     case ComponentType::Joint:
         removePointer(mJointComponents, static_cast<Physics::Joint*>(component));
+        break;
+    case ComponentType::Agent:
+        removeAgent(*static_cast<Agent*>(component));
         break;
     default:
         break;
@@ -2358,6 +2385,44 @@ void Scene::removeJoint(Joint* joint)
     joint->mJointScene = nullptr;
     *found = mJoints.back();
     mJoints.pop_back();
+}
+
+// ------------------------------------------------------------------- AI
+
+void Scene::addAgent(Agent& agent)
+{
+    if (agent.mScene == this)
+        return;
+    if (agent.mScene)
+        agent.mScene->removeAgent(agent);
+    agent.mScene = this;
+    // Same as addBody(): the agent starts where its object already stands,
+    // instead of at the origin until the first frame that notices the owner
+    // moved. A caller stepping updateAgents() directly never gets that frame.
+    agent.pushOwnerPose();
+    mAgents.push_back(&agent);
+}
+
+void Scene::removeAgent(Agent& agent)
+{
+    if (agent.mScene != this)
+        return;
+    removePointer(mAgents, &agent);
+    agent.mScene = nullptr;
+}
+
+void Scene::updateAgents(f32 deltaTime)
+{
+    for (Agent* agent : mAgents)
+        if (agent->simulating())
+            agent->update(deltaTime);
+}
+
+void Scene::clearAI()
+{
+    for (Agent* agent : mAgents)
+        agent->mScene = nullptr;
+    mAgents.clear();
 }
 
 // --------------------------------------------------------------- settings

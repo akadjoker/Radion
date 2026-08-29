@@ -3,16 +3,20 @@
 
 // PathfindBehavior.h - steering behavior that follows a waypoint path.
 //
-// Drives a SquadEntity along its Path, popping waypoints as they are reached,
+// Drives an Agent along its Path, popping waypoints as they are reached,
 // periodically testing line of sight to the goal (short-circuiting the path
 // when it becomes visible), and nudging the agent with a perpendicular
-// agitation vector if it stalls. Requires the owning entity to be a
-// SquadEntity (dynamic_cast).
+// agitation vector if it stalls.
 
 #include "Behavior.h"
 #include "WaypointNetwork.h"
 
 #include <glm/glm.hpp>
+
+namespace Radion
+{
+class Agent;
+}
 
 namespace Radion::AI
 {
@@ -38,8 +42,8 @@ public:
 
     explicit PathfindBehavior(const Settings& settings);
 
-    void iterate(float timeDelta, Entity& entity) override;
-    void applyAvoidance(Entity& entity);
+    void iterate(float timeDelta, Radion::Agent& entity) override;
+    void applyAvoidance(Radion::Agent& entity);
     const char* name() const override
     {
         return "Pathfind Behavior";
