@@ -8,6 +8,7 @@
 #include "PathfindBehavior.h"
 
 #include "Agent.h"
+#include "AgentAvoidance.h"
 #include "Scene.h"
 
 namespace Radion::AI
@@ -225,60 +226,7 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
 
 void PathfindBehavior::applyAvoidance(Agent& entity)
 {
-    if (mSettings.avoidDistance <= 0.0f)
-        return;
-
-    Scene* scene = entity.scene();
-    if (!scene)
-        return;
-
-    glm::vec3 repulsion(0.0f);
-    const glm::vec3 position = entity.position();
-    const float avoidRadius = mSettings.avoidDistance;
-
-    for (Agent* other : scene->agents())
-    {
-        if (other == &entity)
-            continue;
-
-        glm::vec3 away = position - other->position();
-        away.y = 0.0f;
-        float distance = glm::length(away);
-        if (distance >= avoidRadius)
-            continue;
-
-        if (distance > 1e-5f)
-        {
-            const float strength = 1.0f - distance / avoidRadius;
-            repulsion += (away / distance) * strength;
-        }
-        else
-        {
-            // Coincident agents need opposite deterministic directions.
-            repulsion += (&entity < other) ? entity.side() : -entity.side();
-        }
-    }
-
-    const float repulsionLength = glm::length(repulsion);
-    if (repulsionLength <= 1e-5f)
-        return;
-
-    glm::vec3 desired = entity.desiredMove();
-    const float desiredLength = glm::length(desired);
-    const glm::vec3 escape = repulsion / repulsionLength;
-    const float weight = std::clamp(mSettings.turnRate, 0.0f, 1.0f);
-
-    if (desiredLength > 1e-5f)
-    {
-        glm::vec3 direction = desired / desiredLength;
-        direction = glm::normalize(direction * (1.0f - weight) + escape * weight);
-        desired = direction * desiredLength;
-    }
-    else
-    {
-        desired = escape * mSettings.turnRate;
-    }
-    entity.setDesiredMove(desired);
+    detail::applyAgentAvoidance(entity, mSettings.avoidDistance, mSettings.turnRate);
 }
 
 } // namespace Radion::AI
