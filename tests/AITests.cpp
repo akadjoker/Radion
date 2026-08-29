@@ -696,6 +696,96 @@ void testStateMachineRemoveState()
     CHECK(machine.currentState() == a);
 }
 
+// The callbacks a state machine runs can reach back into the machine, and
+// removeState() deletes both the State and every transition aimed at it. So
+// iterate() must survive its own callbacks rewriting the very list it is
+// walking - it used to keep walking, over freed transitions.
+void testStateMachineSurvivesCallbackMutation()
+{
+    // 1. A shouldTransition() that removes a state and answers false: the
+    //    loop used to carry on over a vector that just had entries erased.
+    {
+        StateMachine machine;
+        State* a = new State("A");
+        State* doomed = new State("Doomed");
+        State* other = new State("Other");
+        machine.addState(a);
+        machine.addState(doomed);
+        machine.addState(other);
+
+        // A's first transition points at Doomed, so removing Doomed erases
+        // this very transition out from under the loop.
+        a->addTransition(new CallbackTransition(a, doomed,
+                                                [&machine, doomed](State&)
+                                                {
+                                                    machine.removeState(doomed);
+                                                    return false;
+                                                }));
+        a->addTransition(new CallbackTransition(a, other,
+                                                [](State&)
+                                                {
+                                                    return true;
+                                                }));
+        machine.reset();
+        CHECK(machine.currentState() == a);
+        machine.iterate();
+        CHECK(machine.findState("Doomed") == nullptr);
+        // Whatever it decided, it must still be on a live state.
+        CHECK(machine.currentState() == a || machine.currentState() == other);
+    }
+
+    // 2. An exit() that removes the state being left - which deletes it,
+    //    and leaves the machine with no current state. Installing the
+    //    transition's target afterwards would resurrect a machine the
+    //    callback just emptied, having read `state` after it was freed.
+    {
+        StateMachine machine;
+        State* a = new State("A");
+        State* b = new State("B");
+        machine.addState(a);
+        machine.addState(b);
+
+        a->addExitAction(new CallbackAction(a,
+                                            [&machine, a](State&)
+                                            {
+                                                machine.removeState(a);
+                                            }));
+        a->addTransition(new CallbackTransition(a, b,
+                                                [](State&)
+                                                {
+                                                    return true;
+                                                }));
+        machine.reset();
+        machine.iterate();
+        CHECK(machine.findState("A") == nullptr);
+        CHECK(machine.currentState() == nullptr); // stays empty, as asked
+        machine.iterate();                        // and survives another tick
+    }
+
+    // 3. A state's own iterate() that empties the machine.
+    {
+        StateMachine machine;
+        State* a = new State("A");
+        State* b = new State("B");
+        machine.addState(a);
+        machine.addState(b);
+        a->addAction(new CallbackAction(a,
+                                        [&machine, b](State&)
+                                        {
+                                            machine.removeState(b);
+                                        }));
+        a->addTransition(new CallbackTransition(a, b,
+                                                [](State&)
+                                                {
+                                                    return true;
+                                                }));
+        machine.reset();
+        machine.iterate();
+        CHECK(machine.findState("B") == nullptr);
+        CHECK(machine.currentState() == a);
+    }
+}
+
 void testPointsOfInterest()
 {
     PointsOfInterest pois;
@@ -1676,6 +1766,7 @@ int main()
     testCruisingAxisDistribution();
     testGridAStarOptimality();
     testStateMachineRemoveState();
+    testStateMachineSurvivesCallbackMutation();
     testPointsOfInterest();
     testSteerLibrary();
     testPursuitEvasion();
