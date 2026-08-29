@@ -10,6 +10,7 @@
 #include "dynamics/PointJoint.h"
 #include "dynamics/SliderJoint.h"
 #include "dynamics/UniversalJoint.h"
+#include "dynamics/WheelJoint.h"
 
 namespace Radion
 {
@@ -30,6 +31,7 @@ RADION_JOINT_MATCH(Physics::SliderJoint, Slider)
 RADION_JOINT_MATCH(Physics::PistonJoint, Piston)
 RADION_JOINT_MATCH(Physics::UniversalJoint, Universal)
 RADION_JOINT_MATCH(Physics::PointJoint, Point)
+RADION_JOINT_MATCH(Physics::WheelJoint, Wheel)
 
 #undef RADION_JOINT_MATCH
 

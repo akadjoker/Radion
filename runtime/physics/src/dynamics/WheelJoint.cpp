@@ -3,6 +3,8 @@
 
 #include "dynamics/WheelJoint.h"
 
+#include "GameObject.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 namespace Radion::Physics
@@ -42,14 +44,70 @@ f32 centerAngleAroundZero(f32 angle)
 
 WheelJoint::WheelJoint(RigidBody& chassis, RigidBody& wheel, const glm::vec3& worldAnchor,
                        const glm::vec3& worldSuspensionAxis, const glm::vec3& worldSpinAxis)
-    : Joint(JointKind::Wheel), mChassis(&chassis), mWheel(&wheel),
-      mLocalAnchorChassis(chassis.pointToLocal(worldAnchor)),
-      mLocalAnchorWheel(wheel.pointToLocal(worldAnchor)),
-      mLocalSuspensionAxis(chassis.directionToLocal(glm::normalize(worldSuspensionAxis))),
-      mLocalSpinAxis(wheel.directionToLocal(glm::normalize(worldSpinAxis))),
-      mLocalNormalAxis(chassis.directionToLocal(normalizedPerpendicular(glm::normalize(worldSuspensionAxis)))),
-      mInverseInitialOrientation(glm::conjugate(wheel.orientation()) * chassis.orientation())
+    : Joint(JointKind::Wheel)
 {
+    configure(chassis, wheel, worldAnchor, worldSuspensionAxis, worldSpinAxis);
+}
+
+WheelJoint::WheelJoint() : Joint(JointKind::Wheel)
+{
+}
+
+void WheelJoint::configure(RigidBody& chassis, RigidBody& wheel, const glm::vec3& worldAnchor,
+                           const glm::vec3& worldSuspensionAxis, const glm::vec3& worldSpinAxis)
+{
+    const glm::vec3 suspension = glm::normalize(worldSuspensionAxis);
+    mChassis = &chassis;
+    mWheel = &wheel;
+    mLocalAnchorChassis = chassis.pointToLocal(worldAnchor);
+    mLocalAnchorWheel = wheel.pointToLocal(worldAnchor);
+    mLocalSuspensionAxis = chassis.directionToLocal(suspension);
+    mLocalSpinAxis = wheel.directionToLocal(glm::normalize(worldSpinAxis));
+    mLocalNormalAxis = chassis.directionToLocal(normalizedPerpendicular(suspension));
+    mInverseInitialOrientation = glm::conjugate(wheel.orientation()) * chassis.orientation();
+}
+
+void WheelJoint::rebuild()
+{
+    GameObject* self = owner();
+    GameObject* other = connectedBody();
+    if (!self || !other)
+        return;
+    RigidBody* wheelBody = self->getComponent<RigidBody>();
+    RigidBody* chassisBody = other->getComponent<RigidBody>();
+    if (!wheelBody || !chassisBody)
+        return;
+    // The owner is the wheel and the connected body the chassis: a car is
+    // authored as four wheel objects hanging off one chassis, so the joint
+    // lives on the part there are several of.
+    Scene* scene = self->scene();
+    if (!scene)
+        return;
+    const glm::vec3 suspensionAxis = self->globalRotation() * glm::normalize(mAuthoredSuspensionAxis);
+    const glm::vec3 spinAxis = self->globalRotation() * glm::normalize(mAuthoredSpinAxis);
+    configure(*chassisBody, *wheelBody, self->globalPosition(), suspensionAxis, spinAxis);
+    scene->addJoint(this);
+    mBuilt = true;
+}
+
+// Both only record the axis and drop the built flag, the way
+// HingeJoint::setAuthoredAxis() does - the Scene rebuilds an unbuilt joint
+// on its own. Rebuilding here would run before the object is even in a
+// scene, which is where owner()->scene() is still null.
+void WheelJoint::setAuthoredSuspensionAxis(const glm::vec3& axis)
+{
+    if (glm::length(axis) <= 1.0e-6f)
+        return;
+    mAuthoredSuspensionAxis = glm::normalize(axis);
+    mBuilt = false;
+}
+
+void WheelJoint::setAuthoredSpinAxis(const glm::vec3& axis)
+{
+    if (glm::length(axis) <= 1.0e-6f)
+        return;
+    mAuthoredSpinAxis = glm::normalize(axis);
+    mBuilt = false;
 }
 
 RigidBody* WheelJoint::bodyA() const

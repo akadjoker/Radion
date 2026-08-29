@@ -3523,6 +3523,8 @@ const char* jointKindName(Physics::JointKind kind)
         return "Universal";
     case Physics::JointKind::Point:
         return "Point";
+    case Physics::JointKind::Wheel:
+        return "Wheel";
     default:
         break;
     }
@@ -3545,6 +3547,8 @@ bool jointKindFromName(const std::string& name, Physics::JointKind& out)
         out = Physics::JointKind::Universal;
     else if (name == "Point")
         out = Physics::JointKind::Point;
+    else if (name == "Wheel")
+        out = Physics::JointKind::Wheel;
     else
         return false;
     return true;
@@ -3612,8 +3616,44 @@ nlohmann::json writeJoint(Physics::Joint& joint)
         minDistance = static_cast<Physics::DistanceJoint&>(joint).authoredMinDistance();
         maxDistance = static_cast<Physics::DistanceJoint&>(joint).authoredMaxDistance();
         break;
+    case Physics::JointKind::Wheel:
+    {
+        // The wheel carries two axes and a spring, so it writes its own
+        // fields rather than borrowing the shared ones above; `axis` stays
+        // the suspension one so a reader that only knows the common shape
+        // still gets something meaningful.
+        Physics::WheelJoint& wheel = static_cast<Physics::WheelJoint&>(joint);
+        axis = wheel.authoredSuspensionAxis();
+        minAngle = wheel.minSteeringAngle();
+        maxAngle = wheel.maxSteeringAngle();
+        motorTargetAngularVelocity = wheel.steeringMotorTargetVelocity();
+        motorMaxTorque = wheel.steeringMotorMaxTorque();
+        json["spinAxis"] = writeVec3(wheel.authoredSpinAxis());
+        json["suspensionRestLength"] = wheel.suspensionRestLength();
+        json["suspensionStiffness"] = wheel.suspensionStiffness();
+        json["suspensionDamping"] = wheel.suspensionDamping();
+        json["driveTargetVelocity"] = wheel.spinMotorTargetVelocity();
+        json["driveMaxTorque"] = wheel.spinMotorMaxTorque();
+        break;
+    }
     default:
         break;
+    }
+    // A servo holds an angle instead of a speed; without these two a joint
+    // set up as a servo comes back as a dead motor.
+    if (joint.kind() == Physics::JointKind::Hinge)
+    {
+        Physics::HingeJoint& hinge = static_cast<Physics::HingeJoint&>(joint);
+        json["servoEnabled"] = hinge.servoEnabled();
+        json["servoTarget"] = hinge.servoTargetAngle();
+        json["servoMaxVelocity"] = hinge.servoMaxAngularVelocity();
+    }
+    else if (joint.kind() == Physics::JointKind::Slider)
+    {
+        Physics::SliderJoint& slider = static_cast<Physics::SliderJoint&>(joint);
+        json["servoEnabled"] = slider.servoEnabled();
+        json["servoTarget"] = slider.servoTargetPosition();
+        json["servoMaxVelocity"] = slider.servoMaxSpeed();
     }
     json["axis"] = writeVec3(axis);
     json["minDistance"] = minDistance;
@@ -3729,6 +3769,27 @@ void readJoint(GameObject& object, const nlohmann::json& json, const std::string
     case Physics::JointKind::Point:
         joint = object.addComponent<Physics::PointJoint>();
         break;
+    case Physics::JointKind::Wheel:
+        if (Physics::WheelJoint* wheel = object.addComponent<Physics::WheelJoint>())
+        {
+            glm::vec3 suspensionAxis(0.0f, -1.0f, 0.0f);
+            glm::vec3 spinAxis(1.0f, 0.0f, 0.0f);
+            readVec3Field(json, "axis", suspensionAxis, path, result);
+            readVec3Field(json, "spinAxis", spinAxis, path, result);
+            wheel->setAuthoredSuspensionAxis(suspensionAxis);
+            wheel->setAuthoredSpinAxis(spinAxis);
+            wheel->setSuspension(readNumberOr(json, "suspensionRestLength", 0.5f),
+                                 readNumberOr(json, "suspensionStiffness", 0.0f),
+                                 readNumberOr(json, "suspensionDamping", 0.0f));
+            wheel->setSteeringLimits(readNumberOr(json, "minAngle", 0.0f),
+                                     readNumberOr(json, "maxAngle", 0.0f));
+            wheel->setSteeringMotor(readNumberOr(json, "motorTargetAngularVelocity", 0.0f),
+                                    readNumberOr(json, "motorMaxTorque", 0.0f));
+            wheel->setSpinMotor(readNumberOr(json, "driveTargetVelocity", 0.0f),
+                                readNumberOr(json, "driveMaxTorque", 0.0f));
+            joint = wheel;
+        }
+        break;
     default:
         break;
     }
@@ -3736,6 +3797,21 @@ void readJoint(GameObject& object, const nlohmann::json& json, const std::string
     {
         result.addError(path, "object already has a Joint component");
         return;
+    }
+
+    // Applied after construction so it overrides the plain motor the kind
+    // may have just been given: a servo and a velocity motor share the same
+    // machinery, and whichever is written last wins.
+    if (readBoolOr(json, "servoEnabled", false))
+    {
+        const f32 servoTarget = readNumberOr(json, "servoTarget", 0.0f);
+        const f32 servoMaxVelocity = readNumberOr(json, "servoMaxVelocity", 0.0f);
+        if (kind == Physics::JointKind::Hinge)
+            static_cast<Physics::HingeJoint*>(joint)->setServo(servoTarget, motorMaxTorque,
+                                                               servoMaxVelocity);
+        else if (kind == Physics::JointKind::Slider)
+            static_cast<Physics::SliderJoint*>(joint)->setServo(servoTarget, motorMaxForce,
+                                                                servoMaxVelocity);
     }
 
     if (target)

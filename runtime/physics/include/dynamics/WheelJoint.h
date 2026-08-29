@@ -20,14 +20,70 @@ public:
     WheelJoint(RigidBody& chassis, RigidBody& wheel, const glm::vec3& worldAnchor,
               const glm::vec3& worldSuspensionAxis, const glm::vec3& worldSpinAxis);
 
+    // Empty, for the component path: the editor adds one of these to an
+    // object and rebuild() wires it to the connected body, the same way
+    // HingeJoint does. The two axes come from setAuthoredSuspensionAxis()
+    // and setAuthoredSpinAxis() instead of from the constructor.
+    WheelJoint();
+
+    void configure(RigidBody& chassis, RigidBody& wheel, const glm::vec3& worldAnchor,
+                   const glm::vec3& worldSuspensionAxis, const glm::vec3& worldSpinAxis);
+
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
     void setup(f32 duration) override;
     void warmStart() override;
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
-    void rebuild() override
+    void rebuild() override;
+
+    // Both in the owner's own local space. Suspension points from the
+    // chassis mount towards the ground; spin is the axle.
+    void setAuthoredSuspensionAxis(const glm::vec3& axis);
+    const glm::vec3& authoredSuspensionAxis() const
     {
+        return mAuthoredSuspensionAxis;
+    }
+    void setAuthoredSpinAxis(const glm::vec3& axis);
+    const glm::vec3& authoredSpinAxis() const
+    {
+        return mAuthoredSpinAxis;
+    }
+    f32 suspensionRestLength() const
+    {
+        return mSuspensionRestLength;
+    }
+    f32 suspensionStiffness() const
+    {
+        return mSuspensionStiffness;
+    }
+    f32 suspensionDamping() const
+    {
+        return mSuspensionDamping;
+    }
+    f32 steeringMotorTargetVelocity() const
+    {
+        return mSteeringMotorTargetVelocity;
+    }
+    f32 steeringMotorMaxTorque() const
+    {
+        return mSteeringMotorMaxTorque;
+    }
+    f32 spinMotorTargetVelocity() const
+    {
+        return mSpinMotorTargetVelocity;
+    }
+    f32 spinMotorMaxTorque() const
+    {
+        return mSpinMotorMaxTorque;
+    }
+    f32 minSteeringAngle() const
+    {
+        return mSteeringLimitsMin;
+    }
+    f32 maxSteeringAngle() const
+    {
+        return mSteeringLimitsMax;
     }
 
     glm::vec3 anchorWorldA() const override;
@@ -81,14 +137,18 @@ private:
     void applyLinearImpulse(const glm::vec3& impulse);
     void applyAngularImpulse(const glm::vec3& impulse);
 
-    RigidBody* mChassis;
-    RigidBody* mWheel;
-    glm::vec3 mLocalAnchorChassis;
-    glm::vec3 mLocalAnchorWheel;
-    glm::vec3 mLocalSuspensionAxis;
-    glm::vec3 mLocalSpinAxis;
-    glm::vec3 mLocalNormalAxis;
-    glm::quat mInverseInitialOrientation;
+    RigidBody* mChassis = nullptr;
+    RigidBody* mWheel = nullptr;
+    glm::vec3 mLocalAnchorChassis{0.0f};
+    glm::vec3 mLocalAnchorWheel{0.0f};
+    glm::vec3 mLocalSuspensionAxis{0.0f, -1.0f, 0.0f};
+    glm::vec3 mLocalSpinAxis{1.0f, 0.0f, 0.0f};
+    glm::vec3 mLocalNormalAxis{1.0f, 0.0f, 0.0f};
+    glm::quat mInverseInitialOrientation{1.0f, 0.0f, 0.0f, 0.0f};
+    // What the editor edits, before the joint is wired to a body - down and
+    // along the axle, in the owner's local space.
+    glm::vec3 mAuthoredSuspensionAxis{0.0f, -1.0f, 0.0f};
+    glm::vec3 mAuthoredSpinAxis{1.0f, 0.0f, 0.0f};
 
     glm::vec3 mArmA{0.0f};
     glm::vec3 mArmB{0.0f};
