@@ -30,6 +30,7 @@ add_library(radion_scene
     src/components/SelfDestroy.cpp
     src/components/Terrain.cpp
     src/components/Text3D.cpp
+    src/components/TiledTerrain.cpp
     src/components/UiControls.cpp
     src/components/NavMeshSurface.cpp
     src/components/Waypoints.cpp

@@ -268,3 +268,11 @@ target_precompile_headers(radion_scene_collision_tests PRIVATE
 target_link_libraries(radion_scene_collision_tests PRIVATE radion_scene)
 add_test(NAME scene_collision COMMAND radion_scene_collision_tests)
 set_tests_properties(scene_collision PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+add_executable(radion_tiled_terrain_tests TiledTerrainTests.cpp)
+target_precompile_headers(radion_tiled_terrain_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_tiled_terrain_tests PRIVATE radion_scene)
+add_test(NAME tiled_terrain COMMAND radion_tiled_terrain_tests)
+set_tests_properties(tiled_terrain PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
