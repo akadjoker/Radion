@@ -1,0 +1,3 @@
+[submodule "vendor/zenpy"]
+	path = vendor/zenpy
+	url = https://github.com/akadjoker/zenpy.git
