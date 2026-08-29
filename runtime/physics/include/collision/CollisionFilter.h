@@ -6,6 +6,8 @@
 namespace Radion::Physics
 {
 
+class RigidBody;
+
 // Category bits and acceptance bits are deliberately separate. A pair is
 // accepted only when both objects opt in, matching Jolt/Bullet filtering.
 struct CollisionFilter
@@ -22,11 +24,11 @@ inline bool shouldCollide(const CollisionFilter& a, const CollisionFilter& b)
 struct QueryFilter
 {
     CollisionFilter collision{0xFFFFFFFFu, 0xFFFFFFFFu};
-    u32 ignoredBody = 0xFFFFFFFFu;
+    const RigidBody* ignoredBody = nullptr;
 
-    bool accepts(u32 bodyId, const CollisionFilter& bodyFilter) const
+    bool accepts(const RigidBody* body, const CollisionFilter& bodyFilter) const
     {
-        return bodyId != ignoredBody && shouldCollide(collision, bodyFilter);
+        return body != ignoredBody && shouldCollide(collision, bodyFilter);
     }
 };
 

@@ -39,7 +39,7 @@ glm::vec3 relativeVelocity(const RigidBody& a, const RigidBody& b, const glm::ve
 // it meant a settled stack was woken eight times a step forever, its sleep
 // counter reset before it could ever cross the threshold - so nothing slept
 // and the whole tower kept creeping. Waking belongs to the moment a contact
-// is NEW, which PhysicsWorld does from its pair cache.
+// is NEW, which Scene does from its pair cache.
 void applyOne(RigidBody& body, const glm::vec3& impulse, const glm::vec3& point)
 {
     if (!body.isDynamic())

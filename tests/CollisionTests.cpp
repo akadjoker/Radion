@@ -1,11 +1,11 @@
 #include "PCH.h"
 
+#include "Scene.h"
 #include "character/CharacterBody.h"
 #include "character/CharacterRigidBody.h"
 #include "collision/Broadphase.h"
 #include "collision/Narrowphase.h"
 #include "dynamics/ContactSolver.h"
-#include "dynamics/PhysicsWorld.h"
 #include "dynamics/PointJoint.h"
 #include "dynamics/RigidBody.h"
 
@@ -564,19 +564,18 @@ void testCapsuleRestsOnGround()
     capsule.setOrientation(glm::angleAxis(glm::half_pi<f32>(), glm::vec3(0, 0, 1)));
     capsule.setDamping(0.999f, 0.999f);
 
-    PhysicsWorld world;
+    ground.setShape(&groundShape);
+    ground.setFriction(0.8f);
+    capsule.setShape(&capsuleShape);
+    capsule.setFriction(0.8f);
+
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
-    BodyEntry entry;
-    entry.friction = 0.8f;
-    entry.shape = &groundShape;
-    entry.body = &ground;
-    world.addBody(entry);
-    entry.shape = &capsuleShape;
-    entry.body = &capsule;
-    world.addBody(entry);
+    world.addBody(ground);
+    world.addBody(capsule);
 
     for (u32 i = 0; i < 600; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
 
     // Resting on its side, the centre sits one radius above the surface.
     if (std::abs(capsule.position().y - 0.5f) >= 0.06f)
@@ -614,19 +613,18 @@ void testSphereRollsFromFriction()
     ball.setDamping(1.0f, 1.0f);
     ball.setCanSleep(false);
 
-    PhysicsWorld world;
+    ground.setShape(&groundShape);
+    ground.setFriction(0.6f);
+    ball.setShape(&sphereShape);
+    ball.setFriction(0.6f);
+
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
-    BodyEntry entry;
-    entry.friction = 0.6f;
-    entry.shape = &groundShape;
-    entry.body = &ground;
-    world.addBody(entry);
-    entry.shape = &sphereShape;
-    entry.body = &ball;
-    world.addBody(entry);
+    world.addBody(ground);
+    world.addBody(ball);
 
     for (u32 i = 0; i < 240; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
 
     // Moving along +x on a floor below it spins the ball about -z.
     CHECK(ball.angularVelocity().z < -1.0f);
@@ -1061,24 +1059,21 @@ void testWorldStackStandsUp()
         boxes[i].setDamping(0.999f, 0.999f);
     }
 
-    PhysicsWorld world;
+    ground.setShape(&groundShape);
+    ground.setFriction(0.8f);
+    for (u32 i = 0; i < kCount; ++i)
+        boxes[i].setShape(&boxShape);
+
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
     world.setFixedStep(1.0f / 120.0f);
 
-    BodyEntry entry;
-    entry.shape = &groundShape;
-    entry.body = &ground;
-    entry.friction = 0.8f;
-    world.addBody(entry);
-    entry.shape = &boxShape;
+    world.addBody(ground);
     for (u32 i = 0; i < kCount; ++i)
-    {
-        entry.body = &boxes[i];
-        world.addBody(entry);
-    }
+        world.addBody(boxes[i]);
 
     for (u32 i = 0; i < 900; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
 
     // Every box has to end up at its own level, within a fraction of its own
     // size. Sagging shows up here as a box sitting well below where it should.
@@ -1123,24 +1118,22 @@ void testStackSleepsTogether()
     constexpr u32 kCount = 6;
     RigidBody boxes[kCount];
 
-    PhysicsWorld world;
+    ground.setShape(&groundShape);
+    ground.setFriction(0.7f);
+
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
     world.setFixedStep(1.0f / 120.0f);
 
-    BodyEntry entry;
-    entry.friction = 0.7f;
-    entry.shape = &groundShape;
-    entry.body = &ground;
-    world.addBody(entry);
-    entry.shape = &boxShape;
+    world.addBody(ground);
     for (u32 i = 0; i < kCount; ++i)
     {
         boxes[i].setMass(1.0f);
         boxes[i].setInertiaTensor(boxShape.inertia(1.0f));
         boxes[i].setPosition(glm::vec3(0.0f, 0.5f + static_cast<f32>(i) * 1.005f, 0.0f));
         boxes[i].setDamping(0.999f, 0.999f);
-        entry.body = &boxes[i];
-        world.addBody(entry);
+        boxes[i].setShape(&boxShape);
+        world.addBody(boxes[i]);
     }
 
     const int before = gFailures;
@@ -1148,7 +1141,7 @@ void testStackSleepsTogether()
     u32 worstAsleep = 0;
     for (u32 step = 0; step < 1200; ++step)
     {
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
 
         // Checked EVERY step, not only at the end: a stack that freezes
         // half-asleep may still look right once everything has stopped, and
@@ -1205,16 +1198,15 @@ void testWorldEventsEnterStayExit()
     box.setPosition(glm::vec3(0.0f, 3.0f, 0.0f));
     box.setCanSleep(false);
 
-    PhysicsWorld world;
-    world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
-    BodyEntry entry;
-    entry.shape = &shape;
-    entry.body = &ground;
-    world.addBody(entry);
-    entry.body = &box;
-    world.addBody(entry);
+    ground.setShape(&shape);
+    box.setShape(&shape);
 
-    world.setEventCallback(
+    Radion::Scene world;
+    world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
+    world.addBody(ground);
+    world.addBody(box);
+
+    world.setContactEventCallback(
         [](const ContactEventInfo& info, void* user)
         {
             Recorder& target = *static_cast<Recorder*>(user);
@@ -1232,7 +1224,7 @@ void testWorldEventsEnterStayExit()
     for (u32 i = 0; i < 300; ++i)
     {
         const u32 before = recorder.enters + recorder.stays;
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
         if (recorder.enters + recorder.stays == before && box.position().y < 2.0f)
             longestGap = glm::max(longestGap, ++gap);
         else
@@ -1256,11 +1248,11 @@ void testWorldEventsEnterStayExit()
     box.setBodyType(BodyType::Kinematic);
     box.setPosition(glm::vec3(0.0f, 20.0f, 0.0f));
     for (u32 i = 0; i < world.contactPersistence(); ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
     CHECK(recorder.exits == 1);
     const u32 after = recorder.exits;
     for (u32 i = 0; i < 5; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
     CHECK(recorder.exits == after);
 }
 
@@ -1278,15 +1270,13 @@ void testWorldFixedStepIsFrameRateIndependent()
         box.setInertiaTensor(shape.inertia(1.0f));
         box.setPosition(glm::vec3(0.0f, 10.0f, 0.0f));
         box.setCanSleep(false);
-        PhysicsWorld world;
+        box.setShape(&shape);
+        Radion::Scene world;
         world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
         world.setFixedStep(1.0f / 120.0f);
-        BodyEntry entry;
-        entry.shape = &shape;
-        entry.body = &box;
-        world.addBody(entry);
+        world.addBody(box);
         for (u32 i = 0; i < frames; ++i)
-            world.update(frame);
+            world.updatePhysics(frame);
         return box.position().y;
     };
 
@@ -2378,11 +2368,10 @@ void testCharacterRigidBodyOnGround()
     floorBody.setBodyType(BodyType::Static);
     floorBody.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
 
-    PhysicsWorld world;
-    BodyEntry floorEntry;
-    floorEntry.body = &floorBody;
-    floorEntry.shape = &floor;
-    world.addBody(floorEntry);
+    floorBody.setShape(&floor);
+
+    Radion::Scene world;
+    world.addBody(floorBody);
 
     CharacterRigidBody character;
     character.setShape(0.4f, 1.2f);
@@ -2409,11 +2398,10 @@ void testCharacterRigidBodyOnSteepGround()
     rampBody.setPosition(glm::vec3(0.0f));
     rampBody.setOrientation(rotation);
 
-    PhysicsWorld world;
-    BodyEntry rampEntry;
-    rampEntry.body = &rampBody;
-    rampEntry.shape = &ramp;
-    world.addBody(rampEntry);
+    rampBody.setShape(&ramp);
+
+    Radion::Scene world;
+    world.addBody(rampBody);
 
     const glm::vec3 topFaceCentre = rotation * glm::vec3(0.0f, 0.5f, 0.0f);
     CharacterRigidBody character;
@@ -2430,7 +2418,7 @@ void testCharacterRigidBodyOnSteepGround()
 
 void testCharacterRigidBodyInAir()
 {
-    PhysicsWorld world;
+    Radion::Scene world;
     CharacterRigidBody character;
     character.setShape(0.4f, 1.2f);
     character.addToWorld(world, glm::vec3(0.0f, 100.0f, 0.0f));
@@ -2444,7 +2432,7 @@ void testCharacterRigidBodyInAir()
 
 void testCharacterRigidBodyPushesALightDynamicBox()
 {
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f));
 
     BoxShape boxShape(glm::vec3(0.3f));
@@ -2452,12 +2440,9 @@ void testCharacterRigidBodyPushesALightDynamicBox()
     boxBody.setMass(0.2f);
     boxBody.setInertiaTensor(boxShape.inertia(0.2f));
     boxBody.setPosition(glm::vec3(0.68f, 0.0f, 0.0f));
-
-    BodyEntry boxEntry;
-    boxEntry.body = &boxBody;
-    boxEntry.shape = &boxShape;
-    boxEntry.friction = 0.0f;
-    world.addBody(boxEntry);
+    boxBody.setShape(&boxShape);
+    boxBody.setFriction(0.0f);
+    world.addBody(boxBody);
 
     CharacterRigidBody character;
     character.setShape(0.4f, 1.2f);
@@ -2465,7 +2450,7 @@ void testCharacterRigidBodyPushesALightDynamicBox()
     character.addToWorld(world, glm::vec3(0.0f, 0.0f, 0.0f));
     character.setLinearVelocity(glm::vec3(5.0f, 0.0f, 0.0f));
 
-    world.step(1.0f / 120.0f);
+    world.stepPhysics(1.0f / 120.0f);
     character.postSimulation(0.05f);
 
     CHECK(boxBody.velocity().x > 0.01f);
@@ -2480,25 +2465,24 @@ void testCharacterRigidBodyMovesAfterFallingAsleep()
     floor.setBodyType(BodyType::Static);
     floor.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
 
-    PhysicsWorld world;
-    BodyEntry floorEntry;
-    floorEntry.body = &floor;
-    floorEntry.shape = &floorShape;
-    world.addBody(floorEntry);
+    floor.setShape(&floorShape);
+
+    Radion::Scene world;
+    world.addBody(floor);
 
     CharacterRigidBody character;
     character.setShape(0.4f, 1.2f);
     character.addToWorld(world, glm::vec3(0.0f, 1.2f, 0.0f));
 
     for (u32 i = 0; i < 600; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
 
     const glm::vec3 rested = character.position();
 
     for (u32 i = 0; i < 120; ++i)
     {
         character.setLinearVelocity(glm::vec3(3.0f, character.linearVelocity().y, 0.0f));
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
     }
 
     CHECK(character.position().x - rested.x > 1.0f);
@@ -2531,8 +2515,10 @@ void testDynamicBoxDroppedFromHeightRestsOnTrimesh()
     RigidBody floor;
     floor.setBodyType(BodyType::Static);
     floor.setPosition(glm::vec3(0.0f));
+    floor.setShape(&floorMesh);
+    floor.setFriction(0.8f);
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -20.0f, 0.0f));
 
     BoxShape boxShape(glm::vec3(0.4f));
@@ -2541,22 +2527,14 @@ void testDynamicBoxDroppedFromHeightRestsOnTrimesh()
     box.setInertiaTensor(boxShape.inertia(4.0f));
     box.setPosition(glm::vec3(1.7f, 8.0f, 1.3f));
     box.setDamping(0.999f, 0.999f);
-
-    BodyEntry boxEntry;
-    boxEntry.body = &box;
-    boxEntry.shape = &boxShape;
-    boxEntry.friction = 0.6f;
-    boxEntry.restitution = 0.05f;
-    world.addBody(boxEntry);
-
-    BodyEntry floorEntry;
-    floorEntry.body = &floor;
-    floorEntry.shape = &floorMesh;
-    floorEntry.friction = 0.8f;
-    world.addBody(floorEntry);
+    box.setShape(&boxShape);
+    box.setFriction(0.6f);
+    box.setRestitution(0.05f);
+    world.addBody(box);
+    world.addBody(floor);
 
     for (u32 i = 0; i < 600; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
 
     CHECK(std::isfinite(box.position().y));
     CHECK(box.position().y > 0.3f);
@@ -2572,14 +2550,12 @@ void testWorldRaycastFindsTheNearestBody()
     RigidBody farBody;
     farBody.setBodyType(BodyType::Static);
     farBody.setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
+    nearBody.setShape(&sphere);
+    farBody.setShape(&sphere);
 
-    PhysicsWorld world;
-    BodyEntry entry;
-    entry.shape = &sphere;
-    entry.body = &nearBody;
-    const u32 nearId = world.addBody(entry);
-    entry.body = &farBody;
-    world.addBody(entry);
+    Radion::Scene world;
+    world.addBody(nearBody);
+    world.addBody(farBody);
 
     Ray ray;
     ray.origin = glm::vec3(-5.0f, 0.0f, 0.0f);
@@ -2587,7 +2563,7 @@ void testWorldRaycastFindsTheNearestBody()
 
     WorldRayHit hit;
     CHECK(world.raycast(ray, 100.0f, QueryFilter(), hit));
-    CHECK(hit.body == nearId);
+    CHECK(hit.body == &nearBody);
     CHECK(near(hit.distance, 4.0f));
     CHECK(near(hit.point, glm::vec3(-1.0f, 0.0f, 0.0f)));
     CHECK(near(hit.normal, glm::vec3(-1.0f, 0.0f, 0.0f)));
@@ -2600,12 +2576,11 @@ void testWorldRaycastMaskExcludesLayer()
     body.setBodyType(BodyType::Static);
     body.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
-    PhysicsWorld world;
-    BodyEntry entry;
-    entry.shape = &sphere;
-    entry.body = &body;
-    entry.filter.group = 2;
-    world.addBody(entry);
+    body.setShape(&sphere);
+    body.setCollisionGroup(2);
+
+    Radion::Scene world;
+    world.addBody(body);
 
     Ray ray;
     ray.origin = glm::vec3(-5.0f, 0.0f, 0.0f);
@@ -2625,17 +2600,16 @@ void testWorldOverlapSphereRespectsMask()
     body.setBodyType(BodyType::Static);
     body.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
-    PhysicsWorld world;
-    BodyEntry entry;
-    entry.shape = &shape;
-    entry.body = &body;
-    entry.filter.group = 4;
-    const u32 id = world.addBody(entry);
+    body.setShape(&shape);
+    body.setCollisionGroup(4);
 
-    std::vector<u32> hits;
+    Radion::Scene world;
+    world.addBody(body);
+
+    std::vector<RigidBody*> hits;
     world.overlapSphere(glm::vec3(0.5f, 0.0f, 0.0f), 1.0f, QueryFilter(), hits);
     CHECK(hits.size() == 1);
-    CHECK(hits[0] == id);
+    CHECK(hits[0] == &body);
 
     QueryFilter onlyGroup1;
     onlyGroup1.collision.mask = 1u;
@@ -2660,96 +2634,59 @@ void testWorldStepSkipsIncompatibleMasks()
     dropper.setInertiaTensor(dropperShape.inertia(1.0f));
     dropper.setPosition(glm::vec3(0.0f, 1.5f, 0.0f));
 
-    PhysicsWorld world;
+    ground.setShape(&groundShape);
+    ground.setFilter({1, 1});
+    dropper.setShape(&dropperShape);
+    dropper.setFilter({2, 2});
+
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
-
-    BodyEntry entry;
-    entry.shape = &groundShape;
-    entry.body = &ground;
-    entry.filter = {1, 1};
-    world.addBody(entry);
-
-    entry.shape = &dropperShape;
-    entry.body = &dropper;
-    entry.filter = {2, 2};
-    world.addBody(entry);
+    world.addBody(ground);
+    world.addBody(dropper);
 
     for (u32 i = 0; i < 200; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
 
     CHECK(dropper.position().y < -1.0f);
 }
 
-void testBodyHandleRejectsReusedSlot()
-{
-    SphereShape shape(1.0f);
-    RigidBody first;
-    first.setBodyType(BodyType::Static);
-    RigidBody second;
-    second.setBodyType(BodyType::Static);
-
-    PhysicsWorld world;
-    BodyEntry entry;
-    entry.body = &first;
-    entry.shape = &shape;
-    const u32 firstId = world.addBody(entry);
-    const BodyHandle stale = world.bodyHandle(firstId);
-    CHECK(world.body(stale) != nullptr);
-
-    world.removeBody(firstId);
-    CHECK(world.body(stale) == nullptr);
-
-    entry.body = &second;
-    const u32 secondId = world.addBody(entry);
-    CHECK(secondId == firstId);
-    CHECK(world.body(stale) == nullptr);
-    CHECK(world.body(world.bodyHandle(secondId)) != nullptr);
-}
-
-void testWorldRemovalKeepsDenseStorageAndStableIds()
+// There are no ids or handles any more - a removed body is identified by its
+// own address, and detachment is scene() turning null.
+void testWorldRemovalDetachesOneBodyAndKeepsOthersWorking()
 {
     SphereShape shape(1.0f);
     RigidBody bodies[4];
-    PhysicsWorld world;
-    u32 ids[4]{};
-    BodyHandle handles[3];
+    Radion::Scene world;
 
-    BodyEntry entry;
-    entry.shape = &shape;
     for (u32 i = 0; i < 3; ++i)
     {
         bodies[i].setBodyType(BodyType::Static);
         bodies[i].setPosition(glm::vec3(static_cast<f32>(i) * 4.0f, 0.0f, 0.0f));
-        entry.body = &bodies[i];
-        ids[i] = world.addBody(entry);
-        handles[i] = world.bodyHandle(ids[i]);
+        bodies[i].setShape(&shape);
+        world.addBody(bodies[i]);
     }
 
-    world.removeBody(ids[1]);
+    world.removeBody(bodies[1]);
     CHECK(world.bodyCount() == 2);
-    CHECK(world.body(ids[1]) == nullptr);
-    CHECK(world.body(ids[0])->body == &bodies[0]);
-    CHECK(world.body(ids[2])->body == &bodies[2]);
-    CHECK(world.body(handles[2])->body == &bodies[2]);
+    CHECK(bodies[1].scene() == nullptr);
+    CHECK(bodies[0].scene() == &world);
+    CHECK(bodies[2].scene() == &world);
 
     bodies[3].setBodyType(BodyType::Static);
-    entry.body = &bodies[3];
-    ids[3] = world.addBody(entry);
-    CHECK(ids[3] == ids[1]);
+    bodies[3].setShape(&shape);
+    world.addBody(bodies[3]);
     CHECK(world.bodyCount() == 3);
-    CHECK(world.body(handles[1]) == nullptr);
-    CHECK(world.body(ids[2])->body == &bodies[2]);
+    CHECK(bodies[3].scene() == &world);
+    CHECK(bodies[2].scene() == &world);
 }
 
 void testWorldAllowsMutationFromCollisionCallback()
 {
     struct Mutation
     {
-        PhysicsWorld* world = nullptr;
-        BodyEntry addition;
-        BodyHandle removedHandle;
-        u32 removed = 0xFFFFFFFFu;
-        u32 added = 0xFFFFFFFFu;
+        Radion::Scene* world = nullptr;
+        RigidBody* spare = nullptr;
+        RigidBody* removed = nullptr;
         bool done = false;
     };
 
@@ -2757,27 +2694,25 @@ void testWorldAllowsMutationFromCollisionCallback()
     RigidBody ground;
     ground.setBodyType(BodyType::Static);
     ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
+    ground.setShape(&shape);
     RigidBody box;
     box.setMass(1.0f);
     box.setInertiaTensor(shape.inertia(1.0f));
     box.setPosition(glm::vec3(0.0f, 0.45f, 0.0f));
+    box.setShape(&shape);
     RigidBody spare;
     spare.setBodyType(BodyType::Static);
     spare.setPosition(glm::vec3(20.0f, 0.0f, 0.0f));
+    spare.setShape(&shape);
 
-    PhysicsWorld world;
-    BodyEntry entry;
-    entry.shape = &shape;
-    entry.body = &ground;
-    const u32 groundId = world.addBody(entry);
-    entry.body = &box;
-    const u32 boxId = world.addBody(entry);
+    Radion::Scene world;
+    world.addBody(ground);
+    world.addBody(box);
 
     Mutation mutation;
     mutation.world = &world;
-    mutation.addition.shape = &shape;
-    mutation.addition.body = &spare;
-    world.setEventCallback(
+    mutation.spare = &spare;
+    world.setContactEventCallback(
         [](const ContactEventInfo& info, void* user)
         {
             Mutation& mutation = *static_cast<Mutation*>(user);
@@ -2785,24 +2720,22 @@ void testWorldAllowsMutationFromCollisionCallback()
                 return;
             mutation.done = true;
             mutation.removed = info.bodyB;
-            mutation.removedHandle = mutation.world->bodyHandle(mutation.removed);
-            mutation.world->removeBody(mutation.removed);
-            mutation.added = mutation.world->addBody(mutation.addition);
+            mutation.world->removeBody(*mutation.removed);
+            mutation.world->addBody(*mutation.spare);
             // Events are dispatched after the solver releases its temporary
             // references, so mutation is already safe and visible here.
-            CHECK(mutation.world->body(mutation.removedHandle) == nullptr);
-            CHECK(mutation.added != mutation.removed);
-            CHECK(mutation.world->body(mutation.added)->body == mutation.addition.body);
+            CHECK(mutation.removed->scene() == nullptr);
+            CHECK(mutation.spare->scene() == mutation.world);
         },
         &mutation);
 
-    world.step(1.0f / 120.0f);
+    world.stepPhysics(1.0f / 120.0f);
     CHECK(mutation.done);
-    CHECK(mutation.removed == boxId);
+    CHECK(mutation.removed == &box);
     CHECK(world.bodyCount() == 2);
-    CHECK(world.body(groundId) != nullptr);
-    CHECK(world.body(mutation.removedHandle) == nullptr);
-    CHECK(world.body(mutation.added)->body == &spare);
+    CHECK(ground.scene() == &world);
+    CHECK(mutation.removed->scene() == nullptr);
+    CHECK(spare.scene() == &world);
 }
 
 void testWorldAreaForces()
@@ -2815,10 +2748,8 @@ void testWorldAreaForces()
     RigidBody* bodies[] = {&nearBody, &farBody, &outsideBody, &staticBody};
     const f32 positions[] = {1.0f, 3.0f, 6.0f, 1.0f};
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f));
-    BodyEntry entry;
-    entry.shape = &shape;
     for (u32 i = 0; i < 4; ++i)
     {
         if (i == 3)
@@ -2830,8 +2761,8 @@ void testWorldAreaForces()
             bodies[i]->setCanSleep(false);
         }
         bodies[i]->setPosition(glm::vec3(positions[i], 0.0f, 0.0f));
-        entry.body = bodies[i];
-        world.addBody(entry);
+        bodies[i]->setShape(&shape);
+        world.addBody(*bodies[i]);
     }
 
     CHECK(world.applyRadialImpulse(glm::vec3(0.0f), 5.0f, 10.0f) == 2);
@@ -2843,14 +2774,14 @@ void testWorldAreaForces()
     nearBody.setVelocity(glm::vec3(0.0f));
     farBody.setVelocity(glm::vec3(0.0f));
     CHECK(world.addRadialForce(glm::vec3(0.0f), 5.0f, -10.0f) == 2);
-    world.step(0.1f);
+    world.stepPhysics(0.1f);
     CHECK(nearBody.velocity().x < farBody.velocity().x);
     CHECK(farBody.velocity().x < 0.0f);
 
     nearBody.setVelocity(glm::vec3(0.0f));
     farBody.setVelocity(glm::vec3(0.0f));
     CHECK(world.addDirectionalForce(glm::vec3(0.0f), 2.0f, glm::vec3(0.0f, 0.0f, 8.0f)) == 1);
-    world.step(0.1f);
+    world.stepPhysics(0.1f);
     CHECK(nearBody.velocity().z > 0.0f);
     CHECK(near(farBody.velocity().z, 0.0f));
 }
@@ -2902,24 +2833,24 @@ void testPointJoint()
     moving.setPosition(glm::vec3(2.0f, 0.0f, 0.0f));
     moving.setCanSleep(false);
 
-    PhysicsWorld world;
+    fixed.setShape(&shape);
+    fixed.setCollisionMask(0);
+    moving.setShape(&shape);
+    moving.setCollisionMask(0);
+
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f));
-    BodyEntry entry;
-    entry.shape = &shape;
-    entry.filter.mask = 0;
-    entry.body = &fixed;
-    world.addBody(entry);
-    entry.body = &moving;
-    const u32 movingId = world.addBody(entry);
+    world.addBody(fixed);
+    world.addBody(moving);
 
     PointJoint joint(fixed, glm::vec3(0.0f), moving, glm::vec3(0.0f));
     world.addJoint(&joint);
     CHECK(world.jointCount() == 1);
     for (u32 i = 0; i < 120; ++i)
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
     CHECK(glm::length(joint.worldAnchorB() - joint.worldAnchorA()) < 0.01f);
 
-    world.removeBody(movingId);
+    world.removeBody(moving);
     CHECK(world.jointCount() == 0);
 }
 
@@ -2940,21 +2871,18 @@ void testPointJointCarMoves()
         glm::vec3(-0.9f, -0.45f, -0.9f), glm::vec3(0.9f, -0.45f, -0.9f),
         glm::vec3(-0.9f, -0.45f, 0.9f), glm::vec3(0.9f, -0.45f, 0.9f)};
 
-    PhysicsWorld world;
-    BodyEntry groundEntry;
-    groundEntry.body = &ground;
-    groundEntry.shape = &groundShape;
-    groundEntry.friction = 1.0f;
-    world.addBody(groundEntry);
+    ground.setShape(&groundShape);
+    ground.setFriction(1.0f);
+
+    Radion::Scene world;
+    world.addBody(ground);
     CollisionFilter carFilter;
     carFilter.group = 2;
     carFilter.mask = 1;
-    BodyEntry chassisEntry;
-    chassisEntry.body = &chassis;
-    chassisEntry.shape = &chassisShape;
-    chassisEntry.filter = carFilter;
-    chassisEntry.friction = 1.0f;
-    world.addBody(chassisEntry);
+    chassis.setShape(&chassisShape);
+    chassis.setFilter(carFilter);
+    chassis.setFriction(1.0f);
+    world.addBody(chassis);
 
     std::vector<PointJoint> joints;
     joints.reserve(4);
@@ -2964,12 +2892,10 @@ void testPointJointCarMoves()
         wheels[i].setInertiaTensor(wheelShape.inertia(1.0f));
         wheels[i].setPosition(chassis.position() + offsets[i]);
         wheels[i].setCanSleep(false);
-        BodyEntry wheelEntry;
-        wheelEntry.body = &wheels[i];
-        wheelEntry.shape = &wheelShape;
-        wheelEntry.filter = carFilter;
-        wheelEntry.friction = 1.0f;
-        world.addBody(wheelEntry);
+        wheels[i].setShape(&wheelShape);
+        wheels[i].setFilter(carFilter);
+        wheels[i].setFriction(1.0f);
+        world.addBody(wheels[i]);
         joints.emplace_back(chassis, wheels[i], wheels[i].position());
         joints.back().setMotor(glm::vec3(1.0f, 0.0f, 0.0f), 14.0f, 25.0f);
         world.addJoint(&joints.back());
@@ -2989,7 +2915,7 @@ void testPointJointCarMoves()
                 joints[i].setMotor(glm::vec3(1.0f, 0.0f, 0.0f), 10.0f + 5.0f * side,
                                    25.0f);
             }
-        world.step(1.0f / 120.0f);
+        world.stepPhysics(1.0f / 120.0f);
         for (const PointJoint& joint : joints)
             maximumAnchorError =
                 glm::max(maximumAnchorError,
@@ -3282,8 +3208,7 @@ int main()
     testWorldRaycastMaskExcludesLayer();
     testWorldOverlapSphereRespectsMask();
     testWorldStepSkipsIncompatibleMasks();
-    testBodyHandleRejectsReusedSlot();
-    testWorldRemovalKeepsDenseStorageAndStableIds();
+    testWorldRemovalDetachesOneBodyAndKeepsOthersWorking();
     testWorldAllowsMutationFromCollisionCallback();
     testWorldAreaForces();
     testConvexHullShapeMatchesBox();

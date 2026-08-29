@@ -2,7 +2,7 @@
 
 #include "effects/ParticleSystem.h"
 
-#include "dynamics/PhysicsWorld.h"
+#include "Scene.h"
 
 #include <cstdlib>
 
@@ -37,7 +37,7 @@ glm::vec3 randomDirection()
 }
 } // namespace
 
-ParticleSystem::ParticleSystem(PhysicsWorld& world) : mWorld(world)
+ParticleSystem::ParticleSystem(Radion::Scene& scene) : mScene(scene)
 {
 }
 
@@ -99,7 +99,7 @@ void ParticleSystem::step(f32 dt)
         ray.direction = displacement / travel;
 
         WorldRayHit hit;
-        if (mWorld.raycast(ray, travel + particle.radius, mFilter, hit))
+        if (mScene.raycast(ray, travel + particle.radius, mFilter, hit))
         {
             if (mHitCallback)
             {

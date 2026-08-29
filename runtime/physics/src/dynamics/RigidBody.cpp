@@ -2,7 +2,10 @@
 
 #include "dynamics/RigidBody.h"
 
+#include "GameObject.h"
 #include "Log.h"
+#include "Scene.h"
+#include "collision/CollisionShape.h"
 
 namespace Radion::Physics
 {
@@ -22,6 +25,8 @@ bool finiteVec(const glm::vec3& v)
 {
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
+
+constexpr f32 kPoseSyncEpsilon = 1e-5f;
 } // namespace
 
 glm::mat3 Inertia::box(f32 mass, const glm::vec3& halfExtents)
@@ -175,7 +180,7 @@ glm::mat3 Inertia::capsuleY(f32 mass, f32 radius, f32 cylinderHeight)
                      glm::vec3(0.0f, 0.0f, lateral));
 }
 
-RigidBody::RigidBody()
+RigidBody::RigidBody() : Component(Type)
 {
     // Awake AND seeded above the threshold, which is what setAwake(true)
     // means. Setting only the flag left the motion average at zero, and
@@ -184,6 +189,84 @@ RigidBody::RigidBody()
     // enough for the average to catch up with it. It then hung in the air.
     setAwake(true);
     calculateDerivedData();
+}
+
+RigidBody::~RigidBody()
+{
+    // A loose body outliving nothing but itself - a test local, a ragdoll
+    // part, a character's own body - would otherwise leave the scene holding
+    // a pointer to freed memory until its next step walked over it.
+    if (mScene)
+        mScene->removeBody(*this);
+    if (mOwnsShape)
+        delete mShape;
+}
+
+RigidBody::RigidBody(RigidBody&& other) noexcept : Component(Type)
+{
+    moveFrom(other);
+}
+
+RigidBody& RigidBody::operator=(RigidBody&& other) noexcept
+{
+    if (this == &other)
+        return *this;
+    if (mOwnsShape)
+        delete mShape;
+    moveFrom(other);
+    return *this;
+}
+
+void RigidBody::moveFrom(RigidBody& other) noexcept
+{
+    // The scene stores bodies by address, so a registered one cannot follow a
+    // move: its entry would still name the old object. The source leaves the
+    // scene and the destination arrives unregistered, to be added by whoever
+    // now owns it.
+    if (other.mScene)
+        other.mScene->removeBody(other);
+
+    mBodyType = other.mBodyType;
+    mInverseMass = other.mInverseMass;
+    mInverseInertiaTensor = other.mInverseInertiaTensor;
+    mInverseInertiaTensorWorld = other.mInverseInertiaTensorWorld;
+    mLinearDamping = other.mLinearDamping;
+    mAngularDamping = other.mAngularDamping;
+    mPosition = other.mPosition;
+    mOrientation = other.mOrientation;
+    mVelocity = other.mVelocity;
+    mAngularVelocity = other.mAngularVelocity;
+    mAcceleration = other.mAcceleration;
+    mLastFrameAcceleration = other.mLastFrameAcceleration;
+    mForceAccumulator = other.mForceAccumulator;
+    mTorqueAccumulator = other.mTorqueAccumulator;
+    mTransform = other.mTransform;
+    mDynamicInverseMass = other.mDynamicInverseMass;
+    mDynamicInverseInertiaTensor = other.mDynamicInverseInertiaTensor;
+    mAwake = other.mAwake;
+    mCanSleep = other.mCanSleep;
+    mSleepDeferred = other.mSleepDeferred;
+    mBullet = other.mBullet;
+    mMotion = other.mMotion;
+    mSleepEpsilon = other.mSleepEpsilon;
+    mShape = other.mShape;
+    mOwnsShape = other.mOwnsShape;
+    mShapeKind = other.mShapeKind;
+    mRadius = other.mRadius;
+    mHalfExtents = other.mHalfExtents;
+    mHeight = other.mHeight;
+    mFilter = other.mFilter;
+    mFriction = other.mFriction;
+    mRestitution = other.mRestitution;
+    mEnabled = other.mEnabled;
+    mScene = nullptr;
+    mBodyKey = 0;
+    mStepSlot = 0;
+    mSyncedPosition = other.mSyncedPosition;
+    mSyncedRotation = other.mSyncedRotation;
+
+    other.mShape = nullptr;
+    other.mOwnsShape = false;
 }
 
 void RigidBody::setBodyType(BodyType type)
@@ -198,6 +281,7 @@ void RigidBody::setBodyType(BodyType type)
         mLastFrameAcceleration = glm::vec3(0.0f);
     }
     setAwake(true);
+    notifyShapeChanged();
 }
 
 void RigidBody::applyBodyTypeMass()
@@ -231,9 +315,9 @@ void RigidBody::setMass(f32 mass)
 
 f32 RigidBody::mass() const
 {
-    if (mInverseMass <= 0.0f)
+    if (mDynamicInverseMass <= 0.0f)
         return std::numeric_limits<f32>::infinity();
-    return 1.0f / mInverseMass;
+    return 1.0f / mDynamicInverseMass;
 }
 
 void RigidBody::setInverseMass(f32 inverseMass)
@@ -526,6 +610,167 @@ void RigidBody::integrate(f32 duration)
 {
     integrateForces(duration);
     integrateVelocity(duration);
+}
+
+void RigidBody::setShape(CollisionShape* shape)
+{
+    if (mOwnsShape)
+        delete mShape;
+    mShape = shape;
+    mOwnsShape = false;
+    mShapeKind = RigidBodyShape::None;
+    notifyShapeChanged();
+}
+
+void RigidBody::setSphere(f32 radius)
+{
+    mShapeKind = RigidBodyShape::Sphere;
+    mRadius = radius;
+    rebuildOwnedShape();
+}
+
+void RigidBody::setBox(const glm::vec3& halfExtents)
+{
+    mShapeKind = RigidBodyShape::Box;
+    mHalfExtents = halfExtents;
+    rebuildOwnedShape();
+}
+
+void RigidBody::setCapsule(f32 radius, f32 height)
+{
+    mShapeKind = RigidBodyShape::Capsule;
+    mRadius = radius;
+    mHeight = height;
+    rebuildOwnedShape();
+}
+
+f32 RigidBody::capsuleSegmentHalfHeight() const
+{
+    return glm::max(mHeight * 0.5f - mRadius, 0.0f);
+}
+
+void RigidBody::setFilter(const CollisionFilter& filter)
+{
+    mFilter = filter;
+    notifyShapeChanged();
+}
+
+void RigidBody::setCollisionGroup(u32 group)
+{
+    mFilter.group = group;
+    notifyShapeChanged();
+}
+
+void RigidBody::setCollisionMask(u32 mask)
+{
+    mFilter.mask = mask;
+    notifyShapeChanged();
+}
+
+void RigidBody::setFriction(f32 friction)
+{
+    mFriction = friction;
+}
+
+void RigidBody::setRestitution(f32 restitution)
+{
+    mRestitution = restitution;
+}
+
+void RigidBody::setEnabled(bool enabled)
+{
+    mEnabled = enabled;
+    notifyShapeChanged();
+}
+
+bool RigidBody::simulating() const
+{
+    const GameObject* object = owner();
+    return active() && (!object || (object->isActiveInHierarchy() && !object->disposed()));
+}
+
+void RigidBody::pushOwnerPose()
+{
+    const GameObject* object = owner();
+    if (!object)
+        return;
+    mSyncedPosition = object->globalPosition();
+    mSyncedRotation = object->globalRotation();
+    setPosition(mSyncedPosition);
+    setOrientation(mSyncedRotation);
+    if (mBodyType == BodyType::Static && mScene)
+        mScene->markStaticBroadphaseDirty();
+}
+
+bool RigidBody::ownerMoved() const
+{
+    const GameObject* object = owner();
+    if (!object)
+        return false;
+    const glm::vec3 delta = object->globalPosition() - mSyncedPosition;
+    if (glm::dot(delta, delta) > kPoseSyncEpsilon * kPoseSyncEpsilon)
+        return true;
+    const f32 alignment = glm::abs(glm::dot(object->globalRotation(), mSyncedRotation));
+    return alignment < 1.0f - kPoseSyncEpsilon;
+}
+
+void RigidBody::pullBodyPose()
+{
+    GameObject* object = owner();
+    if (!object)
+        return;
+    object->setGlobalPosition(position());
+    object->setGlobalRotation(orientation());
+    mSyncedPosition = object->globalPosition();
+    mSyncedRotation = object->globalRotation();
+}
+
+void RigidBody::rebuildOwnedShape()
+{
+    if (mOwnsShape)
+        delete mShape;
+    switch (mShapeKind)
+    {
+    case RigidBodyShape::Sphere:
+        mShape = new SphereShape(mRadius);
+        break;
+    case RigidBodyShape::Box:
+        mShape = new BoxShape(mHalfExtents);
+        break;
+    case RigidBodyShape::Capsule:
+        mShape = new CapsuleShape(mRadius, capsuleSegmentHalfHeight());
+        break;
+    default:
+        mShape = nullptr;
+        break;
+    }
+    mOwnsShape = mShape != nullptr;
+
+    glm::mat3 inertia(1.0f);
+    switch (mShapeKind)
+    {
+    case RigidBodyShape::Sphere:
+        inertia = Inertia::solidSphere(mass(), mRadius);
+        break;
+    case RigidBodyShape::Box:
+        inertia = Inertia::box(mass(), mHalfExtents);
+        break;
+    case RigidBodyShape::Capsule:
+        inertia = Inertia::capsuleY(mass(), mRadius, capsuleSegmentHalfHeight() * 2.0f);
+        break;
+    default:
+        break;
+    }
+    if (mShapeKind != RigidBodyShape::None)
+        setInertiaTensor(inertia);
+
+    notifyShapeChanged();
+}
+
+void RigidBody::notifyShapeChanged()
+{
+    if (mScene && mBodyType == BodyType::Static)
+        mScene->markStaticBroadphaseDirty();
 }
 
 } // namespace Radion::Physics

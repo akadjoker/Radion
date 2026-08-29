@@ -1,34 +1,31 @@
 # Lightweight physics core shared by rigid bodies, characters and soft bodies.
+# Compiled into radion_scene rather than its own library: RigidBody is a
+# Component and its step lives on Scene, so the two can no longer be linked
+# apart.
 
-add_library(radion_physics
-    src/dynamics/RigidBody.cpp
-    src/dynamics/Aerodynamics.cpp
-    src/dynamics/ContactSolver.cpp
-    src/dynamics/PhysicsWorld.cpp
-    src/dynamics/RaycastVehicle.cpp
-    src/dynamics/MotorcycleController.cpp
-    src/dynamics/PointJoint.cpp
-    src/dynamics/DistanceJoint.cpp
-    src/dynamics/FixedJoint.cpp
-    src/dynamics/HingeJoint.cpp
-    src/dynamics/SliderJoint.cpp
-    src/dynamics/PistonJoint.cpp
-    src/dynamics/MouseJoint.cpp
-    src/dynamics/UniversalJoint.cpp
-    src/dynamics/WheelJoint.cpp
-    src/softbody/SoftBody.cpp
-    src/character/CharacterBody.cpp
-    src/character/CharacterRigidBody.cpp
-    src/character/Ragdoll.cpp
-    src/collision/CollisionShape.cpp
-    src/collision/Narrowphase.cpp
-    src/collision/Broadphase.cpp
-    src/effects/ParticleSystem.cpp
+set(RADION_PHYSICS_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/RigidBody.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/Aerodynamics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/ContactSolver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/RaycastVehicle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/MotorcycleController.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/PointJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/DistanceJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/FixedJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/HingeJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/SliderJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/PistonJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/MouseJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/UniversalJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/WheelJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/softbody/SoftBody.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/character/CharacterBody.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/character/CharacterRigidBody.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/character/Ragdoll.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/collision/CollisionShape.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/collision/Narrowphase.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/collision/Broadphase.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/effects/ParticleSystem.cpp
+    PARENT_SCOPE
 )
-
-target_precompile_headers(radion_physics PRIVATE
-    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
-)
-
-target_include_directories(radion_physics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(radion_physics PUBLIC radion_render radion_geometry)
+set(RADION_PHYSICS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include PARENT_SCOPE)

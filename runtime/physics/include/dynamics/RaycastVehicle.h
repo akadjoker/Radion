@@ -6,11 +6,15 @@
 
 #include <vector>
 
+namespace Radion
+{
+class Scene;
+}
+
 namespace Radion::Physics
 {
 
 class RigidBody;
-class PhysicsWorld;
 
 // A rigid body turned into a car by four (or more) suspended, raycast-probed
 // wheels. Each wheel has no collision shape of its own - it is a ray shot
@@ -57,7 +61,7 @@ public:
         f32 skidInfo = 1.0f;
 
         bool inContact = false;
-        u32 groundBody = 0xFFFFFFFFu;
+        RigidBody* groundBody = nullptr;
         glm::vec3 contactPoint{0.0f};
         glm::vec3 contactNormal{0.0f, 1.0f, 0.0f};
         glm::vec3 hardPointWorld{0.0f};
@@ -76,7 +80,7 @@ public:
         glm::mat4 worldTransform{1.0f};
     };
 
-    RaycastVehicle(RigidBody& chassis, const PhysicsWorld* world, u32 chassisBodyId);
+    RaycastVehicle(RigidBody& chassis, const Radion::Scene* scene);
 
     u32 addWheel(const glm::vec3& connectionPointLocal, const glm::vec3& directionLocal,
                 const glm::vec3& axleLocal, f32 suspensionRestLength, f32 wheelRadius,
@@ -124,8 +128,7 @@ private:
     void updateFriction(f32 step);
 
     RigidBody& mChassis;
-    const PhysicsWorld* mWorld;
-    u32 mChassisBodyId;
+    const Radion::Scene* mScene;
 
     std::vector<Wheel> mWheels;
     std::vector<glm::vec3> mForwardWS;

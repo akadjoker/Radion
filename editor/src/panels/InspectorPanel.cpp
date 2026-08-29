@@ -22,12 +22,12 @@
 #include "Ocean.h"
 #include "ParticleEffect.h"
 #include "ParticleEmitter.h"
-#include "PhysicsBody.h"
 #include "ReflectionProbe.h"
 #include "Road.h"
 #include "Scene.h"
 #include "Skeleton.h"
 #include "NavMeshSurface.h"
+#include "dynamics/RigidBody.h"
 #include "SelfDestroy.h"
 #include "Waypoints.h"
 #include "ZenBehaviour.h"
@@ -252,7 +252,7 @@ void removeComponentByType(GameObject& object, ComponentType type)
     case ComponentType::VoxelWorld: object.removeComponent<VoxelWorldComponent>(); break;
     case ComponentType::Script: object.removeComponent<ScriptComponent>(); break;
     case ComponentType::Collider: object.removeComponent<Collider>(); break;
-    case ComponentType::PhysicsBody: object.removeComponent<PhysicsBody>(); break;
+    case ComponentType::RigidBody: object.removeComponent<Physics::RigidBody>(); break;
     case ComponentType::AudioPlayer:
         object.removeComponent<AudioPlayer>();
         break;
@@ -845,13 +845,13 @@ void InspectorPanel::drawComponentList(GameObject& object)
             drawColliderComponent(object, *collider);
         ImGui::PopID();
     }
-    if (PhysicsBody* physicsBody = object.getComponent<PhysicsBody>())
+    if (Physics::RigidBody* rigidBody = object.getComponent<Physics::RigidBody>())
     {
-        ImGui::PushID("PhysicsBody");
-        if (drawComponentHeader(app(), "PhysicsBody", *physicsBody))
-            toRemove = ComponentType::PhysicsBody;
+        ImGui::PushID("RigidBody");
+        if (drawComponentHeader(app(), "RigidBody", *rigidBody))
+            toRemove = ComponentType::RigidBody;
         else
-            drawPhysicsBodyComponent(object, *physicsBody);
+            drawRigidBodyComponent(object, *rigidBody);
         ImGui::PopID();
     }
     if (AudioPlayer* audioPlayer = object.getComponent<AudioPlayer>())
@@ -3071,9 +3071,9 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             object.addComponent<Collider>();
             app().markDirty();
         }
-        if (!object.getComponent<PhysicsBody>() && ImGui::MenuItem("PhysicsBody"))
+        if (!object.getComponent<Physics::RigidBody>() && ImGui::MenuItem("RigidBody"))
         {
-            object.addComponent<PhysicsBody>();
+            object.addComponent<Physics::RigidBody>();
             app().markDirty();
         }
         if (!object.getComponent<AudioPlayer>() && ImGui::MenuItem("AudioPlayer"))
@@ -4305,7 +4305,7 @@ void InspectorPanel::drawColliderComponent(GameObject& object, Collider& collide
     ImGui::Unindent(14.0f);
 }
 
-void InspectorPanel::drawPhysicsBodyComponent(GameObject&, PhysicsBody& body)
+void InspectorPanel::drawRigidBodyComponent(GameObject&, Physics::RigidBody& body)
 {
     ImGui::Indent(14.0f);
 
@@ -4322,23 +4322,24 @@ void InspectorPanel::drawPhysicsBodyComponent(GameObject&, PhysicsBody& body)
                          "anything resting on it without ever being pushed back.");
 
     static const char* kShapeNames[] = {"Sphere", "Box", "Capsule"};
-    int shapeIndex = static_cast<int>(body.shape());
+    int shapeIndex = static_cast<int>(body.shapeKind()) - 1;
     if (ImGui::Combo("Shape", &shapeIndex, kShapeNames, IM_ARRAYSIZE(kShapeNames)))
     {
-        switch (static_cast<PhysicsBodyShape>(shapeIndex))
+        switch (static_cast<Physics::RigidBodyShape>(shapeIndex + 1))
         {
-        case PhysicsBodyShape::Sphere: body.setSphere(body.radius()); break;
-        case PhysicsBodyShape::Box: body.setBox(body.halfExtents()); break;
-        case PhysicsBodyShape::Capsule: body.setCapsule(body.radius(), body.height()); break;
+        case Physics::RigidBodyShape::Sphere: body.setSphere(body.radius()); break;
+        case Physics::RigidBodyShape::Box: body.setBox(body.halfExtents()); break;
+        case Physics::RigidBodyShape::Capsule: body.setCapsule(body.radius(), body.height()); break;
+        default: break;
         }
         app().markDirty();
     }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("The volume the simulation collides and computes inertia with.");
 
-    switch (body.shape())
+    switch (body.shapeKind())
     {
-    case PhysicsBodyShape::Sphere:
+    case Physics::RigidBodyShape::Sphere:
     {
         f32 radius = body.radius();
         if (ImGui::DragFloat("Radius", &radius, 0.02f, 0.001f, 1000.0f, "%.3f"))
@@ -4350,7 +4351,7 @@ void InspectorPanel::drawPhysicsBodyComponent(GameObject&, PhysicsBody& body)
             ImGui::SetTooltip("Sphere radius, in local units before the object's own scale.");
         break;
     }
-    case PhysicsBodyShape::Box:
+    case Physics::RigidBodyShape::Box:
     {
         glm::vec3 halfExtents = body.halfExtents();
         if (ImGui::DragFloat3("Half Extents", &halfExtents.x, 0.02f, 0.001f, 1000.0f, "%.3f"))
@@ -4362,7 +4363,7 @@ void InspectorPanel::drawPhysicsBodyComponent(GameObject&, PhysicsBody& body)
             ImGui::SetTooltip("Half the box's size on each axis, before the object's own scale.");
         break;
     }
-    case PhysicsBodyShape::Capsule:
+    case Physics::RigidBodyShape::Capsule:
     {
         f32 radius = body.radius();
         f32 height = body.height();
@@ -4380,6 +4381,8 @@ void InspectorPanel::drawPhysicsBodyComponent(GameObject&, PhysicsBody& body)
         }
         break;
     }
+    case Physics::RigidBodyShape::None:
+        break;
     }
 
     f32 mass = body.mass();

@@ -1,7 +1,7 @@
 #include "character/Ragdoll.h"
 
+#include "Scene.h"
 #include "Skeleton.h"
-#include "dynamics/PhysicsWorld.h"
 
 #include <cctype>
 #include <cmath>
@@ -190,13 +190,13 @@ void Ragdoll::resolveHierarchy(const Skeleton& skeleton)
     }
 }
 
-void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& globalPose,
+void Ragdoll::activate(Radion::Scene& scene, const std::vector<glm::mat4>& globalPose,
                        const std::vector<Radion::LocalPose>& localPose, const glm::mat4& ownerWorld)
 {
     if (!mValid || mActive)
         return;
 
-    mWorld = &world;
+    mScene = &scene;
     mOwnerWorld = ownerWorld;
     mPointJoints.clear();
     mHingeJoints.clear();
@@ -271,13 +271,11 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
 
         shapeOf[i] = shape;
 
-        BodyEntry entry;
-        entry.body = &body;
-        entry.shape = shape;
-        entry.friction = 0.7f;
-        entry.restitution = 0.05f;
-        entry.filter = mFilter; // fixed up below, once every part's shape/pose is known
-        p.bodyId = world.addBody(entry);
+        body.setShape(shape);
+        body.setFriction(0.7f);
+        body.setRestitution(0.05f);
+        body.setFilter(mFilter); // fixed up below, once every part's shape/pose is known
+        scene.addBody(body);
 
         // Fixed for the body's whole simulated life: where the animated
         // bone sat relative to the body frame we just chose for it.
@@ -319,13 +317,7 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
         }
     }
     for (usize i = 0; i < mParts.size(); ++i)
-    {
-        if (BodyEntry* entry = world.body(mParts[i].bodyId))
-        {
-            entry->filter.group = 1u << (kFirstPartBit + i);
-            entry->filter.mask = mFilter.mask & ~excludeBit[i];
-        }
-    }
+        mParts[i].rigidBody.setFilter({1u << (kFirstPartBit + i), mFilter.mask & ~excludeBit[i]});
 
     const glm::vec3 lateral = part(RagdollPart::Hips).rigidBody.directionToWorld(glm::vec3(1.0f, 0.0f, 0.0f));
 
@@ -346,14 +338,14 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
                 mHingeJoints.back().setLimits(-2.4f, 0.0f);
             else
                 mHingeJoints.back().setLimits(0.0f, 2.4f);
-            mWorld->addJoint(&mHingeJoints.back());
+            mScene->addJoint(&mHingeJoints.back());
         }
         else
         {
             const glm::vec3 anchor =
                 thisPart == RagdollPart::Head ? worldPosition(p.farBoneIndex) : jointPosition[i];
             mPointJoints.emplace_back(parentP.rigidBody, p.rigidBody, anchor);
-            mWorld->addJoint(&mPointJoints.back());
+            mScene->addJoint(&mPointJoints.back());
         }
     }
 
@@ -362,22 +354,19 @@ void Ragdoll::activate(PhysicsWorld& world, const std::vector<glm::mat4>& global
 
 void Ragdoll::deactivate()
 {
-    if (mActive && mWorld)
+    if (mActive && mScene)
     {
         for (Part& p : mParts)
-            if (p.bodyId != 0xFFFFFFFFu)
-            {
-                mWorld->removeBody(p.bodyId);
-                p.bodyId = 0xFFFFFFFFu;
-            }
+            if (p.rigidBody.scene())
+                mScene->removeBody(p.rigidBody);
         for (PointJoint& joint : mPointJoints)
-            mWorld->removeJoint(&joint);
+            mScene->removeJoint(&joint);
         for (HingeJoint& joint : mHingeJoints)
-            mWorld->removeJoint(&joint);
+            mScene->removeJoint(&joint);
     }
     mPointJoints.clear();
     mHingeJoints.clear();
-    mWorld = nullptr;
+    mScene = nullptr;
     mActive = false;
 }
 

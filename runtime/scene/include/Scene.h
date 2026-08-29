@@ -19,15 +19,22 @@
 #include "MeshRenderer.h"
 #include "Ocean.h"
 #include "ParticleEffect.h"
-#include "PhysicsBody.h"
 #include "ReflectionProbe.h"
 #include "RenderList.h"
 #include "Road.h"
 #include "SceneBVH.h"
 #include "Terrain.h"
-#include "dynamics/PhysicsWorld.h"
+#include "collision/Broadphase.h"
+#include "dynamics/ContactSolver.h"
+#include "dynamics/PhysicsEvents.h"
+#include "dynamics/RigidBody.h"
 
 #include <vector>
+
+namespace Radion::Physics
+{
+class Joint;
+}
 
 namespace Radion
 {
@@ -159,18 +166,83 @@ public:
         return mCollisionWorld;
     }
 
-    const std::vector<PhysicsBody*>& physicsBodies() const
+    void addBody(Physics::RigidBody& body);
+    void removeBody(Physics::RigidBody& body);
+    const std::vector<Physics::RigidBody*>& rigidBodies() const
     {
-        return mPhysicsBodies;
+        return mRigidBodies;
+    }
+    usize bodyCount() const
+    {
+        return mRigidBodies.size();
+    }
+    void clearPhysics();
+
+    void addJoint(Physics::Joint* joint);
+    void removeJoint(Physics::Joint* joint);
+    usize jointCount() const
+    {
+        return mJoints.size();
     }
 
-    Physics::PhysicsWorld& physics()
+    void setGravity(const glm::vec3& gravity);
+    const glm::vec3& gravity() const
     {
-        return mPhysicsWorld;
+        return mGravity;
     }
-    const Physics::PhysicsWorld& physics() const
+    void setFixedStep(f32 seconds);
+    f32 fixedStep() const
     {
-        return mPhysicsWorld;
+        return mFixedStep;
+    }
+    void setSolverSettings(const Physics::ContactSolverSettings& settings);
+    void setContactEventCallback(Physics::ContactEventCallback callback, void* userData);
+    void setPhysicsStepCallback(Physics::PhysicsStepCallback callback, void* userData);
+    void setContactPersistence(u32 steps);
+    u32 contactPersistence() const
+    {
+        return mContactPersistence;
+    }
+    void setContactMargin(f32 margin);
+    f32 contactMargin() const
+    {
+        return mContactMargin;
+    }
+    void markStaticBroadphaseDirty();
+
+    // Consumes `deltaTime` in fixed steps, keeping the remainder for next
+    // time.
+    void updatePhysics(f32 deltaTime);
+    // One step, exactly. What the tests drive.
+    void stepPhysics(f32 duration);
+    void debugDrawPhysics() const;
+
+    bool raycast(const Ray& ray, f32 maxDistance, const Physics::QueryFilter& filter,
+                Physics::WorldRayHit& hit) const;
+    void overlapSphere(const glm::vec3& centre, f32 radius, const Physics::QueryFilter& filter,
+                       std::vector<Physics::RigidBody*>& out) const;
+    void queryAABB(const AABB& bounds, const Physics::QueryFilter& filter,
+                  std::vector<Physics::RigidBody*>& out) const;
+
+    // Lightweight area effects. Radial strength is signed: positive pushes
+    // away (explosion), negative pulls inward (attraction). Effects decay
+    // linearly to zero at radius and only affect dynamic bodies accepted by
+    // the query filter. An impulse is instantaneous; forces must be added
+    // before stepPhysics() and are integrated during that step.
+    u32 applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 strength,
+                           const Physics::QueryFilter& filter = Physics::QueryFilter());
+    u32 addRadialForce(const glm::vec3& centre, f32 radius, f32 strength,
+                       const Physics::QueryFilter& filter = Physics::QueryFilter());
+    u32 addDirectionalForce(const glm::vec3& centre, f32 radius, const glm::vec3& force,
+                            const Physics::QueryFilter& filter = Physics::QueryFilter());
+
+    usize contactCount() const
+    {
+        return mContacts.size();
+    }
+    const std::vector<Physics::Contact>& contacts() const
+    {
+        return mContacts;
     }
 
     // Collects every visible object into `list` from the active camera, the
@@ -629,8 +701,74 @@ private:
     std::vector<ReflectionProbe*> mReflectionProbes;
     std::vector<Collider*> mColliders;
     CollisionWorld mCollisionWorld;
-    std::vector<PhysicsBody*> mPhysicsBodies;
-    Physics::PhysicsWorld mPhysicsWorld;
+
+    // ----------------------------------------------------------- physics
+    struct CachedContactPoint
+    {
+        glm::vec3 position{0.0f};
+        f32 normalImpulse = 0.0f;
+        f32 tangentImpulse[2] = {0.0f, 0.0f};
+    };
+    struct CachedContactPair
+    {
+        static constexpr u32 MaxPoints = Physics::ContactManifold::MaxPoints * 4;
+        CachedContactPoint points[MaxPoints];
+        u32 count = 0;
+        u32 lastStep = 0;
+        bool reported = false;
+        Physics::RigidBody* bodyA = nullptr;
+        Physics::RigidBody* bodyB = nullptr;
+    };
+    struct BulletSweep
+    {
+        Physics::RigidBody* body = nullptr;
+        glm::vec3 previousPosition{0.0f};
+    };
+    static u64 pairKey(const Physics::RigidBody& a, const Physics::RigidBody& b);
+    void rebuildStaticBroadphase();
+    void warmStartFromCache(const Physics::RigidBody& a, const Physics::RigidBody& b,
+                            Physics::ContactManifold& manifold);
+    void storeInCache(const Physics::RigidBody& a, const Physics::RigidBody& b,
+                      const Physics::ContactManifold& manifold);
+    void emitContactExits();
+    u32 islandRoot(u32 index);
+    void propagateSleep();
+    void solveBulletSweeps();
+    void dispatchContactEvents();
+
+    std::vector<Physics::RigidBody*> mRigidBodies;
+    bool mPhysicsStepping = false;
+    bool mDispatchingContactEvents = false;
+    u32 mNextBodyKey = 1;
+    Physics::Broadphase mDynamicBroadphase;
+    BoundsTree mStaticBroadphase;
+    std::vector<AABB> mStaticBounds;
+    std::vector<Physics::RigidBody*> mStaticBodies;
+    std::vector<Physics::BroadphaseProxy> mDynamicProxies;
+    std::vector<Physics::BroadphasePair> mDynamicPairs, mPairs;
+    std::vector<u32> mStaticCandidates;
+    bool mStaticBroadphaseDirty = true;
+    std::vector<Physics::ContactManifold> mManifolds;
+    std::vector<Physics::Contact> mContacts;
+    std::vector<Physics::Joint*> mJoints;
+    std::vector<Physics::ContactEventInfo> mContactEventQueue, mContactEventsDispatching;
+    HashMap<u64, CachedContactPair> mContactCache;
+    std::vector<u32> mIslandParent;
+    std::vector<u8> mIslandAwake;
+    std::vector<BulletSweep> mBulletSweeps;
+    Physics::ContactSolver mContactSolver;
+    glm::vec3 mGravity{0.0f, -9.81f, 0.0f};
+    f32 mFixedStep = 1.0f / 120.0f;
+    f32 mPhysicsAccumulator = 0.0f;
+    u32 mMaxPhysicsStepsPerUpdate = 8;
+    u32 mPhysicsStepIndex = 0;
+    u32 mContactPersistence = 2;
+    f32 mContactMargin = 0.04f;
+    Physics::ContactEventCallback mContactEventCallback = nullptr;
+    void* mContactEventUserData = nullptr;
+    Physics::PhysicsStepCallback mPhysicsStepCallback = nullptr;
+    void* mPhysicsStepUserData = nullptr;
+
     std::vector<GameObject*> mDebugObjects;
     std::vector<PendingAdd> mPendingAdd;
     std::vector<GameObject*> mPendingRemove;

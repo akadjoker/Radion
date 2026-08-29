@@ -20,7 +20,6 @@
 #include "Ocean.h"
 #include "ParticleEffect.h"
 #include "ParticleEffectPool.h"
-#include "PhysicsBody.h"
 #include "PostProcess.h"
 #include "Prefab.h"
 #include "Profiler.h"
@@ -35,6 +34,7 @@
 #include "Terrain.h"
 #include "UiControls.h"
 #include "VolumetricPass.h"
+#include "dynamics/RigidBody.h"
 
 #include <cstdio>
 #include <filesystem>
@@ -1180,11 +1180,11 @@ void testAudioPlayerRoundTrip()
     CHECK(reMusic && reMusic->source() == "music/theme.ogg");
 }
 
-void testPhysicsBodyRoundTrip()
+void testRigidBodyRoundTrip()
 {
     Scene scene;
     GameObject* object = scene.createGameObject("crate");
-    PhysicsBody* body = object->addComponent<PhysicsBody>();
+    Physics::RigidBody* body = object->addComponent<Physics::RigidBody>();
     CHECK(body != nullptr);
     if (!body)
         return;
@@ -1209,13 +1209,13 @@ void testPhysicsBodyRoundTrip()
     CHECK(result.success());
 
     GameObject* reObject = reloaded.findGameObject(object->id());
-    PhysicsBody* reBody = reObject ? reObject->getComponent<PhysicsBody>() : nullptr;
+    Physics::RigidBody* reBody = reObject ? reObject->getComponent<Physics::RigidBody>() : nullptr;
     CHECK(reBody != nullptr);
     if (!reBody)
         return;
 
     CHECK(reBody->bodyType() == Physics::BodyType::Kinematic);
-    CHECK(reBody->shape() == PhysicsBodyShape::Box);
+    CHECK(reBody->shapeKind() == Physics::RigidBodyShape::Box);
     CHECK(near(reBody->halfExtents(), glm::vec3(0.5f, 0.75f, 1.0f)));
     CHECK(near(reBody->mass(), 4.0f));
     CHECK(near(reBody->friction(), 0.35f));
@@ -1228,12 +1228,12 @@ void testPhysicsBodyRoundTrip()
 // A dynamic sphere dropped above a static box falls under gravity and comes
 // to rest on top of it, with the simulated pose written back into the
 // GameObject every step - what actually makes the fall visible.
-void testPhysicsBodyFalls()
+void testRigidBodyFalls()
 {
     Scene scene;
 
     GameObject* floorObject = scene.createGameObject("floor");
-    PhysicsBody* floor = floorObject->addComponent<PhysicsBody>();
+    Physics::RigidBody* floor = floorObject->addComponent<Physics::RigidBody>();
     CHECK(floor != nullptr);
     if (!floor)
         return;
@@ -1241,7 +1241,7 @@ void testPhysicsBodyFalls()
     floor->setBox(glm::vec3(5.0f, 0.5f, 5.0f));
 
     GameObject* ballObject = scene.createGameObject("ball");
-    PhysicsBody* ball = ballObject->addComponent<PhysicsBody>();
+    Physics::RigidBody* ball = ballObject->addComponent<Physics::RigidBody>();
     CHECK(ball != nullptr);
     if (!ball)
         return;
@@ -1262,13 +1262,13 @@ void testPhysicsBodyFalls()
 }
 
 // Disposing a GameObject mid-simulation must drop its body from the Scene's
-// PhysicsWorld cleanly - no crash and no further updates once it is gone.
-void testPhysicsBodyDestroyedMidSimulation()
+// rigid body list cleanly - no crash and no further updates once it is gone.
+void testRigidBodyDestroyedMidSimulation()
 {
     Scene scene;
 
     GameObject* floorObject = scene.createGameObject("floor2");
-    PhysicsBody* floor = floorObject->addComponent<PhysicsBody>();
+    Physics::RigidBody* floor = floorObject->addComponent<Physics::RigidBody>();
     CHECK(floor != nullptr);
     if (!floor)
         return;
@@ -1276,7 +1276,7 @@ void testPhysicsBodyDestroyedMidSimulation()
     floor->setBox(glm::vec3(5.0f, 0.5f, 5.0f));
 
     GameObject* ballObject = scene.createGameObject("fallingBall");
-    PhysicsBody* ball = ballObject->addComponent<PhysicsBody>();
+    Physics::RigidBody* ball = ballObject->addComponent<Physics::RigidBody>();
     CHECK(ball != nullptr);
     if (!ball)
         return;
@@ -1285,27 +1285,27 @@ void testPhysicsBodyDestroyedMidSimulation()
 
     for (int i = 0; i < 30; ++i)
         scene.update(1.0f / 60.0f);
-    CHECK(scene.physicsBodies().size() == 2);
+    CHECK(scene.rigidBodies().size() == 2);
 
     ballObject->dispose();
     scene.update(1.0f / 60.0f);
-    CHECK(scene.physicsBodies().size() == 1);
+    CHECK(scene.rigidBodies().size() == 1);
     CHECK(scene.gameObjectCount() == 1);
 
     for (int i = 0; i < 10; ++i)
         scene.update(1.0f / 60.0f);
-    CHECK(scene.physicsBodies().size() == 1);
+    CHECK(scene.rigidBodies().size() == 1);
 }
 
 // The editor runs the same update loop while placing objects, so a Dynamic
 // body must not fall until Play actually starts the simulation.
-void testPhysicsBodyRunningInEditorFreezesSimulation()
+void testRigidBodyRunningInEditorFreezesSimulation()
 {
     Scene scene;
     scene.setRunningInEditor(true);
 
     GameObject* floorObject = scene.createGameObject("floor3");
-    PhysicsBody* floor = floorObject->addComponent<PhysicsBody>();
+    Physics::RigidBody* floor = floorObject->addComponent<Physics::RigidBody>();
     CHECK(floor != nullptr);
     if (!floor)
         return;
@@ -1313,7 +1313,7 @@ void testPhysicsBodyRunningInEditorFreezesSimulation()
     floor->setBox(glm::vec3(5.0f, 0.5f, 5.0f));
 
     GameObject* ballObject = scene.createGameObject("editorBall");
-    PhysicsBody* ball = ballObject->addComponent<PhysicsBody>();
+    Physics::RigidBody* ball = ballObject->addComponent<Physics::RigidBody>();
     CHECK(ball != nullptr);
     if (!ball)
         return;
@@ -1333,12 +1333,12 @@ void testPhysicsBodyRunningInEditorFreezesSimulation()
 // A Dynamic body placed by hand while the simulation is already running -
 // setPosition() after addComponent(), a script teleporting it - must carry on
 // from the new pose, not snap back to where the RigidBody last was.
-void testPhysicsBodyTeleportInPlay()
+void testRigidBodyTeleportInPlay()
 {
     Scene scene;
 
     GameObject* floorObject = scene.createGameObject("floor4");
-    PhysicsBody* floor = floorObject->addComponent<PhysicsBody>();
+    Physics::RigidBody* floor = floorObject->addComponent<Physics::RigidBody>();
     CHECK(floor != nullptr);
     if (!floor)
         return;
@@ -1346,7 +1346,7 @@ void testPhysicsBodyTeleportInPlay()
     floor->setBox(glm::vec3(5.0f, 0.5f, 5.0f));
 
     GameObject* ballObject = scene.createGameObject("teleportBall");
-    PhysicsBody* ball = ballObject->addComponent<PhysicsBody>();
+    Physics::RigidBody* ball = ballObject->addComponent<Physics::RigidBody>();
     CHECK(ball != nullptr);
     if (!ball)
         return;
@@ -2582,11 +2582,11 @@ int main()
     testSceneSerializerLightRoundTrip();
     testSceneSerializerComponentValidation();
     testAudioPlayerRoundTrip();
-    testPhysicsBodyRoundTrip();
-    testPhysicsBodyFalls();
-    testPhysicsBodyDestroyedMidSimulation();
-    testPhysicsBodyRunningInEditorFreezesSimulation();
-    testPhysicsBodyTeleportInPlay();
+    testRigidBodyRoundTrip();
+    testRigidBodyFalls();
+    testRigidBodyDestroyedMidSimulation();
+    testRigidBodyRunningInEditorFreezesSimulation();
+    testRigidBodyTeleportInPlay();
     testUiControlsRoundTrip();
     testPrefabRoundTrip();
     testTransforms();

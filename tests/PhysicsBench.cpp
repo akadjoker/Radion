@@ -1,8 +1,8 @@
 #include "PCH.h"
 
+#include "Scene.h"
 #include "collision/Broadphase.h"
 #include "collision/CollisionShape.h"
-#include "dynamics/PhysicsWorld.h"
 #include "dynamics/RigidBody.h"
 #include "softbody/SoftBody.h"
 
@@ -31,18 +31,16 @@ void benchBoxPile(u32 count)
     BoxShape groundShape(glm::vec3(60.0f, 0.5f, 60.0f));
     BoxShape boxShape(glm::vec3(0.5f));
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
     world.setFixedStep(1.0f / 60.0f);
 
     RigidBody ground;
     ground.setBodyType(BodyType::Static);
     ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
-    BodyEntry groundEntry;
-    groundEntry.body = &ground;
-    groundEntry.shape = &groundShape;
-    groundEntry.friction = 0.8f;
-    world.addBody(groundEntry);
+    ground.setShape(&groundShape);
+    ground.setFriction(0.8f);
+    world.addBody(ground);
 
     std::deque<RigidBody> bodies;
     const u32 side = static_cast<u32>(std::cbrt(static_cast<f64>(count))) + 1;
@@ -60,11 +58,9 @@ void benchBoxPile(u32 count)
                                            1.0f + static_cast<f32>(y) * 1.1f,
                                            static_cast<f32>(z) * 1.1f -
                                                static_cast<f32>(side) * 0.55f));
-                BodyEntry entry;
-                entry.body = &body;
-                entry.shape = &boxShape;
-                entry.friction = 0.6f;
-                world.addBody(entry);
+                body.setShape(&boxShape);
+                body.setFriction(0.6f);
+                world.addBody(body);
                 ++spawned;
             }
 
@@ -74,7 +70,7 @@ void benchBoxPile(u32 count)
     for (u32 step = 0; step < kSteps; ++step)
     {
         const auto begin = std::chrono::steady_clock::now();
-        world.step(1.0f / 60.0f);
+        world.stepPhysics(1.0f / 60.0f);
         const auto end = std::chrono::steady_clock::now();
         if (step >= kSteps / 2)
         {
@@ -97,15 +93,13 @@ void benchContactEvents(u32 count)
     BoxShape groundShape(glm::vec3(60.0f, 0.5f, 60.0f));
     BoxShape boxShape(glm::vec3(0.5f));
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
     RigidBody ground;
     ground.setBodyType(BodyType::Static);
     ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
-    BodyEntry groundEntry;
-    groundEntry.body = &ground;
-    groundEntry.shape = &groundShape;
-    world.addBody(groundEntry);
+    ground.setShape(&groundShape);
+    world.addBody(ground);
 
     std::deque<RigidBody> bodies;
     const u32 side = static_cast<u32>(std::cbrt(static_cast<f64>(count))) + 1;
@@ -123,21 +117,19 @@ void benchContactEvents(u32 count)
                                            1.0f + static_cast<f32>(y) * 1.01f,
                                            static_cast<f32>(z) * 1.01f -
                                                static_cast<f32>(side) * 0.505f));
-                BodyEntry entry;
-                entry.body = &body;
-                entry.shape = &boxShape;
-                world.addBody(entry);
+                body.setShape(&boxShape);
+                world.addBody(body);
                 ++spawned;
             }
 
     u64 eventCount = 0;
-    world.setEventCallback(countContactEvent, &eventCount);
+    world.setContactEventCallback(countContactEvent, &eventCount);
     constexpr u32 kSteps = 240;
     f64 total = 0.0;
     for (u32 step = 0; step < kSteps; ++step)
     {
         const auto begin = std::chrono::steady_clock::now();
-        world.step(1.0f / 60.0f);
+        world.stepPhysics(1.0f / 60.0f);
         const auto end = std::chrono::steady_clock::now();
         if (step >= kSteps / 2)
             total += milliseconds(begin, end);
@@ -183,7 +175,7 @@ void benchBroadphase(u32 count, bool overlapping, bool movable = true)
 void benchStaticBvh(u32 staticCount, u32 kinematicCount)
 {
     BoxShape shape(glm::vec3(0.5f));
-    PhysicsWorld world;
+    Radion::Scene world;
     std::deque<RigidBody> staticBodies;
     for (u32 index = 0; index < staticCount; ++index)
     {
@@ -193,10 +185,8 @@ void benchStaticBvh(u32 staticCount, u32 kinematicCount)
         body.setPosition(glm::vec3(static_cast<f32>(index % 64) * 3.0f,
                                    static_cast<f32>((index / 64) % 32) * 3.0f,
                                    static_cast<f32>(index / 2048) * 3.0f));
-        BodyEntry entry;
-        entry.body = &body;
-        entry.shape = &shape;
-        world.addBody(entry);
+        body.setShape(&shape);
+        world.addBody(body);
     }
 
     std::deque<RigidBody> kinematicBodies;
@@ -206,10 +196,8 @@ void benchStaticBvh(u32 staticCount, u32 kinematicCount)
         RigidBody& body = kinematicBodies.back();
         body.setBodyType(BodyType::Kinematic);
         body.setPosition(glm::vec3(static_cast<f32>(index) * 3.0f + 0.75f, 100.0f, 0.0f));
-        BodyEntry entry;
-        entry.body = &body;
-        entry.shape = &shape;
-        world.addBody(entry);
+        body.setShape(&shape);
+        world.addBody(body);
     }
 
     constexpr u32 kSteps = 120;
@@ -217,7 +205,7 @@ void benchStaticBvh(u32 staticCount, u32 kinematicCount)
     for (u32 step = 0; step < kSteps; ++step)
     {
         const auto begin = std::chrono::steady_clock::now();
-        world.step(1.0f / 60.0f);
+        world.stepPhysics(1.0f / 60.0f);
         total += milliseconds(begin, std::chrono::steady_clock::now());
     }
     std::printf("static BVH %u static + %u kinematic: %7.3f ms/step avg\n", staticCount,
@@ -229,14 +217,12 @@ void benchRaycasts(u32 bodyCount, u32 rayCount)
     BoxShape groundShape(glm::vec3(60.0f, 0.5f, 60.0f));
     BoxShape boxShape(glm::vec3(0.5f));
 
-    PhysicsWorld world;
+    Radion::Scene world;
     RigidBody ground;
     ground.setBodyType(BodyType::Static);
     ground.setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
-    BodyEntry groundEntry;
-    groundEntry.body = &ground;
-    groundEntry.shape = &groundShape;
-    world.addBody(groundEntry);
+    ground.setShape(&groundShape);
+    world.addBody(ground);
 
     std::deque<RigidBody> bodies;
     for (u32 i = 0; i < bodyCount; ++i)
@@ -246,10 +232,8 @@ void benchRaycasts(u32 bodyCount, u32 rayCount)
         body.setBodyType(BodyType::Static);
         body.setPosition(glm::vec3(static_cast<f32>(i % 32) * 2.0f - 32.0f, 0.5f,
                                    static_cast<f32>(i / 32) * 2.0f - 32.0f));
-        BodyEntry entry;
-        entry.body = &body;
-        entry.shape = &boxShape;
-        world.addBody(entry);
+        body.setShape(&boxShape);
+        world.addBody(body);
     }
 
     u32 hits = 0;
@@ -294,17 +278,15 @@ void benchSoftBody()
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 1.0e-4f);
     body.setCollisionMargin(0.02f);
 
-    PhysicsWorld world;
+    Radion::Scene world;
     PlaneShape groundShape(glm::vec3(0.0f, 1.0f, 0.0f));
     RigidBody ground;
     ground.setBodyType(BodyType::Static);
     ground.setPosition(glm::vec3(0.0f));
-    BodyEntry groundEntry;
-    groundEntry.body = &ground;
-    groundEntry.shape = &groundShape;
-    groundEntry.friction = 0.6f;
-    world.addBody(groundEntry);
-    body.setCollisionWorld(&world);
+    ground.setShape(&groundShape);
+    ground.setFriction(0.6f);
+    world.addBody(ground);
+    body.setCollisionScene(&world);
 
     constexpr u32 kSteps = 240;
     f64 total = 0.0;
@@ -360,16 +342,14 @@ void benchSoftBodySplashes(u32 splashCount, u32 particlesPerSplash)
     TrimeshShape mesh(positions.data(), static_cast<u32>(positions.size()), indices.data(),
                       static_cast<u32>(indices.size()));
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -20.0f, 0.0f));
     RigidBody meshBody;
     meshBody.setBodyType(BodyType::Static);
     meshBody.setPosition(glm::vec3(0.0f));
-    BodyEntry meshEntry;
-    meshEntry.body = &meshBody;
-    meshEntry.shape = &mesh;
-    meshEntry.friction = 0.8f;
-    world.addBody(meshEntry);
+    meshBody.setShape(&mesh);
+    meshBody.setFriction(0.8f);
+    world.addBody(meshBody);
 
     std::deque<SoftBody> splashes;
     for (u32 s = 0; s < splashCount; ++s)
@@ -382,7 +362,7 @@ void benchSoftBodySplashes(u32 splashCount, u32 particlesPerSplash)
         splash.setGravity(world.gravity());
         splash.setDamping(0.98f);
         splash.setCollisionMargin(0.02f);
-        splash.setCollisionWorld(&world);
+        splash.setCollisionScene(&world);
         for (u32 p = 0; p < particlesPerSplash; ++p)
         {
             const f32 angle = static_cast<f32>(p) * 0.8f;
@@ -436,17 +416,15 @@ void benchLargeTrimesh(u32 quadsPerSide)
                       static_cast<u32>(indices.size()));
     const auto buildEnd = std::chrono::steady_clock::now();
 
-    PhysicsWorld world;
+    Radion::Scene world;
     world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
     world.setFixedStep(1.0f / 60.0f);
     RigidBody meshBody;
     meshBody.setBodyType(BodyType::Static);
     meshBody.setPosition(glm::vec3(0.0f));
-    BodyEntry meshEntry;
-    meshEntry.body = &meshBody;
-    meshEntry.shape = &mesh;
-    meshEntry.friction = 0.7f;
-    world.addBody(meshEntry);
+    meshBody.setShape(&mesh);
+    meshBody.setFriction(0.7f);
+    world.addBody(meshBody);
 
     constexpr u32 kRays = 10000;
     u32 hits = 0;
@@ -474,11 +452,9 @@ void benchLargeTrimesh(u32 quadsPerSide)
         body.setPosition(glm::vec3(static_cast<f32>(i % 12) * 0.6f - 3.6f,
                                    2.0f + static_cast<f32>(i / 12) * 0.6f,
                                    static_cast<f32>(i % 7) * 0.5f - 1.75f));
-        BodyEntry entry;
-        entry.body = &body;
-        entry.shape = &boxShape;
-        entry.friction = 0.6f;
-        world.addBody(entry);
+        body.setShape(&boxShape);
+        body.setFriction(0.6f);
+        world.addBody(body);
     }
 
     constexpr u32 kSteps = 240;
@@ -487,7 +463,7 @@ void benchLargeTrimesh(u32 quadsPerSide)
     for (u32 step = 0; step < kSteps; ++step)
     {
         const auto begin = std::chrono::steady_clock::now();
-        world.step(1.0f / 60.0f);
+        world.stepPhysics(1.0f / 60.0f);
         const auto end = std::chrono::steady_clock::now();
         if (step >= kSteps / 2)
         {

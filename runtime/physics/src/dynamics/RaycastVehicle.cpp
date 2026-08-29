@@ -2,7 +2,7 @@
 
 #include "dynamics/RaycastVehicle.h"
 
-#include "dynamics/PhysicsWorld.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 #include <cmath>
@@ -64,8 +64,8 @@ constexpr f32 kSideFrictionStiffness = 1.0f;
 
 } // namespace
 
-RaycastVehicle::RaycastVehicle(RigidBody& chassis, const PhysicsWorld* world, u32 chassisBodyId)
-    : mChassis(chassis), mWorld(world), mChassisBodyId(chassisBodyId)
+RaycastVehicle::RaycastVehicle(RigidBody& chassis, const Radion::Scene* scene)
+    : mChassis(chassis), mScene(scene)
 {
 }
 
@@ -145,12 +145,12 @@ f32 RaycastVehicle::rayCast(Wheel& wheel)
     ray.direction = wheel.directionWorld;
 
     QueryFilter filter;
-    filter.ignoredBody = mChassisBodyId;
+    filter.ignoredBody = &mChassis;
 
     WorldRayHit hit;
-    const bool hasHit = mWorld && mWorld->raycast(ray, rayLength, filter, hit);
+    const bool hasHit = mScene && mScene->raycast(ray, rayLength, filter, hit);
 
-    wheel.groundBody = 0xFFFFFFFFu;
+    wheel.groundBody = nullptr;
 
     if (hasHit)
     {

@@ -2,8 +2,8 @@
 
 #include "character/CharacterRigidBody.h"
 
+#include "Scene.h"
 #include "collision/Narrowphase.h"
-#include "dynamics/PhysicsWorld.h"
 
 namespace Radion::Physics
 {
@@ -22,16 +22,13 @@ void CharacterRigidBody::setShape(f32 radius, f32 height)
 void CharacterRigidBody::setMass(f32 mass)
 {
     mMass = glm::max(mass, 0.001f);
-    if (mBodyId != kInvalidBodyId)
-        mBody.setMass(mMass);
+    mBody.setMass(mMass);
 }
 
 void CharacterRigidBody::setFriction(f32 friction)
 {
     mFriction = glm::max(friction, 0.0f);
-    if (mWorld && mBodyId != kInvalidBodyId)
-        if (BodyEntry* entry = mWorld->body(mBodyId))
-            entry->friction = mFriction;
+    mBody.setFriction(mFriction);
 }
 
 void CharacterRigidBody::setMaxSlopeAngle(f32 degrees)
@@ -43,44 +40,34 @@ void CharacterRigidBody::setMaxSlopeAngle(f32 degrees)
 void CharacterRigidBody::setLayer(u32 layer)
 {
     mLayer = layer;
-    if (mWorld && mBodyId != kInvalidBodyId)
-        if (BodyEntry* entry = mWorld->body(mBodyId))
-            entry->filter.group = mLayer;
+    mBody.setCollisionGroup(mLayer);
 }
 
 void CharacterRigidBody::setMask(u32 mask)
 {
     mMask = mask;
-    if (mWorld && mBodyId != kInvalidBodyId)
-        if (BodyEntry* entry = mWorld->body(mBodyId))
-            entry->filter.mask = mMask;
+    mBody.setCollisionMask(mMask);
 }
 
-void CharacterRigidBody::addToWorld(PhysicsWorld& world, const glm::vec3& position)
+void CharacterRigidBody::addToWorld(Radion::Scene& scene, const glm::vec3& position)
 {
     mBody.setBodyType(BodyType::Dynamic);
     mBody.setMass(mMass);
     mBody.setInverseInertiaTensor(glm::mat3(0.0f));
     mBody.setPosition(position);
 
-    BodyEntry entry;
-    entry.body = &mBody;
-    entry.shape = &mShape;
-    entry.filter.group = mLayer;
-    entry.filter.mask = mMask;
-    entry.friction = mFriction;
-    entry.restitution = 0.0f;
+    mBody.setShape(&mShape);
+    mBody.setFilter({mLayer, mMask});
+    mBody.setFriction(mFriction);
+    mBody.setRestitution(0.0f);
 
-    mWorld = &world;
-    mBodyId = world.addBody(entry);
+    scene.addBody(mBody);
 }
 
 void CharacterRigidBody::removeFromWorld()
 {
-    if (mWorld && mBodyId != kInvalidBodyId)
-        mWorld->removeBody(mBodyId);
-    mWorld = nullptr;
-    mBodyId = kInvalidBodyId;
+    if (mBody.scene())
+        mBody.scene()->removeBody(mBody);
 }
 
 void CharacterRigidBody::setLinearVelocity(const glm::vec3& velocity)
@@ -117,13 +104,13 @@ glm::mat4 CharacterRigidBody::transform() const
 
 void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
 {
-    if (!mWorld || mBodyId == kInvalidBodyId)
+    if (!isInWorld())
         return;
 
     const glm::vec3 characterPosition = mBody.position();
     const glm::mat4 characterTransform = mBody.transform();
 
-    u32 groundBodyId = kInvalidBodyId;
+    RigidBody* groundBody = nullptr;
     glm::vec3 groundNormal(0.0f);
     glm::vec3 groundPosition(0.0f);
     f32 bestDot = -std::numeric_limits<f32>::max();
@@ -133,27 +120,26 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
     candidateBounds.max += glm::vec3(maxSeparationDistance);
     QueryFilter query;
     query.collision = {mLayer, mMask};
-    query.ignoredBody = mBodyId;
-    mWorld->queryAABB(candidateBounds, query, mCandidates);
+    query.ignoredBody = &mBody;
+    mBody.scene()->queryAABB(candidateBounds, query, mCandidates);
 
-    for (u32 id : mCandidates)
+    for (RigidBody* candidate : mCandidates)
     {
-        BodyEntry* entry = mWorld->body(id);
-        if (!entry || !entry->body || !entry->shape || !entry->enabled)
+        if (!candidate || !candidate->shape() || !candidate->enabled())
             continue;
 
         mManifolds.clear();
-        if (entry->shape->type() == ShapeType::Trimesh)
+        if (candidate->shape()->type() == ShapeType::Trimesh)
         {
-            const TrimeshShape& mesh = static_cast<const TrimeshShape&>(*entry->shape);
-            Narrowphase::convexTrimesh(mShape, characterTransform, mesh, entry->body->transform(),
+            const TrimeshShape& mesh = static_cast<const TrimeshShape&>(*candidate->shape());
+            Narrowphase::convexTrimesh(mShape, characterTransform, mesh, candidate->transform(),
                                        mManifolds, maxSeparationDistance);
         }
         else
         {
             ContactManifold manifold;
-            if (Narrowphase::collide(mShape, characterTransform, *entry->shape,
-                                     entry->body->transform(), manifold, maxSeparationDistance))
+            if (Narrowphase::collide(mShape, characterTransform, *candidate->shape(),
+                                     candidate->transform(), manifold, maxSeparationDistance))
                 mManifolds.push_back(manifold);
         }
 
@@ -168,13 +154,13 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
                 bestDot = dot;
                 groundNormal = normal;
                 groundPosition = manifold.points[0].position;
-                groundBodyId = id;
+                groundBody = candidate;
             }
         }
     }
 
-    mGroundBodyId = groundBodyId;
-    if (groundBodyId == kInvalidBodyId)
+    mGroundBody = groundBody;
+    if (!groundBody)
     {
         mGroundState = GroundState::InAir;
         mGroundNormal = glm::vec3(0.0f);
@@ -194,9 +180,7 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
     else
         mGroundState = GroundState::OnGround;
 
-    const BodyEntry* groundEntry = mWorld->body(groundBodyId);
-    mGroundVelocity = (groundEntry && groundEntry->body) ? groundEntry->body->velocityAtPoint(groundPosition)
-                                                          : glm::vec3(0.0f);
+    mGroundVelocity = groundBody->velocityAtPoint(groundPosition);
 }
 
 } // namespace Radion::Physics

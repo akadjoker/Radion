@@ -16,14 +16,13 @@
 
 namespace Radion
 {
+class Scene;
 class Skeleton;
 struct LocalPose;
 } // namespace Radion
 
 namespace Radion::Physics
 {
-
-class PhysicsWorld;
 
 // The ten bones a ragdoll actually simulates. Torso is one rigid body for
 // the whole Hips-to-chest span (no independent spine), and every limb stops
@@ -58,10 +57,10 @@ enum class RagdollPart : u8
 //   if (ragdoll.build(*animator->skeleton()))
 //   {
 //       // on death:
-//       ragdoll.activate(world, animator->globalPose(), animator->localPose(),
+//       ragdoll.activate(scene, animator->globalPose(), animator->localPose(),
 //                        doll->globalTransform());
 //       animator->setPoseEditMode(true);
-//       // every frame while active, after world.step():
+//       // every frame while active, after scene.stepPhysics():
 //       std::vector<LocalPose> pose = animator->localPose();
 //       ragdoll.writePose(pose);
 //       for (u32 i = 0; i < pose.size(); ++i)
@@ -99,8 +98,8 @@ public:
     // read, to freeze the non-simulated bones (spine, shoulders, neck,
     // wrists, ankles) exactly where the animation left them relative to
     // whichever simulated bone they hang off. Adds every body/joint to
-    // `world`, which must outlive the ragdoll until deactivate().
-    void activate(PhysicsWorld& world, const std::vector<glm::mat4>& globalPose,
+    // `scene`, which must outlive the ragdoll until deactivate().
+    void activate(Radion::Scene& scene, const std::vector<glm::mat4>& globalPose,
                  const std::vector<LocalPose>& localPose, const glm::mat4& ownerWorld);
 
     // Removes every body and joint this ragdoll added to its world. Safe to
@@ -110,7 +109,7 @@ public:
     // Writes this frame's physics-driven local pose into the ten tracked
     // bones of `localPose` (already sized to the skeleton's bone count,
     // e.g. a copy of Animator::localPose()) - every other bone is left
-    // untouched. No-op when not active. Call after PhysicsWorld::step(),
+    // untouched. No-op when not active. Call after Scene::stepPhysics(),
     // before handing the result to Animator::setBoneLocalPose().
     void writePose(std::vector<LocalPose>& localPose) const;
 
@@ -152,7 +151,6 @@ private:
         f32 mass = 1.0f;
 
         RigidBody rigidBody;
-        u32 bodyId = 0xFFFFFFFFu;
         glm::mat4 attachmentLocal{1.0f}; // bone, expressed in the body's own local frame
     };
 
@@ -169,7 +167,7 @@ private:
     std::array<Part, static_cast<usize>(RagdollPart::Count)> mParts;
     std::deque<PointJoint> mPointJoints;
     std::deque<HingeJoint> mHingeJoints;
-    PhysicsWorld* mWorld = nullptr;
+    Radion::Scene* mScene = nullptr;
     glm::mat4 mOwnerWorld{1.0f};
     CollisionFilter mFilter{1u, 0xFFFFFFFFu};
     bool mValid = false;

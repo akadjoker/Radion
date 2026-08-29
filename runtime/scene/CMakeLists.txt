@@ -24,7 +24,6 @@ add_library(radion_scene
     src/components/PathAnimator.cpp
     src/components/Light.cpp
     src/components/ManualMesh.cpp
-    src/components/PhysicsBody.cpp
     src/components/RibbonTrail.cpp
     src/components/Road.cpp
     src/components/ScriptComponent.cpp
@@ -46,10 +45,11 @@ add_library(radion_scene
     src/SceneScriptBindings.cpp
     src/SceneSerializer.cpp
     src/VegetationGrid.cpp
+    ${RADION_PHYSICS_SOURCES}
 )
 
 target_precompile_headers(radion_scene PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
 )
-target_include_directories(radion_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(radion_scene PUBLIC radion_render radion_ai radion_audio radion_physics radion_script radion_voxel zen_static)
+target_include_directories(radion_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${RADION_PHYSICS_INCLUDE_DIR})
+target_link_libraries(radion_scene PUBLIC radion_render radion_ai radion_audio radion_geometry radion_script radion_voxel zen_static)
