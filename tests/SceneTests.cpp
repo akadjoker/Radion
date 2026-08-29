@@ -590,6 +590,51 @@ void testJointSerializerRoundTrip()
     CHECK(near(reloadedHinge->motorMaxTorque(), 450.0f, 1e-2f));
 }
 
+// A recording camera keeps its own resolution across a save: the sensor is
+// 320x240 whatever the window is, and reloading at the default 640x480 would
+// silently change what a trained policy sees.
+void testRecordingCameraRoundTrip()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("sensor");
+    Camera* camera = object->addComponent<Camera>();
+    CHECK(camera != nullptr);
+    if (!camera)
+        return;
+    camera->setPerspective(75.0f, 4.0f / 3.0f, 0.05f, 500.0f);
+    camera->setRecordSize(320, 240);
+    camera->setRecording(true);
+    scene.update(0.0f);
+
+    SceneSerializer serializer;
+    const nlohmann::json document = serializer.toJson(scene);
+
+    Scene reloaded;
+    SceneLoadResult result;
+    CHECK(serializer.fromJson(document, reloaded, result));
+    CHECK(result.success());
+
+    GameObject* reloadedObject = reloaded.findGameObject("sensor");
+    CHECK(reloadedObject != nullptr);
+    if (!reloadedObject)
+        return;
+    Camera* reloadedCamera = reloadedObject->getComponent<Camera>();
+    CHECK(reloadedCamera != nullptr);
+    if (!reloadedCamera)
+        return;
+    CHECK(reloadedCamera->recording());
+    CHECK(reloadedCamera->recordWidth() == 320);
+    CHECK(reloadedCamera->recordHeight() == 240);
+    // No frame has been rendered into it, so it has no texture yet - and a
+    // handle from another session must never be resurrected.
+    CHECK(!reloadedCamera->recordTexture().valid());
+
+    // Zero is not a resolution: clamped rather than accepted.
+    reloadedCamera->setRecordSize(0, 0);
+    CHECK(reloadedCamera->recordWidth() == 1);
+    CHECK(reloadedCamera->recordHeight() == 1);
+}
+
 void testSceneSerializerFailedLoadLeavesSceneIntact()
 {
     Scene scene;
@@ -2753,6 +2798,7 @@ int main()
     testGameObjectIds();
     testSceneSerializerEmptyRoundTrip();
     testJointSerializerRoundTrip();
+    testRecordingCameraRoundTrip();
     testSceneSerializerFailedLoadLeavesSceneIntact();
     testSceneSerializerHierarchyRoundTrip();
     testSceneSerializerValidation();

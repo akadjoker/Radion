@@ -618,11 +618,59 @@ void Engine::resolveRenderSize(const Rect& rect, u32& width, u32& height) const
         static_cast<u32>(glm::max(1.0f, glm::round(static_cast<f32>(rect.height) * scale))));
 }
 
+u32 Engine::renderRecordingCameras(Scene& scene)
+{
+    if (!mFrameActive)
+        return 0;
+
+    u32 rendered = 0;
+    for (Camera* camera : scene.cameras())
+    {
+        const GameObject* object = camera->owner();
+        if (!camera->recording() || !camera->active() || !object ||
+            !object->isActiveInHierarchy())
+            continue;
+
+        // The camera's own aspect follows its own texture, not the window's -
+        // a 320x240 sensor is 4:3 whatever shape the game view happens to be.
+        const f32 aspect =
+            static_cast<f32>(camera->recordWidth()) / static_cast<f32>(camera->recordHeight());
+        camera->setAspect(aspect);
+
+        RenderView view;
+        view.view = camera->viewMatrix();
+        view.projection = camera->projectionMatrix();
+        view.position = object->globalPosition();
+        view.fieldOfView = camera->fieldOfView();
+        view.aspect = aspect;
+        view.nearPlane = camera->nearPlane();
+
+        // A sensor is a bystander: it must not touch the game camera's
+        // occlusion bookkeeping, and temporal accumulation across frames
+        // would smear a picture that is being read back frame by frame.
+        RenderTextureSettings settings;
+        settings.temporalAA = false;
+
+        RenderTextureOutput output;
+        if (!renderToTexture(scene, view, camera->recordWidth(), camera->recordHeight(), output,
+                             settings))
+            continue;
+        camera->mRecordTexture = output.color;
+        camera->mRecordDepthTexture = output.depth;
+        ++rendered;
+    }
+    return rendered;
+}
+
 bool Engine::render(Scene& scene)
 {
     RADION_PROFILE_SCOPE("Engine render");
     if (!mFrameActive || !scene.activeCamera())
         return false;
+
+    // Before the main view, so a monitor in the scene showing a sensor's
+    // picture shows this frame's rather than the last one's.
+    renderRecordingCameras(scene);
 
     int width = 0;
     int height = 0;

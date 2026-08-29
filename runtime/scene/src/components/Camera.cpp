@@ -104,6 +104,32 @@ glm::mat4 Camera::viewProjectionMatrix() const
     return projectionMatrix() * viewMatrix();
 }
 
+void Camera::setRecording(bool recording)
+{
+    if (mRecording == recording)
+        return;
+    mRecording = recording;
+    if (!mRecording)
+    {
+        // The texture belongs to the render target the Engine hands out each
+        // frame, so stopping just forgets it rather than freeing anything.
+        mRecordTexture = TextureHandle();
+        mRecordDepthTexture = TextureHandle();
+    }
+}
+
+void Camera::setRecordSize(u32 width, u32 height)
+{
+    const u32 clampedWidth = width > 0 ? width : 1;
+    const u32 clampedHeight = height > 0 ? height : 1;
+    if (clampedWidth == mRecordWidth && clampedHeight == mRecordHeight)
+        return;
+    mRecordWidth = clampedWidth;
+    mRecordHeight = clampedHeight;
+    mRecordTexture = TextureHandle();
+    mRecordDepthTexture = TextureHandle();
+}
+
 Ray Camera::rayFromMouse(f32 mouseX, f32 mouseY, const FloatRect& viewport) const
 {
     if (!std::isfinite(mouseX) || !std::isfinite(mouseY) || !std::isfinite(viewport.x) ||

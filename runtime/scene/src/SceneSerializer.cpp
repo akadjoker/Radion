@@ -1266,6 +1266,9 @@ nlohmann::json writeCamera(Camera& camera)
     json["aspect"] = camera.aspect();
     json["near"] = camera.nearPlane();
     json["far"] = camera.farPlane();
+    json["recording"] = camera.recording();
+    json["recordWidth"] = camera.recordWidth();
+    json["recordHeight"] = camera.recordHeight();
     return json;
 }
 
@@ -1302,6 +1305,12 @@ void readCamera(GameObject& object, const nlohmann::json& json, const std::strin
         camera->setPerspective(fieldOfView, aspect, nearPlane, farPlane);
     else
         camera->setOrthographic(orthographicSize, aspect, nearPlane, farPlane);
+
+    // Size before recording: turning it on with the wrong size would render
+    // one frame at the default resolution before the real one arrives.
+    camera->setRecordSize(static_cast<u32>(readNumberOr(json, "recordWidth", 640.0f)),
+                          static_cast<u32>(readNumberOr(json, "recordHeight", 480.0f)));
+    camera->setRecording(readBoolOr(json, "recording", false));
 
     const auto activeField = json.find("active");
     if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
