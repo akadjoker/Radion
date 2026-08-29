@@ -1,10 +1,9 @@
-
-
 #include "PCH.h"
 
 #include "Steering.h"
 
 #include "AIInternal.h"
+#include "Agent.h"
 
 #include <cfloat>
 
@@ -16,6 +15,8 @@ using detail::intervalComparison;
 using detail::perpendicularComponent;
 using detail::safeNormalize;
 using detail::scalarRandomWalk;
+using Radion::Agent;
+using Radion::EntityDist;
 
 // --- seek / flee ------------------------------------------------------------
 
@@ -46,12 +47,12 @@ glm::vec3 SteerLibrary::wander(float dt)
 
 // --- pursuit / evasion ------------------------------------------------------
 
-glm::vec3 SteerLibrary::pursuit(const Entity& quarry) const
+glm::vec3 SteerLibrary::pursuit(const Agent& quarry) const
 {
     return pursuit(quarry, FLT_MAX);
 }
 
-glm::vec3 SteerLibrary::pursuit(const Entity& quarry, float maxPredictionTime) const
+glm::vec3 SteerLibrary::pursuit(const Agent& quarry, float maxPredictionTime) const
 {
     // Offset from this to the quarry, its distance, and a unit vector toward it.
     const glm::vec3 offset = quarry.position() - vehicle().position();
@@ -128,7 +129,7 @@ glm::vec3 SteerLibrary::pursuit(const Entity& quarry, float maxPredictionTime) c
     return seek(target);
 }
 
-glm::vec3 SteerLibrary::evasion(const Entity& menace, float maxPredictionTime) const
+glm::vec3 SteerLibrary::evasion(const Agent& menace, float maxPredictionTime) const
 {
     // Offset from this to the menace, its distance, unit vector toward menace.
     const glm::vec3 offset = menace.position() - vehicle().position();
@@ -146,7 +147,7 @@ glm::vec3 SteerLibrary::evasion(const Entity& menace, float maxPredictionTime) c
 
 // --- flocking --------------------------------------------------------------
 
-bool SteerLibrary::inBoidNeighborhood(const Entity& other, float minDistance, float maxDistance,
+bool SteerLibrary::inBoidNeighborhood(const Agent& other, float minDistance, float maxDistance,
                                       float cosMaxAngle) const
 {
     if (&other == &vehicle())
@@ -177,7 +178,7 @@ glm::vec3 SteerLibrary::separation(float maxDistance, float cosMaxAngle,
 
     for (const EntityDist& member : flock)
     {
-        const Entity& other = *member.entity;
+        const Agent& other = *member.entity;
         if (inBoidNeighborhood(other, vehicle().radius() * 3.0f, maxDistance, cosMaxAngle))
         {
             // Add the steering contribution: opposite of the offset direction,
@@ -201,7 +202,7 @@ glm::vec3 SteerLibrary::alignment(float maxDistance, float cosMaxAngle,
 
     for (const EntityDist& member : flock)
     {
-        const Entity& other = *member.entity;
+        const Agent& other = *member.entity;
         if (inBoidNeighborhood(other, vehicle().radius() * 3.0f, maxDistance, cosMaxAngle))
         {
             // Accumulate the sum of the neighbor headings.
@@ -226,7 +227,7 @@ glm::vec3 SteerLibrary::cohesion(float maxDistance, float cosMaxAngle,
 
     for (const EntityDist& member : flock)
     {
-        const Entity& other = *member.entity;
+        const Agent& other = *member.entity;
         if (inBoidNeighborhood(other, vehicle().radius() * 3.0f, maxDistance, cosMaxAngle))
         {
             // Accumulate the sum of the neighbor positions.
@@ -256,10 +257,10 @@ glm::vec3 SteerLibrary::avoidObstacles(float minTimeToCollision,
 glm::vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
                                             const std::vector<EntityDist>& others) const
 {
-    // Hard steer away from any other entity within a critical distance.
+    // Hard steer away from any other agent within a critical distance.
     for (const EntityDist& entry : others)
     {
-        const Entity& other = *entry.entity;
+        const Agent& other = *entry.entity;
         if (&other == &vehicle())
             continue;
 
@@ -284,10 +285,10 @@ glm::vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
     return glm::vec3(0.0f);
 }
 
-float SteerLibrary::predictNearestApproachTime(const Entity& other) const
+float SteerLibrary::predictNearestApproachTime(const Agent& other) const
 {
     // Imagine we are at the origin with no velocity; compute the relative
-    // velocity of the other entity.
+    // velocity of the other agent.
     const glm::vec3 relVelocity = other.velocity() - vehicle().velocity();
     const float relSpeed = glm::length(relVelocity);
 
@@ -306,7 +307,7 @@ float SteerLibrary::predictNearestApproachTime(const Entity& other) const
     return projection / relSpeed;
 }
 
-float SteerLibrary::computeNearestApproachPositions(const Entity& other, float time)
+float SteerLibrary::computeNearestApproachPositions(const Agent& other, float time)
 {
     const glm::vec3 myTravel = vehicle().velocity() * time;
     const glm::vec3 otherTravel = other.velocity() * time;
@@ -331,7 +332,7 @@ glm::vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
 
     // Otherwise, go on to consider potential future collisions.
     float steer = 0.0f;
-    const Entity* threat = nullptr;
+    const Agent* threat = nullptr;
 
     // Time (in seconds) until the most immediate collision threat found so
     // far; initial value is a threshold: don't look more than this many
@@ -343,7 +344,7 @@ glm::vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
 
     for (const EntityDist& entry : others)
     {
-        const Entity& other = *entry.entity;
+        const Agent& other = *entry.entity;
         if (&other == &vehicle())
             continue;
 
@@ -446,21 +447,29 @@ bool SteerLibrary::isBehind(const glm::vec3& target, float cosThreshold) const
 
 // --- convenience behaviors --------------------------------------------------
 
-void SeekBehavior::iterate(float timeDelta, Entity& entity)
+void SeekBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
     mSteer.setVehicle(entity);
     entity.setDesiredMove(entity.desiredMove() + (mSteer.seek(mTarget) * gain()));
 }
 
-void FleeBehavior::iterate(float timeDelta, Entity& entity)
+void FleeBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
     mSteer.setVehicle(entity);
     entity.setDesiredMove(entity.desiredMove() + (mSteer.flee(mThreat) * gain()));
 }
 
-void WanderBehavior::iterate(float timeDelta, Entity& entity)
+// DESVIO 2: WanderBehavior's mSteer (and the wanderSide/wanderUp state it
+// carries) used to be shared by every agent the same behavior instance was
+// added to (Entity::addBehavior() was non-owning, Steering.h:157 before this
+// port) - every one of them wandered in lockstep, the same random-walk
+// sequence. Behaviors are now owned one-per-agent (Agent::addBehavior()), so
+// mSteer is this agent's alone and each wanders independently. No math here
+// changed to make that true - it already would have been true had the
+// instance not been shared.
+void WanderBehavior::iterate(float timeDelta, Agent& entity)
 {
     mSteer.setVehicle(entity);
     entity.setDesiredMove(entity.desiredMove() + (mSteer.wander(timeDelta) * gain()));
@@ -472,7 +481,7 @@ ObstacleAvoidanceBehavior::ObstacleAvoidanceBehavior(float minTimeToCollision,
 {
 }
 
-void ObstacleAvoidanceBehavior::iterate(float timeDelta, Entity& entity)
+void ObstacleAvoidanceBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
     if (!mObstacles)
@@ -482,7 +491,7 @@ void ObstacleAvoidanceBehavior::iterate(float timeDelta, Entity& entity)
                           (mSteer.avoidObstacles(mMinTimeToCollision, *mObstacles) * gain()));
 }
 
-void SteerBehavior::iterate(float timeDelta, Entity& entity)
+void SteerBehavior::iterate(float timeDelta, Agent& entity)
 {
     mSteer.setVehicle(entity);
     if (mFunc)

@@ -1,7 +1,7 @@
 #ifndef RADION_AI_NAVMESHBEHAVIOR_H
 #define RADION_AI_NAVMESHBEHAVIOR_H
 
-// NavMeshBehavior.h - steering behavior that walks a SquadEntity across a
+// NavMeshBehavior.h - steering behavior that walks an Agent across a
 // NavMesh.
 //
 // The counterpart to PathfindBehavior, which routes over a hand-authored
@@ -14,6 +14,11 @@
 
 #include <glm/glm.hpp>
 #include <vector>
+
+namespace Radion
+{
+class Agent;
+}
 
 namespace Radion::AI
 {
@@ -45,7 +50,7 @@ public:
 
     NavMeshBehavior(const NavMesh& navMesh, const Settings& settings);
 
-    void iterate(float timeDelta, Entity& entity) override;
+    void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "NavMesh Behavior";
@@ -61,8 +66,11 @@ public:
     }
 
 private:
-    // Per-entity route state. The behavior itself is shared by every agent
-    // using it, so nothing about one agent's path can live in its fields.
+    // Route state for the one agent this behavior is attached to. Used to
+    // live in an std::unordered_map<const Entity*, Route> because a single
+    // shared Behavior instance served every agent using it (DESVIO 2); now
+    // that Agent::addBehavior() owns one instance per agent, the map
+    // collapses to this single field - no hash lookup per agent per frame.
     struct Route
     {
         std::vector<glm::vec3> corners;
@@ -76,12 +84,12 @@ private:
         bool onSurface = false;
     };
 
-    void constrainToSurface(Entity& entity, Route& route);
-    void applyAvoidance(Entity& entity);
+    void constrainToSurface(Radion::Agent& entity, Route& route);
+    void applyAvoidance(Radion::Agent& entity);
 
     const NavMesh& mNavMesh;
     Settings mSettings;
-    std::unordered_map<const Entity*, Route> mRoutes;
+    Route mRoute;
 };
 
 } // namespace Radion::AI

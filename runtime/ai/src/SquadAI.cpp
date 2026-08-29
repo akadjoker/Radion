@@ -6,13 +6,17 @@
 #include "SquadAI.h"
 
 #include "Action.h"
+#include "Agent.h"
+#include "SquadEntity.h"
 #include "State.h"
 #include "Transition.h"
 
 namespace Radion::AI
 {
 
-StateMachine* buildLeaderStateMachine(SquadLeaderEntity& leader)
+using Radion::Agent;
+
+StateMachine* buildLeaderStateMachine(Agent& leader)
 {
     StateMachine* machine = new StateMachine();
 
@@ -89,7 +93,7 @@ StateMachine* buildLeaderStateMachine(SquadLeaderEntity& leader)
     return machine;
 }
 
-StateMachine* buildMemberStateMachine(SquadEntity& member)
+StateMachine* buildMemberStateMachine(Agent& member)
 {
     StateMachine* machine = new StateMachine();
 

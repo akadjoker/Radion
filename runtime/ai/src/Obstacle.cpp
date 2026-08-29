@@ -1,22 +1,24 @@
 // Obstacle.cpp - obstacle avoidance math.
 //
-// The vehicles are the Radion Entity; all math uses glm.
+// The vehicles are Radion::Agent; all math uses glm.
 
 #include "PCH.h"
 
 #include "Obstacle.h"
 
 #include "AIInternal.h"
+#include "Agent.h"
 
 namespace Radion::AI
 {
 
 using detail::perpendicularComponent;
 using detail::safeNormalize;
+using Radion::Agent;
 
 // --- Obstacle ---------------------------------------------------------------
 
-glm::vec3 Obstacle::steerToAvoid(const Entity& vehicle, float minTimeToCollision) const
+glm::vec3 Obstacle::steerToAvoid(const Agent& vehicle, float minTimeToCollision) const
 {
     // Find the nearest intersection with this obstacle along the vehicle's path.
     PathIntersection pi;
@@ -26,7 +28,7 @@ glm::vec3 Obstacle::steerToAvoid(const Entity& vehicle, float minTimeToCollision
     return pi.steerToAvoidIfNeeded(vehicle, minTimeToCollision);
 }
 
-glm::vec3 Obstacle::steerToAvoidObstacles(const Entity& vehicle, float minTimeToCollision,
+glm::vec3 Obstacle::steerToAvoidObstacles(const Agent& vehicle, float minTimeToCollision,
                                           const ObstacleGroup& obstacles)
 {
     PathIntersection nearest, next;
@@ -39,7 +41,7 @@ glm::vec3 Obstacle::steerToAvoidObstacles(const Entity& vehicle, float minTimeTo
     return nearest.steerToAvoidIfNeeded(vehicle, minTimeToCollision);
 }
 
-void Obstacle::firstPathIntersectionWithObstacleGroup(const Entity& vehicle,
+void Obstacle::firstPathIntersectionWithObstacleGroup(const Agent& vehicle,
                                                       const ObstacleGroup& obstacles,
                                                       PathIntersection& nearest,
                                                       PathIntersection& next)
@@ -61,7 +63,7 @@ void Obstacle::firstPathIntersectionWithObstacleGroup(const Entity& vehicle,
     }
 }
 
-glm::vec3 PathIntersection::steerToAvoidIfNeeded(const Entity& vehicle,
+glm::vec3 PathIntersection::steerToAvoidIfNeeded(const Agent& vehicle,
                                                  float minTimeToCollision) const
 {
     // If a nearby intersection was found, steer away from it, otherwise no
@@ -83,7 +85,7 @@ glm::vec3 PathIntersection::steerToAvoidIfNeeded(const Entity& vehicle,
 
 // --- SphereObstacle ---------------------------------------------------------
 
-void SphereObstacle::findIntersectionWithVehiclePath(const Entity& vehicle,
+void SphereObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
                                                      PathIntersection& pi) const
 {
     // This routine is based on Paul Bourke's "Intersection of a Line and a
@@ -155,7 +157,7 @@ void SphereObstacle::findIntersectionWithVehiclePath(const Entity& vehicle,
 
 // --- PlaneObstacle ----------------------------------------------------------
 
-void PlaneObstacle::findIntersectionWithVehiclePath(const Entity& vehicle,
+void PlaneObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
                                                     PathIntersection& pi) const
 {
     // Initialize to "no intersection found".
@@ -214,7 +216,7 @@ bool RectangleObstacle::xyPointInsideShape(const glm::vec3& point, float radius)
 
 // --- BoxObstacle ------------------------------------------------------------
 
-void BoxObstacle::findIntersectionWithVehiclePath(const Entity& vehicle, PathIntersection& pi) const
+void BoxObstacle::findIntersectionWithVehiclePath(const Agent& vehicle, PathIntersection& pi) const
 {
     // Abbreviations.
     const glm::vec3 s = side(); // local axes

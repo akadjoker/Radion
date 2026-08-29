@@ -19,45 +19,43 @@
 
 #include "FormationBehavior.h"
 
-#include "Entity.h"
-#include "Group.h"
-#include "SquadEntity.h"
-#include "World.h"
+#include "Agent.h"
+#include "Scene.h"
 
 namespace Radion::AI
 {
+
+using Radion::Agent;
+using Radion::Scene;
 
 FormationBehavior::FormationBehavior(float goalRadius, float formationRadius)
     : mGoalRadius(goalRadius), mFormationRadius(formationRadius)
 {
 }
 
-void FormationBehavior::iterate(float timeDelta, Entity& entity)
+void FormationBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
-    SquadEntity& squadmate = dynamic_cast<SquadEntity&>(entity);
-
     // The player controls the squad leader, so it never forms up.
-    if (squadmate.squadId() == 0)
+    if (entity.squadId() == 0)
         return;
 
     mSquadLeader = nullptr;
     mPointMan = nullptr;
 
-    // Cache pointers to the squad leader (id 0) and point man (id 1).
-    for (Group* group : squadmate.world().groups())
+    // Cache pointers to the squad leader (id 0) and point man (id 1). The
+    // reference scanned every Group in the World (squadmate.world().groups());
+    // without Group/World the Scene's flat agent list is the equivalent scan.
+    Scene* scene = entity.scene();
+    if (!scene)
+        return;
+    for (Agent* other : scene->agents())
     {
-        for (Entity* e : group->entities())
-        {
-            SquadEntity* sm = dynamic_cast<SquadEntity*>(e);
-            if (!sm)
-                continue;
-            if (sm->squadId() == 0)
-                mSquadLeader = sm;
-            if (sm->squadId() == 1)
-                mPointMan = sm;
-        }
+        if (other->squadId() == 0)
+            mSquadLeader = other;
+        if (other->squadId() == 1)
+            mPointMan = other;
     }
 
     if (!mPointMan || !mSquadLeader)
@@ -97,13 +95,13 @@ void FormationBehavior::iterate(float timeDelta, Entity& entity)
         circle(entity, goal, dir);
         break;
     default:
-        goal = squadmate.goal();
-        dir = goal - squadmate.position();
+        goal = entity.goal();
+        dir = goal - entity.position();
         break;
     }
 
     // The formation slot becomes the member's goal radius.
-    squadmate.setGoalRadius(mFormationRadius);
+    entity.setGoalRadius(mFormationRadius);
     mPointMan->setGoalRadius(mGoalRadius);
 
     // Build the facing orientation from the formation direction (XZ only).
@@ -119,19 +117,19 @@ void FormationBehavior::iterate(float timeDelta, Entity& entity)
         lk /= lkLen;
         glm::vec3 rt = glm::normalize(glm::cross(up, lk));
         glm::mat3 basis(rt, up, lk); // columns: right, up, forward
-        squadmate.setGoal(goal);
-        squadmate.setOrientation(glm::quat_cast(basis));
+        entity.setGoal(goal);
+        entity.setOrientation(glm::quat_cast(basis));
     }
     else
     {
         // No direction yet - keep the goal, leave the current orientation.
-        squadmate.setGoal(goal);
+        entity.setGoal(goal);
     }
 }
 
-void FormationBehavior::diamond(Entity& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::diamond(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
 {
-    const SquadEntity& squadmate = dynamic_cast<const SquadEntity&>(entity);
+    const Agent& squadmate = entity;
     switch (squadmate.squadId())
     {
     case 1: // point man
@@ -157,9 +155,9 @@ void FormationBehavior::diamond(Entity& entity, glm::vec3& goal, glm::vec3& dir)
     }
 }
 
-void FormationBehavior::abreast(Entity& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::abreast(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
 {
-    const SquadEntity& squadmate = dynamic_cast<const SquadEntity&>(entity);
+    const Agent& squadmate = entity;
     switch (squadmate.squadId())
     {
     case 1: // point man
@@ -183,9 +181,9 @@ void FormationBehavior::abreast(Entity& entity, glm::vec3& goal, glm::vec3& dir)
     dir = goal - squadmate.position();
 }
 
-void FormationBehavior::singleFile(Entity& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::singleFile(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
 {
-    const SquadEntity& squadmate = dynamic_cast<const SquadEntity&>(entity);
+    const Agent& squadmate = entity;
     switch (squadmate.squadId())
     {
     case 1: // point man
@@ -211,9 +209,9 @@ void FormationBehavior::singleFile(Entity& entity, glm::vec3& goal, glm::vec3& d
     }
 }
 
-void FormationBehavior::pentagon(Entity& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::pentagon(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
 {
-    const SquadEntity& squadmate = dynamic_cast<const SquadEntity&>(entity);
+    const Agent& squadmate = entity;
 
     // Rotate the leader's look by 45 degrees about the world up axis.  The
     // opposite diagonal must be rotated in the leader's local frame; mirroring
@@ -246,9 +244,9 @@ void FormationBehavior::pentagon(Entity& entity, glm::vec3& goal, glm::vec3& dir
     }
 }
 
-void FormationBehavior::wedge(Entity& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::wedge(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
 {
-    const SquadEntity& member = dynamic_cast<const SquadEntity&>(entity);
+    const Agent& member = entity;
     const glm::vec3& leader = mSquadLeader->position();
     switch (member.squadId())
     {
@@ -260,9 +258,9 @@ void FormationBehavior::wedge(Entity& entity, glm::vec3& goal, glm::vec3& dir) c
     }
 }
 
-void FormationBehavior::vFormation(Entity& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::vFormation(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
 {
-    const SquadEntity& member = dynamic_cast<const SquadEntity&>(entity);
+    const Agent& member = entity;
     const glm::vec3& leader = mSquadLeader->position();
     switch (member.squadId())
     {
@@ -275,9 +273,9 @@ void FormationBehavior::vFormation(Entity& entity, glm::vec3& goal, glm::vec3& d
     dir = goal - member.position();
 }
 
-void FormationBehavior::circle(Entity& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::circle(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
 {
-    const SquadEntity& member = dynamic_cast<const SquadEntity&>(entity);
+    const Agent& member = entity;
     const float angle = glm::radians(90.0f * static_cast<float>(member.squadId() - 1));
     const glm::vec3 offset = mLeaderRight * (std::cos(angle) * 45.0f) +
                              mLeaderLook * (std::sin(angle) * 45.0f);

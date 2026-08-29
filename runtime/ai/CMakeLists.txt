@@ -1,7 +1,8 @@
-# AI library: state machines, waypoint networks + A*, grid A*, flocking and
-# steering behaviors. Decoupled from the engine: radion_ai depends only on
-# radion_core, which provides glm and the Radion:: base types. It does not
-# touch render/gpu/scene/engine.
+# AI sources: state machines, waypoint networks + A*, grid A*, flocking and
+# steering behaviors. Compiled into radion_scene rather than its own library:
+# the flocking/steering agent is Radion::Agent, a Component, and its update
+# step lives on Scene, so the two can no longer be linked apart - the same
+# move runtime/physics/CMakeLists.txt made for RigidBody.
 
 set(RECAST_ROOT ${CMAKE_SOURCE_DIR}/vendor/recastnavigation)
 
@@ -33,32 +34,24 @@ target_include_directories(radion_recast SYSTEM PUBLIC
     ${RECAST_ROOT}/Detour/Include
 )
 
-add_library(radion_ai
-    src/Behavior.cpp
-    src/Entity.cpp
-    src/NavMesh.cpp
-    src/NavMeshBehavior.cpp
-    src/FormationBehavior.cpp
-    src/GridMap.cpp
-    src/GridPathfinder.cpp
-    src/Group.cpp
-    src/Obstacle.cpp
-    src/PathfindBehavior.cpp
-    src/PointOfInterest.cpp
-    src/SquadAI.cpp
-    src/SquadEntity.cpp
-    src/State.cpp
-    src/StateMachine.cpp
-    src/Steering.cpp
-    src/VoxelMap.cpp
-    src/Waypoint.cpp
-    src/WaypointNetwork.cpp
-    src/World.cpp
+set(RADION_AI_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Behavior.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavMesh.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavMeshBehavior.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/FormationBehavior.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/GridMap.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/GridPathfinder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Obstacle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PathfindBehavior.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/PointOfInterest.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/SquadAI.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/SquadEntity.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/State.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/StateMachine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Steering.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/VoxelMap.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Waypoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/WaypointNetwork.cpp
+    PARENT_SCOPE
 )
-
-target_precompile_headers(radion_ai PRIVATE
-    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
-)
-
-target_include_directories(radion_ai PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(radion_ai PUBLIC radion_core PRIVATE radion_recast)
+set(RADION_AI_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include PARENT_SCOPE)
