@@ -221,6 +221,66 @@ void testFreeFallWithoutGroundStaysFinite()
     CHECK(fixture.chassis.position().y < 0.0f);
 }
 
+// A wheel whose axle lies along the surface normal has no lateral direction:
+// projecting the axle onto the contact plane cancels it, and normalising
+// zero is NaN, which leaves through the side impulse into the chassis. A car
+// on its side against a wall, or a wheel flat against a steep ramp, gets
+// there in ordinary play.
+void testWheelSquareToTheSurfaceStaysFinite()
+{
+    CarFixture fixture(true);
+    fixture.buildVehicle();
+
+    // Lay the car on its side: the wheels' axles now point at the ground,
+    // straight along the floor's normal.
+    fixture.chassis.setOrientation(
+        glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
+    fixture.chassis.setPosition(glm::vec3(0.0f, 0.5f, 0.0f));
+
+    for (u32 i = 0; i < 4; ++i)
+        fixture.vehicle->setEngineForce(1500.0f, i);
+
+    for (u32 i = 0; i < 240; ++i)
+    {
+        fixture.world.stepPhysics(1.0f / 120.0f);
+        CHECK(finiteVec(fixture.chassis.position()));
+        CHECK(finiteVec(fixture.chassis.velocity()));
+        CHECK(finiteVec(fixture.chassis.angularVelocity()));
+    }
+
+    for (u32 i = 0; i < fixture.vehicle->wheelCount(); ++i)
+    {
+        const RaycastVehicle::Wheel& wheel = fixture.vehicle->wheel(i);
+        CHECK(std::isfinite(wheel.suspensionLength));
+        CHECK(finiteVec(wheel.contactPoint));
+    }
+}
+
+// A wheel configured with its suspension direction along its own axle has no
+// forward at all - bad setup, but it must cost that wheel a default rather
+// than filling its transform with NaN.
+void testDegenerateWheelAxesStayFinite()
+{
+    CarFixture fixture(true);
+    fixture.vehicle = new RaycastVehicle(fixture.chassis, &fixture.world);
+
+    RaycastVehicle::Tuning tuning;
+    const glm::vec3 sameAxis(0.0f, -1.0f, 0.0f);
+    fixture.vehicle->addWheel(glm::vec3(0.0f, -0.4f, 1.0f), sameAxis, sameAxis, 0.3f, 0.4f, tuning,
+                              true);
+    fixture.world.setPhysicsStepCallback(&stepVehicle, fixture.vehicle);
+
+    for (u32 i = 0; i < 120; ++i)
+    {
+        fixture.world.stepPhysics(1.0f / 120.0f);
+        CHECK(finiteVec(fixture.chassis.position()));
+        CHECK(finiteVec(fixture.chassis.velocity()));
+    }
+    const glm::mat4& transform = fixture.vehicle->wheel(0).worldTransform;
+    for (int column = 0; column < 4; ++column)
+        CHECK(finiteVec(glm::vec3(transform[column])));
+}
+
 // ------------------------------------------------------------- motorcycle
 
 struct BikeStep
@@ -366,6 +426,8 @@ int main()
     testBrakeSlowsTheCarDown();
     testSteeringTurnsTheCar();
     testFreeFallWithoutGroundStaysFinite();
+    testWheelSquareToTheSurfaceStaysFinite();
+    testDegenerateWheelAxesStayFinite();
     testMotorcycleStaysUprightDrivingStraight();
     testMotorcycleLeansIntoATurn();
     testMotorcycleFallsWithTheLeanSpringOff();

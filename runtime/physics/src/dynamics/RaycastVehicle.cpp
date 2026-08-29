@@ -119,7 +119,15 @@ void RaycastVehicle::updateWheelTransform(Wheel& wheel)
 
     const glm::vec3 up = -wheel.directionWorld;
     const glm::vec3& right = wheel.axleWorld;
-    const glm::vec3 fwd = glm::normalize(glm::cross(up, right));
+    // A wheel configured with its suspension direction along its own axle has
+    // no forward: the cross product is zero and normalising it is NaN, which
+    // goes straight into the wheel's world transform and from there into
+    // anything drawn or queried from it. Bad configuration, but it should
+    // cost that wheel a sane default, not the whole vehicle.
+    const glm::vec3 forwardRaw = glm::cross(up, right);
+    const f32 forwardLength = glm::length(forwardRaw);
+    const glm::vec3 fwd =
+        forwardLength > 1.0e-6f ? forwardRaw / forwardLength : glm::vec3(0.0f, 0.0f, 1.0f);
 
     const glm::quat steeringOrientation = glm::angleAxis(wheel.steering, up);
     const glm::quat rotatingOrientation = glm::angleAxis(-wheel.rotation, right);
@@ -257,7 +265,20 @@ void RaycastVehicle::updateFriction(f32 step)
         const glm::vec3& surfaceNormal = wheel.contactNormal;
         const f32 proj = glm::dot(mAxleWS[i], surfaceNormal);
         mAxleWS[i] -= surfaceNormal * proj;
-        mAxleWS[i] = glm::normalize(mAxleWS[i]);
+
+        // With the axle square to the surface - a car on its side against a
+        // wall, a wheel against a steep ramp - the projection above cancels
+        // it out, and normalising zero is NaN, which then leaves through the
+        // side impulse into the chassis. There is no lateral direction to
+        // speak of in that pose, so the wheel simply takes no side force
+        // this step instead of poisoning the vehicle.
+        const f32 axleLength = glm::length(mAxleWS[i]);
+        if (axleLength < 1.0e-6f)
+        {
+            mSideImpulse[i] = 0.0f;
+            continue;
+        }
+        mAxleWS[i] /= axleLength;
 
         mForwardWS[i] = glm::normalize(glm::cross(surfaceNormal, mAxleWS[i]));
 
