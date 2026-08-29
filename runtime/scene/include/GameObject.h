@@ -140,6 +140,14 @@ public:
         return false;
     }
 
+    // The component in one slot, addressed by a type known only at runtime -
+    // for code that has to walk every kind rather than ask for one, like the
+    // scene serializer checking that it left nothing behind.
+    Component* component(ComponentType type) const
+    {
+        return mComponents[static_cast<u8>(type)];
+    }
+
     // Whether the object carries exactly a T, consulting the class's own
     // discriminator through ComponentMatch - which is what tells a spot light
     // from a point light, since the ComponentType cannot.

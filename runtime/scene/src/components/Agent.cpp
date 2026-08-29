@@ -47,6 +47,12 @@ Agent::~Agent()
     // radion-fisica-destrutor-desregista-scene already had for RigidBody.
     if (mScene)
         mScene->removeAgent(*this);
+    // Both ends of the squad link, for the same reason: a destroyed member
+    // still listed by its leader, or a leader still pointed at by its
+    // members, is a pointer into freed memory that the next order follows.
+    if (mSquadLeader)
+        mSquadLeader->removeSquadMember(this);
+    clearSquadMembers();
     clearBehaviors();
     delete mStateMachine;
 }
@@ -241,20 +247,39 @@ bool Agent::visibilityTest(const Agent& other, f32& dist) const
     return dist < mSenseRange;
 }
 
-void Agent::addBehavior(AI::Behavior& behavior)
+AI::Behavior* Agent::addBehavior(AI::BehaviorType type)
 {
+    AI::Behavior* behavior = AI::BehaviorFactory::create(type);
+    if (!behavior)
+        return nullptr;
+    if (!adoptBehavior(behavior))
+        return nullptr;
+    return behavior;
+}
+
+bool Agent::adoptBehavior(AI::Behavior* behavior)
+{
+    if (!behavior)
+        return false;
+
     // Behaviors used to be non-owning and were routinely shared by a whole
     // flock; now that the agent deletes them, the same instance reaching two
     // agents (or the same one twice) is a double free. Rejected the way
     // Group::add() rejected an entity that already had a group.
-    if (behavior.owner())
+    //
+    // Refused, never deleted: this one already has an owner, so the memory
+    // is not ours to free - the agent that does own it still will. Only the
+    // caller holding an unowned behavior has something that could be
+    // stranded, and addBehavior<T>() closes that by never handing one out.
+    if (behavior->owner())
     {
-        Log::warning("Agent: addBehavior() called with a behavior already owned by an agent; "
-                     "ignored");
-        return;
+        Log::warning("Agent: a behavior already owned by an agent cannot be added to a second "
+                     "one; ignored");
+        return false;
     }
-    behavior.mOwner = this;
-    mBehaviors.push_back(&behavior);
+    behavior->mOwner = this;
+    mBehaviors.push_back(behavior);
+    return true;
 }
 
 bool Agent::removeBehavior(AI::Behavior& behavior)
@@ -265,6 +290,27 @@ bool Agent::removeBehavior(AI::Behavior& behavior)
     delete *it;
     mBehaviors.erase(it);
     return true;
+}
+
+bool Agent::removeBehavior(AI::BehaviorType type)
+{
+    for (usize i = 0; i < mBehaviors.size(); ++i)
+    {
+        if (mBehaviors[i]->type() != type)
+            continue;
+        delete mBehaviors[i];
+        mBehaviors.erase(mBehaviors.begin() + static_cast<std::ptrdiff_t>(i));
+        return true;
+    }
+    return false;
+}
+
+AI::Behavior* Agent::behavior(AI::BehaviorType type) const
+{
+    for (AI::Behavior* behavior : mBehaviors)
+        if (behavior->type() == type)
+            return behavior;
+    return nullptr;
 }
 
 void Agent::clearBehaviors()
@@ -437,11 +483,30 @@ void Agent::commandSquadToRallyOnLeader()
     }
 }
 
+void Agent::addSquadMember(Agent* member)
+{
+    if (!member || member == this || member->mSquadLeader == this)
+        return;
+    if (member->mSquadLeader)
+        member->mSquadLeader->removeSquadMember(member);
+    member->mSquadLeader = this;
+    mSquadMembers.push_back(member);
+}
+
 void Agent::removeSquadMember(Agent* member)
 {
     auto it = std::find(mSquadMembers.begin(), mSquadMembers.end(), member);
-    if (it != mSquadMembers.end())
-        mSquadMembers.erase(it);
+    if (it == mSquadMembers.end())
+        return;
+    (*it)->mSquadLeader = nullptr;
+    mSquadMembers.erase(it);
+}
+
+void Agent::clearSquadMembers()
+{
+    for (Agent* member : mSquadMembers)
+        member->mSquadLeader = nullptr;
+    mSquadMembers.clear();
 }
 
 // ---- pose sync with the owning GameObject ----------------------------------

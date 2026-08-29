@@ -238,10 +238,10 @@ void testFlocking()
     // when more than one owner's destructor ran.
     for (Agent* e : {a, b, c})
     {
-        e->addBehavior(*new SeparationBehavior(4.0f, 0.2f, 1.0f));
-        e->addBehavior(*new CohesionBehavior(2.0f));
-        e->addBehavior(*new AlignmentBehavior(1.0f));
-        e->addBehavior(*new StayWithinSphereBehavior(glm::vec3(0.0f, 0.0f, 0.0f), 20.0f));
+        e->addBehavior<SeparationBehavior>(4.0f, 0.2f, 1.0f);
+        e->addBehavior<CohesionBehavior>(2.0f);
+        e->addBehavior<AlignmentBehavior>(1.0f);
+        e->addBehavior<StayWithinSphereBehavior>(glm::vec3(0.0f, 0.0f, 0.0f), 20.0f);
     }
 
     // The three start separated; after one step every agent should have a
@@ -324,8 +324,8 @@ void testSquadMovement()
     leader->addSquadMember(member);
 
     // Force pathfinding: block line of sight so the member has to route.
-    member->addBehavior(*new PathfindBehavior(PathfindBehavior::Settings{
-        0.2f, 50.0f, 0.0f, 25.0f, 0.5f, glm::vec3(0.0f, 1.0f, 0.0f), &network, nullptr}));
+    member->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
+        0.2f, 50.0f, 0.0f, 25.0f, 0.5f, glm::vec3(0.0f, 1.0f, 0.0f), &network, nullptr});
 
     // Owned by the agent now (Agent::setStateMachine()) - no manual delete.
     member->setStateMachine(buildMemberStateMachine(*member));
@@ -855,7 +855,7 @@ void testSeekFlee()
     scene.update(0.0f);
     chaser->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     const glm::vec3 target(100.0f, 0.0f, 0.0f);
-    chaser->addBehavior(*new SeekBehavior(target));
+    chaser->addBehavior<SeekBehavior>(target);
 
     for (int i = 0; i < 600; ++i)
         scene.updateAgents(0.016f);
@@ -867,7 +867,7 @@ void testSeekFlee()
     Agent* runner = makeAgent(scene, settings, "runner");
     scene.update(0.0f);
     runner->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    runner->addBehavior(*new FleeBehavior(target));
+    runner->addBehavior<FleeBehavior>(target);
 
     for (int i = 0; i < 600; ++i)
         scene.updateAgents(0.016f);
@@ -883,7 +883,7 @@ void testWander()
     Agent* e = makeAgent(scene, settings, "wanderer");
     scene.update(0.0f);
     e->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    e->addBehavior(*new WanderBehavior());
+    e->addBehavior<WanderBehavior>();
 
     for (int i = 0; i < 300; ++i)
         scene.updateAgents(0.016f);
@@ -911,9 +911,8 @@ void testObstacleAvoidance()
     vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X
     // Face +X so the vehicle's forward path intersects the sphere.
     vehicle->setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-    ObstacleAvoidanceBehavior* avoidance = new ObstacleAvoidanceBehavior(2.0f);
+    ObstacleAvoidanceBehavior* avoidance = vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f);
     avoidance->setObstacles(obstacles);
-    vehicle->addBehavior(*avoidance);
 
     scene.updateAgents(0.016f);
     // The avoidance force is lateral: it must push toward -Z (past the sphere).
@@ -1023,8 +1022,8 @@ void testPathfindLineOfSight()
     // about the LOS short-circuit in PathfindBehavior::iterate.
     member->setNextWaypoint(wpDetour->id());
 
-    member->addBehavior(*new PathfindBehavior(PathfindBehavior::Settings{
-        0.3f, 1.0f, 0.0f, 25.0f, 0.05f, glm::vec3(0.0f, 1.0f, 0.0f), &network, &visibility}));
+    member->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
+        0.3f, 1.0f, 0.0f, 25.0f, 0.05f, glm::vec3(0.0f, 1.0f, 0.0f), &network, &visibility});
 
     // No LOS: the member walks toward the seeded waypoint, off toward +Z.
     for (int i = 0; i < 30; ++i)
@@ -1089,8 +1088,8 @@ void testFormationAbreast()
 
     // Each member owns its own FormationBehavior instance - the leader/
     // point-man cache in it is no longer shared (DESVIO 2).
-    pointMan->addBehavior(*new FormationBehavior(1.0f, 1.0f));
-    rightFlank->addBehavior(*new FormationBehavior(1.0f, 1.0f));
+    pointMan->addBehavior<FormationBehavior>(1.0f, 1.0f);
+    rightFlank->addBehavior<FormationBehavior>(1.0f, 1.0f);
 
     scene.updateAgents(0.016f);
 
@@ -1122,9 +1121,9 @@ void testFormationPentagonSymmetry()
     leftFlank->setSquadId(3);
     leftFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
-    pointMan->addBehavior(*new FormationBehavior(1.0f, 1.0f));
-    rightFlank->addBehavior(*new FormationBehavior(1.0f, 1.0f));
-    leftFlank->addBehavior(*new FormationBehavior(1.0f, 1.0f));
+    pointMan->addBehavior<FormationBehavior>(1.0f, 1.0f);
+    rightFlank->addBehavior<FormationBehavior>(1.0f, 1.0f);
+    leftFlank->addBehavior<FormationBehavior>(1.0f, 1.0f);
 
     scene.updateAgents(0.016f);
 
@@ -1256,52 +1255,93 @@ void testAgentPoseSyncFlipsForward()
     CHECK(near(agent->owner()->forward(), glm::vec3(1.0f, 0.0f, 0.0f), 0.0001f));
 }
 
-// Test 4 (Fase 7 #4): behaviors are owned - addBehavior() takes them,
-// removeBehavior() deletes immediately, and the Agent's own destructor frees
-// whatever is left exactly once (a double free or a leak both fail this
-// test's run under ASan even though nothing here CHECK()s it directly).
+// Test 4 (Fase 7 #4): behaviors are owned - the agent builds them, deletes
+// them on removal, and frees whatever is left exactly once (a double free or
+// a leak both fail this test's run under ASan even though nothing here
+// CHECK()s it directly). No `new` appears anywhere in it, which is the
+// point: there is no window in which an allocation belongs to nobody.
 void testAgentBehaviorsAreOwned()
 {
     Scene scene;
     Agent* a = makeAgent(scene, defaultAgentSettings(), "a");
     scene.update(0.0f);
 
-    Behavior* separation = new SeparationBehavior(4.0f, 0.2f, 1.0f);
-    a->addBehavior(*separation);
+    Behavior* separation = a->addBehavior<SeparationBehavior>(4.0f, 0.2f, 1.0f);
+    CHECK(separation != nullptr);
     CHECK(a->behaviorCount() == 1);
     CHECK(a->behaviorAt(0) == separation);
+    CHECK(a->behavior(BehaviorType::Separation) == separation);
 
-    Behavior* cohesion = new CohesionBehavior(1.0f);
-    a->addBehavior(*cohesion);
+    Behavior* cohesion = a->addBehavior<CohesionBehavior>(1.0f);
     CHECK(a->behaviorCount() == 2);
 
-    CHECK(a->removeBehavior(*separation));
+    // By type, which is how the editor and the loader will reach them.
+    CHECK(a->removeBehavior(BehaviorType::Separation));
     CHECK(a->behaviorCount() == 1);
     CHECK(a->behaviorAt(0) == cohesion);
+    CHECK(a->behavior(BehaviorType::Separation) == nullptr);
+    CHECK(!a->removeBehavior(BehaviorType::Separation)); // already gone
 
-    // Removing one this agent never had answers false and touches nothing.
-    // (Asking again for `separation` would mean forming a reference to the
-    // instance removeBehavior() has just deleted.)
-    Behavior* stranger = new AlignmentBehavior(1.0f);
-    CHECK(!a->removeBehavior(*stranger));
-    CHECK(a->behaviorCount() == 1);
+    // The runtime-typed door, for a name out of a combo box or a save file.
+    Behavior* wander = a->addBehavior(BehaviorType::Wander);
+    CHECK(wander != nullptr);
+    CHECK(wander->type() == BehaviorType::Wander);
+    CHECK(a->behaviorCount() == 2);
 
-    // A behavior belongs to exactly one agent: handing the same instance to
-    // a second one is refused, because accepting it would delete it twice.
+    // A behavior belongs to exactly one agent. Handing an owned one to a
+    // second agent is refused - and, since adoptBehavior() destroys what it
+    // refuses, there is no orphaned allocation either way.
     Agent* b = makeAgent(scene, defaultAgentSettings(), "b");
     scene.update(0.0f);
-    b->addBehavior(*cohesion);
+    CHECK(!b->adoptBehavior(cohesion));
     CHECK(b->behaviorCount() == 0);
-    CHECK(a->behaviorCount() == 1);
+    CHECK(a->behaviorCount() == 2);
     CHECK(cohesion->owner() == a);
 
-    b->addBehavior(*stranger); // never owned - accepted, and freed with b
+    CHECK(b->adoptBehavior(new AlignmentBehavior(1.0f))); // unowned - accepted
     CHECK(b->behaviorCount() == 1);
+    CHECK(!b->adoptBehavior(nullptr));
 
     CHECK(scene.destroy(a->owner()));
     CHECK(scene.destroy(b->owner()));
     scene.update(0.0f);
     CHECK(scene.agentCount() == 0);
+}
+
+// Destroying a squad member takes it out of its leader's member list. It
+// used to stay there as a dangling pointer, and the leader's next order
+// walked straight into it.
+void testDestroyedMemberLeavesTheSquad()
+{
+    Scene scene;
+    Agent* leader = makeAgent(scene, defaultAgentSettings(), "leader");
+    Agent* first = makeAgent(scene, defaultAgentSettings(), "first");
+    Agent* second = makeAgent(scene, defaultAgentSettings(), "second");
+    scene.update(0.0f);
+
+    leader->setSquadId(0);
+    first->setSquadId(1);
+    second->setSquadId(2);
+    leader->addSquadMember(first);
+    leader->addSquadMember(second);
+    CHECK(leader->squadMembers().size() == 2);
+    CHECK(first->squadLeader() == leader);
+
+    CHECK(scene.destroy(first->owner()));
+    scene.update(0.0f);
+    CHECK(leader->squadMembers().size() == 1);
+    CHECK(leader->squadMembers()[0] == second);
+
+    // Reaches every member: with the dead one still listed this is the
+    // use-after-free.
+    leader->setCommand(AI::SquadCommand::RallyToLeaderPosition);
+    CHECK(second->command() == AI::SquadCommand::RallyToLeaderPosition);
+
+    // The other direction: losing the leader leaves no dangling back
+    // pointer on the members either.
+    CHECK(scene.destroy(leader->owner()));
+    scene.update(0.0f);
+    CHECK(second->squadLeader() == nullptr);
 }
 
 // A leader ordered to a random waypoint with no network attached returns
@@ -1553,7 +1593,7 @@ void testObstacleAvoidanceReadsSceneGroup()
     vehicle->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
     vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X
     vehicle->setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-    vehicle->addBehavior(*new ObstacleAvoidanceBehavior(2.0f)); // no setObstacles() call
+    vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f); // no setObstacles() call
 
     scene.updateAgents(0.016f);
     CHECK(finiteVec(vehicle->desiredMove()));
@@ -1604,6 +1644,7 @@ int main()
     testSensingByGroupId();
     testAgentPoseSyncFlipsForward();
     testAgentBehaviorsAreOwned();
+    testDestroyedMemberLeavesTheSquad();
     testLeaderWithoutWaypointNetwork();
     testBehaviorFactoryRoundTrip();
     testBehaviorParamRoundTrip();

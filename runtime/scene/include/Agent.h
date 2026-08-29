@@ -8,6 +8,7 @@
 // squadId() of 0 marking the leader (SquadLeaderEntity's member list/POIs/
 // command state lives here, guarded by that convention, until Squad exists).
 
+#include "BehaviorFactory.h"    // AI::BehaviorType
 #include "Component.h"
 #include "FormationBehavior.h" // AI::SquadFormation
 #include "SquadEntity.h"       // AI::SquadCommand
@@ -89,6 +90,13 @@ public:
     {
         return mAgentType;
     }
+    // Changes what others sense this agent AS, leaving friend/enemy masks
+    // alone - applySettings() sets all three together, which is not what an
+    // inspector field or a loader restoring one value at a time wants.
+    void setType(AgentType type)
+    {
+        mAgentType = type;
+    }
 
     // Sense data refreshed each update(); sorted ascending by distance. Both
     // lists only ever hold living agents - a dead one stops being sensed by
@@ -159,12 +167,37 @@ public:
         mLastFireTarget = target;
     }
 
-    // Behaviors are owned: the destructor and clearBehaviors()/
-    // removeBehavior() delete them. addBehavior() takes a heap-allocated
-    // instance, same ownership-by-reference convention World::add(Group&)/
-    // Group::add(Entity&) used.
-    void addBehavior(AI::Behavior& behavior);
+    // Behaviors are owned by the agent, which deletes them. Nothing here
+    // hands a caller a raw pointer it has to remember to place: this builds
+    // the behavior itself, exactly like GameObject::addComponent<T>(), and
+    // an agent that refuses one destroys it rather than leaking it. Null
+    // when refused.
+    template <class T, class... Args> T* addBehavior(Args&&... args)
+    {
+        T* behavior = new T(static_cast<Args&&>(args)...);
+        if (adoptBehavior(behavior))
+            return behavior;
+        // Freshly built, so nothing else can be holding it: a refusal here
+        // would strand it, which is exactly the hole this overload exists
+        // to close.
+        delete behavior;
+        return nullptr;
+    }
+
+    // Same, chosen at runtime instead of at compile time - what the editor's
+    // "+" menu and the scene loader call, both of which only know a name.
+    AI::Behavior* addBehavior(AI::BehaviorType type);
+
+    // Takes ownership of an already-built behavior. False, and the behavior
+    // untouched, when it already belongs to an agent - that agent still owns
+    // and will still free it, so this must not. Prefer addBehavior<T>()
+    // above, which leaves no raw pointer to get this wrong with.
+    bool adoptBehavior(AI::Behavior* behavior);
+
     bool removeBehavior(AI::Behavior& behavior);
+    bool removeBehavior(AI::BehaviorType type);
+    // First behavior of this type, or null.
+    AI::Behavior* behavior(AI::BehaviorType type) const;
     void clearBehaviors();
     usize behaviorCount() const;
     AI::Behavior* behaviorAt(usize index) const;
@@ -241,6 +274,32 @@ public:
     f32 senseRange() const
     {
         return mSenseRange;
+    }
+    void setSenseRange(f32 range)
+    {
+        mSenseRange = glm::max(range, 0.0f);
+    }
+
+    // Per-axis velocity scalars: 0 locks an axis (Y is locked by default, so
+    // agents stay on the ground plane), 1 leaves it free. Above 1
+    // destabilises the integration - see update().
+    f32 moveXScalar() const
+    {
+        return mMoveXScalar;
+    }
+    f32 moveYScalar() const
+    {
+        return mMoveYScalar;
+    }
+    f32 moveZScalar() const
+    {
+        return mMoveZScalar;
+    }
+    void setMoveScalars(f32 x, f32 y, f32 z)
+    {
+        mMoveXScalar = x;
+        mMoveYScalar = y;
+        mMoveZScalar = z;
     }
 
     // ---- vehicle interface --------------------------------------------------
@@ -518,15 +577,16 @@ public:
         return mPointsOfInterest;
     }
 
-    // Squad members are NOT owned by the leader.
-    void addSquadMember(Agent* member)
-    {
-        mSquadMembers.push_back(member);
-    }
+    // Squad members are NOT owned by the leader - but the link is recorded on
+    // both ends, so whichever side is destroyed first takes itself out of the
+    // other's reach instead of leaving a dangling pointer behind. A member
+    // joining a second leader leaves the first.
+    void addSquadMember(Agent* member);
     void removeSquadMember(Agent* member);
-    void clearSquadMembers()
+    void clearSquadMembers();
+    Agent* squadLeader() const
     {
-        mSquadMembers.clear();
+        return mSquadLeader;
     }
     std::vector<Agent*>& squadMembers()
     {
@@ -616,7 +676,8 @@ private:
     int mSquadFormation = static_cast<int>(AI::SquadFormation::Abreast);
 
     // Leader-only state (AI::SquadLeaderEntity), valid when squadId() == 0.
-    std::vector<Agent*> mSquadMembers; // non-owning
+    std::vector<Agent*> mSquadMembers; // non-owning, back-linked by mSquadLeader
+    Agent* mSquadLeader = nullptr;     // the agent whose mSquadMembers holds this one
     AI::PointsOfInterest* mPointsOfInterest = nullptr;
     AI::PointOfInterest* mSelectedPointOfInterest = nullptr;
     AI::Waypoint* mSelectedWaypoint = nullptr;
