@@ -36,6 +36,7 @@
 #include "UiControls.h"
 #include "VolumetricPass.h"
 #include "dynamics/HingeJoint.h"
+#include "dynamics/WheelJoint.h"
 #include "dynamics/RigidBody.h"
 
 #include <cstdio>
@@ -502,6 +503,87 @@ void testSceneSerializerEmptyRoundTrip()
     CHECK(serializer.fromJson(document, reloaded, result));
     CHECK(result.success());
     CHECK(reloaded.gameObjectCount() == 0);
+}
+
+// Every field the wheel joint and the servos own, written and read back.
+// The wheel used to save itself as a Hinge (jointKindName's default), so a
+// car came back as four dead hinges without a single error being reported.
+void testJointSerializerRoundTrip()
+{
+    Scene scene;
+
+    GameObject* chassisObject = scene.createGameObject("chassis");
+    Physics::RigidBody* chassis = chassisObject->addComponent<Physics::RigidBody>();
+    chassis->setBox(glm::vec3(1.0f, 0.4f, 2.0f));
+
+    GameObject* wheelObject = scene.createGameObject("wheel");
+    wheelObject->setPosition(glm::vec3(0.9f, -0.3f, 1.4f));
+    Physics::RigidBody* wheelBody = wheelObject->addComponent<Physics::RigidBody>();
+    wheelBody->setSphere(0.35f);
+    Physics::WheelJoint* wheel = wheelObject->addComponent<Physics::WheelJoint>();
+    CHECK(wheel != nullptr);
+    if (!wheel)
+        return;
+    wheel->setConnectedBody(chassisObject);
+    wheel->setAuthoredSuspensionAxis(glm::vec3(0.0f, -1.0f, 0.0f));
+    wheel->setAuthoredSpinAxis(glm::vec3(1.0f, 0.0f, 0.0f));
+    wheel->setSuspension(0.45f, 32000.0f, 3200.0f);
+    wheel->setSteeringLimits(glm::radians(-35.0f), glm::radians(35.0f));
+    wheel->setSteeringMotor(1.5f, 800.0f);
+    wheel->setSpinMotor(48.0f, 260.0f);
+
+    GameObject* armObject = scene.createGameObject("arm");
+    Physics::RigidBody* arm = armObject->addComponent<Physics::RigidBody>();
+    arm->setBox(glm::vec3(0.2f));
+    Physics::HingeJoint* hinge = armObject->addComponent<Physics::HingeJoint>();
+    hinge->setConnectedBody(chassisObject);
+    hinge->setLimits(glm::radians(-90.0f), glm::radians(120.0f));
+    hinge->setServo(0.75f, 450.0f, 2.5f);
+
+    scene.update(0.0f);
+
+    SceneSerializer serializer;
+    const nlohmann::json document = serializer.toJson(scene);
+
+    Scene reloaded;
+    SceneLoadResult result;
+    CHECK(serializer.fromJson(document, reloaded, result));
+    CHECK(result.success());
+
+    GameObject* reloadedWheelObject = reloaded.findGameObject("wheel");
+    CHECK(reloadedWheelObject != nullptr);
+    if (!reloadedWheelObject)
+        return;
+    Physics::WheelJoint* reloadedWheel = reloadedWheelObject->getComponent<Physics::WheelJoint>();
+    CHECK(reloadedWheel != nullptr); // was a HingeJoint before the kind was named
+    if (!reloadedWheel)
+        return;
+
+    CHECK(near(reloadedWheel->authoredSuspensionAxis(), glm::vec3(0.0f, -1.0f, 0.0f)));
+    CHECK(near(reloadedWheel->authoredSpinAxis(), glm::vec3(1.0f, 0.0f, 0.0f)));
+    CHECK(near(reloadedWheel->suspensionRestLength(), 0.45f, 1e-4f));
+    CHECK(near(reloadedWheel->suspensionStiffness(), 32000.0f, 0.5f));
+    CHECK(near(reloadedWheel->suspensionDamping(), 3200.0f, 0.5f));
+    CHECK(near(reloadedWheel->minSteeringAngle(), glm::radians(-35.0f), 1e-4f));
+    CHECK(near(reloadedWheel->maxSteeringAngle(), glm::radians(35.0f), 1e-4f));
+    CHECK(near(reloadedWheel->steeringMotorTargetVelocity(), 1.5f, 1e-4f));
+    CHECK(near(reloadedWheel->steeringMotorMaxTorque(), 800.0f, 1e-2f));
+    CHECK(near(reloadedWheel->spinMotorTargetVelocity(), 48.0f, 1e-3f));
+    CHECK(near(reloadedWheel->spinMotorMaxTorque(), 260.0f, 1e-2f));
+    CHECK(reloadedWheel->connectedBody() != nullptr);
+
+    GameObject* reloadedArm = reloaded.findGameObject("arm");
+    CHECK(reloadedArm != nullptr);
+    if (!reloadedArm)
+        return;
+    Physics::HingeJoint* reloadedHinge = reloadedArm->getComponent<Physics::HingeJoint>();
+    CHECK(reloadedHinge != nullptr);
+    if (!reloadedHinge)
+        return;
+    CHECK(reloadedHinge->servoEnabled());
+    CHECK(near(reloadedHinge->servoTargetAngle(), 0.75f, 1e-4f));
+    CHECK(near(reloadedHinge->servoMaxAngularVelocity(), 2.5f, 1e-4f));
+    CHECK(near(reloadedHinge->motorMaxTorque(), 450.0f, 1e-2f));
 }
 
 void testSceneSerializerFailedLoadLeavesSceneIntact()
@@ -2666,6 +2748,7 @@ int main()
     testHierarchyAndOrder();
     testGameObjectIds();
     testSceneSerializerEmptyRoundTrip();
+    testJointSerializerRoundTrip();
     testSceneSerializerFailedLoadLeavesSceneIntact();
     testSceneSerializerHierarchyRoundTrip();
     testSceneSerializerValidation();

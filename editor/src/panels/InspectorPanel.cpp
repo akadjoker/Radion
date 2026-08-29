@@ -4563,8 +4563,10 @@ void InspectorPanel::drawJointComponent(GameObject& object, Physics::Joint& join
 {
     ImGui::Indent(14.0f);
 
-    static const char* kKindNames[] = {"Distance", "Fixed",  "Hinge",     "Slider",
-                                       "Piston",   "Universal", "Point"};
+    // Mouse is left out on purpose: it is the editor's own dragging tool,
+    // not something a scene is authored with.
+    static const char* kKindNames[] = {"Distance", "Fixed",  "Hinge", "Slider",
+                                       "Piston",   "Universal", "Point", "Wheel"};
     int kindIndex = static_cast<int>(joint.kind());
     if (ImGui::Combo("Kind", &kindIndex, kKindNames, IM_ARRAYSIZE(kKindNames)))
     {
@@ -4594,6 +4596,9 @@ void InspectorPanel::drawJointComponent(GameObject& object, Physics::Joint& join
             break;
         case Physics::JointKind::Point:
             replacement = object.addComponent<Physics::PointJoint>();
+            break;
+        case Physics::JointKind::Wheel:
+            replacement = object.addComponent<Physics::WheelJoint>();
             break;
         default:
             break;
@@ -4813,6 +4818,101 @@ void InspectorPanel::drawJointComponent(GameObject& object, Physics::Joint& join
             distance.setAuthoredDistance(minDistance, maxDistance);
             app().markDirty();
         }
+        break;
+    }
+    case Physics::JointKind::Wheel:
+    {
+        Physics::WheelJoint& wheel = static_cast<Physics::WheelJoint&>(joint);
+        ImGui::TextDisabled("Put this on the wheel; connect it to the chassis.");
+
+        glm::vec3 suspensionAxis = wheel.authoredSuspensionAxis();
+        if (ImGui::DragFloat3("Suspension Axis", &suspensionAxis.x, 0.01f))
+        {
+            wheel.setAuthoredSuspensionAxis(suspensionAxis);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Direction the strut travels, in the wheel's own local space - "
+                              "down, towards the ground.");
+
+        glm::vec3 spinAxis = wheel.authoredSpinAxis();
+        if (ImGui::DragFloat3("Spin Axis", &spinAxis.x, 0.01f))
+        {
+            wheel.setAuthoredSpinAxis(spinAxis);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("The axle the wheel turns on, in the wheel's own local space - "
+                              "sideways, across the car.");
+
+        f32 restLength = wheel.suspensionRestLength();
+        f32 stiffness = wheel.suspensionStiffness();
+        f32 damping = wheel.suspensionDamping();
+        bool suspensionChanged = ImGui::DragFloat("Rest Length", &restLength, 0.005f, 0.0f, 5.0f);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Where the strut sits with no weight on it. The wheel hangs this "
+                              "far below its mount.");
+        suspensionChanged |= ImGui::DragFloat("Stiffness", &stiffness, 100.0f, 0.0f, 2.0e6f,
+                                              "%.0f N/m");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Spring rate. A car corner carrying 375 kg and settling 20 cm "
+                              "needs about 18000 N/m; stiffer rides harder and rolls less. "
+                              "Solved inside the constraint, so any value here is stable.");
+        suspensionChanged |= ImGui::DragFloat("Damping", &damping, 10.0f, 0.0f, 2.0e5f,
+                                              "%.0f N/(m/s)");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("The shock absorber. Around a tenth of the stiffness settles "
+                              "without wallowing; too little bounces, too much rides like a "
+                              "brick.");
+        if (suspensionChanged)
+        {
+            wheel.setSuspension(restLength, stiffness, damping);
+            app().markDirty();
+        }
+
+        f32 minSteer = glm::degrees(wheel.minSteeringAngle());
+        f32 maxSteer = glm::degrees(wheel.maxSteeringAngle());
+        bool steerLimitsChanged = ImGui::DragFloat("Min Steer", &minSteer, 1.0f, -90.0f, 0.0f);
+        steerLimitsChanged |= ImGui::DragFloat("Max Steer", &maxSteer, 1.0f, 0.0f, 90.0f);
+        if (steerLimitsChanged)
+        {
+            wheel.setSteeringLimits(glm::radians(minSteer), glm::radians(maxSteer));
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("How far this wheel may turn. Around 35 degrees on the front "
+                              "pair; 0/0 locks the rear pair straight.");
+
+        f32 steerVelocity = wheel.steeringMotorTargetVelocity();
+        f32 steerTorque = wheel.steeringMotorMaxTorque();
+        bool steerMotorChanged = ImGui::DragFloat("Steer Velocity", &steerVelocity, 0.01f);
+        steerMotorChanged |= ImGui::DragFloat("Steer Max Torque", &steerTorque, 1.0f, 0.0f, 1.0e5f);
+        if (steerMotorChanged)
+        {
+            wheel.setSteeringMotor(steerVelocity, steerTorque);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("The steering rack. Max Torque 0 disables it.");
+
+        f32 spinVelocity = wheel.spinMotorTargetVelocity();
+        f32 spinTorque = wheel.spinMotorMaxTorque();
+        bool spinMotorChanged = ImGui::DragFloat("Drive Velocity", &spinVelocity, 0.1f);
+        spinMotorChanged |= ImGui::DragFloat("Drive Max Torque", &spinTorque, 1.0f, 0.0f, 1.0e5f);
+        if (spinMotorChanged)
+        {
+            wheel.setSpinMotor(spinVelocity, spinTorque);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Engine torque at this wheel: target wheel speed and the torque "
+                              "available to reach it. Set the speed to 0 with torque left on "
+                              "and it becomes the brake.");
+
+        ImGui::Separator();
+        ImGui::Text("Travel %.3f m   Steer %.1f deg   Wheel %.1f rad/s", wheel.suspensionTravel(),
+                    static_cast<double>(glm::degrees(wheel.steeringAngle())),
+                    static_cast<double>(wheel.spinAngularVelocity()));
         break;
     }
     case Physics::JointKind::Fixed:
