@@ -196,7 +196,42 @@ bool HingeJoint::motorEnabled() const
 void HingeJoint::disableMotor()
 {
     mMotorEnabled = false;
+    mServoEnabled = false;
     mTotalMotorImpulse = 0.0f;
+}
+
+void HingeJoint::setServo(f32 targetAngle, f32 maxTorque, f32 maxAngularVelocity)
+{
+    if (!std::isfinite(targetAngle) || !std::isfinite(maxTorque) ||
+        !std::isfinite(maxAngularVelocity))
+        return;
+    mServoTargetAngle = targetAngle;
+    mServoMaxAngularVelocity = glm::max(maxAngularVelocity, 0.0f);
+    mMotorMaxTorque = glm::max(maxTorque, 0.0f);
+    mServoEnabled = mMotorMaxTorque > 0.0f;
+    mMotorEnabled = mServoEnabled;
+}
+
+f32 HingeJoint::servoMaxAngularVelocity() const
+{
+    return mServoMaxAngularVelocity;
+}
+
+void HingeJoint::disableServo()
+{
+    mServoEnabled = false;
+    mMotorEnabled = false;
+    mTotalMotorImpulse = 0.0f;
+}
+
+f32 HingeJoint::servoTargetAngle() const
+{
+    return mServoTargetAngle;
+}
+
+bool HingeJoint::servoEnabled() const
+{
+    return mServoEnabled;
 }
 
 void HingeJoint::calculatePositionProperties()
@@ -322,6 +357,21 @@ void HingeJoint::setup(f32 duration)
     calculateHingeRotationProperties();
     calculateAxisAndAngle();
     calculateLimitProperties(duration);
+    // The servo is the velocity motor fed a speed recomputed from the angle
+    // error every step - the speed that would close the whole error in one
+    // step, which mMotorMaxImpulse below is what actually rations out. Same
+    // as btHingeConstraint::setMotorTarget(), except the target is held here
+    // instead of being handed in again every frame by the caller.
+    if (mServoEnabled && duration > 0.0f)
+    {
+        f32 target = mServoTargetAngle;
+        if (mHasLimits)
+            target = glm::clamp(target, mLimitsMin, mLimitsMax);
+        f32 velocity = (target - currentAngle()) / duration;
+        if (mServoMaxAngularVelocity > 0.0f)
+            velocity = glm::clamp(velocity, -mServoMaxAngularVelocity, mServoMaxAngularVelocity);
+        mMotorTargetVelocity = velocity;
+    }
     calculateMotorProperties();
     mMotorMaxImpulse = mMotorMaxTorque * duration;
     if (mPreviousDuration > 0.0f)

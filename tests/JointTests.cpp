@@ -201,6 +201,187 @@ void testHingeJointMotorDrivesToTargetVelocity()
     CHECK(near(wheel.angularVelocity().z, 4.0f, 0.1f));
 }
 
+// A servo is commanded with an angle, not a speed: it drives there and then
+// holds, which is what a robot arm's axis does.
+void testHingeServoReachesAndHoldsItsAngle()
+{
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    RigidBody arm = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    HingeJoint joint(anchor, arm, glm::vec3(0.5f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    const f32 target = 0.6f;
+    joint.setServo(target, 200.0f);
+    CHECK(joint.servoEnabled());
+    CHECK(joint.motorEnabled()); // the servo drives the velocity motor
+
+    // Under gravity, so holding is real work and not just the absence of it.
+    for (u32 i = 0; i < 400; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
+    CHECK(near(joint.currentAngle(), target, 0.02f));
+
+    // Still there 400 steps later, and not drifting or oscillating.
+    const f32 settled = joint.currentAngle();
+    for (u32 i = 0; i < 400; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
+    CHECK(near(joint.currentAngle(), settled, 0.01f));
+    CHECK(std::abs(arm.angularVelocity().z) < 0.05f); // arrived, not still chasing
+
+    // A new target is followed without re-enabling anything: this is the
+    // call a command arriving over a socket would make.
+    joint.setServo(-0.4f, 200.0f);
+    for (u32 i = 0; i < 400; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
+    CHECK(near(joint.currentAngle(), -0.4f, 0.02f));
+}
+
+// A target outside the joint's own limits is clamped into them, not chased
+// through them - btHingeConstraint::setMotorTarget() does the same.
+void testHingeServoClampsTargetToLimits()
+{
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    RigidBody arm = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    HingeJoint joint(anchor, arm, glm::vec3(0.5f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    joint.setLimits(-0.3f, 0.5f);
+    joint.setServo(2.0f, 200.0f); // well past the upper limit
+
+    for (u32 i = 0; i < 400; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f), 1.0f / 60.0f);
+
+    CHECK(near(joint.currentAngle(), 0.5f, 0.03f));
+}
+
+// Bounded torque is what makes a servo a servo: too little of it and the
+// joint cannot lift its own load, which is a result a caller must be able to
+// see rather than have papered over.
+void testHingeServoRespectsItsTorqueBudget()
+{
+    RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+    RigidBody arm = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    HingeJoint joint(anchor, arm, glm::vec3(0.5f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    joint.setServo(1.2f, 0.2f); // nowhere near enough against a 10 m/s^2 pull
+
+    for (u32 i = 0; i < 400; ++i)
+        stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
+
+    CHECK(joint.currentAngle() < 1.2f - 0.1f); // fell short, as it should
+    CHECK(std::isfinite(joint.currentAngle())); // and did not explode trying
+}
+
+void testSliderServoReachesAndHoldsItsPosition()
+{
+    RigidBody rail = makeStaticBox(glm::vec3(0.0f));
+    RigidBody finger = makeDynamicBox(glm::vec3(0.0f));
+    SliderJoint joint(rail, finger, glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    joint.setServo(0.35f, 200.0f);
+
+    for (u32 i = 0; i < 400; ++i)
+        stepWithJoint(rail, finger, joint, glm::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
+
+    CHECK(near(joint.currentPosition(), 0.35f, 0.02f));
+    CHECK(std::abs(finger.velocity().x) < 0.05f);
+}
+
+// Measures the one number that decides whether this engine can carry a
+// walking robot: how far a chain of servo-held joints sags under load.
+//
+// Three links held straight out by servos, with a mass on the end - the
+// shape of a leg holding up its share of a body. A rigid chain keeps every
+// joint at its commanded angle; a chain solved by sequential impulses gives
+// a little, and how much is what a learned gait would end up exploiting.
+// Reported rather than merely asserted: the number is the point.
+void testServoChainSagUnderLoad()
+{
+    RigidBody root = makeStaticBox(glm::vec3(0.0f));
+    RigidBody link1 = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    RigidBody link2 = makeDynamicBox(glm::vec3(2.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+    RigidBody load = makeDynamicBox(glm::vec3(3.0f, 0.0f, 0.0f), 5.0f, glm::vec3(0.5f));
+
+    const glm::vec3 axis(0.0f, 0.0f, 1.0f);
+    HingeJoint hip(root, link1, glm::vec3(0.5f, 0.0f, 0.0f), axis);
+    HingeJoint knee(link1, link2, glm::vec3(1.5f, 0.0f, 0.0f), axis);
+    HingeJoint ankle(link2, load, glm::vec3(2.5f, 0.0f, 0.0f), axis);
+
+    // Held straight, with torque to spare and a rated speed of 2 rad/s -
+    // about 115 deg/s, in the range an industrial arm's axis actually moves.
+    hip.setServo(0.0f, 2000.0f, 2.0f);
+    knee.setServo(0.0f, 2000.0f, 2.0f);
+    ankle.setServo(0.0f, 2000.0f, 2.0f);
+
+    RigidBody* bodies[] = {&root, &link1, &link2, &load};
+    Joint* joints[] = {&hip, &knee, &ankle};
+    const f32 duration = 1.0f / 120.0f;
+    const glm::vec3 gravity(0.0f, -10.0f, 0.0f);
+
+    // Swept against solver iterations on purpose. If the error shrinks as
+    // they go up, what is being measured is the solver failing to converge
+    // on a coupled chain - not the servo.
+    f32 hipSag = 0.0f, kneeSag = 0.0f, ankleSag = 0.0f, tipDrop = 0.0f;
+    f32 worstByIterations[3] = {0.0f, 0.0f, 0.0f};
+    u32 sweepIndex = 0;
+    for (u32 iterations : {8u, 32u, 128u})
+    {
+        for (RigidBody* body : bodies)
+        {
+            body->setVelocity(glm::vec3(0.0f));
+            body->setAngularVelocity(glm::vec3(0.0f));
+            body->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
+        }
+        link1.setPosition(glm::vec3(1.0f, 0.0f, 0.0f));
+        link2.setPosition(glm::vec3(2.0f, 0.0f, 0.0f));
+        load.setPosition(glm::vec3(3.0f, 0.0f, 0.0f));
+
+        ContactSolverSettings settings;
+        settings.velocityIterations = iterations;
+        ContactSolver solver;
+        solver.setSettings(settings);
+
+        f32 worstHip = 0.0f;
+        for (u32 step = 0; step < 600; ++step)
+        {
+            for (RigidBody* body : bodies)
+                if (body->isDynamic())
+                {
+                    body->setAcceleration(gravity);
+                    body->integrateForces(duration);
+                }
+            solver.solve(nullptr, 0, joints, 3, duration);
+            for (RigidBody* body : bodies)
+                if (body->isDynamic())
+                    body->integrateVelocity(duration);
+            // Only the second half counts, so the initial settle is not
+            // mistaken for the steady-state wobble.
+            if (step > 300)
+                worstHip = glm::max(worstHip, glm::degrees(std::abs(hip.currentAngle())));
+        }
+
+        worstByIterations[sweepIndex++] = worstHip;
+        hipSag = glm::degrees(std::abs(hip.currentAngle()));
+        kneeSag = glm::degrees(std::abs(knee.currentAngle()));
+        ankleSag = glm::degrees(std::abs(ankle.currentAngle()));
+        tipDrop = -load.position().y;
+        std::printf("JointTests: servo chain, %3u velocity iterations - worst hip swing %.3f deg, "
+                    "final hip %.3f / knee %.3f / ankle %.3f deg, tip drop %.4f m\n",
+                    iterations, static_cast<double>(worstHip), static_cast<double>(hipSag),
+                    static_cast<double>(kneeSag), static_cast<double>(ankleSag),
+                    static_cast<double>(tipDrop));
+    }
+
+    CHECK(std::isfinite(hipSag) && std::isfinite(tipDrop));
+
+    // What the sweep showed, and what has to keep being true:
+    // the chain's error is the solver's convergence, so more iterations buy
+    // a stiffer chain. Measured 10.2 -> 3.4 -> 0.36 degrees at 8/32/128.
+    CHECK(worstByIterations[1] < worstByIterations[0]);
+    CHECK(worstByIterations[2] < worstByIterations[1]);
+    // And at 128 the chain is stiff enough to carry a walking robot: under a
+    // degree of swing at the loaded joint. This is the bound that matters -
+    // if it ever fails, a robot built on this engine stopped being credible.
+    CHECK(worstByIterations[2] < 1.0f);
+    // The default 8 is a game setting, not a robotics one. Kept as a bound
+    // only to catch the chain turning to rubber outright.
+    CHECK(worstByIterations[0] < 15.0f);
+}
+
 void testHingeJointKeepsAnchorTogether()
 {
     RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
@@ -931,6 +1112,11 @@ int main()
     testFixedJointLocksAllSixDOF();
     testHingeJointFreeAboutItsAxisOnly();
     testHingeJointMotorDrivesToTargetVelocity();
+    testHingeServoReachesAndHoldsItsAngle();
+    testHingeServoClampsTargetToLimits();
+    testHingeServoRespectsItsTorqueBudget();
+    testSliderServoReachesAndHoldsItsPosition();
+    testServoChainSagUnderLoad();
     testHingeJointKeepsAnchorTogether();
     testSliderJointMovesOnlyAlongItsAxis();
     testSliderJointLimitsClampTravel();
