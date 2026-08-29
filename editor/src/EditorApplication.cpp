@@ -232,7 +232,6 @@ EditorApplication::EditorApplication(Engine& engine) : mEngine(engine)
         FileSystem::getSingleton().prefPath("Radion", "Editor") + "editor.settings.json";
     mSettings.load(mSettingsFile);
     mCursor3D = mSettings.cursor3D;
-    mShowStatsOverlay = mSettings.showStatsOverlay;
     mShowDynamicIndexDebug = mSettings.showDynamicIndexDebug;
     mShowOcclusionDebug = mSettings.showOcclusionDebug;
     mShowSubmeshBounds = mSettings.showSubmeshBounds;
@@ -298,7 +297,6 @@ EditorApplication::~EditorApplication()
     sInstance = nullptr;
     mSettings.cursor3D = mCursor3D;
     mSettings.viewMode = mViewMode == ViewMode::Game ? 1 : 0;
-    mSettings.showStatsOverlay = mShowStatsOverlay;
     mSettings.showDynamicIndexDebug = mShowDynamicIndexDebug;
     mSettings.showOcclusionDebug = mShowOcclusionDebug;
     mSettings.showSubmeshBounds = mShowSubmeshBounds;
@@ -1458,8 +1456,6 @@ void EditorApplication::drawMainMenuBar()
             mDockLayoutBuilt = false;
         }
         ImGui::Separator();
-        ImGui::MenuItem("Stats Overlay (FPS/ms)", nullptr, &mShowStatsOverlay);
-        ImGui::Separator();
         if (ImGui::BeginMenu("Theme"))
         {
             int& themeIndex = mSettings.themeIndex;
@@ -1689,22 +1685,92 @@ void EditorApplication::drawSaveSceneAsPopup()
     ImGui::EndPopup();
 }
 
-void EditorApplication::drawStatsOverlay(f32 deltaTime)
+// What is happening right now, along the bottom edge, where a status bar
+// belongs: frame time, what the scene holds, what is selected, which file is
+// open. It replaces the floating FPS box, which sat over the viewport and
+// covered the very thing being looked at.
+//
+// BeginViewportSideBar reserves the strip out of the viewport's work area
+// rather than drawing on top of it, so the dockspace ends above the bar and
+// no panel is ever hidden behind it.
+void EditorApplication::drawStatusBar(f32 deltaTime)
 {
-    const u32 pendingTextures = AsyncTextureLoader::getSingleton().pendingCount();
-    const u32 pendingMeshes = Assets().pendingAsyncMeshLoads();
-    // Streaming feedback is not behind the Stats Overlay toggle - a scene
-    // load is exactly the moment the editor used to look frozen, so it has
-    // to be visible without the user knowing to turn anything on first.
-    if (!mShowStatsOverlay && !mStartupLoadPending && !mStartupLoading && pendingTextures == 0 &&
-        pendingMeshes == 0)
-        return;
-
     // Exponential moving average - a raw per-frame delta jumps around too
     // much to read at a glance, this reacts over roughly ten frames instead.
     mStatsSmoothedDelta =
         mStatsSmoothedDelta <= 0.0f ? deltaTime : mStatsSmoothedDelta * 0.9f + deltaTime * 0.1f;
     const f32 fps = mStatsSmoothedDelta > 0.0f ? 1.0f / mStatsSmoothedDelta : 0.0f;
+
+    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+    if (!ImGui::BeginViewportSideBar("##StatusBar", ImGui::GetMainViewport(), ImGuiDir_Down,
+                                     ImGui::GetFrameHeight(), flags))
+    {
+        ImGui::End();
+        return;
+    }
+
+    const auto separator = []() {
+        ImGui::SameLine();
+        ImGui::TextDisabled("|");
+        ImGui::SameLine();
+    };
+
+    ImGui::Text("%.0f FPS  %.2f ms", static_cast<double>(fps),
+                static_cast<double>(mStatsSmoothedDelta * 1000.0f));
+
+    separator();
+    Scene& current = scene();
+    ImGui::Text("Objects: %zu", current.gameObjectCount());
+
+    separator();
+    if (GameObject* selected = mSelection.resolve(current))
+        ImGui::Text("Selected: %s", selected->name().c_str());
+    else
+        ImGui::TextDisabled("No selection");
+
+    // The counts that say whether the physics and AI in this scene are doing
+    // anything - the two things most likely to be wrong while building one.
+    if (current.bodyCount() > 0 || current.agentCount() > 0)
+    {
+        separator();
+        ImGui::Text("Bodies: %zu", current.bodyCount());
+        if (current.jointCount() > 0)
+        {
+            ImGui::SameLine();
+            ImGui::Text("Joints: %zu", current.jointCount());
+        }
+        if (current.agentCount() > 0)
+        {
+            ImGui::SameLine();
+            ImGui::Text("Agents: %zu", current.agentCount());
+        }
+    }
+
+    separator();
+    if (mScenePath.empty())
+        ImGui::TextDisabled("Unsaved scene");
+    else
+        ImGui::Text("%s%s", FileSystem::fileName(mScenePath).c_str(), mDirty ? " *" : "");
+
+    if (mPlaying)
+    {
+        separator();
+        ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "PLAYING");
+    }
+
+    ImGui::End();
+}
+
+void EditorApplication::drawStatsOverlay(f32 deltaTime)
+{
+    (void)deltaTime; // the frame time moved to the status bar
+    const u32 pendingTextures = AsyncTextureLoader::getSingleton().pendingCount();
+    const u32 pendingMeshes = Assets().pendingAsyncMeshLoads();
+    // Streaming feedback is not behind the Stats Overlay toggle - a scene
+    // load is exactly the moment the editor used to look frozen, so it has
+    // to be visible without the user knowing to turn anything on first.
+    if (!mStartupLoadPending && !mStartupLoading && pendingTextures == 0 && pendingMeshes == 0)
+        return;
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(
@@ -1726,8 +1792,6 @@ void EditorApplication::drawStatsOverlay(f32 deltaTime)
             ImGui::TextDisabled("Meshes and textures are read on this thread - a large scene can "
                                "take a while, and the window will not answer until it is done.");
         }
-        if (mShowStatsOverlay)
-            ImGui::Text("%.0f FPS  %.2f ms", fps, mStatsSmoothedDelta * 1000.0f);
         if (pendingTextures > 0)
             ImGui::Text(ICON_MDI_IMAGE_MULTIPLE " Streaming %u texture(s)...", pendingTextures);
         if (pendingMeshes > 0)
@@ -1766,6 +1830,9 @@ void EditorApplication::runFrame(f32 deltaTime)
 
     scene().update(deltaTime);
     drawDockspace();
+    // Before the panels: it reserves its strip out of the viewport's work
+    // area, and the dockspace built above has to end where the bar starts.
+    drawStatusBar(deltaTime);
     drawStatsOverlay(deltaTime);
     mToasts.update(deltaTime);
     for (EditorPanel* panel : mPanels)
@@ -1819,8 +1886,7 @@ void EditorApplication::runFrame(f32 deltaTime)
         mSettingsSaveTimer = 0.0f;
         mSettings.cursor3D = mCursor3D;
         mSettings.viewMode = mViewMode == ViewMode::Game ? 1 : 0;
-        mSettings.showStatsOverlay = mShowStatsOverlay;
-        mSettings.showDynamicIndexDebug = mShowDynamicIndexDebug;
+            mSettings.showDynamicIndexDebug = mShowDynamicIndexDebug;
         mSettings.showOcclusionDebug = mShowOcclusionDebug;
         mSettings.showSubmeshBounds = mShowSubmeshBounds;
         mSettings.showShadowCascades = mEngine.debugShowShadowCascades;

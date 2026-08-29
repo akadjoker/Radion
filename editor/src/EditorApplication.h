@@ -380,6 +380,7 @@ private:
     void drawDockspace();
     void drawMainMenuBar();
     void drawCameraSettingsPopup();
+    void drawStatusBar(f32 deltaTime);
     void drawStatsOverlay(f32 deltaTime);
     void drawFileDialog();
     void drawNewProjectPopup();
@@ -446,15 +447,14 @@ private:
     bool mFocusViewportPending = true;
     u64 mFocusObjectRequest = 0;
     std::string mRevealAssetRequest;
-    // Windows > Stats Overlay. Off by default - a floating FPS/ms readout is
-    // useful while chasing a perf problem, not something every session wants
-    // sitting over the viewport.
-    bool mShowStatsOverlay = false;
+    // Smoothed frame time behind the status bar's FPS reading. The toggle
+    // that used to guard a floating overlay is gone with it: the bar has a
+    // place of its own and covers nothing, so there is nothing to turn off.
     f32 mStatsSmoothedDelta = 0.0f;
     // DebugPanel writes these, ViewportPanel reads them (the DebugDraw3D
     // calls have to happen there, before Engine::render() - Scene itself has
-    // no per-frame hook of its own to emit them from). Off by default, same
-    // reasoning as mShowStatsOverlay: a debug overlay only some sessions want.
+    // no per-frame hook of its own to emit them from). Off by default: a
+    // debug overlay only some sessions want.
     bool mShowDynamicIndexDebug = false;
     bool mShowOcclusionDebug = false;
     bool mShowSubmeshBounds = false;

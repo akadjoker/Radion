@@ -54,7 +54,6 @@ public:
     int viewportNavigationTool = 0;
     glm::vec3 cursor3D = glm::vec3(0.0f);
     int viewMode = 0;
-    bool showStatsOverlay = false;
     bool showDynamicIndexDebug = false;
     bool showOcclusionDebug = false;
     bool showSubmeshBounds = false;
