@@ -24,6 +24,7 @@ add_library(radion_scene
     src/components/PathAnimator.cpp
     src/components/Light.cpp
     src/components/ManualMesh.cpp
+    src/components/PhysicsBody.cpp
     src/components/RibbonTrail.cpp
     src/components/Road.cpp
     src/components/ScriptComponent.cpp

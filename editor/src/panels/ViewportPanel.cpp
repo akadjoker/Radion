@@ -16,10 +16,13 @@
 #include "MeshRenderer.h"
 #include "PostProcess.h"
 #include "NavMeshSurface.h"
+#include "PhysicsBody.h"
 #include "Road.h"
 #include "Waypoints.h"
 #include "Scene.h"
 #include "Terrain.h"
+
+#include "collision/CollisionShape.h"
 
 #include <IconsMaterialDesignIcons.h>
 #include <ImGuizmo.h>
@@ -936,6 +939,37 @@ void ViewportPanel::onImGui()
                                                           selected->globalTransform()),
                                             Color::Yellow);
                 }
+            }
+        }
+        if (PhysicsBody* physicsBody = selected->getComponent<PhysicsBody>())
+        {
+            Color color = Color::Gray;
+            if (physicsBody->bodyType() == Physics::BodyType::Kinematic)
+                color = Color(230, 200, 60, 255);
+            else if (physicsBody->bodyType() == Physics::BodyType::Dynamic)
+            {
+                switch (physicsBody->shape())
+                {
+                case PhysicsBodyShape::Sphere:  color = Color(80, 220, 200, 255); break;
+                case PhysicsBodyShape::Box:     color = Color(110, 220, 90, 255); break;
+                case PhysicsBodyShape::Capsule: color = Color(220, 110, 220, 255); break;
+                }
+            }
+
+            const glm::mat4 bodyTransform = glm::translate(glm::mat4(1.0f), selected->globalPosition()) *
+                                            glm::mat4_cast(selected->globalRotation());
+            switch (physicsBody->shape())
+            {
+            case PhysicsBodyShape::Sphere:
+                Physics::SphereShape(physicsBody->radius()).debugDraw(bodyTransform, color);
+                break;
+            case PhysicsBodyShape::Box:
+                Physics::BoxShape(physicsBody->halfExtents()).debugDraw(bodyTransform, color);
+                break;
+            case PhysicsBodyShape::Capsule:
+                Physics::CapsuleShape(physicsBody->radius(), physicsBody->capsuleSegmentHalfHeight())
+                    .debugDraw(bodyTransform, color);
+                break;
             }
         }
     }

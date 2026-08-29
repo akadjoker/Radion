@@ -51,6 +51,7 @@ enum class ComponentType : u8
     UiButton,
     UiCheckBox,
     UiSlider,
+    PhysicsBody,
     Count
 };
 

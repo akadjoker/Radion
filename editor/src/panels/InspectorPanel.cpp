@@ -22,6 +22,7 @@
 #include "Ocean.h"
 #include "ParticleEffect.h"
 #include "ParticleEmitter.h"
+#include "PhysicsBody.h"
 #include "ReflectionProbe.h"
 #include "Road.h"
 #include "Scene.h"
@@ -251,6 +252,7 @@ void removeComponentByType(GameObject& object, ComponentType type)
     case ComponentType::VoxelWorld: object.removeComponent<VoxelWorldComponent>(); break;
     case ComponentType::Script: object.removeComponent<ScriptComponent>(); break;
     case ComponentType::Collider: object.removeComponent<Collider>(); break;
+    case ComponentType::PhysicsBody: object.removeComponent<PhysicsBody>(); break;
     case ComponentType::AudioPlayer:
         object.removeComponent<AudioPlayer>();
         break;
@@ -841,6 +843,15 @@ void InspectorPanel::drawComponentList(GameObject& object)
             toRemove = ComponentType::Collider;
         else
             drawColliderComponent(object, *collider);
+        ImGui::PopID();
+    }
+    if (PhysicsBody* physicsBody = object.getComponent<PhysicsBody>())
+    {
+        ImGui::PushID("PhysicsBody");
+        if (drawComponentHeader(app(), "PhysicsBody", *physicsBody))
+            toRemove = ComponentType::PhysicsBody;
+        else
+            drawPhysicsBodyComponent(object, *physicsBody);
         ImGui::PopID();
     }
     if (AudioPlayer* audioPlayer = object.getComponent<AudioPlayer>())
@@ -3060,6 +3071,11 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             object.addComponent<Collider>();
             app().markDirty();
         }
+        if (!object.getComponent<PhysicsBody>() && ImGui::MenuItem("PhysicsBody"))
+        {
+            object.addComponent<PhysicsBody>();
+            app().markDirty();
+        }
         if (!object.getComponent<AudioPlayer>() && ImGui::MenuItem("AudioPlayer"))
         {
             object.addComponent<AudioPlayer>();
@@ -4285,6 +4301,145 @@ void InspectorPanel::drawColliderComponent(GameObject& object, Collider& collide
             DebugDraw().box(collider.worldBounds(), outlineColor);
         break;
     }
+
+    ImGui::Unindent(14.0f);
+}
+
+void InspectorPanel::drawPhysicsBodyComponent(GameObject&, PhysicsBody& body)
+{
+    ImGui::Indent(14.0f);
+
+    static const char* kBodyTypeNames[] = {"Static", "Dynamic", "Kinematic"};
+    int bodyTypeIndex = static_cast<int>(body.bodyType());
+    if (ImGui::Combo("Body Type", &bodyTypeIndex, kBodyTypeNames, IM_ARRAYSIZE(kBodyTypeNames)))
+    {
+        body.setBodyType(static_cast<Physics::BodyType>(bodyTypeIndex));
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Static never moves. Dynamic is integrated from forces and falls under "
+                         "gravity. Kinematic is driven by this object's own transform and pushes "
+                         "anything resting on it without ever being pushed back.");
+
+    static const char* kShapeNames[] = {"Sphere", "Box", "Capsule"};
+    int shapeIndex = static_cast<int>(body.shape());
+    if (ImGui::Combo("Shape", &shapeIndex, kShapeNames, IM_ARRAYSIZE(kShapeNames)))
+    {
+        switch (static_cast<PhysicsBodyShape>(shapeIndex))
+        {
+        case PhysicsBodyShape::Sphere: body.setSphere(body.radius()); break;
+        case PhysicsBodyShape::Box: body.setBox(body.halfExtents()); break;
+        case PhysicsBodyShape::Capsule: body.setCapsule(body.radius(), body.height()); break;
+        }
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("The volume the simulation collides and computes inertia with.");
+
+    switch (body.shape())
+    {
+    case PhysicsBodyShape::Sphere:
+    {
+        f32 radius = body.radius();
+        if (ImGui::DragFloat("Radius", &radius, 0.02f, 0.001f, 1000.0f, "%.3f"))
+        {
+            body.setSphere(glm::max(radius, 0.001f));
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Sphere radius, in local units before the object's own scale.");
+        break;
+    }
+    case PhysicsBodyShape::Box:
+    {
+        glm::vec3 halfExtents = body.halfExtents();
+        if (ImGui::DragFloat3("Half Extents", &halfExtents.x, 0.02f, 0.001f, 1000.0f, "%.3f"))
+        {
+            body.setBox(glm::max(halfExtents, glm::vec3(0.001f)));
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Half the box's size on each axis, before the object's own scale.");
+        break;
+    }
+    case PhysicsBodyShape::Capsule:
+    {
+        f32 radius = body.radius();
+        f32 height = body.height();
+        bool changed = ImGui::DragFloat("Radius", &radius, 0.02f, 0.001f, 1000.0f, "%.3f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Radius of the round cross-section and its two end caps.");
+        changed |= ImGui::DragFloat("Height", &height, 0.02f, 0.001f, 1000.0f, "%.3f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Total height cap to cap. The straight segment between the caps "
+                             "is height - 2*radius, clamped to zero.");
+        if (changed)
+        {
+            body.setCapsule(glm::max(radius, 0.001f), glm::max(height, 0.001f));
+            app().markDirty();
+        }
+        break;
+    }
+    }
+
+    f32 mass = body.mass();
+    if (ImGui::DragFloat("Mass", &mass, 0.05f, 0.001f, 100000.0f, "%.3f"))
+    {
+        body.setMass(glm::max(mass, 0.001f));
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Only used while Dynamic - Static and Kinematic are infinite mass "
+                         "regardless of this value.");
+
+    f32 friction = body.friction();
+    if (ImGui::DragFloat("Friction", &friction, 0.01f, 0.0f, 10.0f, "%.3f"))
+    {
+        body.setFriction(glm::max(friction, 0.0f));
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Coulomb friction coefficient against whatever this body contacts.");
+
+    f32 restitution = body.restitution();
+    if (ImGui::DragFloat("Restitution", &restitution, 0.01f, 0.0f, 1.0f, "%.3f"))
+    {
+        body.setRestitution(glm::clamp(restitution, 0.0f, 1.0f));
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Bounciness of a contact - 0 absorbs all of the closing velocity, 1 "
+                         "reflects it back unchanged.");
+
+    u32 collisionGroup = body.collisionGroup();
+    if (ImGui::InputScalar("Collision Group", ImGuiDataType_U32, &collisionGroup, nullptr,
+                           nullptr, "%08X", ImGuiInputTextFlags_CharsHexadecimal))
+    {
+        body.setCollisionGroup(collisionGroup);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Bitmask identifying which group(s) this body belongs to.");
+
+    u32 collisionMask = body.collisionMask();
+    if (ImGui::InputScalar("Collision Mask", ImGuiDataType_U32, &collisionMask, nullptr,
+                           nullptr, "%08X", ImGuiInputTextFlags_CharsHexadecimal))
+    {
+        body.setCollisionMask(collisionMask);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Bitmask of the group(s) this body is allowed to collide with.");
+
+    bool enabled = body.enabled();
+    if (ImGui::Checkbox("Enabled", &enabled))
+    {
+        body.setEnabled(enabled);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("A disabled body stays registered but is skipped by broadphase, "
+                         "contacts, and integration.");
 
     ImGui::Unindent(14.0f);
 }

@@ -3,10 +3,12 @@
 #include "SceneScriptBindings.h"
 
 #include "Animation.h"
+#include "AssetManager.h"
 #include "Camera.h"
 #include "CharacterController.h"
 #include "Component.h"
 #include "GameObject.h"
+#include "GPU.h"
 #include "Light.h"
 #include "MeshRenderer.h"
 #include "Scene.h"
@@ -1377,6 +1379,114 @@ static int meshRendererHasMesh(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
+// Shared tail of every set_* below. A desc with the same recipe resolves to
+// the mesh already uploaded for it, so a script handing the same box to a
+// hundred objects uploads one. The material comes from upload(), which fills
+// a lit default in when the recipe carries none - without one the submesh
+// would reach emitSubmesh() with no pipeline and be dropped in silence.
+bool assignMesh(MeshRenderer* renderer, const MeshDesc& desc)
+{
+    // createMesh() uploads, so it needs a device. A script can reach here
+    // without one - a headless test, a scene torn down after the GPU is gone -
+    // and getSingleton() treats that as a caller bug rather than answering.
+    if (!renderer || !GPU::tryGet())
+        return false;
+    const MeshHandle mesh = Assets().createMesh(desc);
+    if (!mesh.valid())
+        return false;
+    renderer->setMesh(mesh);
+    return true;
+}
+
+f32 argFloat(zen::Value* args, int nargs, int index, f32 fallback)
+{
+    return index < nargs ? static_cast<f32>(zen::to_number(args[index])) : fallback;
+}
+
+static int meshRendererSetBox(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    const glm::vec3 size(argFloat(args, nargs, 0, 1.0f), argFloat(args, nargs, 1, 1.0f),
+                         argFloat(args, nargs, 2, 1.0f));
+    const bool assigned = assignMesh(selfMeshRenderer(args), MeshDesc::box(size));
+    args[0] = zen::val_bool(assigned);
+    return 1;
+}
+
+static int meshRendererSetSphere(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    const bool assigned =
+        assignMesh(selfMeshRenderer(args), MeshDesc::sphere(argFloat(args, nargs, 0, 0.5f), 16, 24));
+    args[0] = zen::val_bool(assigned);
+    return 1;
+}
+
+static int meshRendererSetPlane(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    const bool assigned =
+        assignMesh(selfMeshRenderer(args), MeshDesc::plane(argFloat(args, nargs, 0, 1.0f),
+                                                           argFloat(args, nargs, 1, 1.0f), 1, 1,
+                                                           1.0f));
+    args[0] = zen::val_bool(assigned);
+    return 1;
+}
+
+static int meshRendererSetCylinder(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    const bool assigned =
+        assignMesh(selfMeshRenderer(args), MeshDesc::cylinder(argFloat(args, nargs, 0, 0.5f),
+                                                              argFloat(args, nargs, 1, 1.0f), 24));
+    args[0] = zen::val_bool(assigned);
+    return 1;
+}
+
+static int meshRendererSetCone(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    const bool assigned =
+        assignMesh(selfMeshRenderer(args), MeshDesc::cone(argFloat(args, nargs, 0, 0.5f),
+                                                          argFloat(args, nargs, 1, 1.0f), 24));
+    args[0] = zen::val_bool(assigned);
+    return 1;
+}
+
+static int meshRendererSetCapsule(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    const bool assigned =
+        assignMesh(selfMeshRenderer(args), MeshDesc::capsule(argFloat(args, nargs, 0, 0.4f),
+                                                             argFloat(args, nargs, 1, 1.0f), 8, 24));
+    args[0] = zen::val_bool(assigned);
+    return 1;
+}
+
+static int meshRendererSetTorus(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    const bool assigned =
+        assignMesh(selfMeshRenderer(args), MeshDesc::torus(argFloat(args, nargs, 0, 1.0f),
+                                                           argFloat(args, nargs, 1, 0.25f), 32, 16));
+    args[0] = zen::val_bool(assigned);
+    return 1;
+}
+
+static int meshRendererSetMeshFile(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    MeshRenderer* renderer = selfMeshRenderer(args);
+    if (!renderer || nargs < 1 || !zen::is_string(args[0]))
+    {
+        args[0] = zen::val_bool(false);
+        return 1;
+    }
+    const std::string file(zen::safe_string_chars(args[0]), (usize)zen::safe_string_len(args[0]));
+    args[0] = zen::val_bool(assignMesh(renderer, MeshDesc::fromFile(file)));
+    return 1;
+}
+
 static int characterControllerGetRadius(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -1773,6 +1883,14 @@ void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
     meshRenderer.method("get_material_override_count", meshRendererGetMaterialOverrideCount, 0);
     meshRenderer.method("clear_material_overrides", meshRendererClearMaterialOverrides, 0);
     meshRenderer.method("has_mesh", meshRendererHasMesh, 0);
+    meshRenderer.method("set_box", meshRendererSetBox, 3);
+    meshRenderer.method("set_sphere", meshRendererSetSphere, 1);
+    meshRenderer.method("set_plane", meshRendererSetPlane, 2);
+    meshRenderer.method("set_cylinder", meshRendererSetCylinder, 2);
+    meshRenderer.method("set_cone", meshRendererSetCone, 2);
+    meshRenderer.method("set_capsule", meshRendererSetCapsule, 2);
+    meshRenderer.method("set_torus", meshRendererSetTorus, 2);
+    meshRenderer.method("set_mesh_file", meshRendererSetMeshFile, 1);
     meshRenderer.persistent(true).constructable(false);
     cache.setMeshRendererClass(meshRenderer.end());
 

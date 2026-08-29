@@ -527,6 +527,28 @@ void Scene::update(f32 deltaTime)
             if (attachment->active() && attachment->owner()->isActiveInHierarchy())
                 attachment->update();
     }
+    // Physics runs after Component update, so this frame's scripted forces
+    // and impulses (applied from onUpdate) are already on the bodies before
+    // they are integrated, and before Collision contacts and Late component
+    // update, so a trigger, a character sweep, or a follow camera all read
+    // the pose the simulation just produced instead of lagging it by a
+    // frame. In the editor the bodies only track their objects, so nothing
+    // falls while it is being placed and Play starts from where it was left.
+    {
+        RADION_PROFILE_SCOPE("Physics step");
+        for (PhysicsBody* body : mPhysicsBodies)
+            if (body->simulating() &&
+                (mRunningInEditor || body->bodyType() != Physics::BodyType::Dynamic ||
+                 body->ownerMoved()))
+                body->pushOwnerPose();
+        if (!mRunningInEditor)
+        {
+            mPhysicsWorld.update(mDeltaTime);
+            for (PhysicsBody* body : mPhysicsBodies)
+                if (body->simulating() && body->bodyType() == Physics::BodyType::Dynamic)
+                    body->pullBodyPose();
+        }
+    }
     {
         RADION_PROFILE_SCOPE("Collision contacts");
         mCollisionWorld.step();
@@ -1745,6 +1767,10 @@ void Scene::componentAdded(Component* component)
     case ComponentType::Collider:
         mColliders.push_back(static_cast<Collider*>(component));
         break;
+    case ComponentType::PhysicsBody:
+        mPhysicsBodies.push_back(static_cast<PhysicsBody*>(component));
+        static_cast<PhysicsBody*>(component)->bindToWorld(mPhysicsWorld);
+        break;
     default:
         break;
     }
@@ -1830,6 +1856,10 @@ void Scene::componentRemoved(Component* component)
         break;
     case ComponentType::Collider:
         removePointer(mColliders, static_cast<Collider*>(component));
+        break;
+    case ComponentType::PhysicsBody:
+        static_cast<PhysicsBody*>(component)->unbindFromWorld();
+        removePointer(mPhysicsBodies, static_cast<PhysicsBody*>(component));
         break;
     default:
         break;
