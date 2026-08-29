@@ -1,6 +1,7 @@
 #ifndef RADION_SCRIPT_CACHE_H
 #define RADION_SCRIPT_CACHE_H
 
+#include "Component.h" // ComponentType, which indexes the class table
 #include "ScriptProperty.h"
 #include "ScriptVM.h"
 
@@ -150,20 +151,17 @@ public:
     // to see it is what makes that testable.
     bool hasCachedInstance(const void* pointer) const;
 
-    // Class pointers for the script-facing component classes, one named
-    // pointer per component - set once by
+    // Class pointers for the script-facing component classes, indexed by
+    // ComponentType - set once by
     // SceneScriptBindings::registerComponentClasses() right after it
-    // registers the matching class, and read by every getter it defines.
-    void setCameraClass(zen::ObjClass* klass);
-    zen::ObjClass* cameraClass() const;
-    void setLightClass(zen::ObjClass* klass);
-    zen::ObjClass* lightClass() const;
-    void setMeshRendererClass(zen::ObjClass* klass);
-    zen::ObjClass* meshRendererClass() const;
-    void setCharacterControllerClass(zen::ObjClass* klass);
-    zen::ObjClass* characterControllerClass() const;
-    void setAnimatorClass(zen::ObjClass* klass);
-    zen::ObjClass* animatorClass() const;
+    // registers the matching class, and read by the dispatch table that
+    // get_component/add_component/remove_component/has_component share.
+    //
+    // One slot per type rather than a named pointer per component: five
+    // components meant five getters and four hand-written chains of strcmp
+    // to keep in step, which is four places to forget when a sixth arrives.
+    void setComponentClass(ComponentType type, zen::ObjClass* klass);
+    zen::ObjClass* componentClass(ComponentType type) const;
 
 private:
     ScriptCache();
@@ -185,11 +183,7 @@ private:
     int mCompileCount = 0;
 
     std::unordered_map<void*, CachedInstance> mInstances;
-    zen::ObjClass* mCameraClass = nullptr;
-    zen::ObjClass* mLightClass = nullptr;
-    zen::ObjClass* mMeshRendererClass = nullptr;
-    zen::ObjClass* mCharacterControllerClass = nullptr;
-    zen::ObjClass* mAnimatorClass = nullptr;
+    zen::ObjClass* mComponentClasses[static_cast<u8>(ComponentType::Count)] = {};
 };
 
 } // namespace Radion

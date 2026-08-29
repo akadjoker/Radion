@@ -204,6 +204,11 @@ static CharacterController* selfCharacterController(zen::Value* args)
     return zen::zen_instance_data<CharacterController>(args[-1]);
 }
 
+static Physics::RigidBody* selfRigidBody(zen::Value* args)
+{
+    return zen::zen_instance_data<Physics::RigidBody>(args[-1]);
+}
+
 static Animator* selfAnimator(zen::Value* args)
 {
     return zen::zen_instance_data<Animator>(args[-1]);
@@ -625,6 +630,77 @@ static int goIsActiveInHierarchy(zen::VM* vm, zen::Value* args, int nargs)
 }
 
 // The Zen compiler lowers node.get_component<Camera>() to node.get_component(Camera),
+// One row per component a script can reach, shared by get/add/remove/has -
+// which were four hand-written chains of strcmp that had to be kept in step
+// by hand. Adding a component is now one row, and forgetting one of the four
+// is no longer possible.
+//
+// `add` is null where a script cannot construct one: Light is only the
+// script-facing base of four concrete C++ types, none of which has a class
+// of its own to build, so add_component(Light) would have nothing to make.
+struct ScriptComponentBinding
+{
+    const char* name;
+    ComponentType type;
+    void* (*get)(GameObject&);
+    void* (*add)(GameObject&);
+    bool (*remove)(GameObject&);
+};
+
+template <class T> void* scriptGetComponent(GameObject& object)
+{
+    return object.getComponent<T>();
+}
+template <class T> void* scriptAddComponent(GameObject& object)
+{
+    return object.addComponent<T>();
+}
+template <class T> bool scriptRemoveComponent(GameObject& object)
+{
+    return object.removeComponent<T>();
+}
+
+const ScriptComponentBinding kScriptComponents[] = {
+    {"Camera", ComponentType::Camera, &scriptGetComponent<Camera>, &scriptAddComponent<Camera>,
+     &scriptRemoveComponent<Camera>},
+    {"Light", ComponentType::Light, &scriptGetComponent<Light>, nullptr,
+     &scriptRemoveComponent<Light>},
+    // The concrete light a scene actually holds, under the base class's name
+    // - get_component(DirectionalLight) and get_component(Light) both answer.
+    {"DirectionalLight", ComponentType::Light, &scriptGetComponent<Light>, nullptr,
+     &scriptRemoveComponent<Light>},
+    {"MeshRenderer", ComponentType::MeshRenderer, &scriptGetComponent<MeshRenderer>,
+     &scriptAddComponent<MeshRenderer>, &scriptRemoveComponent<MeshRenderer>},
+    {"CharacterController", ComponentType::CharacterController,
+     &scriptGetComponent<CharacterController>, &scriptAddComponent<CharacterController>,
+     &scriptRemoveComponent<CharacterController>},
+    {"Animator", ComponentType::Animator, &scriptGetComponent<Animator>,
+     &scriptAddComponent<Animator>, &scriptRemoveComponent<Animator>},
+    {"RigidBody", ComponentType::RigidBody, &scriptGetComponent<Physics::RigidBody>,
+     &scriptAddComponent<Physics::RigidBody>, &scriptRemoveComponent<Physics::RigidBody>},
+};
+
+const ScriptComponentBinding* findScriptComponent(const char* name)
+{
+    if (!name)
+        return nullptr;
+    for (const ScriptComponentBinding& binding : kScriptComponents)
+        if (!std::strcmp(name, binding.name))
+            return &binding;
+    return nullptr;
+}
+
+// The class name a script passed as the argument to get_component and
+// friends, or "" - the compiler lowers node.get_component<Camera>() to
+// node.get_component(Camera), so the argument is the host class itself.
+const char* requestedClassName(zen::Value* args, int nargs)
+{
+    if (nargs < 1 || !zen::is_class(args[0]))
+        return "";
+    zen::ObjClass* requested = zen::as_class(args[0]);
+    return requested->name ? requested->name->chars : "";
+}
+
 // so the first native argument is the requested host class, not a string -
 // matching natNodeGetComponent in the reference exactly.
 static int goGetComponent(zen::VM* vm, zen::Value* args, int nargs)
@@ -638,23 +714,13 @@ static int goGetComponent(zen::VM* vm, zen::Value* args, int nargs)
     }
 
     ScriptCache& cache = ScriptCache::getSingleton();
-    zen::ObjClass* requested = zen::as_class(args[0]);
-    const char* name = requested->name ? requested->name->chars : "";
-
-    if (!std::strcmp(name, "Camera"))
-        args[0] = cache.instanceFor(cache.cameraClass(), object->getComponent<Camera>());
-    else if (!std::strcmp(name, "Light") || !std::strcmp(name, "DirectionalLight"))
-        args[0] = cache.instanceFor(cache.lightClass(), object->getComponent<Light>());
-    else if (!std::strcmp(name, "MeshRenderer"))
-        args[0] = cache.instanceFor(cache.meshRendererClass(), object->getComponent<MeshRenderer>());
-    else if (!std::strcmp(name, "CharacterController"))
-        args[0] = cache.instanceFor(cache.characterControllerClass(),
-                                    object->getComponent<CharacterController>());
-    else if (!std::strcmp(name, "Animator"))
-        args[0] = cache.instanceFor(cache.animatorClass(), object->getComponent<Animator>());
-    else
+    const ScriptComponentBinding* binding = findScriptComponent(requestedClassName(args, nargs));
+    if (!binding)
+    {
         args[0] = zen::val_nil();
-
+        return 1;
+    }
+    args[0] = cache.instanceFor(cache.componentClass(binding->type), binding->get(*object));
     return 1;
 }
 
@@ -675,21 +741,13 @@ static int goAddComponent(zen::VM* vm, zen::Value* args, int nargs)
     }
 
     ScriptCache& cache = ScriptCache::getSingleton();
-    zen::ObjClass* requested = zen::as_class(args[0]);
-    const char* name = requested->name ? requested->name->chars : "";
-
-    if (!std::strcmp(name, "Camera"))
-        args[0] = cache.instanceFor(cache.cameraClass(), object->addComponent<Camera>());
-    else if (!std::strcmp(name, "MeshRenderer"))
-        args[0] = cache.instanceFor(cache.meshRendererClass(), object->addComponent<MeshRenderer>());
-    else if (!std::strcmp(name, "CharacterController"))
-        args[0] = cache.instanceFor(cache.characterControllerClass(),
-                                    object->addComponent<CharacterController>());
-    else if (!std::strcmp(name, "Animator"))
-        args[0] = cache.instanceFor(cache.animatorClass(), object->addComponent<Animator>());
-    else
+    const ScriptComponentBinding* binding = findScriptComponent(requestedClassName(args, nargs));
+    if (!binding || !binding->add)
+    {
         args[0] = zen::val_nil();
-
+        return 1;
+    }
+    args[0] = cache.instanceFor(cache.componentClass(binding->type), binding->add(*object));
     return 1;
 }
 
@@ -703,20 +761,8 @@ static int goRemoveComponent(zen::VM* vm, zen::Value* args, int nargs)
         return 1;
     }
 
-    zen::ObjClass* requested = zen::as_class(args[0]);
-    const char* name = requested->name ? requested->name->chars : "";
-
-    bool removed = false;
-    if (!std::strcmp(name, "Camera"))
-        removed = object->removeComponent<Camera>();
-    else if (!std::strcmp(name, "MeshRenderer"))
-        removed = object->removeComponent<MeshRenderer>();
-    else if (!std::strcmp(name, "CharacterController"))
-        removed = object->removeComponent<CharacterController>();
-    else if (!std::strcmp(name, "Animator"))
-        removed = object->removeComponent<Animator>();
-
-    args[0] = zen::val_bool(removed);
+    const ScriptComponentBinding* binding = findScriptComponent(requestedClassName(args, nargs));
+    args[0] = zen::val_bool(binding && binding->remove && binding->remove(*object));
     return 1;
 }
 
@@ -730,20 +776,8 @@ static int goHasComponent(zen::VM* vm, zen::Value* args, int nargs)
         return 1;
     }
 
-    zen::ObjClass* requested = zen::as_class(args[0]);
-    const char* name = requested->name ? requested->name->chars : "";
-
-    bool has = false;
-    if (!std::strcmp(name, "Camera"))
-        has = object->getComponent<Camera>() != nullptr;
-    else if (!std::strcmp(name, "MeshRenderer"))
-        has = object->getComponent<MeshRenderer>() != nullptr;
-    else if (!std::strcmp(name, "CharacterController"))
-        has = object->getComponent<CharacterController>() != nullptr;
-    else if (!std::strcmp(name, "Animator"))
-        has = object->getComponent<Animator>() != nullptr;
-
-    args[0] = zen::val_bool(has);
+    const ScriptComponentBinding* binding = findScriptComponent(requestedClassName(args, nargs));
+    args[0] = zen::val_bool(binding && binding->get(*object) != nullptr);
     return 1;
 }
 
@@ -973,6 +1007,147 @@ static int animationLayerIsFinished(zen::VM* vm, zen::Value* args, int nargs)
 //     for i in range(layer.event_count()):
 //         if layer.event(i) == "footstep":
 //             play_step_sound()
+// ---------------------------------------------------------------- RigidBody
+//
+// What a script needs to push a body around and to ask what it is doing:
+// forces and impulses in, velocities and mass out. A script had none of this
+// before, so anything physical had to be written in C++.
+
+static int rigidBodyGetVelocity(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)nargs;
+    Physics::RigidBody* body = selfRigidBody(args);
+    args[0] = makeVec3(vm, body ? body->velocity() : glm::vec3(0.0f));
+    return 1;
+}
+
+static int rigidBodySetVelocity(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 1)
+            body->setVelocity(readVec3(args[0]));
+    return 0;
+}
+
+static int rigidBodyGetAngularVelocity(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)nargs;
+    Physics::RigidBody* body = selfRigidBody(args);
+    args[0] = makeVec3(vm, body ? body->angularVelocity() : glm::vec3(0.0f));
+    return 1;
+}
+
+static int rigidBodySetAngularVelocity(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 1)
+            body->setAngularVelocity(readVec3(args[0]));
+    return 0;
+}
+
+static int rigidBodyGetMass(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Physics::RigidBody* body = selfRigidBody(args);
+    args[0] = zen::val_float(body ? (f64)body->mass() : 0.0);
+    return 1;
+}
+
+static int rigidBodySetMass(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    // Rejected inside setMass() when it is not positive and finite, with a
+    // message - the script does not get to silently break the body.
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 1)
+            body->setMass((f32)zen::to_number(args[0]));
+    return 0;
+}
+
+static int rigidBodyAddForce(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 1)
+            body->addForce(readVec3(args[0]));
+    return 0;
+}
+
+static int rigidBodyAddForceAtPoint(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 2)
+            body->addForceAtPoint(readVec3(args[0]), readVec3(args[1]));
+    return 0;
+}
+
+static int rigidBodyAddTorque(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 1)
+            body->addTorque(readVec3(args[0]));
+    return 0;
+}
+
+static int rigidBodyApplyImpulseAtPoint(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 2)
+            body->applyImpulseAtPoint(readVec3(args[0]), readVec3(args[1]));
+    return 0;
+}
+
+static int rigidBodyIsAwake(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Physics::RigidBody* body = selfRigidBody(args);
+    args[0] = zen::val_bool(body && body->awake());
+    return 1;
+}
+
+static int rigidBodyWake(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        body->setAwake(true);
+    return 0;
+}
+
+static int rigidBodyIsDynamic(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Physics::RigidBody* body = selfRigidBody(args);
+    args[0] = zen::val_bool(body && body->isDynamic());
+    return 1;
+}
+
+static int rigidBodySetBox(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 1)
+            body->setBox(readVec3(args[0]));
+    return 0;
+}
+
+static int rigidBodySetSphere(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::RigidBody* body = selfRigidBody(args))
+        if (nargs >= 1)
+            body->setSphere((f32)zen::to_number(args[0]));
+    return 0;
+}
+
 static int animationLayerEventCount(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -1890,7 +2065,7 @@ void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
     camera.method("get_near_plane", cameraGetNearPlane, 0);
     camera.method("get_far_plane", cameraGetFarPlane, 0);
     camera.persistent(true).constructable(false);
-    cache.setCameraClass(camera.end());
+    cache.setComponentClass(ComponentType::Camera, camera.end());
 
     auto light = vm.def_class("Light");
     light.parent("Component");
@@ -1903,7 +2078,7 @@ void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
     light.method("get_volumetric", lightGetVolumetric, 0);
     light.method("set_volumetric", lightSetVolumetric, 1);
     light.persistent(true).constructable(false);
-    cache.setLightClass(light.end());
+    cache.setComponentClass(ComponentType::Light, light.end());
 
     auto meshRenderer = vm.def_class("MeshRenderer");
     meshRenderer.parent("Component");
@@ -1925,7 +2100,7 @@ void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
     meshRenderer.method("set_torus", meshRendererSetTorus, 2);
     meshRenderer.method("set_mesh_file", meshRendererSetMeshFile, 1);
     meshRenderer.persistent(true).constructable(false);
-    cache.setMeshRendererClass(meshRenderer.end());
+    cache.setComponentClass(ComponentType::MeshRenderer, meshRenderer.end());
 
     auto characterController = vm.def_class("CharacterController");
     characterController.parent("Component");
@@ -1955,7 +2130,7 @@ void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
     characterController.method("get_velocity", characterControllerGetVelocity, 0);
     characterController.method("move", characterControllerMove, 1);
     characterController.persistent(true).constructable(false);
-    cache.setCharacterControllerClass(characterController.end());
+    cache.setComponentClass(ComponentType::CharacterController, characterController.end());
 
     // IK only exposes counting/clearing here: addIKChain()/ikChain() hand
     // back an IKChain& a caller mutates in place (moving a foot target every
@@ -1974,7 +2149,27 @@ void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
     animator.method("get_ik_chain_count", animatorGetIKChainCount, 0);
     animator.method("clear_ik_chains", animatorClearIKChains, 0);
     animator.persistent(true).constructable(false);
-    cache.setAnimatorClass(animator.end());
+    cache.setComponentClass(ComponentType::Animator, animator.end());
+
+    auto rigidBody = vm.def_class("RigidBody");
+    rigidBody.parent("Component");
+    rigidBody.method("get_velocity", rigidBodyGetVelocity, 0);
+    rigidBody.method("set_velocity", rigidBodySetVelocity, 1);
+    rigidBody.method("get_angular_velocity", rigidBodyGetAngularVelocity, 0);
+    rigidBody.method("set_angular_velocity", rigidBodySetAngularVelocity, 1);
+    rigidBody.method("get_mass", rigidBodyGetMass, 0);
+    rigidBody.method("set_mass", rigidBodySetMass, 1);
+    rigidBody.method("add_force", rigidBodyAddForce, 1);
+    rigidBody.method("add_force_at_point", rigidBodyAddForceAtPoint, 2);
+    rigidBody.method("add_torque", rigidBodyAddTorque, 1);
+    rigidBody.method("apply_impulse_at_point", rigidBodyApplyImpulseAtPoint, 2);
+    rigidBody.method("is_awake", rigidBodyIsAwake, 0);
+    rigidBody.method("wake", rigidBodyWake, 0);
+    rigidBody.method("is_dynamic", rigidBodyIsDynamic, 0);
+    rigidBody.method("set_box", rigidBodySetBox, 1);
+    rigidBody.method("set_sphere", rigidBodySetSphere, 1);
+    rigidBody.persistent(true).constructable(false);
+    cache.setComponentClass(ComponentType::RigidBody, rigidBody.end());
 }
 
 static const zen::NativeLib kSceneScriptLib = {

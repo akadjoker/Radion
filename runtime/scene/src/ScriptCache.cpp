@@ -461,54 +461,18 @@ void ScriptCache::forgetInstance(void* pointer)
     mInstances.erase(found);
 }
 
-void ScriptCache::setCameraClass(zen::ObjClass* klass)
+void ScriptCache::setComponentClass(ComponentType type, zen::ObjClass* klass)
 {
-    mCameraClass = klass;
+    const u8 index = static_cast<u8>(type);
+    if (index >= static_cast<u8>(ComponentType::Count))
+        return;
+    mComponentClasses[index] = klass;
 }
 
-zen::ObjClass* ScriptCache::cameraClass() const
+zen::ObjClass* ScriptCache::componentClass(ComponentType type) const
 {
-    return mCameraClass;
-}
-
-void ScriptCache::setLightClass(zen::ObjClass* klass)
-{
-    mLightClass = klass;
-}
-
-zen::ObjClass* ScriptCache::lightClass() const
-{
-    return mLightClass;
-}
-
-void ScriptCache::setMeshRendererClass(zen::ObjClass* klass)
-{
-    mMeshRendererClass = klass;
-}
-
-zen::ObjClass* ScriptCache::meshRendererClass() const
-{
-    return mMeshRendererClass;
-}
-
-void ScriptCache::setCharacterControllerClass(zen::ObjClass* klass)
-{
-    mCharacterControllerClass = klass;
-}
-
-zen::ObjClass* ScriptCache::characterControllerClass() const
-{
-    return mCharacterControllerClass;
-}
-
-void ScriptCache::setAnimatorClass(zen::ObjClass* klass)
-{
-    mAnimatorClass = klass;
-}
-
-zen::ObjClass* ScriptCache::animatorClass() const
-{
-    return mAnimatorClass;
+    const u8 index = static_cast<u8>(type);
+    return index < static_cast<u8>(ComponentType::Count) ? mComponentClasses[index] : nullptr;
 }
 
 } // namespace Radion

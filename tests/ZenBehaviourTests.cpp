@@ -14,6 +14,7 @@
 #include "MeshRenderer.h"
 #include "Scene.h"
 #include "SceneSerializer.h"
+#include "dynamics/RigidBody.h"
 #include "ScriptCache.h"
 #include "ZenBehaviour.h"
 
@@ -964,6 +965,46 @@ void testGetComponentByClass()
     CHECK(!behaviour->hasError());
     CHECK(lit->name() == "HasLight");
     CHECK(bare->name() == "NoCamera");
+}
+
+// A script can reach the physics now: read a velocity, push a body, ask its
+// mass. None of this existed - anything physical had to be C++.
+void testScriptDrivesRigidBody()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("Crate");
+    Physics::RigidBody* body = object->addComponent<Physics::RigidBody>();
+    CHECK(body != nullptr);
+    if (!body)
+        return;
+    body->setBox(glm::vec3(0.5f));
+    body->setMass(4.0f);
+
+    ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
+    const char* script =
+        "class Push:\n"
+        "    def on_start(self):\n"
+        "        rb = self.node.get_component(RigidBody)\n"
+        "        if rb == None:\n"
+        "            return\n"
+        "        self.node.set_name(\"Found\")\n"
+        "        rb.set_velocity(Vec3(3.0, 0.0, 0.0))\n"
+        "        rb.add_force(Vec3(0.0, 100.0, 0.0))\n"
+        "        if rb.get_mass() > 3.9 and rb.get_mass() < 4.1:\n"
+        "            self.node.set_name(\"MassOk\")\n"
+        "        if rb.is_dynamic():\n"
+        "            self.node.set_name(\"Dynamic\")\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+
+    CHECK(!behaviour->hasError());
+    // The last assignment wins, so reaching it means every step before it ran.
+    CHECK(object->name() == "Dynamic");
+    // Close to 3, not exactly: the script sets the velocity during the
+    // update, and the same update then integrates a step of damping over it.
+    CHECK(std::abs(body->velocity().x - 3.0f) < 0.05f);
 }
 
 // Two fetches of the same component must hand back the exact same script
@@ -2183,6 +2224,7 @@ int main()
     testCallCollisionPassesBeganFlag();
     testComponentBaseIsActive();
     testGetComponentByClass();
+    testScriptDrivesRigidBody();
     testComponentHandleIsCached();
     testHandleForgottenWhenOwnerDies();
     testHandleSurvivesBetweenFrames();
