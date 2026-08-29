@@ -154,6 +154,26 @@ void WheelJoint::setSteeringMotor(f32 targetAngularVelocity, f32 maxTorque)
 void WheelJoint::disableSteeringMotor()
 {
     mSteeringMotorEnabled = false;
+    mSteeringServoEnabled = false;
+    mTotalSteeringMotorImpulse = 0.0f;
+}
+
+void WheelJoint::setSteeringServo(f32 targetAngle, f32 maxTorque, f32 maxAngularVelocity)
+{
+    if (!std::isfinite(targetAngle) || !std::isfinite(maxTorque) ||
+        !std::isfinite(maxAngularVelocity))
+        return;
+    mSteeringServoTargetAngle = targetAngle;
+    mSteeringServoMaxAngularVelocity = glm::max(maxAngularVelocity, 0.0f);
+    mSteeringMotorMaxTorque = glm::max(maxTorque, 0.0f);
+    mSteeringServoEnabled = mSteeringMotorMaxTorque > 0.0f;
+    mSteeringMotorEnabled = mSteeringServoEnabled;
+}
+
+void WheelJoint::disableSteeringServo()
+{
+    mSteeringServoEnabled = false;
+    mSteeringMotorEnabled = false;
     mTotalSteeringMotorImpulse = 0.0f;
 }
 
@@ -368,6 +388,21 @@ void WheelJoint::setup(f32 duration)
     calculatePositionLockProperties();
     calculatePerpendicularityProperties();
     calculateAngles();
+    // The steering servo feeds the motor below, so it runs before the motor's
+    // properties are worked out - and after calculateAngles(), which is what
+    // refreshes the steering angle the error is measured from. Clamped into
+    // the steering limits: a rack cannot be commanded past its own stops.
+    if (mSteeringServoEnabled && duration > 0.0f)
+    {
+        f32 target = mSteeringServoTargetAngle;
+        if (mHasSteeringLimits)
+            target = glm::clamp(target, mSteeringLimitsMin, mSteeringLimitsMax);
+        f32 velocity = (target - mSteeringAngle) / duration;
+        if (mSteeringServoMaxAngularVelocity > 0.0f)
+            velocity = glm::clamp(velocity, -mSteeringServoMaxAngularVelocity,
+                                  mSteeringServoMaxAngularVelocity);
+        mSteeringMotorTargetVelocity = velocity;
+    }
     calculateSteeringLimitProperties();
     calculateSteeringMotorProperties();
     calculateSpinMotorProperties();

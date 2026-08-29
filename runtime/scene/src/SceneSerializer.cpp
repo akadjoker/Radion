@@ -3634,6 +3634,9 @@ nlohmann::json writeJoint(Physics::Joint& joint)
         json["suspensionDamping"] = wheel.suspensionDamping();
         json["driveTargetVelocity"] = wheel.spinMotorTargetVelocity();
         json["driveMaxTorque"] = wheel.spinMotorMaxTorque();
+        json["steerServoEnabled"] = wheel.steeringServoEnabled();
+        json["steerServoTarget"] = wheel.steeringServoTargetAngle();
+        json["steerServoMaxVelocity"] = wheel.steeringServoMaxAngularVelocity();
         break;
     }
     default:
@@ -3787,6 +3790,12 @@ void readJoint(GameObject& object, const nlohmann::json& json, const std::string
                                     readNumberOr(json, "motorMaxTorque", 0.0f));
             wheel->setSpinMotor(readNumberOr(json, "driveTargetVelocity", 0.0f),
                                 readNumberOr(json, "driveMaxTorque", 0.0f));
+            // After setSteeringMotor above, since the two share the motor
+            // and the last one written is the one that holds.
+            if (readBoolOr(json, "steerServoEnabled", false))
+                wheel->setSteeringServo(readNumberOr(json, "steerServoTarget", 0.0f),
+                                        readNumberOr(json, "motorMaxTorque", 0.0f),
+                                        readNumberOr(json, "steerServoMaxVelocity", 0.0f));
             joint = wheel;
         }
         break;

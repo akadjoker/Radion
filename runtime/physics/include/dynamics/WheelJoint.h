@@ -61,6 +61,25 @@ public:
     {
         return mSuspensionDamping;
     }
+    // Steer to an angle instead of at a speed - what a steering wheel or an
+    // autopilot actually commands. Same shape as HingeJoint::setServo():
+    // holds the target, and every step turns the remaining error into the
+    // motor's speed, capped by the rack's rated speed.
+    void setSteeringServo(f32 targetAngle, f32 maxTorque, f32 maxAngularVelocity = 0.0f);
+    void disableSteeringServo();
+    f32 steeringServoTargetAngle() const
+    {
+        return mSteeringServoTargetAngle;
+    }
+    f32 steeringServoMaxAngularVelocity() const
+    {
+        return mSteeringServoMaxAngularVelocity;
+    }
+    bool steeringServoEnabled() const
+    {
+        return mSteeringServoEnabled;
+    }
+
     f32 steeringMotorTargetVelocity() const
     {
         return mSteeringMotorTargetVelocity;
@@ -187,6 +206,12 @@ private:
     bool mSteeringLimitActive = false;
     f32 mSteeringLimitEffectiveMass = 0.0f;
     f32 mTotalSteeringLimitImpulse = 0.0f;
+
+    // The steering servo owns mSteeringMotorTargetVelocity while it is on,
+    // rewriting it from the angle error every setup().
+    f32 mSteeringServoTargetAngle = 0.0f;
+    f32 mSteeringServoMaxAngularVelocity = 0.0f;
+    bool mSteeringServoEnabled = false;
 
     f32 mSteeringMotorTargetVelocity = 0.0f;
     f32 mSteeringMotorMaxTorque = 0.0f;
