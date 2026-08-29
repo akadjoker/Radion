@@ -4596,6 +4596,18 @@ struct ComponentReadContext
     std::vector<PendingBoneAttachment>& pendingBoneAttachments;
 };
 
+// Fails to compile when a ComponentType is added or removed, which is the
+// only moment anyone can be told that this function needs a matching writer.
+// Nothing else catches it: writeComponents() asks for the types it knows and
+// therefore cannot notice the one it was never taught, so a new component
+// would save as nothing at all and the scene would come back missing it,
+// silently. On a break: add the writer and its reader, or list the type in
+// the "Not written" note at the bottom of writeComponents() with the reason,
+// then update this count.
+static_assert(static_cast<u8>(ComponentType::Count) == 46,
+              "ComponentType changed - teach writeComponents()/readComponent() about it (or "
+              "record why it is deliberately not serialized) before updating this count");
+
 nlohmann::json writeComponents(GameObject& object)
 {
     nlohmann::json array = nlohmann::json::array();
@@ -4694,6 +4706,11 @@ nlohmann::json writeComponents(GameObject& object)
     // be read back at all, see PLANO_SERIALIZACAO_CENA.md) and a C++
     // ScriptComponent subclass other than ZenBehaviour (user extension slot,
     // no fixed shape to write).
+    //
+    // Not written YET, and each one loses real authored work every save:
+    // Agent and Obstacle (docs/AI_AGENT_PLAN.md, Fase 6 - an Agent's
+    // behavior list writes itself from the BehaviorParam tables, so this is
+    // no longer blocked on anything).
     return array;
 }
 
