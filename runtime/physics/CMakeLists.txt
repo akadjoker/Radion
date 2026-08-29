@@ -15,6 +15,7 @@ set(RADION_PHYSICS_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/FixedJoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/HingeJoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/SliderJoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/SoftSpring.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/PistonJoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/MouseJoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dynamics/UniversalJoint.cpp

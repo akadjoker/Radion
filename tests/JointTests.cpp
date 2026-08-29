@@ -1050,6 +1050,52 @@ void testSuspensionSettlesAtRestLength()
     CHECK(std::fabs(wheel.velocity().y) < 0.05f);
 }
 
+// A real car's springs are stiff: 1500 kg sitting 20 cm into its travel is
+// around 75 kN/m per corner. An explicitly integrated spring has a stability
+// ceiling in k*dt^2/m and blows up above it; solved as a constraint row
+// there is no ceiling. This sweeps stiffness by decades and reports where,
+// if anywhere, it stops settling.
+void testSuspensionHoldsStiffSprings()
+{
+    const f32 dt = 1.0f / 120.0f;
+    bool allSettled = true;
+
+    for (f32 stiffness : {4.0e3f, 4.0e4f, 1.0e5f, 1.0e6f})
+    {
+        RigidBody chassis = makeChassis();
+        RigidBody wheel = makeWheel(glm::vec3(0.0f, 0.3f, 0.0f));
+        WheelJoint wheelJoint(chassis, wheel, wheel.position(), glm::vec3(0.0f, -1.0f, 0.0f),
+                             glm::vec3(1.0f, 0.0f, 0.0f));
+        // Damping kept at a tenth of stiffness, the ratio the existing
+        // settling test uses, so only one thing changes across the sweep.
+        wheelJoint.setSuspension(0.5f, stiffness, stiffness * 0.1f);
+
+        for (int i = 0; i < 600; ++i)
+        {
+            wheel.setAcceleration(glm::vec3(0.0f, -9.81f, 0.0f));
+            wheel.integrateForces(dt);
+            wheelJoint.setup(dt);
+            wheelJoint.warmStart();
+            wheelJoint.solveVelocity();
+            wheel.integrateVelocity(dt);
+            wheelJoint.solvePosition(0.2f);
+        }
+
+        const f32 travel = wheelJoint.suspensionTravel();
+        const f32 speed = std::fabs(wheel.velocity().y);
+        const bool settled = std::isfinite(travel) && std::isfinite(speed) && speed < 0.05f;
+        allSettled = allSettled && settled;
+        std::printf("JointTests: suspension k=%9.0f N/m - travel %.4f m, speed %.5f m/s%s\n",
+                    static_cast<double>(stiffness), static_cast<double>(travel),
+                    static_cast<double>(speed), settled ? "" : "   NOT SETTLED");
+    }
+
+    // Every stiffness in the sweep has to settle. A spring solved in the
+    // constraint has no step-size limit, so failing here means the row
+    // stopped being solved implicitly.
+    CHECK(allSettled);
+}
+
 void testSteeringMotorTurnsWithinLimits()
 {
     RigidBody chassis = makeChassis();
@@ -1143,6 +1189,7 @@ int main()
     testMouseJointGrabsASleepingBodyInAWorld();
     testWarmStartDoesNotInjectEnergy();
     testSuspensionSettlesAtRestLength();
+    testSuspensionHoldsStiffSprings();
     testSteeringMotorTurnsWithinLimits();
     testSpinMotorDrivesWheelWithoutLimit();
     testLoosePointJointDeregistersOnDestruction();
