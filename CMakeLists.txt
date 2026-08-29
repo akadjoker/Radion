@@ -123,6 +123,10 @@ if(RADION_BUILD_BISTRO_DEMO)
     add_subdirectory(examples/bistro_demo)
 endif()
 
+# Small enough to always build: it is what the physics and AI work is checked
+# against by eye, and it loads no assets.
+add_subdirectory(examples/physics_lab)
+
 add_subdirectory(tools/lightmapbake)
 
 # A release is a self-contained application tree: the tools and editors in
