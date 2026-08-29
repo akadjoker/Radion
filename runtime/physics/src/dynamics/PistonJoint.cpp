@@ -3,6 +3,7 @@
 #include "dynamics/PistonJoint.h"
 
 #include "GameObject.h"
+#include "JointAxis.h"
 #include "Scene.h"
 #include "dynamics/RigidBody.h"
 
@@ -84,13 +85,15 @@ void PistonJoint::configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAn
     mBodyB = &b;
     mLocalAnchorA = a.pointToLocal(worldAnchor);
     mLocalAnchorB = b.pointToLocal(worldAnchor);
-    mLocalAxisA = glm::normalize(a.directionToLocal(glm::normalize(worldAxis)));
-    mLocalAxisB = glm::normalize(b.directionToLocal(glm::normalize(worldAxis)));
+    // Guarded once here; the four frames below all derive from it.
+    const glm::vec3 axis = detail::normalizedAxisOr(worldAxis, glm::vec3(1.0f, 0.0f, 0.0f));
+    mLocalAxisA = glm::normalize(a.directionToLocal(axis));
+    mLocalAxisB = glm::normalize(b.directionToLocal(axis));
     mLocalNormalAxisA =
-        glm::normalize(a.directionToLocal(normalizedPerpendicular(glm::normalize(worldAxis))));
+        glm::normalize(a.directionToLocal(normalizedPerpendicular(axis)));
     mLocalNormalAxisA2 = glm::cross(mLocalAxisA, mLocalNormalAxisA);
     const glm::vec3 localNormalAxisB =
-        b.directionToLocal(normalizedPerpendicular(glm::normalize(worldAxis)));
+        b.directionToLocal(normalizedPerpendicular(axis));
     mInverseInitialOrientation = invInitialOrientationXZ(mLocalNormalAxisA, mLocalAxisA,
                                                          glm::normalize(localNormalAxisB),
                                                          mLocalAxisB);

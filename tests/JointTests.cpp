@@ -1129,6 +1129,60 @@ void testSteeringMotorTurnsWithinLimits()
     CHECK(wheelJoint.steeringAngle() > 0.0f);
 }
 
+// A zero axis is a caller mistake, and glm::normalize(vec3(0)) is NaN. The
+// setters always refused one; the constructors did not, so the C++ path had
+// a hole the editor path never had - and a NaN axis does not stay in its own
+// joint, it goes out through the impulses into both bodies and from there
+// into everything they touch.
+void testJointsRejectDegenerateAxes()
+{
+    const glm::vec3 zero(0.0f);
+    const f32 dt = 1.0f / 60.0f;
+
+    {
+        RigidBody anchor = makeStaticBox(glm::vec3(0.0f));
+        RigidBody arm = makeDynamicBox(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.5f));
+        HingeJoint joint(anchor, arm, glm::vec3(0.5f, 0.0f, 0.0f), zero);
+        joint.setMotor(2.0f, 100.0f);
+        for (u32 i = 0; i < 120; ++i)
+            stepWithJoint(anchor, arm, joint, glm::vec3(0.0f, -10.0f, 0.0f), dt);
+        CHECK(finite(arm));
+        CHECK(finiteVec(arm.velocity()));
+        CHECK(finiteVec(arm.angularVelocity()));
+        CHECK(std::isfinite(joint.currentAngle()));
+    }
+
+    {
+        RigidBody rail = makeStaticBox(glm::vec3(0.0f));
+        RigidBody carriage = makeDynamicBox(glm::vec3(0.0f));
+        PistonJoint joint(rail, carriage, glm::vec3(0.0f), zero);
+        for (u32 i = 0; i < 120; ++i)
+            stepWithJoint(rail, carriage, joint, glm::vec3(0.0f, -10.0f, 0.0f), dt);
+        CHECK(finite(carriage));
+        CHECK(finiteVec(carriage.velocity()));
+    }
+
+    {
+        RigidBody chassis = makeChassis();
+        RigidBody wheel = makeWheel(glm::vec3(0.0f, 0.5f, 0.0f));
+        WheelJoint joint(chassis, wheel, wheel.position(), zero, zero);
+        joint.setSuspension(0.5f, 4000.0f, 400.0f);
+        for (int i = 0; i < 120; ++i)
+        {
+            wheel.setAcceleration(glm::vec3(0.0f, -9.81f, 0.0f));
+            wheel.integrateForces(dt);
+            joint.setup(dt);
+            joint.warmStart();
+            joint.solveVelocity();
+            wheel.integrateVelocity(dt);
+            joint.solvePosition(0.2f);
+        }
+        CHECK(finite(wheel));
+        CHECK(finiteVec(wheel.velocity()));
+        CHECK(std::isfinite(joint.suspensionTravel()));
+    }
+}
+
 // ---------------------------------------------------------- servo edge cases
 //
 // The values a caller gets wrong, a script sends by accident, or a save file
@@ -1385,6 +1439,7 @@ int main()
     testSuspensionSettlesAtRestLength();
     testSuspensionHoldsStiffSprings();
     testSteeringServoHoldsCommandedAngle();
+    testJointsRejectDegenerateAxes();
     testServoRejectsNonFiniteInput();
     testServoWithNoTorqueIsOff();
     testServoSurvivesZeroTimestep();
