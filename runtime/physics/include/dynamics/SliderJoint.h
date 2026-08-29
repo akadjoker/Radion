@@ -45,6 +45,18 @@ public:
     f32 motorMaxForce() const;
     bool motorEnabled() const;
 
+    // Hold a position along the axis instead of a speed - the linear half of
+    // HingeJoint::setServo(), and what a two-finger gripper closes with.
+    // Clamped into the joint's limits; held until changed.
+    // maxSpeed is the actuator's rated speed; 0 leaves it uncapped, which is
+    // only stable when the force budget is tight - see the note on
+    // HingeJoint::setServo().
+    void setServo(f32 targetPosition, f32 maxForce, f32 maxSpeed = 0.0f);
+    void disableServo();
+    f32 servoTargetPosition() const;
+    f32 servoMaxSpeed() const;
+    bool servoEnabled() const;
+
     void setAuthoredAxis(const glm::vec3& axis);
     const glm::vec3& authoredAxis() const;
 
@@ -95,6 +107,10 @@ private:
     bool mMotorEnabled = false;
     f32 mMotorEffectiveMass = 0.0f;
     f32 mMotorMaxImpulse = 0.0f;
+    // The servo owns mMotorTargetVelocity while it is on - see setup().
+    f32 mServoTargetPosition = 0.0f;
+    f32 mServoMaxSpeed = 0.0f; // 0 = unlimited
+    bool mServoEnabled = false;
     f32 mTotalMotorImpulse = 0.0f;
 
     f32 mPreviousDuration = 0.0f;

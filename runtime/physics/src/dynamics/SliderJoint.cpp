@@ -183,7 +183,41 @@ bool SliderJoint::motorEnabled() const
 void SliderJoint::disableMotor()
 {
     mMotorEnabled = false;
+    mServoEnabled = false;
     mTotalMotorImpulse = 0.0f;
+}
+
+void SliderJoint::setServo(f32 targetPosition, f32 maxForce, f32 maxSpeed)
+{
+    if (!std::isfinite(targetPosition) || !std::isfinite(maxForce) || !std::isfinite(maxSpeed))
+        return;
+    mServoTargetPosition = targetPosition;
+    mServoMaxSpeed = glm::max(maxSpeed, 0.0f);
+    mMotorMaxForce = glm::max(maxForce, 0.0f);
+    mServoEnabled = mMotorMaxForce > 0.0f;
+    mMotorEnabled = mServoEnabled;
+}
+
+f32 SliderJoint::servoMaxSpeed() const
+{
+    return mServoMaxSpeed;
+}
+
+void SliderJoint::disableServo()
+{
+    mServoEnabled = false;
+    mMotorEnabled = false;
+    mTotalMotorImpulse = 0.0f;
+}
+
+f32 SliderJoint::servoTargetPosition() const
+{
+    return mServoTargetPosition;
+}
+
+bool SliderJoint::servoEnabled() const
+{
+    return mServoEnabled;
 }
 
 void SliderJoint::calculateArmsAndOffset()
@@ -290,6 +324,19 @@ void SliderJoint::setup(f32 duration)
     calculateRotationProperties();
     calculateSlideAxisAndPosition();
     calculateLimitProperties();
+    // See HingeJoint::setup(): the servo is the velocity motor fed the speed
+    // that would close the whole position error in one step, rationed by
+    // mMotorMaxImpulse.
+    if (mServoEnabled && duration > 0.0f)
+    {
+        f32 target = mServoTargetPosition;
+        if (mHasLimits)
+            target = glm::clamp(target, mLimitsMin, mLimitsMax);
+        f32 velocity = (target - currentPosition()) / duration;
+        if (mServoMaxSpeed > 0.0f)
+            velocity = glm::clamp(velocity, -mServoMaxSpeed, mServoMaxSpeed);
+        mMotorTargetVelocity = velocity;
+    }
     calculateMotorProperties();
     mMotorMaxImpulse = mMotorMaxForce * duration;
     if (mPreviousDuration > 0.0f)

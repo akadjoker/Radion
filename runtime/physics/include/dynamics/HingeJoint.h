@@ -45,6 +45,29 @@ public:
     f32 motorMaxTorque() const;
     bool motorEnabled() const;
 
+    // Hold an angle instead of a speed: what a servo is, and what a robot
+    // joint is commanded with. Drives the motor above - every step, setup()
+    // turns the remaining error into the speed that would close it in one
+    // step, and maxTorque is what stops that from being instantaneous. A
+    // target outside the joint's limits is clamped into them.
+    //
+    // Once set, it is held: the target stays until changed, so a caller
+    // (or a command arriving over a socket) names an angle and stops
+    // thinking about it.
+    // maxAngularVelocity is the servo's rated speed, and leaving it at 0
+    // (unlimited) is only safe when the torque budget is tight. Uncapped,
+    // the commanded speed is the whole error divided by one step - a
+    // proportional gain of 1/dt, with no damping under it - so a joint given
+    // torque to spare overshoots, comes back, and oscillates without ever
+    // settling: measured at +-27 degrees on a three-link chain in
+    // testServoChainSagUnderLoad(). Real actuators have a rated speed and
+    // that is what keeps this stable, not a tuning constant.
+    void setServo(f32 targetAngle, f32 maxTorque, f32 maxAngularVelocity = 0.0f);
+    void disableServo();
+    f32 servoTargetAngle() const;
+    f32 servoMaxAngularVelocity() const;
+    bool servoEnabled() const;
+
     void setAuthoredAxis(const glm::vec3& axis);
     const glm::vec3& authoredAxis() const;
 
@@ -97,6 +120,12 @@ private:
     f32 mMotorEffectiveMass = 0.0f;
     f32 mMotorMaxImpulse = 0.0f;
     f32 mTotalMotorImpulse = 0.0f;
+
+    // The servo owns mMotorTargetVelocity while it is on, rewriting it every
+    // setup() from the angle error.
+    f32 mServoTargetAngle = 0.0f;
+    f32 mServoMaxAngularVelocity = 0.0f; // 0 = unlimited
+    bool mServoEnabled = false;
 
     f32 mPreviousDuration = 0.0f;
 };
