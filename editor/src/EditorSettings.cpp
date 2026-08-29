@@ -110,6 +110,7 @@ bool EditorSettings::load(const std::string& filename)
     readBool(root, "showPhysicsShapes", showPhysicsShapes);
     readBool(root, "showPhysicsContacts", showPhysicsContacts);
     readBool(root, "showPhysicsJoints", showPhysicsJoints);
+    readBool(root, "showAIObstacles", showAIObstacles);
     readBool(root, "previewShadows", previewShadows);
     readBool(root, "previewSSAO", previewSSAO);
     readBool(root, "previewVolumetrics", previewVolumetrics);
@@ -176,6 +177,7 @@ bool EditorSettings::save(const std::string& filename) const
     root["showPhysicsShapes"] = showPhysicsShapes;
     root["showPhysicsContacts"] = showPhysicsContacts;
     root["showPhysicsJoints"] = showPhysicsJoints;
+    root["showAIObstacles"] = showAIObstacles;
     root["previewShadows"] = previewShadows;
     root["previewSSAO"] = previewSSAO;
     root["previewVolumetrics"] = previewVolumetrics;

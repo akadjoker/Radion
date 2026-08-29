@@ -34,6 +34,7 @@ add_library(radion_scene
     src/components/TiledTerrain.cpp
     src/components/UiControls.cpp
     src/components/NavMeshSurface.cpp
+    src/components/ObstacleComponent.cpp
     src/components/Waypoints.cpp
     src/components/VoxelWorldComponent.cpp
     src/components/Landscape.cpp

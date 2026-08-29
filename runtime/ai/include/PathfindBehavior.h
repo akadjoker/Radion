@@ -40,6 +40,10 @@ public:
         const WaypointVisibility* visibility = nullptr;
     };
 
+    // The no-arg overload default-constructs Settings in the .cpp rather
+    // than taking `= Settings()` here - see NavMeshBehavior.h's comment on
+    // the same constraint.
+    PathfindBehavior();
     explicit PathfindBehavior(const Settings& settings);
 
     void iterate(float timeDelta, Radion::Agent& entity) override;
@@ -48,6 +52,16 @@ public:
     {
         return "Pathfind Behavior";
     }
+    BehaviorType type() const override
+    {
+        return BehaviorType::Pathfind;
+    }
+    u32 paramCount() const override;
+    const BehaviorParam& paramInfo(u32 index) const override;
+    f32 paramFloat(u32 index) const override;
+    void setParamFloat(u32 index, f32 value) override;
+    glm::vec3 paramVec3(u32 index) const override;
+    void setParamVec3(u32 index, const glm::vec3& value) override;
 
     Settings& settings()
     {

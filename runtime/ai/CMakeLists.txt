@@ -36,6 +36,7 @@ target_include_directories(radion_recast SYSTEM PUBLIC
 
 set(RADION_AI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Behavior.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/BehaviorFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavMesh.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavMeshBehavior.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/FormationBehavior.cpp

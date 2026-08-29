@@ -114,17 +114,29 @@ private:
 class SeekBehavior final : public Behavior
 {
 public:
-    explicit SeekBehavior(const glm::vec3& target) : mTarget(target)
+    explicit SeekBehavior(const glm::vec3& target = glm::vec3(0.0f)) : mTarget(target)
     {
     }
     void setTarget(const glm::vec3& target)
     {
         mTarget = target;
     }
+    const glm::vec3& target() const
+    {
+        return mTarget;
+    }
     const char* name() const override
     {
         return "Seek Behavior";
     }
+    BehaviorType type() const override
+    {
+        return BehaviorType::Seek;
+    }
+    u32 paramCount() const override;
+    const BehaviorParam& paramInfo(u32 index) const override;
+    glm::vec3 paramVec3(u32 index) const override;
+    void setParamVec3(u32 index, const glm::vec3& value) override;
 
     void iterate(float timeDelta, Radion::Agent& entity) override;
 
@@ -136,17 +148,29 @@ private:
 class FleeBehavior final : public Behavior
 {
 public:
-    explicit FleeBehavior(const glm::vec3& threat) : mThreat(threat)
+    explicit FleeBehavior(const glm::vec3& threat = glm::vec3(0.0f)) : mThreat(threat)
     {
     }
     void setThreat(const glm::vec3& threat)
     {
         mThreat = threat;
     }
+    const glm::vec3& threat() const
+    {
+        return mThreat;
+    }
     const char* name() const override
     {
         return "Flee Behavior";
     }
+    BehaviorType type() const override
+    {
+        return BehaviorType::Flee;
+    }
+    u32 paramCount() const override;
+    const BehaviorParam& paramInfo(u32 index) const override;
+    glm::vec3 paramVec3(u32 index) const override;
+    void setParamVec3(u32 index, const glm::vec3& value) override;
 
     void iterate(float timeDelta, Radion::Agent& entity) override;
 
@@ -162,6 +186,10 @@ public:
     {
         return "Wander Behavior";
     }
+    BehaviorType type() const override
+    {
+        return BehaviorType::Wander;
+    }
     void iterate(float timeDelta, Radion::Agent& entity) override;
 
 private:
@@ -171,7 +199,9 @@ private:
 class ObstacleAvoidanceBehavior final : public Behavior
 {
 public:
-    ObstacleAvoidanceBehavior(float minTimeToCollision, const ObstacleGroup& obstacles);
+    explicit ObstacleAvoidanceBehavior(float minTimeToCollision = 2.0f);
+    // Explicit override of the default source (Agent::scene()->obstacleGroup()) -
+    // for a caller that wants this instance to avoid a group of its own.
     void setObstacles(const ObstacleGroup& obstacles)
     {
         mObstacles = &obstacles;
@@ -180,20 +210,36 @@ public:
     {
         mMinTimeToCollision = time;
     }
+    float minTimeToCollision() const
+    {
+        return mMinTimeToCollision;
+    }
     const char* name() const override
     {
         return "Obstacle Avoidance Behavior";
     }
+    BehaviorType type() const override
+    {
+        return BehaviorType::ObstacleAvoidance;
+    }
+    u32 paramCount() const override;
+    const BehaviorParam& paramInfo(u32 index) const override;
+    f32 paramFloat(u32 index) const override;
+    void setParamFloat(u32 index, f32 value) override;
 
     void iterate(float timeDelta, Radion::Agent& entity) override;
 
 private:
     float mMinTimeToCollision;
-    const ObstacleGroup* mObstacles; // non-owning
+    const ObstacleGroup* mObstacles = nullptr; // non-owning; null reads the Scene's group
     SteerLibrary mSteer;
 };
 
 // Generic behavior that runs a user-supplied steering function each iterate.
+// Not registered in BehaviorFactory (see BehaviorFactory.h): a std::function
+// supplied from C++ has no by-name meaning for an editor combo or a save
+// file, and calling through it every agent every frame is exactly the
+// per-frame lambda cost the rest of this file avoids.
 class SteerBehavior final : public Behavior
 {
 public:
@@ -204,6 +250,10 @@ public:
     const char* name() const override
     {
         return "Steer Behavior";
+    }
+    BehaviorType type() const override
+    {
+        return BehaviorType::Count;
     }
 
     void iterate(float timeDelta, Radion::Agent& entity) override;

@@ -14,14 +14,91 @@ using detail::safeNormalize;
 using Radion::Agent;
 using Radion::Scene;
 
-NavMeshBehavior::NavMeshBehavior(const NavMesh& navMesh, const Settings& settings)
+namespace
+{
+const BehaviorParam kNavMeshParams[] = {
+    {"Turn Rate", BehaviorParam::Kind::Float, 0.0f, 2.0f,
+     "How strongly the agent steers toward the next corner of its route each update."},
+    {"Goal Radius", BehaviorParam::Kind::Float, 0.0f, 10.0f,
+     "Distance to the goal at which it counts as reached and the agent brakes."},
+    {"Corner Radius", BehaviorParam::Kind::Float, 0.0f, 5.0f,
+     "How close a route corner has to be before it is popped for the next one."},
+    {"Avoid Distance", BehaviorParam::Kind::Float, 0.0f, 10.0f,
+     "Radius other agents are repelled from; 0 disables agent-to-agent avoidance."},
+    {"Repath Interval", BehaviorParam::Kind::Float, 0.0f, 5.0f,
+     "Minimum seconds between route searches - the goal also has to have moved for a new "
+     "one to run."},
+    {"Goal Move Threshold", BehaviorParam::Kind::Float, 0.0f, 10.0f,
+     "How far the goal has to travel since the last search before a new route is worth "
+     "finding."},
+    {"Search Extents", BehaviorParam::Kind::Vec3, 0.0f, 20.0f,
+     "Half-extents of the box searched around a point when snapping it onto the navmesh."},
+};
+} // namespace
+
+NavMeshBehavior::NavMeshBehavior(const NavMesh* navMesh) : mNavMesh(navMesh), mSettings()
+{
+}
+
+NavMeshBehavior::NavMeshBehavior(const NavMesh* navMesh, const Settings& settings)
     : mNavMesh(navMesh), mSettings(settings)
 {
 }
 
+u32 NavMeshBehavior::paramCount() const
+{
+    return static_cast<u32>(sizeof(kNavMeshParams) / sizeof(kNavMeshParams[0]));
+}
+
+const BehaviorParam& NavMeshBehavior::paramInfo(u32 index) const
+{
+    return kNavMeshParams[index];
+}
+
+f32 NavMeshBehavior::paramFloat(u32 index) const
+{
+    switch (index)
+    {
+    case 0: return mSettings.turnRate;
+    case 1: return mSettings.goalRadius;
+    case 2: return mSettings.cornerRadius;
+    case 3: return mSettings.avoidDistance;
+    case 4: return mSettings.repathInterval;
+    case 5: return mSettings.goalMoveThreshold;
+    default: return 0.0f;
+    }
+}
+
+void NavMeshBehavior::setParamFloat(u32 index, f32 value)
+{
+    switch (index)
+    {
+    case 0: mSettings.turnRate = value; break;
+    case 1: mSettings.goalRadius = value; break;
+    case 2: mSettings.cornerRadius = value; break;
+    case 3: mSettings.avoidDistance = value; break;
+    case 4: mSettings.repathInterval = value; break;
+    case 5: mSettings.goalMoveThreshold = value; break;
+    default: break;
+    }
+}
+
+glm::vec3 NavMeshBehavior::paramVec3(u32 index) const
+{
+    if (index == 6)
+        return mSettings.searchExtents;
+    return glm::vec3(0.0f);
+}
+
+void NavMeshBehavior::setParamVec3(u32 index, const glm::vec3& value)
+{
+    if (index == 6)
+        mSettings.searchExtents = value;
+}
+
 void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
 {
-    if (!mNavMesh.valid())
+    if (!mNavMesh || !mNavMesh->valid())
         return;
 
     Route& route = mRoute;
@@ -63,7 +140,7 @@ void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
     {
         route.sinceRepath = 0.0f;
         std::vector<glm::vec3> fresh;
-        if (mNavMesh.findPath(position, goal, fresh, mSettings.searchExtents) && fresh.size() > 1)
+        if (mNavMesh->findPath(position, goal, fresh, mSettings.searchExtents) && fresh.size() > 1)
         {
             route.corners = std::move(fresh);
             route.next = 1; // [0] is where the agent already stands
@@ -116,7 +193,7 @@ void NavMeshBehavior::constrainToSurface(Agent& entity, Route& route)
     if (!route.onSurface)
     {
         glm::vec3 snapped;
-        if (!mNavMesh.nearestPoint(wanted, snapped, mSettings.searchExtents))
+        if (!mNavMesh->nearestPoint(wanted, snapped, mSettings.searchExtents))
             return;
         route.surfacePosition = snapped;
         route.onSurface = true;
@@ -125,7 +202,7 @@ void NavMeshBehavior::constrainToSurface(Agent& entity, Route& route)
     }
 
     glm::vec3 slid;
-    if (!mNavMesh.moveAlongSurface(route.surfacePosition, wanted, slid, mSettings.searchExtents))
+    if (!mNavMesh->moveAlongSurface(route.surfacePosition, wanted, slid, mSettings.searchExtents))
     {
         // The last good position stopped being on the mesh - the surface was
         // rebuilt, or the agent was teleported. Re-acquire next pass.

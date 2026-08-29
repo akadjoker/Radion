@@ -36,12 +36,39 @@ enum class SquadFormation
 class FormationBehavior final : public Behavior
 {
 public:
-    FormationBehavior(float goalRadius, float formationRadius);
+    FormationBehavior(float goalRadius = 1.0f, float formationRadius = 1.0f);
 
     void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
         return "Formation Behavior";
+    }
+    BehaviorType type() const override
+    {
+        return BehaviorType::Formation;
+    }
+    u32 paramCount() const override;
+    const BehaviorParam& paramInfo(u32 index) const override;
+    f32 paramFloat(u32 index) const override;
+    void setParamFloat(u32 index, f32 value) override;
+
+    // Goal radius handed to the point man's Agent::setGoalRadius(); the
+    // radius handed to every other member is formationRadius() instead.
+    float goalRadius() const
+    {
+        return mGoalRadius;
+    }
+    void setGoalRadius(float radius)
+    {
+        mGoalRadius = radius;
+    }
+    float formationRadius() const
+    {
+        return mFormationRadius;
+    }
+    void setFormationRadius(float radius)
+    {
+        mFormationRadius = radius;
     }
 
 private:

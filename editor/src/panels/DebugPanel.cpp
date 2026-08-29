@@ -215,10 +215,30 @@ void DebugPanel::drawPhysicsDebugSection()
     ImGui::Separator();
 }
 
+void DebugPanel::drawAIDebugSection()
+{
+    if (!ImGui::CollapsingHeader("AI Debug", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    Scene& scene = app().scene();
+    Engine& engine = app().engine();
+
+    ImGui::Checkbox("Draw obstacles", &engine.debugShowAIObstacles);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Every Radion::Obstacle's shape, with an arrow on its solid side "
+                          "(seenFrom) - two arrows for Both. The selected object's own Obstacle "
+                          "always draws, flag or not.");
+    if (engine.debugShowAIObstacles && scene.obstacleCount() == 0)
+        ImGui::TextDisabled("  no Obstacle components in this scene");
+
+    ImGui::Separator();
+}
+
 void DebugPanel::onImGui()
 {
     drawSpatialDebugSection();
     drawPhysicsDebugSection();
+    drawAIDebugSection();
 
     ImGui::Checkbox("Enable debug preview", &mEnabled);
     app().settings().debugPreviewEnabled = mEnabled;

@@ -37,11 +37,18 @@ namespace Radion::Physics
 class Joint;
 }
 
+namespace Radion::AI
+{
+class Obstacle;
+}
+
 namespace Radion
 {
 
 class Agent;
+class Color;
 class Engine;
+class Obstacle;
 
 // Implements ShadowCasterSource (RenderList.h) so a render/ technique -
 // ShadowPass, Lighting - can ask for a shadow view's caster list without
@@ -199,6 +206,35 @@ public:
     }
     void updateAgents(f32 deltaTime);
     void clearAI();
+
+    // The AI::ObstacleGroup every ObstacleAvoidanceBehavior reads by default
+    // (Agent::scene()->obstacleGroup()).
+    void addObstacle(Obstacle& obstacle);
+    void removeObstacle(Obstacle& obstacle);
+    // Refills mObstacleGroup from the components that are actually live -
+    // an inactive Obstacle, or one on a disabled object, blocks nobody, the
+    // same rule colliders and lights follow. Called once per frame from
+    // update() (`active` can change without telling anyone) and again on
+    // add/remove and after Obstacle::rebuildOwnedShape() replaces the
+    // AI::Obstacle* the group was holding.
+    void rebuildObstacleGroup();
+    const std::vector<Obstacle*>& obstacles() const
+    {
+        return mObstacleComponents;
+    }
+    const std::vector<AI::Obstacle*>& obstacleGroup() const
+    {
+        return mObstacleGroup;
+    }
+    usize obstacleCount() const
+    {
+        return mObstacleComponents.size();
+    }
+    void debugDrawObstacles() const;
+    // Shared by debugDrawObstacles() (every Obstacle, behind a flag) and the
+    // editor's selected-object view (Collider's own ViewportPanel.cpp block
+    // is this method's model) - static because it only reads `obstacle`.
+    static void debugDrawObstacleShape(const Obstacle& obstacle, Color color);
 
     void setGravity(const glm::vec3& gravity);
     const glm::vec3& gravity() const
@@ -791,6 +827,12 @@ private:
 
     // ----------------------------------------------------------------- AI
     std::vector<Agent*> mAgents;
+
+    // Every Obstacle component attached, and the shapes of the live subset
+    // of them - the second is derived from the first by rebuildObstacleGroup()
+    // and is what the avoidance behaviors read.
+    std::vector<Obstacle*> mObstacleComponents;
+    std::vector<AI::Obstacle*> mObstacleGroup;
 
     std::vector<GameObject*> mDebugObjects;
     std::vector<PendingAdd> mPendingAdd;
