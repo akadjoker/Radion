@@ -90,6 +90,14 @@ target_link_libraries(radion_joint_tests PRIVATE radion_physics)
 add_test(NAME joints COMMAND radion_joint_tests)
 set_tests_properties(joints PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
+add_executable(radion_physics_ccd_tests PhysicsCcdTests.cpp)
+target_precompile_headers(radion_physics_ccd_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_physics_ccd_tests PRIVATE radion_physics)
+add_test(NAME physics_ccd COMMAND radion_physics_ccd_tests)
+set_tests_properties(physics_ccd PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_vehicle_tests VehicleTests.cpp)
 target_precompile_headers(radion_vehicle_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
@@ -121,6 +129,12 @@ target_precompile_headers(radion_bounds_tree_tests PRIVATE
 target_link_libraries(radion_bounds_tree_tests PRIVATE radion_core)
 add_test(NAME bounds_tree COMMAND radion_bounds_tree_tests)
 set_tests_properties(bounds_tree PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+add_executable(radion_scene_bench SceneBench.cpp)
+target_precompile_headers(radion_scene_bench PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_scene_bench PRIVATE radion_scene)
 
 add_executable(radion_physics_bench PhysicsBench.cpp)
 target_precompile_headers(radion_physics_bench PRIVATE

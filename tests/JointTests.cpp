@@ -12,6 +12,7 @@
 #include "dynamics/RigidBody.h"
 #include "dynamics/SliderJoint.h"
 #include "dynamics/UniversalJoint.h"
+#include "dynamics/WheelJoint.h"
 
 #include <cstdio>
 #include <vector>
@@ -715,6 +716,115 @@ void testWarmStartDoesNotInjectEnergy()
     CHECK(maxSpeed < 8.0f);
 }
 
+// ------------------------------------------------------------------ WheelJoint
+
+RigidBody makeChassis()
+{
+    RigidBody body;
+    body.setBodyType(BodyType::Static);
+    body.setPosition(glm::vec3(0.0f, 1.0f, 0.0f));
+    return body;
+}
+
+RigidBody makeWheel(const glm::vec3& position)
+{
+    RigidBody body;
+    body.setBodyType(BodyType::Dynamic);
+    body.setPosition(position);
+    body.setMass(15.0f);
+    body.setInertiaTensor(Inertia::box(15.0f, glm::vec3(0.3f, 0.3f, 0.3f)));
+    // These tests drive the body directly, without a PhysicsWorld to manage
+    // the joint's sleep island (PhysicsWorld::addJoint wakes both bodies and
+    // keeps them awake together) - without this the body falls asleep the
+    // moment it settles, and the spring keeps nudging a velocity that no
+    // longer gets integrated.
+    body.setCanSleep(false);
+    return body;
+}
+
+void testSuspensionSettlesAtRestLength()
+{
+    RigidBody chassis = makeChassis();
+    RigidBody wheel = makeWheel(glm::vec3(0.0f, 0.3f, 0.0f));
+
+    // Anchor at the wheel's own centre: no lever arm on the wheel side, so
+    // free rotation about the spin axis (nothing constrains it) can't couple
+    // into the wheel's linear velocity through a stray arm.
+    WheelJoint wheelJoint(chassis, wheel, wheel.position(), glm::vec3(0.0f, -1.0f, 0.0f),
+                         glm::vec3(1.0f, 0.0f, 0.0f));
+    wheelJoint.setSuspension(0.5f, 4000.0f, 400.0f);
+
+    const f32 dt = 1.0f / 120.0f;
+    for (int i = 0; i < 600; ++i)
+    {
+        wheel.setAcceleration(glm::vec3(0.0f, -9.81f, 0.0f));
+        wheel.integrateForces(dt);
+        wheelJoint.setup(dt);
+        wheelJoint.warmStart();
+        wheelJoint.solveVelocity();
+        wheel.integrateVelocity(dt);
+        wheelJoint.solvePosition(0.2f);
+    }
+
+    // Settled: travel close to the spring's equilibrium (rest length plus the
+    // extra compression gravity holds it at), not still falling.
+    CHECK(std::fabs(wheelJoint.suspensionTravel() - 0.529f) < 0.02f);
+    CHECK(std::fabs(wheel.velocity().y) < 0.05f);
+}
+
+void testSteeringMotorTurnsWithinLimits()
+{
+    RigidBody chassis = makeChassis();
+    RigidBody wheel = makeWheel(glm::vec3(0.0f, 0.5f, 0.0f));
+
+    WheelJoint wheelJoint(chassis, wheel, wheel.position(), glm::vec3(0.0f, -1.0f, 0.0f),
+                         glm::vec3(1.0f, 0.0f, 0.0f));
+    wheelJoint.setSuspension(0.5f, 4000.0f, 400.0f);
+    wheelJoint.setSteeringLimits(-0.5f, 0.5f);
+    wheelJoint.setSteeringMotor(10.0f, 500.0f);
+
+    const f32 dt = 1.0f / 120.0f;
+    for (int i = 0; i < 240; ++i)
+    {
+        wheel.setAcceleration(glm::vec3(0.0f, -9.81f, 0.0f));
+        wheel.integrateForces(dt);
+        wheelJoint.setup(dt);
+        wheelJoint.warmStart();
+        wheelJoint.solveVelocity();
+        wheel.integrateVelocity(dt);
+        wheelJoint.solvePosition(0.2f);
+    }
+
+    CHECK(wheelJoint.steeringAngle() <= 0.55f);
+    CHECK(wheelJoint.steeringAngle() > 0.0f);
+}
+
+void testSpinMotorDrivesWheelWithoutLimit()
+{
+    RigidBody chassis = makeChassis();
+    RigidBody wheel = makeWheel(glm::vec3(0.0f, 0.5f, 0.0f));
+
+    WheelJoint wheelJoint(chassis, wheel, wheel.position(), glm::vec3(0.0f, -1.0f, 0.0f),
+                         glm::vec3(1.0f, 0.0f, 0.0f));
+    wheelJoint.setSuspension(0.5f, 4000.0f, 400.0f);
+    wheelJoint.setSpinMotor(20.0f, 200.0f);
+
+    const f32 dt = 1.0f / 120.0f;
+    for (int i = 0; i < 120; ++i)
+    {
+        wheel.setAcceleration(glm::vec3(0.0f, -9.81f, 0.0f));
+        wheel.integrateForces(dt);
+        wheelJoint.setup(dt);
+        wheelJoint.warmStart();
+        wheelJoint.solveVelocity();
+        wheel.integrateVelocity(dt);
+        wheelJoint.solvePosition(0.2f);
+    }
+
+    // Free to spin without bound: should reach close to the target speed.
+    CHECK(std::fabs(wheelJoint.spinAngularVelocity() - 20.0f) < 2.0f);
+}
+
 } // namespace
 
 int main()
@@ -749,6 +859,9 @@ int main()
     testMouseJointSurvivesAFarTarget();
     testMouseJointGrabsASleepingBodyInAWorld();
     testWarmStartDoesNotInjectEnergy();
+    testSuspensionSettlesAtRestLength();
+    testSteeringMotorTurnsWithinLimits();
+    testSpinMotorDrivesWheelWithoutLimit();
     if (gFailures)
         std::fprintf(stderr, "%d joint test(s) failed\n", gFailures);
     return gFailures == 0 ? 0 : 1;

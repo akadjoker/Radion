@@ -28,9 +28,9 @@ bool finiteVector(const glm::vec3& value)
 f32 radialWeight(const glm::vec3& centre, const glm::vec3& position, f32 radius,
                  glm::vec3* direction = nullptr)
 {
-    // Same simple linear attenuation used by b2World_Explode. Box2D scales
-    // by exposed perimeter; this lightweight 3D version deliberately applies
-    // a body-level impulse/force until projected area is a real requirement.
+    // Straightforward linear falloff, not scaled by exposed perimeter or
+    // projected area - this lightweight version deliberately applies a
+    // single body-level impulse/force until that becomes a real requirement.
     const glm::vec3 offset = position - centre;
     const f32 distanceSquared = glm::dot(offset, offset);
     if (distanceSquared >= radius * radius)
@@ -499,6 +499,49 @@ void PhysicsWorld::propagateSleep()
     }
 }
 
+void PhysicsWorld::solveBulletSweeps()
+{
+    const f32 slop = mSolver.settings().slop;
+    for (const BulletSweep& sweep : mBulletSweeps)
+    {
+        const u32 slot = slotForId(sweep.id);
+        if (slot == InvalidIndex)
+            continue;
+        RigidBody* sweptBody = mBodies[slot].body;
+
+        const glm::vec3 newPosition = sweptBody->position();
+        const glm::vec3 delta = newPosition - sweep.previousPosition;
+
+        const f32 distSq = glm::dot(delta, delta);
+        if (distSq < slop * slop)
+            continue;
+
+        const f32 dist = std::sqrt(distSq);
+        Ray ray;
+        ray.origin = sweep.previousPosition;
+        ray.direction = delta / dist;
+
+        QueryFilter filter;
+        filter.ignoredBody = sweep.id;
+        WorldRayHit hit;
+        if (!raycast(ray, dist, filter, hit))
+            continue;
+
+        const u32 hitSlot = slotForId(hit.body);
+        if (hitSlot == InvalidIndex || mBodies[hitSlot].body->isDynamic())
+            continue;
+
+        const f32 endSide = glm::dot(newPosition - hit.point, hit.normal);
+        if (endSide >= -slop)
+            continue;
+
+        f32 safeFraction = hit.distance / dist - slop / dist;
+        if (safeFraction < 0.0f)
+            safeFraction = 0.0f;
+        sweptBody->setPosition(sweep.previousPosition + safeFraction * delta);
+    }
+}
+
 void PhysicsWorld::step(f32 duration)
 {
     if (duration <= 0.0f || !std::isfinite(duration))
@@ -666,9 +709,20 @@ void PhysicsWorld::step(f32 duration)
 
     emitExits();
 
+    mBulletSweeps.clear();
+    for (u32 i = 0; i < mBodies.size(); ++i)
+    {
+        const BodyEntry& entry = mBodies[i];
+        if (entry.body && entry.enabled && entry.body->isDynamic() && entry.body->isBullet() &&
+            entry.body->awake())
+            mBulletSweeps.push_back({mBodyIds[i], entry.body->position()});
+    }
+
     for (BodyEntry& entry : mBodies)
         if (entry.body && entry.enabled)
             entry.body->integrateVelocity(duration);
+
+    solveBulletSweeps();
 
     // Actions - a vehicle, anything else that reaches into bodies each step -
     // run here, once positions for this step are final and before sleep
