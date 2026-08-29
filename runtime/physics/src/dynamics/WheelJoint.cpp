@@ -271,25 +271,37 @@ void WheelJoint::applyAngularImpulse(const glm::vec3& impulse)
 // clamped or warm started, it is recomputed fresh from the current travel
 // and closing speed every setup() the same way gravity is reapplied every
 // step rather than carried over.
-void WheelJoint::applySuspensionForce(f32 duration)
+void WheelJoint::calculateSuspensionProperties(f32 duration)
 {
     if (mSuspensionStiffness <= 0.0f && mSuspensionDamping <= 0.0f)
+    {
+        mSuspensionEffectiveMass = 0.0f;
+        mTotalSuspensionImpulse = 0.0f;
         return;
+    }
 
-    const f32 displacement = mSlidePosition - mSuspensionRestLength;
+    // The row is the suspension axis itself, with the same arms the two
+    // perpendicular rows use (calculatePositionLockProperties()).
     const glm::vec3 armAPlusOffset = mArmA + mOffset;
-    // dot(axisA, velA - velB) + ... is -(d mSlidePosition / dt) in this file's
-    // convention (mSlidePosition follows velB - velA, see solveVelocity's
-    // positionJv), so the restoring damping term needs a "+", not the naive
-    // "-c*v": flipping it back to "-" reintroduces energy every step instead
-    // of removing it and blows the spring up within a few dozen steps.
-    const f32 velocityTowardChassis =
-        glm::dot(mAxisA, mChassis->velocity() - mWheel->velocity()) +
-        glm::dot(glm::cross(armAPlusOffset, mAxisA), mChassis->angularVelocity()) -
-        glm::dot(glm::cross(mArmB, mAxisA), mWheel->angularVelocity());
+    const glm::vec3 r1 = glm::cross(armAPlusOffset, mAxisA);
+    const glm::vec3 r2 = glm::cross(mArmB, mAxisA);
+    const f32 inverseEffectiveMass = mChassis->inverseMass() + mWheel->inverseMass() +
+                                     glm::dot(r1, mChassis->inverseInertiaTensorWorld() * r1) +
+                                     glm::dot(r2, mWheel->inverseInertiaTensorWorld() * r2);
+    if (inverseEffectiveMass <= 1.0e-9f)
+    {
+        mSuspensionEffectiveMass = 0.0f;
+        mTotalSuspensionImpulse = 0.0f;
+        return;
+    }
 
-    const f32 force = -mSuspensionStiffness * displacement + mSuspensionDamping * velocityTowardChassis;
-    applyLinearImpulse(mAxisA * (force * duration));
+    // C is how far the strut sits from where the spring wants it. Compressed
+    // (slide below rest) is negative, and solveVelocity subtracts the bias,
+    // so a compressed strut pushes the wheel away along mAxisA - which is
+    // the direction that axis points, chassis towards ground.
+    const f32 positionError = mSlidePosition - mSuspensionRestLength;
+    mSuspensionSpring.calculate(duration, inverseEffectiveMass, 0.0f, positionError,
+                                mSuspensionStiffness, mSuspensionDamping, mSuspensionEffectiveMass);
 }
 
 void WheelJoint::setup(f32 duration)
@@ -325,7 +337,7 @@ void WheelJoint::setup(f32 duration)
     mTotalSpinMotorImpulse = glm::clamp(mTotalSpinMotorImpulse, -mSpinMotorMaxImpulse, mSpinMotorMaxImpulse);
     mPreviousDuration = duration;
 
-    applySuspensionForce(duration);
+    calculateSuspensionProperties(duration);
 }
 
 void WheelJoint::warmStart()
@@ -335,6 +347,8 @@ void WheelJoint::warmStart()
     if (mSpinMotorEnabled)
         applyAngularImpulse(mAxisB * mTotalSpinMotorImpulse);
     applyLinearImpulse(mN1 * mTotalPositionLockImpulse.x + mN2 * mTotalPositionLockImpulse.y);
+    if (mSuspensionEffectiveMass > 0.0f)
+        applyLinearImpulse(mAxisA * mTotalSuspensionImpulse);
     applyAngularImpulse(mPerpendicularAxis * mTotalPerpendicularImpulse);
     if (mSteeringLimitActive)
         applyAngularImpulse(mAxisA * mTotalSteeringLimitImpulse);
@@ -377,6 +391,23 @@ void WheelJoint::solveVelocity()
     const glm::vec2 positionImpulse = mPositionLockEffectiveMass * positionJv;
     mTotalPositionLockImpulse += positionImpulse;
     applyLinearImpulse(mN1 * positionImpulse.x + mN2 * positionImpulse.y);
+
+    // The suspension is the third row of the same position constraint - the
+    // one along the axis - left soft instead of locked.
+    if (mSuspensionEffectiveMass > 0.0f)
+    {
+        const f32 suspensionJv =
+            glm::dot(mAxisA, deltaLinear) +
+            glm::dot(glm::cross(armAPlusOffset, mAxisA), mChassis->angularVelocity()) -
+            glm::dot(glm::cross(mArmB, mAxisA), mWheel->angularVelocity());
+        // The rows above solve lambda = +mass * Jv, with Jv measured
+        // chassis - wheel; the spring's bias is written for the usual
+        // lambda = -mass * (Jv + bias), so here it subtracts.
+        const f32 impulse = mSuspensionEffectiveMass *
+                            (suspensionJv - mSuspensionSpring.bias(mTotalSuspensionImpulse));
+        mTotalSuspensionImpulse += impulse;
+        applyLinearImpulse(mAxisA * impulse);
+    }
 
     const f32 perpJv = glm::dot(mPerpendicularAxis, mChassis->angularVelocity() - mWheel->angularVelocity());
     const f32 perpImpulse = mPerpendicularEffectiveMass * perpJv;

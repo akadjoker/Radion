@@ -3,6 +3,7 @@
 
 #include "Math.h"
 #include "dynamics/Joint.h"
+#include "dynamics/SoftSpring.h"
 
 namespace Radion::Physics
 {
@@ -41,6 +42,12 @@ public:
     // separation (in the suspension direction) where the spring applies no
     // force; `stiffness` and `damping` are the usual F = -k*x - c*v terms,
     // in force per metre and force per metre-per-second.
+    //
+    // Solved as a soft constraint row on the suspension axis (SoftSpring),
+    // not as a force pushed in from outside. A real car's springs are stiff -
+    // a 1500 kg car sitting 20 cm into its travel needs about 75 kN/m - and
+    // an explicitly integrated spring that stiff gains energy every step
+    // until it explodes. This one does not, at any stiffness.
     void setSuspension(f32 restLength, f32 stiffness, f32 damping)
     {
         mSuspensionRestLength = restLength;
@@ -70,7 +77,7 @@ private:
     void calculateSteeringLimitProperties();
     void calculateSteeringMotorProperties();
     void calculateSpinMotorProperties();
-    void applySuspensionForce(f32 duration);
+    void calculateSuspensionProperties(f32 duration);
     void applyLinearImpulse(const glm::vec3& impulse);
     void applyAngularImpulse(const glm::vec3& impulse);
 
@@ -110,6 +117,9 @@ private:
     f32 mSuspensionRestLength = 0.0f;
     f32 mSuspensionStiffness = 0.0f;
     f32 mSuspensionDamping = 0.0f;
+    SoftSpring mSuspensionSpring;
+    f32 mSuspensionEffectiveMass = 0.0f;
+    f32 mTotalSuspensionImpulse = 0.0f;
 
     f32 mSteeringLimitsMin = -glm::pi<f32>();
     f32 mSteeringLimitsMax = glm::pi<f32>();
