@@ -1,0 +1,40 @@
+projects
+
+ms3d load static/animated
+
+converrt IQMLoader para nosos formato?
+
+TiledTerrainNode , draw tile on plane
+
+ /media/projectos/projects/cpp/razor3d/scene/src 
+
+
+
+ Fisica
+Reinforcement Learning for Physics
+The AIBO simulator
+Robotos?
+
+
+
+MorphMeshInstance + TagAttachment  covert md2/md3 +  criar nosso formato de mehs aniamtions 
+
+
+Compontn "Behavior"
+
+FollowBehavior
+RotateBehavior
+BounceBehavior
+
+
+Grafo de estados 	
+Chamas play() e crossFade() do script. Não há máquina de estados de animação nem blend tree — a de runtime/ai é de IA, não serve.
+
+
+Root motion 
+Nenhuma referência no código. O movimento vem sempre do controlador, nunca do clip.
+
+Eventos de animação 	
+Não há callback num tempo do clip. Passo, tiro e impacto têm de ser cronometrados à mão no script.
+
+godot:SoftBody3D
