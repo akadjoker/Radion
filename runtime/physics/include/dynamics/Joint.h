@@ -103,6 +103,13 @@ protected:
     explicit Joint(JointKind kind) : Component(Type), mKind(kind)
     {
     }
+
+    // Wakes both ends. A motor or servo given a NEW target has to call this:
+    // a body that has settled is asleep and skipped by the solver, so the
+    // order lands on a joint nobody is stepping and the machine never moves
+    // again. Only on a change - calling it every frame, which is what a
+    // controller holding a target does, would mean nothing ever sleeps.
+    void wakeBodies();
     ~Joint() override;
     void onDestroy() override;
     // A moved-from Joint is always loose (Component-mode ones are only ever

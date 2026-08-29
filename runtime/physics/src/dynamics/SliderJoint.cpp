@@ -160,6 +160,8 @@ void SliderJoint::setMotor(f32 targetVelocity, f32 maxForce)
 {
     if (!std::isfinite(targetVelocity) || !std::isfinite(maxForce))
         return;
+    if (targetVelocity != mMotorTargetVelocity || !mMotorEnabled)
+        wakeBodies();
     mMotorTargetVelocity = targetVelocity;
     mMotorMaxForce = glm::max(maxForce, 0.0f);
     mMotorEnabled = mMotorMaxForce > 0.0f;
@@ -191,6 +193,10 @@ void SliderJoint::setServo(f32 targetPosition, f32 maxForce, f32 maxSpeed)
 {
     if (!std::isfinite(targetPosition) || !std::isfinite(maxForce) || !std::isfinite(maxSpeed))
         return;
+    // See HingeJoint::setServo(): a settled body is asleep, and the solver
+    // skips it, so a new target has to wake it or the machine never moves.
+    if (targetPosition != mServoTargetPosition || !mServoEnabled)
+        wakeBodies();
     mServoTargetPosition = targetPosition;
     mServoMaxSpeed = glm::max(maxSpeed, 0.0f);
     mMotorMaxForce = glm::max(maxForce, 0.0f);
@@ -332,7 +338,12 @@ void SliderJoint::setup(f32 duration)
         f32 target = mServoTargetPosition;
         if (mHasLimits)
             target = glm::clamp(target, mLimitsMin, mLimitsMax);
-        f32 velocity = (target - currentPosition()) / duration;
+        const f32 error = target - currentPosition();
+        // See HingeJoint::setup(): a servo with work left keeps its bodies
+        // awake, or the solver skips the very joint that was given an order.
+        if (std::abs(error) > 0.001f)
+            wakeBodies();
+        f32 velocity = error / duration;
         if (mServoMaxSpeed > 0.0f)
             velocity = glm::clamp(velocity, -mServoMaxSpeed, mServoMaxSpeed);
         mMotorTargetVelocity = velocity;

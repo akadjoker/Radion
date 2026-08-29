@@ -209,6 +209,24 @@ static Physics::RigidBody* selfRigidBody(zen::Value* args)
     return zen::zen_instance_data<Physics::RigidBody>(args[-1]);
 }
 
+// What a script sees when it asks a joint what it is.
+static const char* jointKindScriptName(Physics::JointKind kind)
+{
+    switch (kind)
+    {
+    case Physics::JointKind::Distance: return "Distance";
+    case Physics::JointKind::Fixed: return "Fixed";
+    case Physics::JointKind::Hinge: return "Hinge";
+    case Physics::JointKind::Slider: return "Slider";
+    case Physics::JointKind::Piston: return "Piston";
+    case Physics::JointKind::Universal: return "Universal";
+    case Physics::JointKind::Point: return "Point";
+    case Physics::JointKind::Wheel: return "Wheel";
+    case Physics::JointKind::Mouse: return "Mouse";
+    }
+    return "";
+}
+
 static Animator* selfAnimator(zen::Value* args)
 {
     return zen::zen_instance_data<Animator>(args[-1]);
@@ -678,6 +696,11 @@ const ScriptComponentBinding kScriptComponents[] = {
      &scriptAddComponent<Animator>, &scriptRemoveComponent<Animator>},
     {"RigidBody", ComponentType::RigidBody, &scriptGetComponent<Physics::RigidBody>,
      &scriptAddComponent<Physics::RigidBody>, &scriptRemoveComponent<Physics::RigidBody>},
+    // Get-only: a joint needs an axis and a connected body to mean anything,
+    // and the concrete kind decides which. A script drives one that the
+    // editor or the scene file set up.
+    {"Joint", ComponentType::Joint, &scriptGetComponent<Physics::Joint>, nullptr,
+     &scriptRemoveComponent<Physics::Joint>},
 };
 
 const ScriptComponentBinding* findScriptComponent(const char* name)
@@ -1145,6 +1168,156 @@ static int rigidBodySetSphere(zen::VM* vm, zen::Value* args, int nargs)
     if (Physics::RigidBody* body = selfRigidBody(args))
         if (nargs >= 1)
             body->setSphere((f32)zen::to_number(args[0]));
+    return 0;
+}
+
+// -------------------------------------------------------------------- Joint
+//
+// One script class for every joint kind, dispatching on kind() inside. A
+// class per kind would mean nine, and a script commanding a robot wants the
+// same two calls whichever joint is under it: a target and a motor.
+
+static Physics::Joint* selfJoint(zen::Value* args)
+{
+    return zen::zen_instance_data<Physics::Joint>(args[-1]);
+}
+
+static int jointGetKind(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)nargs;
+    Physics::Joint* joint = selfJoint(args);
+    const char* name = joint ? jointKindScriptName(joint->kind()) : "";
+    args[0] = zen::val_obj((zen::Obj*)vm->make_string(name, (int)std::strlen(name)));
+    return 1;
+}
+
+// The joint's own coordinate: an angle in radians for the rotating kinds, a
+// distance along the axis for the sliding ones.
+static int jointGetPosition(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Physics::Joint* joint = selfJoint(args);
+    f32 value = 0.0f;
+    if (joint)
+    {
+        switch (joint->kind())
+        {
+        case Physics::JointKind::Hinge:
+            value = static_cast<Physics::HingeJoint*>(joint)->currentAngle();
+            break;
+        case Physics::JointKind::Slider:
+            value = static_cast<Physics::SliderJoint*>(joint)->currentPosition();
+            break;
+        case Physics::JointKind::Wheel:
+            value = static_cast<Physics::WheelJoint*>(joint)->steeringAngle();
+            break;
+        default:
+            break;
+        }
+    }
+    args[0] = zen::val_float((f64)value);
+    return 1;
+}
+
+// Hold a target: an angle for a hinge, a position for a slider, a steering
+// angle for a wheel. maxSpeed of 0 leaves the actuator uncapped, which is
+// only stable when the torque budget is tight - see HingeJoint::setServo().
+static int jointSetServo(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    Physics::Joint* joint = selfJoint(args);
+    if (!joint || nargs < 2)
+        return 0;
+    const f32 target = (f32)zen::to_number(args[0]);
+    const f32 effort = (f32)zen::to_number(args[1]);
+    const f32 maxSpeed = nargs >= 3 ? (f32)zen::to_number(args[2]) : 0.0f;
+    switch (joint->kind())
+    {
+    case Physics::JointKind::Hinge:
+        static_cast<Physics::HingeJoint*>(joint)->setServo(target, effort, maxSpeed);
+        break;
+    case Physics::JointKind::Slider:
+        static_cast<Physics::SliderJoint*>(joint)->setServo(target, effort, maxSpeed);
+        break;
+    case Physics::JointKind::Wheel:
+        static_cast<Physics::WheelJoint*>(joint)->setSteeringServo(target, effort, maxSpeed);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+// Drive at a speed rather than to a target - a wheel, a conveyor, a turret
+// that spins.
+static int jointSetMotor(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    Physics::Joint* joint = selfJoint(args);
+    if (!joint || nargs < 2)
+        return 0;
+    const f32 speed = (f32)zen::to_number(args[0]);
+    const f32 effort = (f32)zen::to_number(args[1]);
+    switch (joint->kind())
+    {
+    case Physics::JointKind::Hinge:
+        static_cast<Physics::HingeJoint*>(joint)->setMotor(speed, effort);
+        break;
+    case Physics::JointKind::Slider:
+        static_cast<Physics::SliderJoint*>(joint)->setMotor(speed, effort);
+        break;
+    case Physics::JointKind::Wheel:
+        // The drive motor, not the steering one: a script telling a wheel a
+        // speed means the throttle.
+        static_cast<Physics::WheelJoint*>(joint)->setSpinMotor(speed, effort);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+static int jointSetLimits(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    Physics::Joint* joint = selfJoint(args);
+    if (!joint || nargs < 2)
+        return 0;
+    const f32 low = (f32)zen::to_number(args[0]);
+    const f32 high = (f32)zen::to_number(args[1]);
+    switch (joint->kind())
+    {
+    case Physics::JointKind::Hinge:
+        static_cast<Physics::HingeJoint*>(joint)->setLimits(low, high);
+        break;
+    case Physics::JointKind::Slider:
+        static_cast<Physics::SliderJoint*>(joint)->setLimits(low, high);
+        break;
+    case Physics::JointKind::Wheel:
+        static_cast<Physics::WheelJoint*>(joint)->setSteeringLimits(low, high);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+static int jointIsEnabled(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    Physics::Joint* joint = selfJoint(args);
+    args[0] = zen::val_bool(joint && joint->enabled());
+    return 1;
+}
+
+static int jointSetEnabled(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    if (Physics::Joint* joint = selfJoint(args))
+        if (nargs >= 1)
+            joint->setEnabled(zen::is_truthy(args[0]));
     return 0;
 }
 
@@ -2170,6 +2343,18 @@ void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
     rigidBody.method("set_sphere", rigidBodySetSphere, 1);
     rigidBody.persistent(true).constructable(false);
     cache.setComponentClass(ComponentType::RigidBody, rigidBody.end());
+
+    auto joint = vm.def_class("Joint");
+    joint.parent("Component");
+    joint.method("get_kind", jointGetKind, 0);
+    joint.method("get_position", jointGetPosition, 0);
+    joint.method("set_servo", jointSetServo, 3);
+    joint.method("set_motor", jointSetMotor, 2);
+    joint.method("set_limits", jointSetLimits, 2);
+    joint.method("is_enabled", jointIsEnabled, 0);
+    joint.method("set_enabled", jointSetEnabled, 1);
+    joint.persistent(true).constructable(false);
+    cache.setComponentClass(ComponentType::Joint, joint.end());
 }
 
 static const zen::NativeLib kSceneScriptLib = {

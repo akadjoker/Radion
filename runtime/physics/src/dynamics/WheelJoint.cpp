@@ -166,6 +166,10 @@ void WheelJoint::setSteeringServo(f32 targetAngle, f32 maxTorque, f32 maxAngular
     if (!std::isfinite(targetAngle) || !std::isfinite(maxTorque) ||
         !std::isfinite(maxAngularVelocity))
         return;
+    // See HingeJoint::setServo(): a new target on a sleeping wheel is an
+    // order the solver never steps.
+    if (targetAngle != mSteeringServoTargetAngle || !mSteeringServoEnabled)
+        wakeBodies();
     mSteeringServoTargetAngle = targetAngle;
     mSteeringServoMaxAngularVelocity = glm::max(maxAngularVelocity, 0.0f);
     mSteeringMotorMaxTorque = glm::max(maxTorque, 0.0f);
@@ -189,6 +193,8 @@ void WheelJoint::setSpinMotor(f32 targetAngularVelocity, f32 maxTorque)
 {
     if (!std::isfinite(targetAngularVelocity) || !std::isfinite(maxTorque))
         return;
+    if (targetAngularVelocity != mSpinMotorTargetVelocity || !mSpinMotorEnabled)
+        wakeBodies();
     mSpinMotorTargetVelocity = targetAngularVelocity;
     mSpinMotorMaxTorque = glm::max(maxTorque, 0.0f);
     mSpinMotorEnabled = mSpinMotorMaxTorque > 0.0f;
@@ -400,7 +406,11 @@ void WheelJoint::setup(f32 duration)
         f32 target = mSteeringServoTargetAngle;
         if (mHasSteeringLimits)
             target = glm::clamp(target, mSteeringLimitsMin, mSteeringLimitsMax);
-        f32 velocity = (target - mSteeringAngle) / duration;
+        const f32 error = target - mSteeringAngle;
+        // See HingeJoint::setup().
+        if (std::abs(error) > 0.001f)
+            wakeBodies();
+        f32 velocity = error / duration;
         if (mSteeringServoMaxAngularVelocity > 0.0f)
             velocity = glm::clamp(velocity, -mSteeringServoMaxAngularVelocity,
                                   mSteeringServoMaxAngularVelocity);

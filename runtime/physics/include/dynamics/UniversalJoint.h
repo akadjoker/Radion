@@ -69,8 +69,9 @@ private:
     void applyLinearImpulse(const glm::vec3& impulse);
     void applyAngularImpulse(const glm::vec3& impulse);
 
-    RigidBody* mBodyA;
-    RigidBody* mBodyB;
+    // Null until rebuild() resolves them - see HingeJoint.
+    RigidBody* mBodyA = nullptr;
+    RigidBody* mBodyB = nullptr;
     glm::vec3 mLocalAnchorA;
     glm::vec3 mLocalAnchorB;
     glm::vec3 mLocalAxisA;

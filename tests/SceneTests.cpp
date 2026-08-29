@@ -492,6 +492,58 @@ void testGameObjectIds()
 // interval a frame crossed is what fires them, so the cases that matter are
 // the ones a naive "is the time past it" gets wrong - a loop that wrapped,
 // and a frame long enough to skip over one.
+// The same servo that works when a joint is built in C++ has to work when
+// the joint is a component, which is how the editor and every scene file
+// build one. It did not: rebuild() passes the owner as bodyA and the
+// connected body as bodyB, the opposite of what the constructors take, and
+// the motor's sign follows that order - so a joint set up in the editor
+// drove the wrong way and fought its own servo.
+void testJointComponentServoDrivesTheRightWay()
+{
+    Scene scene;
+
+    GameObject* anchorObject = scene.createGameObject("anchor");
+    Physics::RigidBody* anchor = anchorObject->addComponent<Physics::RigidBody>();
+    anchor->setBox(glm::vec3(0.25f));
+    anchor->setBodyType(Physics::BodyType::Static);
+
+    GameObject* armObject = scene.createGameObject("arm");
+    armObject->setPosition(glm::vec3(1.0f, 0.0f, 0.0f));
+    Physics::RigidBody* arm = armObject->addComponent<Physics::RigidBody>();
+    arm->setBox(glm::vec3(0.5f));
+    arm->setMass(2.0f);
+    arm->setInertiaTensor(Physics::Inertia::box(2.0f, glm::vec3(0.5f)));
+
+    Physics::HingeJoint* hinge = armObject->addComponent<Physics::HingeJoint>();
+    hinge->setConnectedBody(anchorObject);
+    hinge->setAuthoredAxis(glm::vec3(0.0f, 0.0f, 1.0f));
+    hinge->setLimits(glm::radians(-90.0f), glm::radians(90.0f));
+
+    scene.setRunningInEditor(false);
+    // Commanded BEFORE the joint is built, which is what a script doing this
+    // in on_start does: the order has to survive the joint being wired up.
+    hinge->setServo(0.5f, 500.0f, 2.0f);
+    for (u32 i = 0; i < 600; ++i)
+        scene.update(1.0f / 120.0f);
+
+    CHECK(std::isfinite(hinge->currentAngle()));
+    CHECK(std::abs(hinge->currentAngle() - 0.5f) < 0.05f);
+
+    // Arriving lets it sleep, which is what should happen - and is also what
+    // used to make the next order do nothing at all: a sleeping body is
+    // skipped by the solver, so the servo sat there with the target accepted
+    // and the machine frozen. Anything built in the editor and driven from a
+    // script hit this the first time it stood still.
+    CHECK(!arm->awake());
+
+    hinge->setServo(-0.4f, 500.0f, 2.0f);
+    for (u32 i = 0; i < 600; ++i)
+        scene.update(1.0f / 120.0f);
+    CHECK(std::abs(hinge->currentAngle() + 0.4f) < 0.05f);
+    // And it settles again once it gets there.
+    CHECK(!arm->awake());
+}
+
 void testAnimationEventsFireOnTheFrameTheyAreCrossed()
 {
     Skeleton skeleton;
@@ -2872,6 +2924,7 @@ int main()
     testInverseKinematics();
     testHierarchyAndOrder();
     testGameObjectIds();
+    testJointComponentServoDrivesTheRightWay();
     testAnimationEventsFireOnTheFrameTheyAreCrossed();
     testSceneSerializerEmptyRoundTrip();
     testJointSerializerRoundTrip();
