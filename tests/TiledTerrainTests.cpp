@@ -113,6 +113,96 @@ void testWrappedTileWrapsAroundMapEdge()
     CHECK(TiledTerrain::wrappedTile(nullptr, width, height, 0, 0, 99) == 99);
 }
 
+void testAtlasMaterialRoundTripAndSizeWithNoGPU()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("terrain");
+    TiledTerrain* terrain = object->addComponent<TiledTerrain>();
+    CHECK(terrain != nullptr);
+    if (!terrain)
+        return;
+
+    CHECK(terrain->atlasMaterial().empty());
+    terrain->setAtlasMaterial("materials/tiles.material");
+    CHECK(terrain->atlasMaterial() == "materials/tiles.material");
+
+    // No live GPU device in this test binary - atlasSize() must fail closed,
+    // not crash trying to reach one.
+    u32 width = 0, height = 0;
+    CHECK(!terrain->atlasSize(width, height));
+    CHECK(width == 0);
+    CHECK(height == 0);
+}
+
+void testFillCellsPaintsOnlyConnectedRegion()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("terrain");
+    TiledTerrain* terrain = object->addComponent<TiledTerrain>();
+    CHECK(terrain != nullptr);
+    if (!terrain)
+        return;
+
+    const u32 width = 5, height = 5;
+    std::vector<u8> map(static_cast<usize>(width) * height, 0);
+    terrain->loadTilemap(width, height, map.data());
+
+    // A plus-shaped region of tile 3 in a sea of tile 0, plus one isolated
+    // tile-3 cell in the far corner - not 4-connected to the plus, so it
+    // must survive a flood fill starting inside the plus untouched.
+    terrain->setTile(2, 1, 3);
+    terrain->setTile(1, 2, 3);
+    terrain->setTile(2, 2, 3);
+    terrain->setTile(3, 2, 3);
+    terrain->setTile(2, 3, 3);
+    terrain->setTile(4, 4, 3);
+
+    TiledTerrain::fillCells(*terrain, 2, 2, 9);
+
+    CHECK(terrain->tile(2, 1) == 9);
+    CHECK(terrain->tile(1, 2) == 9);
+    CHECK(terrain->tile(2, 2) == 9);
+    CHECK(terrain->tile(3, 2) == 9);
+    CHECK(terrain->tile(2, 3) == 9);
+    CHECK(terrain->tile(4, 4) == 3); // disconnected island, untouched
+    CHECK(terrain->tile(0, 0) == 0); // background, untouched
+    CHECK(terrain->tile(2, 0) == 0); // touching the plus's boundary, untouched
+}
+
+void testPaintRectangleClampsToMapBounds()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("terrain");
+    TiledTerrain* terrain = object->addComponent<TiledTerrain>();
+    CHECK(terrain != nullptr);
+    if (!terrain)
+        return;
+
+    const u32 width = 4, height = 4;
+    std::vector<u8> map(static_cast<usize>(width) * height, 0);
+    terrain->loadTilemap(width, height, map.data());
+
+    // Rectangle from (2,2) to (10,10) - the far corner sits well outside the
+    // 4x4 map, the clamp must cut it down to (2,2)-(3,3).
+    TiledTerrain::paintRectangle(*terrain, 2, 2, 10, 10, 5);
+
+    CHECK(terrain->tile(2, 2) == 5);
+    CHECK(terrain->tile(3, 2) == 5);
+    CHECK(terrain->tile(2, 3) == 5);
+    CHECK(terrain->tile(3, 3) == 5);
+    CHECK(terrain->tile(0, 0) == 0);
+    CHECK(terrain->tile(1, 1) == 0);
+    CHECK(terrain->tile(0, 3) == 0);
+    CHECK(terrain->tile(3, 0) == 0);
+
+    // A start corner outside the map (negative) must clamp on that side too.
+    TiledTerrain::paintRectangle(*terrain, -5, -5, 1, 1, 7);
+    CHECK(terrain->tile(0, 0) == 7);
+    CHECK(terrain->tile(1, 1) == 7);
+    CHECK(terrain->tile(0, 1) == 7);
+    CHECK(terrain->tile(1, 0) == 7);
+}
+
 } // namespace
 
 int main()
@@ -121,6 +211,9 @@ int main()
     testSetTileTriggersRebuildAndUpdatesCell();
     testAtlasUVMatchesExpectedCell();
     testWrappedTileWrapsAroundMapEdge();
+    testAtlasMaterialRoundTripAndSizeWithNoGPU();
+    testFillCellsPaintsOnlyConnectedRegion();
+    testPaintRectangleClampsToMapBounds();
 
     if (gFailures)
         std::fprintf(stderr, "%d tiled terrain test(s) failed\n", gFailures);
