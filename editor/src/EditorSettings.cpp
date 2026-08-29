@@ -101,7 +101,6 @@ bool EditorSettings::load(const std::string& filename)
     readInt(root, "viewportNavigationTool", viewportNavigationTool);
     readVec3(root, "cursor3D", cursor3D);
     readInt(root, "viewMode", viewMode);
-    readBool(root, "showStatsOverlay", showStatsOverlay);
     readBool(root, "showDynamicIndexDebug", showDynamicIndexDebug);
     readBool(root, "showOcclusionDebug", showOcclusionDebug);
     readBool(root, "showSubmeshBounds", showSubmeshBounds);
@@ -168,7 +167,6 @@ bool EditorSettings::save(const std::string& filename) const
     root["viewportNavigationTool"] = viewportNavigationTool;
     root["cursor3D"] = {cursor3D.x, cursor3D.y, cursor3D.z};
     root["viewMode"] = viewMode;
-    root["showStatsOverlay"] = showStatsOverlay;
     root["showDynamicIndexDebug"] = showDynamicIndexDebug;
     root["showOcclusionDebug"] = showOcclusionDebug;
     root["showSubmeshBounds"] = showSubmeshBounds;
