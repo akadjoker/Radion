@@ -23,20 +23,47 @@ StateMachine::~StateMachine()
 
 void StateMachine::iterate()
 {
-    if (!mCurrentState)
+    // Every call below is a user callback, and a callback can reach back in
+    // here: setCurrentState(), removeState() - which deletes the State and
+    // every transition pointing at it - or anything that destroys the object
+    // the callbacks captured. So the state is pinned before each one and
+    // rechecked after: if it moved, this tick is over, because the list this
+    // loop is walking belongs to a state that may no longer exist.
+    State* state = mCurrentState;
+    if (!state)
         return;
 
-    mCurrentState->iterate();
+    state->iterate();
+    if (mCurrentState != state)
+        return;
 
-    for (Transition* trans : mCurrentState->transitions())
+    // By index, with size() re-read every turn: a callback may have erased
+    // transitions out of this very vector (removeState() does exactly that
+    // to any transition aimed at the state it removes).
+    std::vector<Transition*>& transitions = state->transitions();
+    for (usize i = 0; i < transitions.size(); ++i)
     {
-        if (trans->shouldTransition())
+        Transition* transition = transitions[i];
+        if (!transition)
+            continue;
+        if (!transition->shouldTransition())
         {
-            mCurrentState->exit();
-            mCurrentState = trans->targetPtr();
-            mCurrentState->enter();
-            break;
+            if (mCurrentState != state)
+                return;
+            continue;
         }
+
+        // Read the target before exit() runs: exit() can remove states, and
+        // removeState() deletes the transitions that name them.
+        State* target = transition->targetPtr();
+        state->exit();
+        if (mCurrentState != state)
+            return; // exit() already moved the machine somewhere else
+        if (!target)
+            return;
+        mCurrentState = target;
+        target->enter();
+        return;
     }
 }
 
