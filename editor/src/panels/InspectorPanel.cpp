@@ -34,6 +34,7 @@
 #include "ZenBehaviour.h"
 #include "Text3D.h"
 #include "Terrain.h"
+#include "TiledTerrain.h"
 #include "VoxelWorldComponent.h"
 #include "Forest.h"
 #include "Grass.h"
@@ -248,6 +249,7 @@ void removeComponentByType(GameObject& object, ComponentType type)
     case ComponentType::Road: object.removeComponent<Road>(); break;
     case ComponentType::Grass: object.removeComponent<Grass>(); break;
     case ComponentType::Hair: object.removeComponent<Hair>(); break;
+    case ComponentType::TiledTerrain: object.removeComponent<TiledTerrain>(); break;
     case ComponentType::Forest: object.removeComponent<Forest>(); break;
     case ComponentType::Ocean: object.removeComponent<Ocean>(); break;
     case ComponentType::VoxelWorld: object.removeComponent<VoxelWorldComponent>(); break;
@@ -984,6 +986,15 @@ void InspectorPanel::drawComponentList(GameObject& object)
             toRemove = ComponentType::Grass;
         else
             drawGrassComponent(*component);
+        ImGui::PopID();
+    }
+    if (TiledTerrain* component = object.getComponent<TiledTerrain>())
+    {
+        ImGui::PushID("TiledTerrain");
+        if (drawComponentHeader(app(), "TiledTerrain", *component))
+            toRemove = ComponentType::TiledTerrain;
+        else
+            drawTiledTerrainComponent(*component);
         ImGui::PopID();
     }
     if (Hair* component = object.getComponent<Hair>())
@@ -1771,6 +1782,85 @@ bool drawOceanTextureSlot(EditorApplication& app, const char* label, Ocean& ocea
     if (changed)
         app.markDirty();
     return changed;
+}
+
+void InspectorPanel::drawTiledTerrainComponent(TiledTerrain& terrain)
+{
+    bool changed = false;
+    ImGui::Indent(14.0f);
+
+    int tilesInSide = terrain.tilesInSide();
+    if (ImGui::DragInt("Tiles in side", &tilesInSide, 1.0f, 1, 256))
+    {
+        terrain.setTilesInSide(tilesInSide);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Atlas grid size - the atlas texture is read as a tilesInSide x "
+                          "tilesInSide grid, each tile ID indexing into it row-major.");
+
+    int tilesPerPatch = terrain.tilesPerPatch();
+    if (ImGui::DragInt("Tiles per patch", &tilesPerPatch, 1.0f, 1, 256))
+    {
+        terrain.setTilesPerPatch(tilesPerPatch);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Tiles per submesh. The scene culls one patch at a time, so a smaller "
+                          "patch culls more precisely at the cost of more submeshes.");
+
+    f32 patchLength = terrain.patchLength();
+    if (ImGui::DragFloat("Patch length", &patchLength, 0.01f, 0.001f, 10000.0f))
+    {
+        terrain.setPatchLength(patchLength);
+        changed = true;
+    }
+
+    int defaultTile = terrain.defaultTile();
+    if (ImGui::DragInt("Default tile", &defaultTile, 1.0f, 0, 255))
+    {
+        terrain.setDefaultTile(static_cast<u8>(defaultTile));
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Tile ID a patch overhanging the map edge samples, and what a freshly "
+                          "built tilemap starts filled with.");
+
+    ImGui::TextUnformatted("Atlas material");
+    ImGui::Button(terrain.atlasMaterial().empty() ? "Drop material asset here"
+                                                  : terrain.atlasMaterial().c_str(),
+                  ImVec2(-FLT_MIN, 0.0f));
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kAssetFileDragPayload))
+        {
+            const std::string path(static_cast<const char*>(payload->Data), payload->DataSize);
+            terrain.setAtlasMaterial(path);
+            changed = true;
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Map size");
+    static int newWidth = 8;
+    static int newHeight = 8;
+    ImGui::DragInt("Width##TiledTerrainMapWidth", &newWidth, 1.0f, 1, 4096);
+    ImGui::DragInt("Height##TiledTerrainMapHeight", &newHeight, 1.0f, 1, 4096);
+    if (ImGui::Button("Build Tilemap", ImVec2(-FLT_MIN, 0.0f)))
+    {
+        app().recordUndo();
+        const u32 width = static_cast<u32>(newWidth);
+        const u32 height = static_cast<u32>(newHeight);
+        std::vector<u8> tiles(static_cast<usize>(width) * height, terrain.defaultTile());
+        terrain.loadTilemap(width, height, tiles.data());
+        changed = true;
+    }
+    ImGui::Text("Current: %u x %u", terrain.mapWidth(), terrain.mapHeight());
+
+    if (changed)
+        app().markDirty();
+    ImGui::Unindent(14.0f);
 }
 
 void InspectorPanel::drawRoadComponent(GameObject& object, Road& road)
@@ -3133,6 +3223,12 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
         {
             app().recordUndo();
             object.addComponent<VoxelWorldComponent>();
+            app().markDirty();
+        }
+        if (!object.getComponent<TiledTerrain>() && ImGui::MenuItem("TiledTerrain"))
+        {
+            app().recordUndo();
+            object.addComponent<TiledTerrain>();
             app().markDirty();
         }
         if (!object.getComponent<Animator>() && ImGui::MenuItem("Animator..."))

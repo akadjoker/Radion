@@ -19,6 +19,7 @@ add_executable(radion_editor
     src/panels/ScriptEditorPanel.cpp
     src/panels/LightmapPanel.cpp
     src/panels/MeshToolsPanel.cpp
+    src/panels/TilePainterPanel.cpp
     src/panels/VolumePanel.cpp
     ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets/ImGuiFileDialog.cpp
     ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets/ImGuizmo.cpp

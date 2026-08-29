@@ -32,6 +32,7 @@
 #include "panels/ProfilerPanel.h"
 #include "panels/SettingsPanel.h"
 #include "panels/ScriptEditorPanel.h"
+#include "panels/TilePainterPanel.h"
 #include "panels/ViewportPanel.h"
 #include "panels/VolumePanel.h"
 
@@ -323,6 +324,7 @@ void EditorApplication::buildPanels()
     mScriptEditor = new ScriptEditorPanel(*this);
     mPanels.push_back(mScriptEditor);
     mPanels.push_back(new MeshToolsPanel(*this));
+    mPanels.push_back(new TilePainterPanel(*this));
     mPanels.push_back(new LightmapPanel(*this));
     mPanels.push_back(new VolumePanel(*this));
     mPanels.push_back(new ConsolePanel(*this));
@@ -333,11 +335,14 @@ void EditorApplication::buildPanels()
     {
         const auto saved = mSettings.panelOpen.find(panel->title());
         const bool optionalTool = panel->title() == "Lightmap" || panel->title() == "Volume" ||
-                                  panel->title() == "Mesh Tools";
+                                  panel->title() == "Mesh Tools" ||
+                                  panel->title() == "Tile Painter" ||
+                                  panel->title() == "Settings" || panel->title() == "Animation" ||
+                                  panel->title() == "Debug" || panel->title() == "Profiler";
         // The first dock-layout migration also establishes the quieter
         // default: these heavyweight tools are available from Windows, but
         // do not open automatically.
-        if (mSettings.dockLayoutVersion < 1 && optionalTool)
+        if (mSettings.dockLayoutVersion < 2 && optionalTool)
             panel->setActive(false);
         else if (saved != mSettings.panelOpen.end())
             panel->setActive(saved->second);
@@ -1255,25 +1260,28 @@ void EditorApplication::drawDockspace()
         // Only on the very first run for this .ini - once the user redocks
         // anything, ImGui's own persistence takes over and this never runs
         // again (PLANO_EDITOR.md: "não reconstruir os docks a cada arranque").
-        if (mSettings.dockLayoutVersion < 1 || ImGui::DockBuilderGetNode(dockspaceId) == nullptr ||
+        if (mSettings.dockLayoutVersion < 2 || ImGui::DockBuilderGetNode(dockspaceId) == nullptr ||
             ImGui::DockBuilderGetNode(dockspaceId)->IsSplitNode() == false)
         {
             ImGui::DockBuilderRemoveNode(dockspaceId);
             ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
             ImGui::DockBuilderSetNodeSize(dockspaceId, viewport->WorkSize);
 
-            ImGuiID left, center, right, centerTop, bottom, inspector, settings;
+            // Simple by default: tree on the left, Game/Scene in the middle,
+            // Inspector filling the whole right side, Console and Assets at
+            // the bottom - everything else (Settings, the heavier tools) is
+            // still dockable from the Windows menu, just not shown until then.
+            ImGuiID left, center, right, centerTop, bottom;
             ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Left, 0.20f, &left, &center);
             ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.22f / 0.80f, &right, &center);
             ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.25f, &bottom, &centerTop);
-            ImGui::DockBuilderSplitNode(right, ImGuiDir_Down, 0.48f, &settings, &inspector);
 
             ImGui::DockBuilderDockWindow(kHierarchyWindow, left);
 
             ImGui::DockBuilderDockWindow(kGameWindow, centerTop);
             ImGui::DockBuilderDockWindow(kViewportWindow, centerTop);
-            ImGui::DockBuilderDockWindow(kInspectorWindow, inspector);
-            ImGui::DockBuilderDockWindow("Settings", settings);
+            ImGui::DockBuilderDockWindow(kInspectorWindow, right);
+            ImGui::DockBuilderDockWindow("Settings", right);
             ImGui::DockBuilderDockWindow(kAssetsWindow, bottom);
             ImGui::DockBuilderDockWindow("Script Editor", centerTop);
             ImGui::DockBuilderDockWindow(kConsoleWindow, bottom);
@@ -1281,10 +1289,11 @@ void EditorApplication::drawDockspace()
             ImGui::DockBuilderDockWindow(kDebugWindow, bottom);
             ImGui::DockBuilderDockWindow(kProfilerWindow, bottom);
             ImGui::DockBuilderDockWindow("Mesh Tools", bottom);
+            ImGui::DockBuilderDockWindow("Tile Painter", bottom);
             ImGui::DockBuilderDockWindow("Lightmap", bottom);
             ImGui::DockBuilderDockWindow("Volume", bottom);
             ImGui::DockBuilderFinish(dockspaceId);
-            mSettings.dockLayoutVersion = 1;
+            mSettings.dockLayoutVersion = 2;
         }
     }
 
