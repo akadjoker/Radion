@@ -1778,6 +1778,9 @@ void Scene::componentAdded(Component* component)
     case ComponentType::RigidBody:
         addBody(*static_cast<Physics::RigidBody*>(component));
         break;
+    case ComponentType::Joint:
+        mJointComponents.push_back(static_cast<Physics::Joint*>(component));
+        break;
     default:
         break;
     }
@@ -1866,6 +1869,9 @@ void Scene::componentRemoved(Component* component)
         break;
     case ComponentType::RigidBody:
         removeBody(*static_cast<Physics::RigidBody*>(component));
+        break;
+    case ComponentType::Joint:
+        removePointer(mJointComponents, static_cast<Physics::Joint*>(component));
         break;
     default:
         break;
@@ -2339,6 +2345,7 @@ void Scene::addJoint(Joint* joint)
     if (std::find(mJoints.begin(), mJoints.end(), joint) != mJoints.end())
         return;
     mJoints.push_back(joint);
+    joint->mJointScene = this;
     joint->bodyA()->setAwake(true);
     joint->bodyB()->setAwake(true);
 }
@@ -2348,6 +2355,7 @@ void Scene::removeJoint(Joint* joint)
     const auto found = std::find(mJoints.begin(), mJoints.end(), joint);
     if (found == mJoints.end())
         return;
+    joint->mJointScene = nullptr;
     *found = mJoints.back();
     mJoints.pop_back();
 }
@@ -2429,12 +2437,10 @@ u64 Scene::pairKey(const RigidBody& a, const RigidBody& b)
     return (static_cast<u64>(low) << 32) | high;
 }
 
-void Scene::warmStartFromCache(const RigidBody& a, const RigidBody& b, ContactManifold& manifold)
+void Scene::warmStartFromCache(const CachedContactPair* cached, ContactManifold& manifold)
 {
-    const auto found = mContactCache.find(pairKey(a, b));
-    if (found == mContactCache.end())
+    if (!cached)
         return;
-    const CachedContactPair& cached = found->second;
     for (u32 i = 0; i < manifold.count; ++i)
     {
         ContactPoint& point = manifold.points[i];
@@ -2443,13 +2449,13 @@ void Scene::warmStartFromCache(const RigidBody& a, const RigidBody& b, ContactMa
         // carrying impulses by slot would then swap them around the face.
         f32 best = kMatchDistance;
         const CachedContactPoint* match = nullptr;
-        for (u32 j = 0; j < cached.count; ++j)
+        for (u32 j = 0; j < cached->count; ++j)
         {
-            const f32 distance = glm::length(point.position - cached.points[j].position);
+            const f32 distance = glm::length(point.position - cached->points[j].position);
             if (distance < best)
             {
                 best = distance;
-                match = &cached.points[j];
+                match = &cached->points[j];
             }
         }
         if (!match)
@@ -2615,20 +2621,10 @@ void Scene::stepPhysics(f32 duration)
     mPhysicsStepping = true;
     ++mPhysicsStepIndex;
 
-    // Gravity is set on every dynamic body rather than added as a force, so
-    // it reaches them whatever their mass - and so a body the caller gave its
-    // own acceleration keeps it only until the scene overwrites it, which is
-    // the honest behaviour for a scene that owns gravity.
-    for (u32 i = 0; i < mRigidBodies.size(); ++i)
-    {
-        RigidBody* body = mRigidBodies[i];
-        body->mStepSlot = i;
-        if (body->enabled() && body->isDynamic())
-        {
-            body->setAcceleration(mGravity);
-            body->integrateForces(duration);
-        }
-    }
+    for (Joint* joint : mJointComponents)
+        if (!joint->built() && joint->active() && joint->owner() &&
+            joint->owner()->isActiveInHierarchy())
+            joint->rebuild();
 
     if (mStaticBroadphaseDirty)
         rebuildStaticBroadphase();
@@ -2636,9 +2632,23 @@ void Scene::stepPhysics(f32 duration)
     mDynamicBroadphase.reserve(mRigidBodies.size());
     mDynamicProxies.clear();
     mDynamicProxies.reserve(mRigidBodies.size());
+    // Gravity/mStepSlot and dynamic-proxy building are one pass over
+    // mRigidBodies: both only ever read or write the body at the current
+    // index, so there is no ordering dependency between them and no reason to
+    // walk the list twice.
     for (u32 i = 0; i < mRigidBodies.size(); ++i)
     {
-        const RigidBody* body = mRigidBodies[i];
+        RigidBody* body = mRigidBodies[i];
+        body->mStepSlot = i;
+        // Gravity is set on every dynamic body rather than added as a force,
+        // so it reaches them whatever their mass - and so a body the caller
+        // gave its own acceleration keeps it only until the scene overwrites
+        // it, which is the honest behaviour for a scene that owns gravity.
+        if (body->enabled() && body->isDynamic())
+        {
+            body->setAcceleration(mGravity);
+            body->integrateForces(duration);
+        }
         if (!bodyCollides(body) || body->bodyType() == BodyType::Static)
             continue;
         BroadphaseProxy proxy;
@@ -2716,13 +2726,15 @@ void Scene::stepPhysics(f32 duration)
             mManifolds.push_back(manifold);
         }
 
-        const auto existing = mContactCache.find(pairKey(a, b));
+        const u64 key = pairKey(a, b);
+        const auto existing = mContactCache.find(key);
         const bool isNew = existing == mContactCache.end();
+        const CachedContactPair* cachedForWarmStart = isNew ? nullptr : &existing->second;
 
         ContactManifold& manifold = mManifolds[0];
         for (ContactManifold& current : mManifolds)
         {
-            warmStartFromCache(a, b, current);
+            warmStartFromCache(cachedForWarmStart, current);
 
             Contact contact;
             contact.a = &a;
@@ -2751,7 +2763,9 @@ void Scene::stepPhysics(f32 duration)
         info.point = manifold.points[0].position;
         info.penetration = manifold.points[0].penetration;
         mContactEventQueue.push_back(info);
-        CachedContactPair& cached = mContactCache[pairKey(a, b)];
+        // Reuses the iterator found above for a pair that was already in the
+        // cache, rather than hashing and probing the same key a second time.
+        CachedContactPair& cached = isNew ? mContactCache[key] : existing->second;
         cached.bodyA = &a;
         cached.bodyB = &b;
         cached.lastStep = mPhysicsStepIndex;
@@ -2833,7 +2847,7 @@ void Scene::updatePhysics(f32 deltaTime)
 
 // -------------------------------------------------------------- debug draw
 
-void Scene::debugDrawPhysics() const
+void Scene::debugDrawPhysicsShapes() const
 {
     for (const RigidBody* body : mRigidBodies)
     {
@@ -2864,7 +2878,10 @@ void Scene::debugDrawPhysics() const
         }
         body->shape()->debugDraw(body->transform(), color);
     }
+}
 
+void Scene::debugDrawPhysicsContacts() const
+{
     for (const Contact& contact : mContacts)
         for (u32 i = 0; i < contact.manifold.count; ++i)
         {
@@ -2874,6 +2891,21 @@ void Scene::debugDrawPhysics() const
             const f32 scale = 0.05f + contact.manifold.points[i].normalImpulse * 0.02f;
             DebugDraw().line(point, point + contact.manifold.normal * scale, Color::Red);
         }
+}
+
+void Scene::debugDrawPhysicsJoints() const
+{
+    constexpr f32 axisLength = 0.35f;
+    for (const Joint* joint : mJoints)
+    {
+        if (!joint || !joint->enabled())
+            continue;
+        const glm::vec3 anchorA = joint->anchorWorldA();
+        const glm::vec3 anchorB = joint->anchorWorldB();
+        DebugDraw().line(anchorA, anchorB, Color::Yellow);
+        if (joint->hasAxis())
+            DebugDraw().line(anchorA, anchorA + joint->axisWorld() * axisLength, Color::Cyan);
+    }
 }
 
 // ---------------------------------------------------------------- queries

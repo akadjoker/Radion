@@ -2,26 +2,75 @@
 
 #include "dynamics/DistanceJoint.h"
 
+#include "GameObject.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 namespace Radion::Physics
 {
 
+DistanceJoint::DistanceJoint() : Joint(JointKind::Distance)
+{
+}
+
 DistanceJoint::DistanceJoint(RigidBody& a, const glm::vec3& worldAnchorA, RigidBody& b,
                              const glm::vec3& worldAnchorB)
-    : mBodyA(&a), mBodyB(&b), mLocalAnchorA(a.pointToLocal(worldAnchorA)),
-      mLocalAnchorB(b.pointToLocal(worldAnchorB))
+    : Joint(JointKind::Distance)
 {
+    configure(a, worldAnchorA, b, worldAnchorB);
+}
+
+DistanceJoint::DistanceJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
+                             const glm::vec3& localAnchorB, f32 minDistance, f32 maxDistance)
+    : Joint(JointKind::Distance), mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA),
+      mLocalAnchorB(localAnchorB)
+{
+    setDistance(minDistance, maxDistance);
+}
+
+void DistanceJoint::configure(RigidBody& a, const glm::vec3& worldAnchorA, RigidBody& b,
+                              const glm::vec3& worldAnchorB)
+{
+    mBodyA = &a;
+    mBodyB = &b;
+    mLocalAnchorA = a.pointToLocal(worldAnchorA);
+    mLocalAnchorB = b.pointToLocal(worldAnchorB);
     const f32 distance = glm::length(worldAnchorB - worldAnchorA);
     mMinDistance = distance;
     mMaxDistance = distance;
 }
 
-DistanceJoint::DistanceJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
-                             const glm::vec3& localAnchorB, f32 minDistance, f32 maxDistance)
-    : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB)
+void DistanceJoint::rebuild()
 {
-    setDistance(minDistance, maxDistance);
+    GameObject* self = owner();
+    GameObject* other = connectedBody();
+    if (!self || !other)
+        return;
+    RigidBody* a = self->getComponent<RigidBody>();
+    RigidBody* b = other->getComponent<RigidBody>();
+    if (!a || !b)
+        return;
+    const glm::vec3 anchor = self->globalPosition();
+    configure(*a, anchor, *b, anchor);
+    setDistance(mAuthoredMinDistance, mAuthoredMaxDistance);
+    self->scene()->addJoint(this);
+    mBuilt = true;
+}
+
+void DistanceJoint::setAuthoredDistance(f32 minDistance, f32 maxDistance)
+{
+    mAuthoredMinDistance = glm::max(minDistance, 0.0f);
+    mAuthoredMaxDistance = glm::max(maxDistance, mAuthoredMinDistance);
+}
+
+f32 DistanceJoint::authoredMinDistance() const
+{
+    return mAuthoredMinDistance;
+}
+
+f32 DistanceJoint::authoredMaxDistance() const
+{
+    return mAuthoredMaxDistance;
 }
 
 RigidBody* DistanceJoint::bodyA() const
@@ -52,6 +101,16 @@ glm::vec3 DistanceJoint::worldAnchorA() const
 glm::vec3 DistanceJoint::worldAnchorB() const
 {
     return mBodyB->pointToWorld(mLocalAnchorB);
+}
+
+glm::vec3 DistanceJoint::anchorWorldA() const
+{
+    return worldAnchorA();
+}
+
+glm::vec3 DistanceJoint::anchorWorldB() const
+{
+    return worldAnchorB();
 }
 
 void DistanceJoint::setDistance(f32 minDistance, f32 maxDistance)

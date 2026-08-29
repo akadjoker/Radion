@@ -79,6 +79,32 @@ void ContactSolver::warmStart(Contact* contacts, u32 count)
     }
 }
 
+void ContactSolver::buildEffectiveMass(Contact* contacts, u32 count)
+{
+    mPointMass.resize(static_cast<usize>(count) * ContactManifold::MaxPoints);
+    for (u32 c = 0; c < count; ++c)
+    {
+        Contact& contact = contacts[c];
+        if (!contact.a || !contact.b)
+            continue;
+        RigidBody& a = *contact.a;
+        RigidBody& b = *contact.b;
+        const ContactManifold& manifold = contact.manifold;
+        PointMass* cache = &mPointMass[static_cast<usize>(c) * ContactManifold::MaxPoints];
+
+        for (u32 i = 0; i < manifold.count; ++i)
+        {
+            const ContactPoint& point = manifold.points[i];
+            PointMass& mass = cache[i];
+            mass.armA = point.position - a.position();
+            mass.armB = point.position - b.position();
+            mass.tangentMass[0] = effectiveMass(a, b, mass.armA, mass.armB, manifold.tangent[0]);
+            mass.tangentMass[1] = effectiveMass(a, b, mass.armA, mass.armB, manifold.tangent[1]);
+            mass.normalMass = effectiveMass(a, b, mass.armA, mass.armB, manifold.normal);
+        }
+    }
+}
+
 void ContactSolver::solveVelocity(Contact* contacts, u32 count)
 {
     for (u32 c = 0; c < count; ++c)
@@ -89,12 +115,13 @@ void ContactSolver::solveVelocity(Contact* contacts, u32 count)
         RigidBody& a = *contact.a;
         RigidBody& b = *contact.b;
         ContactManifold& manifold = contact.manifold;
+        const PointMass* cache = &mPointMass[static_cast<usize>(c) * ContactManifold::MaxPoints];
 
         for (u32 i = 0; i < manifold.count; ++i)
         {
             ContactPoint& point = manifold.points[i];
-            const glm::vec3 armA = point.position - a.position();
-            const glm::vec3 armB = point.position - b.position();
+            const glm::vec3& armA = cache[i].armA;
+            const glm::vec3& armB = cache[i].armB;
 
             // Friction first, and against the normal impulse the last
             // iteration settled on: the friction cone needs a normal force to
@@ -104,7 +131,7 @@ void ContactSolver::solveVelocity(Contact* contacts, u32 count)
             for (u32 t = 0; t < 2; ++t)
             {
                 const glm::vec3& tangent = manifold.tangent[t];
-                const f32 mass = effectiveMass(a, b, armA, armB, tangent);
+                const f32 mass = cache[i].tangentMass[t];
                 if (mass <= 0.0f)
                     continue;
                 const f32 speed = glm::dot(relativeVelocity(a, b, armA, armB), tangent);
@@ -115,7 +142,7 @@ void ContactSolver::solveVelocity(Contact* contacts, u32 count)
                 applyPair(a, b, tangent * (total - previous), point.position);
             }
 
-            const f32 mass = effectiveMass(a, b, armA, armB, manifold.normal);
+            const f32 mass = cache[i].normalMass;
             if (mass <= 0.0f)
                 continue;
             const f32 separation =
@@ -217,6 +244,8 @@ void ContactSolver::solve(Contact* contacts, u32 count, Joint* const* joints, u3
                 point.velocityBias = -contact.restitution * approach;
         }
     }
+
+    buildEffectiveMass(contacts, count);
 
     for (u32 i = 0; i < jointCount; ++i)
         if (joints[i] && joints[i]->enabled())

@@ -27,6 +27,7 @@
 #include "Scene.h"
 #include "Skeleton.h"
 #include "NavMeshSurface.h"
+#include "dynamics/JointMatch.h"
 #include "dynamics/RigidBody.h"
 #include "SelfDestroy.h"
 #include "Waypoints.h"
@@ -253,6 +254,7 @@ void removeComponentByType(GameObject& object, ComponentType type)
     case ComponentType::Script: object.removeComponent<ScriptComponent>(); break;
     case ComponentType::Collider: object.removeComponent<Collider>(); break;
     case ComponentType::RigidBody: object.removeComponent<Physics::RigidBody>(); break;
+    case ComponentType::Joint: object.removeComponent<Physics::Joint>(); break;
     case ComponentType::AudioPlayer:
         object.removeComponent<AudioPlayer>();
         break;
@@ -852,6 +854,15 @@ void InspectorPanel::drawComponentList(GameObject& object)
             toRemove = ComponentType::RigidBody;
         else
             drawRigidBodyComponent(object, *rigidBody);
+        ImGui::PopID();
+    }
+    if (Physics::Joint* joint = object.getComponent<Physics::Joint>())
+    {
+        ImGui::PushID("Joint");
+        if (drawComponentHeader(app(), "Joint", *joint))
+            toRemove = ComponentType::Joint;
+        else
+            drawJointComponent(object, *joint);
         ImGui::PopID();
     }
     if (AudioPlayer* audioPlayer = object.getComponent<AudioPlayer>())
@@ -3076,6 +3087,11 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             object.addComponent<Physics::RigidBody>();
             app().markDirty();
         }
+        if (!object.getComponent<Physics::Joint>() && ImGui::MenuItem("Joint"))
+        {
+            object.addComponent<Physics::HingeJoint>();
+            app().markDirty();
+        }
         if (!object.getComponent<AudioPlayer>() && ImGui::MenuItem("AudioPlayer"))
         {
             object.addComponent<AudioPlayer>();
@@ -4443,6 +4459,271 @@ void InspectorPanel::drawRigidBodyComponent(GameObject&, Physics::RigidBody& bod
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("A disabled body stays registered but is skipped by broadphase, "
                          "contacts, and integration.");
+
+    ImGui::Unindent(14.0f);
+}
+
+void InspectorPanel::drawJointComponent(GameObject& object, Physics::Joint& joint)
+{
+    ImGui::Indent(14.0f);
+
+    static const char* kKindNames[] = {"Distance", "Fixed",  "Hinge",     "Slider",
+                                       "Piston",   "Universal", "Point"};
+    int kindIndex = static_cast<int>(joint.kind());
+    if (ImGui::Combo("Kind", &kindIndex, kKindNames, IM_ARRAYSIZE(kKindNames)))
+    {
+        GameObject* connectedBody = joint.connectedBody();
+        const bool enabled = joint.enabled();
+        object.removeComponent<Physics::Joint>();
+        Physics::Joint* replacement = nullptr;
+        switch (static_cast<Physics::JointKind>(kindIndex))
+        {
+        case Physics::JointKind::Distance:
+            replacement = object.addComponent<Physics::DistanceJoint>();
+            break;
+        case Physics::JointKind::Fixed:
+            replacement = object.addComponent<Physics::FixedJoint>();
+            break;
+        case Physics::JointKind::Hinge:
+            replacement = object.addComponent<Physics::HingeJoint>();
+            break;
+        case Physics::JointKind::Slider:
+            replacement = object.addComponent<Physics::SliderJoint>();
+            break;
+        case Physics::JointKind::Piston:
+            replacement = object.addComponent<Physics::PistonJoint>();
+            break;
+        case Physics::JointKind::Universal:
+            replacement = object.addComponent<Physics::UniversalJoint>();
+            break;
+        case Physics::JointKind::Point:
+            replacement = object.addComponent<Physics::PointJoint>();
+            break;
+        default:
+            break;
+        }
+        if (replacement)
+        {
+            replacement->setConnectedBody(connectedBody);
+            replacement->setEnabled(enabled);
+        }
+        app().markDirty();
+        ImGui::Unindent(14.0f);
+        return;
+    }
+
+    ImGui::Text("Connected Body: %s",
+               joint.connectedBody() ? joint.connectedBody()->name().c_str() : "(none)");
+    ImGui::Button("Drop object here", ImVec2(-FLT_MIN, 0.0f));
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kGameObjectDragPayload))
+        {
+            const u64 id = *static_cast<const u64*>(payload->Data);
+            GameObject* connectedObject = app().scene().findGameObject(id);
+            if (connectedObject && connectedObject != &object)
+            {
+                app().recordUndo();
+                joint.setConnectedBody(connectedObject);
+                app().markDirty();
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+    if (ImGui::Button("Clear"))
+    {
+        app().recordUndo();
+        joint.setConnectedBody(nullptr);
+        app().markDirty();
+    }
+
+    bool enabled = joint.enabled();
+    if (ImGui::Checkbox("Enabled", &enabled))
+    {
+        joint.setEnabled(enabled);
+        app().markDirty();
+    }
+
+    switch (joint.kind())
+    {
+    case Physics::JointKind::Hinge:
+    {
+        Physics::HingeJoint& hinge = static_cast<Physics::HingeJoint&>(joint);
+        glm::vec3 axis = hinge.authoredAxis();
+        if (ImGui::DragFloat3("Axis", &axis.x, 0.01f))
+        {
+            hinge.setAuthoredAxis(axis);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Hinge rotation axis, in this object's own local space.");
+
+        f32 minAngle = glm::degrees(hinge.minAngle());
+        f32 maxAngle = glm::degrees(hinge.maxAngle());
+        bool limitsChanged = ImGui::DragFloat("Min Angle", &minAngle, 1.0f, -180.0f, 0.0f);
+        limitsChanged |= ImGui::DragFloat("Max Angle", &maxAngle, 1.0f, 0.0f, 180.0f);
+        if (limitsChanged)
+        {
+            hinge.setLimits(glm::radians(minAngle), glm::radians(maxAngle));
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("How far the hinge may open to either side of its rest angle. "
+                              "-180/180 leaves it unconstrained.");
+
+        f32 motorVelocity = hinge.motorTargetVelocity();
+        f32 motorTorque = hinge.motorMaxTorque();
+        bool motorChanged = ImGui::DragFloat("Motor Velocity", &motorVelocity, 0.01f);
+        motorChanged |= ImGui::DragFloat("Motor Max Torque", &motorTorque, 0.1f, 0.0f, 100000.0f);
+        if (motorChanged)
+        {
+            hinge.setMotor(motorVelocity, motorTorque);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Angular velocity the motor drives the hinge towards, and the "
+                              "torque it may spend doing it. Max Torque 0 disables the motor.");
+        break;
+    }
+    case Physics::JointKind::Slider:
+    {
+        Physics::SliderJoint& slider = static_cast<Physics::SliderJoint&>(joint);
+        glm::vec3 axis = slider.authoredAxis();
+        if (ImGui::DragFloat3("Axis", &axis.x, 0.01f))
+        {
+            slider.setAuthoredAxis(axis);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Slider travel axis, in this object's own local space.");
+
+        f32 minDistance = slider.minDistance();
+        f32 maxDistance = slider.maxDistance();
+        bool limitsChanged = ImGui::DragFloat("Min Distance", &minDistance, 0.01f, -1000.0f, 0.0f);
+        limitsChanged |= ImGui::DragFloat("Max Distance", &maxDistance, 0.01f, 0.0f, 1000.0f);
+        if (limitsChanged)
+        {
+            slider.setLimits(minDistance, maxDistance);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("How far the slider may travel along its axis from the anchor.");
+
+        f32 motorVelocity = slider.motorTargetVelocity();
+        f32 motorForce = slider.motorMaxForce();
+        bool motorChanged = ImGui::DragFloat("Motor Velocity", &motorVelocity, 0.01f);
+        motorChanged |= ImGui::DragFloat("Motor Max Force", &motorForce, 0.1f, 0.0f, 100000.0f);
+        if (motorChanged)
+        {
+            slider.setMotor(motorVelocity, motorForce);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Velocity the motor drives the slider towards, and the force it "
+                              "may spend doing it - an elevator platform's own lift motor. Max "
+                              "Force 0 disables the motor.");
+        break;
+    }
+    case Physics::JointKind::Piston:
+    {
+        Physics::PistonJoint& piston = static_cast<Physics::PistonJoint&>(joint);
+        glm::vec3 axis = piston.authoredAxis();
+        if (ImGui::DragFloat3("Axis", &axis.x, 0.01f))
+        {
+            piston.setAuthoredAxis(axis);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Piston travel and spin axis, in this object's own local space.");
+
+        f32 minDistance = piston.minLinearDistance();
+        f32 maxDistance = piston.maxLinearDistance();
+        bool linearLimitsChanged =
+            ImGui::DragFloat("Min Distance", &minDistance, 0.01f, -1000.0f, 0.0f);
+        linearLimitsChanged |= ImGui::DragFloat("Max Distance", &maxDistance, 0.01f, 0.0f, 1000.0f);
+        if (linearLimitsChanged)
+        {
+            piston.setLinearLimits(minDistance, maxDistance);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("How far the piston may travel along its axis from the anchor.");
+
+        f32 minAngle = glm::degrees(piston.minAngularAngle());
+        f32 maxAngle = glm::degrees(piston.maxAngularAngle());
+        bool angularLimitsChanged = ImGui::DragFloat("Min Angle", &minAngle, 1.0f, -180.0f, 0.0f);
+        angularLimitsChanged |= ImGui::DragFloat("Max Angle", &maxAngle, 1.0f, 0.0f, 180.0f);
+        if (angularLimitsChanged)
+        {
+            piston.setAngularLimits(glm::radians(minAngle), glm::radians(maxAngle));
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("How far the piston may spin around its axis from the rest angle.");
+
+        f32 linearMotorVelocity = piston.linearMotorTargetVelocity();
+        f32 linearMotorForce = piston.linearMotorMaxForce();
+        bool linearMotorChanged = ImGui::DragFloat("Linear Motor Velocity", &linearMotorVelocity, 0.01f);
+        linearMotorChanged |=
+            ImGui::DragFloat("Linear Motor Max Force", &linearMotorForce, 0.1f, 0.0f, 100000.0f);
+        if (linearMotorChanged)
+        {
+            piston.setLinearMotor(linearMotorVelocity, linearMotorForce);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Velocity the motor drives the piston's travel towards - an "
+                              "elevator's lift motor. Max Force 0 disables it.");
+
+        f32 angularMotorVelocity = piston.angularMotorTargetVelocity();
+        f32 angularMotorTorque = piston.angularMotorMaxTorque();
+        bool angularMotorChanged =
+            ImGui::DragFloat("Angular Motor Velocity", &angularMotorVelocity, 0.01f);
+        angularMotorChanged |=
+            ImGui::DragFloat("Angular Motor Max Torque", &angularMotorTorque, 0.1f, 0.0f, 100000.0f);
+        if (angularMotorChanged)
+        {
+            piston.setAngularMotor(angularMotorVelocity, angularMotorTorque);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Angular velocity the motor drives the piston's spin towards. Max "
+                              "Torque 0 disables it.");
+        break;
+    }
+    case Physics::JointKind::Universal:
+    {
+        Physics::UniversalJoint& universal = static_cast<Physics::UniversalJoint&>(joint);
+        glm::vec3 axis = universal.authoredAxis();
+        if (ImGui::DragFloat3("Axis", &axis.x, 0.01f))
+        {
+            universal.setAuthoredAxis(axis);
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("First hinge axis, in this object's own local space. The second "
+                             "axis is derived perpendicular to it automatically.");
+        break;
+    }
+    case Physics::JointKind::Distance:
+    {
+        Physics::DistanceJoint& distance = static_cast<Physics::DistanceJoint&>(joint);
+        f32 minDistance = distance.authoredMinDistance();
+        f32 maxDistance = distance.authoredMaxDistance();
+        bool changed = ImGui::DragFloat("Min Distance", &minDistance, 0.01f, 0.0f, 1000.0f);
+        changed |= ImGui::DragFloat("Max Distance", &maxDistance, 0.01f, 0.0f, 1000.0f);
+        if (changed)
+        {
+            distance.setAuthoredDistance(minDistance, maxDistance);
+            app().markDirty();
+        }
+        break;
+    }
+    case Physics::JointKind::Fixed:
+    case Physics::JointKind::Point:
+    default:
+        break;
+    }
 
     ImGui::Unindent(14.0f);
 }

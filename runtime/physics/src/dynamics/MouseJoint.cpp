@@ -8,7 +8,8 @@ namespace Radion::Physics
 {
 
 MouseJoint::MouseJoint(RigidBody& body, const glm::vec3& worldGrabPoint)
-    : mBody(&body), mLocalAnchor(body.pointToLocal(worldGrabPoint)), mTarget(worldGrabPoint)
+    : Joint(JointKind::Mouse), mBody(&body), mLocalAnchor(body.pointToLocal(worldGrabPoint)),
+      mTarget(worldGrabPoint)
 {
     tuneSpring(5.0f, 0.7f);
 }
@@ -26,6 +27,16 @@ RigidBody* MouseJoint::bodyB() const
 bool MouseJoint::singleBody() const
 {
     return true;
+}
+
+glm::vec3 MouseJoint::anchorWorldA() const
+{
+    return mBody->pointToWorld(mLocalAnchor);
+}
+
+glm::vec3 MouseJoint::anchorWorldB() const
+{
+    return mTarget;
 }
 
 void MouseJoint::setTarget(const glm::vec3& target)

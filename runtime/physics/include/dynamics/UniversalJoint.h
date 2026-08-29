@@ -23,10 +23,14 @@ namespace Radion::Physics
 class UniversalJoint final : public Joint
 {
 public:
+    UniversalJoint();
     UniversalJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
                    const glm::vec3& worldAxisA, const glm::vec3& worldAxisB);
     UniversalJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localAxisA,
                    RigidBody& b, const glm::vec3& localAnchorB, const glm::vec3& localAxisB);
+    void configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
+                  const glm::vec3& worldAxisA, const glm::vec3& worldAxisB);
+    void rebuild() override;
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -34,6 +38,14 @@ public:
     void warmStart() override;
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
+
+    glm::vec3 anchorWorldA() const override;
+    glm::vec3 anchorWorldB() const override;
+    bool hasAxis() const override
+    {
+        return true;
+    }
+    glm::vec3 axisWorld() const override;
 
     void setLimitsA(f32 minAngle, f32 maxAngle);
     void setLimitsB(f32 minAngle, f32 maxAngle);
@@ -43,6 +55,9 @@ public:
     void setMotorB(f32 targetAngularVelocity, f32 maxTorque);
     void disableMotorA();
     void disableMotorB();
+
+    void setAuthoredAxis(const glm::vec3& axis);
+    const glm::vec3& authoredAxis() const;
 
 private:
     void calculatePositionProperties();
@@ -61,6 +76,7 @@ private:
     glm::vec3 mLocalAxisA;
     glm::vec3 mLocalAxisB;
     glm::quat mInverseInitialOrientation;
+    glm::vec3 mAuthoredAxis{1.0f, 0.0f, 0.0f};
 
     glm::vec3 mArmA{0.0f};
     glm::vec3 mArmB{0.0f};

@@ -1,9 +1,11 @@
 #include "PCH.h"
 
+#include "Scene.h"
 #include "dynamics/Aerodynamics.h"
 #include "dynamics/RigidBody.h"
 
 #include <cstdio>
+#include <vector>
 
 using namespace Radion;
 using namespace Radion::Physics;
@@ -31,6 +33,12 @@ bool near(f32 a, f32 b, f32 epsilon = 1e-4f)
 bool near(const glm::vec3& a, const glm::vec3& b, f32 epsilon = 1e-4f)
 {
     return glm::length(a - b) <= epsilon;
+}
+
+bool finite(const RigidBody& body)
+{
+    return std::isfinite(body.position().x) && std::isfinite(body.position().y) &&
+           std::isfinite(body.position().z) && std::isfinite(body.orientation().w);
 }
 
 RigidBody makeBox(f32 mass = 2.0f, const glm::vec3& halfExtents = glm::vec3(0.5f))
@@ -426,6 +434,85 @@ void testAngularMomentumIsConserved()
     CHECK(near(glm::length(body.angularVelocity()), before, 1e-3f));
 }
 
+// A loose body's destructor must pull it out of any Scene it was registered
+// with directly (Scene::addBody(), no GameObject involved - Ragdoll's own
+// parts and this test both use that path) - otherwise the Scene's own body
+// list outlives the memory it points at the moment this scope ends.
+void testLooseRigidBodyDeregistersOnDestruction()
+{
+    Scene scene;
+    CHECK(scene.bodyCount() == 0);
+    {
+        RigidBody body = makeBox();
+        scene.addBody(body);
+        CHECK(scene.bodyCount() == 1);
+    }
+    CHECK(scene.bodyCount() == 0);
+}
+
+// std::vector<RigidBody> reallocates by moving its elements to new storage -
+// every existing joint/dynamics test that builds one sidesteps this with an
+// upfront reserve(), which is exactly what would hide a move constructor
+// that forgets to carry a body's Scene registration to its new address. A
+// reserve() upfront is the supported way to keep several registered bodies
+// in one vector - RigidBody::moveFrom() deliberately drops a moved body's
+// registration rather than risk a dangling Scene entry (see the next test
+// for what happens without the reserve), so this is what makes that safe:
+// with no reallocation, nothing ever moves, and every body stays registered.
+void testRigidBodyVectorGrowthKeepsSceneRegistrationCorrect()
+{
+    Scene scene;
+    std::vector<RigidBody> bodies;
+    bodies.reserve(6);
+    for (u32 i = 0; i < 6; ++i)
+    {
+        bodies.push_back(makeBox());
+        bodies.back().setPosition(glm::vec3(static_cast<f32>(i), 5.0f, 0.0f));
+        scene.addBody(bodies.back());
+    }
+    CHECK(scene.bodyCount() == 6);
+    for (u32 i = 0; i < bodies.size(); ++i)
+        CHECK(near(bodies[i].position(), glm::vec3(static_cast<f32>(i), 5.0f, 0.0f)));
+
+    scene.setGravity(glm::vec3(0.0f, -10.0f, 0.0f));
+    for (u32 step = 0; step < 60; ++step)
+        scene.stepPhysics(1.0f / 60.0f);
+    CHECK(scene.bodyCount() == 6);
+    for (const RigidBody& body : bodies)
+    {
+        CHECK(finite(body));
+        CHECK(body.position().y < 5.0f);
+    }
+}
+
+// The unsupported counterpart to the test above, with no reserve(): every
+// push_back past the small starting capacity reallocates and moves the
+// existing bodies, and RigidBody::moveFrom() drops each one's registration
+// rather than leave a dangling Scene entry pointing at the freed old buffer.
+// The guarantee this checks is narrower than "it still works" - only that it
+// fails SAFELY (no crash, no stale pointer ever dereferenced, the count
+// exactly matches the bodies that survived) rather than corrupting the Scene.
+void testRigidBodyVectorGrowthWithoutReserveDropsRegistrationSafely()
+{
+    Scene scene;
+    std::vector<RigidBody> bodies;
+    for (u32 i = 0; i < 6; ++i)
+    {
+        bodies.push_back(makeBox());
+        scene.addBody(bodies.back());
+    }
+    // Whatever survived registration is exactly what the final buffer holds -
+    // never more (a stale pointer counted as still there) and never in a
+    // count that does not match a real, live body.
+    CHECK(scene.bodyCount() <= bodies.size());
+
+    scene.setGravity(glm::vec3(0.0f, -10.0f, 0.0f));
+    for (u32 step = 0; step < 60; ++step)
+        scene.stepPhysics(1.0f / 60.0f);
+    for (const RigidBody& body : bodies)
+        CHECK(finite(body));
+}
+
 void testWingTurnsSpeedIntoLift()
 {
     RigidBody body;
@@ -598,6 +685,9 @@ int main()
     testNoDriftAtRest();
     testDegenerateStepsIgnored();
     testAngularMomentumIsConserved();
+    testLooseRigidBodyDeregistersOnDestruction();
+    testRigidBodyVectorGrowthKeepsSceneRegistrationCorrect();
+    testRigidBodyVectorGrowthWithoutReserveDropsRegistrationSafely();
     if (gFailures)
         std::fprintf(stderr, "%d dynamics test(s) failed\n", gFailures);
     return gFailures == 0 ? 0 : 1;

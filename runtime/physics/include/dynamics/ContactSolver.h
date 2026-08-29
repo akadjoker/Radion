@@ -3,6 +3,8 @@
 
 #include "collision/Narrowphase.h"
 
+#include <vector>
+
 namespace Radion::Physics
 {
 
@@ -62,8 +64,23 @@ public:
 
 private:
     void warmStart(Contact* contacts, u32 count);
+    void buildEffectiveMass(Contact* contacts, u32 count);
     void solveVelocity(Contact* contacts, u32 count);
     void solvePosition(Contact* contacts, u32 count);
+
+    // The arm and the effective mass along each axis depend only on body
+    // position and world inertia, neither of which changes while only
+    // velocities are being adjusted - so this is built once per solve() call
+    // and read back on every velocity iteration instead of being
+    // recomputed on each one.
+    struct PointMass
+    {
+        glm::vec3 armA{0.0f};
+        glm::vec3 armB{0.0f};
+        f32 tangentMass[2] = {0.0f, 0.0f};
+        f32 normalMass = 0.0f;
+    };
+    std::vector<PointMass> mPointMass;
 
     ContactSolverSettings mSettings;
 };

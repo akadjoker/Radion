@@ -34,6 +34,7 @@
 #include "RibbonTrail.h"
 #include "Road.h"
 #include "Scene.h"
+#include "dynamics/JointMatch.h"
 #include "dynamics/RigidBody.h"
 #include "SelfDestroy.h"
 #include "Shadows.h"
@@ -3442,6 +3443,250 @@ void readRigidBody(GameObject& object, const nlohmann::json& json, const std::st
         body->setActive(false);
 }
 
+// ----------------------------------------------------- Joint
+
+const char* jointKindName(Physics::JointKind kind)
+{
+    switch (kind)
+    {
+    case Physics::JointKind::Distance:
+        return "Distance";
+    case Physics::JointKind::Fixed:
+        return "Fixed";
+    case Physics::JointKind::Hinge:
+        return "Hinge";
+    case Physics::JointKind::Slider:
+        return "Slider";
+    case Physics::JointKind::Piston:
+        return "Piston";
+    case Physics::JointKind::Universal:
+        return "Universal";
+    case Physics::JointKind::Point:
+        return "Point";
+    default:
+        break;
+    }
+    return "Hinge";
+}
+
+bool jointKindFromName(const std::string& name, Physics::JointKind& out)
+{
+    if (name == "Distance")
+        out = Physics::JointKind::Distance;
+    else if (name == "Fixed")
+        out = Physics::JointKind::Fixed;
+    else if (name == "Hinge")
+        out = Physics::JointKind::Hinge;
+    else if (name == "Slider")
+        out = Physics::JointKind::Slider;
+    else if (name == "Piston")
+        out = Physics::JointKind::Piston;
+    else if (name == "Universal")
+        out = Physics::JointKind::Universal;
+    else if (name == "Point")
+        out = Physics::JointKind::Point;
+    else
+        return false;
+    return true;
+}
+
+nlohmann::json writeJoint(Physics::Joint& joint)
+{
+    nlohmann::json json;
+    json["type"] = "Joint";
+    json["version"] = 1;
+    json["active"] = joint.active();
+    json["jointKind"] = jointKindName(joint.kind());
+    json["target"] = joint.connectedBody() ? nlohmann::json(joint.connectedBody()->id())
+                                           : nlohmann::json(nullptr);
+    json["enabled"] = joint.enabled();
+
+    // Every subtype field is written unconditionally, same convention as
+    // Camera/Light above - unused ones for the current jointKind just carry
+    // the class's own default.
+    glm::vec3 axis(0.0f, 1.0f, 0.0f);
+    f32 minDistance = 0.0f, maxDistance = 1.0f;
+    f32 minAngle = 0.0f, maxAngle = 0.0f;
+    f32 motorTargetVelocity = 0.0f, motorMaxForce = 0.0f;
+    f32 motorTargetAngularVelocity = 0.0f, motorMaxTorque = 0.0f;
+    switch (joint.kind())
+    {
+    case Physics::JointKind::Hinge:
+    {
+        Physics::HingeJoint& hinge = static_cast<Physics::HingeJoint&>(joint);
+        axis = hinge.authoredAxis();
+        minAngle = hinge.minAngle();
+        maxAngle = hinge.maxAngle();
+        motorTargetAngularVelocity = hinge.motorTargetVelocity();
+        motorMaxTorque = hinge.motorMaxTorque();
+        break;
+    }
+    case Physics::JointKind::Slider:
+    {
+        Physics::SliderJoint& slider = static_cast<Physics::SliderJoint&>(joint);
+        axis = slider.authoredAxis();
+        minDistance = slider.minDistance();
+        maxDistance = slider.maxDistance();
+        motorTargetVelocity = slider.motorTargetVelocity();
+        motorMaxForce = slider.motorMaxForce();
+        break;
+    }
+    case Physics::JointKind::Piston:
+    {
+        Physics::PistonJoint& piston = static_cast<Physics::PistonJoint&>(joint);
+        axis = piston.authoredAxis();
+        minDistance = piston.minLinearDistance();
+        maxDistance = piston.maxLinearDistance();
+        minAngle = piston.minAngularAngle();
+        maxAngle = piston.maxAngularAngle();
+        motorTargetVelocity = piston.linearMotorTargetVelocity();
+        motorMaxForce = piston.linearMotorMaxForce();
+        motorTargetAngularVelocity = piston.angularMotorTargetVelocity();
+        motorMaxTorque = piston.angularMotorMaxTorque();
+        break;
+    }
+    case Physics::JointKind::Universal:
+        axis = static_cast<Physics::UniversalJoint&>(joint).authoredAxis();
+        break;
+    case Physics::JointKind::Distance:
+        minDistance = static_cast<Physics::DistanceJoint&>(joint).authoredMinDistance();
+        maxDistance = static_cast<Physics::DistanceJoint&>(joint).authoredMaxDistance();
+        break;
+    default:
+        break;
+    }
+    json["axis"] = writeVec3(axis);
+    json["minDistance"] = minDistance;
+    json["maxDistance"] = maxDistance;
+    json["minAngle"] = minAngle;
+    json["maxAngle"] = maxAngle;
+    json["motorTargetVelocity"] = motorTargetVelocity;
+    json["motorMaxForce"] = motorMaxForce;
+    json["motorTargetAngularVelocity"] = motorTargetAngularVelocity;
+    json["motorMaxTorque"] = motorMaxTorque;
+    return json;
+}
+
+void readJoint(GameObject& object, const nlohmann::json& json, const std::string& path, Scene& out,
+              SceneLoadResult& result)
+{
+    Physics::JointKind kind = Physics::JointKind::Hinge;
+    const auto kindField = json.find("jointKind");
+    if (kindField == json.end() || !kindField->is_string() ||
+        !jointKindFromName(kindField->get<std::string>(), kind))
+    {
+        result.addError(path + ".jointKind",
+                        "missing or not one of Distance/Fixed/Hinge/Slider/Piston/Universal/Point");
+        return;
+    }
+
+    // Only the fields the resolved kind actually consumes are required.
+    const bool needsAxis = kind == Physics::JointKind::Hinge ||
+                           kind == Physics::JointKind::Slider ||
+                           kind == Physics::JointKind::Piston ||
+                           kind == Physics::JointKind::Universal;
+    glm::vec3 axis(0.0f, 1.0f, 0.0f);
+    if (needsAxis && !readVec3Field(json, "axis", axis, path, result))
+        return;
+
+    f32 minDistance = 0.0f, maxDistance = 1.0f;
+    if ((kind == Physics::JointKind::Distance || kind == Physics::JointKind::Slider ||
+        kind == Physics::JointKind::Piston) &&
+        (!readFloatField(json, "minDistance", minDistance, path, result) ||
+         !readFloatField(json, "maxDistance", maxDistance, path, result)))
+        return;
+
+    f32 minAngle = 0.0f, maxAngle = 0.0f;
+    if ((kind == Physics::JointKind::Hinge || kind == Physics::JointKind::Piston) &&
+        (!readFloatField(json, "minAngle", minAngle, path, result) ||
+         !readFloatField(json, "maxAngle", maxAngle, path, result)))
+        return;
+
+    f32 motorTargetVelocity = 0.0f, motorMaxForce = 0.0f;
+    if ((kind == Physics::JointKind::Slider || kind == Physics::JointKind::Piston) &&
+        (!readFloatField(json, "motorTargetVelocity", motorTargetVelocity, path, result) ||
+         !readFloatField(json, "motorMaxForce", motorMaxForce, path, result)))
+        return;
+
+    f32 motorTargetAngularVelocity = 0.0f, motorMaxTorque = 0.0f;
+    if ((kind == Physics::JointKind::Hinge || kind == Physics::JointKind::Piston) &&
+        (!readFloatField(json, "motorTargetAngularVelocity", motorTargetAngularVelocity, path,
+                         result) ||
+         !readFloatField(json, "motorMaxTorque", motorMaxTorque, path, result)))
+        return;
+
+    GameObject* target = readTargetField(json, out, path, result);
+
+    Physics::Joint* joint = nullptr;
+    switch (kind)
+    {
+    case Physics::JointKind::Distance:
+        if (Physics::DistanceJoint* distance = object.addComponent<Physics::DistanceJoint>())
+        {
+            distance->setAuthoredDistance(minDistance, maxDistance);
+            joint = distance;
+        }
+        break;
+    case Physics::JointKind::Fixed:
+        joint = object.addComponent<Physics::FixedJoint>();
+        break;
+    case Physics::JointKind::Hinge:
+        if (Physics::HingeJoint* hinge = object.addComponent<Physics::HingeJoint>())
+        {
+            hinge->setAuthoredAxis(axis);
+            hinge->setLimits(minAngle, maxAngle);
+            hinge->setMotor(motorTargetAngularVelocity, motorMaxTorque);
+            joint = hinge;
+        }
+        break;
+    case Physics::JointKind::Slider:
+        if (Physics::SliderJoint* slider = object.addComponent<Physics::SliderJoint>())
+        {
+            slider->setAuthoredAxis(axis);
+            slider->setLimits(minDistance, maxDistance);
+            slider->setMotor(motorTargetVelocity, motorMaxForce);
+            joint = slider;
+        }
+        break;
+    case Physics::JointKind::Piston:
+        if (Physics::PistonJoint* piston = object.addComponent<Physics::PistonJoint>())
+        {
+            piston->setAuthoredAxis(axis);
+            piston->setLinearLimits(minDistance, maxDistance);
+            piston->setAngularLimits(minAngle, maxAngle);
+            piston->setLinearMotor(motorTargetVelocity, motorMaxForce);
+            piston->setAngularMotor(motorTargetAngularVelocity, motorMaxTorque);
+            joint = piston;
+        }
+        break;
+    case Physics::JointKind::Universal:
+        if (Physics::UniversalJoint* universal = object.addComponent<Physics::UniversalJoint>())
+        {
+            universal->setAuthoredAxis(axis);
+            joint = universal;
+        }
+        break;
+    case Physics::JointKind::Point:
+        joint = object.addComponent<Physics::PointJoint>();
+        break;
+    default:
+        break;
+    }
+    if (!joint)
+    {
+        result.addError(path, "object already has a Joint component");
+        return;
+    }
+
+    if (target)
+        joint->setConnectedBody(target);
+    joint->setEnabled(readBoolOr(json, "enabled", true));
+
+    const auto activeField = json.find("active");
+    if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
+        joint->setActive(false);
+}
+
 // ----------------------------------------------------- ZenBehaviour
 
 nlohmann::json writeZenBehaviour(ZenBehaviour& behaviour)
@@ -4340,6 +4585,8 @@ nlohmann::json writeComponents(GameObject& object)
         array.push_back(writeCollider(*collider));
     if (Physics::RigidBody* body = object.getComponent<Physics::RigidBody>())
         array.push_back(writeRigidBody(*body));
+    if (Physics::Joint* joint = object.getComponent<Physics::Joint>())
+        array.push_back(writeJoint(*joint));
     if (Waypoints* waypoints = object.getComponent<Waypoints>())
         array.push_back(writeWaypoints(*waypoints));
     if (NavMeshSurface* surface = object.getComponent<NavMeshSurface>())
@@ -4479,6 +4726,8 @@ void readComponent(GameObject& object, const nlohmann::json& json, const std::st
         readCollider(object, json, path, result);
     else if (type == "RigidBody")
         readRigidBody(object, json, path, result);
+    else if (type == "Joint")
+        readJoint(object, json, path, context.out, result);
     else if (type == "ZenBehaviour")
         readZenBehaviour(object, json, path, result);
     else if (type == "Waypoints")

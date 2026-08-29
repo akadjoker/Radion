@@ -2,21 +2,53 @@
 
 #include "dynamics/FixedJoint.h"
 
+#include "GameObject.h"
+#include "Scene.h"
 #include "dynamics/RigidBody.h"
 
 namespace Radion::Physics
 {
 
-FixedJoint::FixedJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor)
-    : FixedJoint(a, a.pointToLocal(worldAnchor), b, b.pointToLocal(worldAnchor))
+FixedJoint::FixedJoint() : Joint(JointKind::Fixed)
 {
+}
+
+FixedJoint::FixedJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor)
+    : Joint(JointKind::Fixed)
+{
+    configure(a, b, worldAnchor);
 }
 
 FixedJoint::FixedJoint(RigidBody& a, const glm::vec3& localAnchorA, RigidBody& b,
                        const glm::vec3& localAnchorB)
-    : mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA), mLocalAnchorB(localAnchorB),
+    : Joint(JointKind::Fixed), mBodyA(&a), mBodyB(&b), mLocalAnchorA(localAnchorA),
+      mLocalAnchorB(localAnchorB),
       mInverseInitialOrientation(glm::conjugate(b.orientation()) * a.orientation())
 {
+}
+
+void FixedJoint::configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor)
+{
+    mBodyA = &a;
+    mBodyB = &b;
+    mLocalAnchorA = a.pointToLocal(worldAnchor);
+    mLocalAnchorB = b.pointToLocal(worldAnchor);
+    mInverseInitialOrientation = glm::conjugate(b.orientation()) * a.orientation();
+}
+
+void FixedJoint::rebuild()
+{
+    GameObject* self = owner();
+    GameObject* other = connectedBody();
+    if (!self || !other)
+        return;
+    RigidBody* a = self->getComponent<RigidBody>();
+    RigidBody* b = other->getComponent<RigidBody>();
+    if (!a || !b)
+        return;
+    configure(*a, *b, self->globalPosition());
+    self->scene()->addJoint(this);
+    mBuilt = true;
 }
 
 RigidBody* FixedJoint::bodyA() const
@@ -27,6 +59,16 @@ RigidBody* FixedJoint::bodyA() const
 RigidBody* FixedJoint::bodyB() const
 {
     return mBodyB;
+}
+
+glm::vec3 FixedJoint::anchorWorldA() const
+{
+    return mBodyA->pointToWorld(mLocalAnchorA);
+}
+
+glm::vec3 FixedJoint::anchorWorldB() const
+{
+    return mBodyB->pointToWorld(mLocalAnchorB);
 }
 
 void FixedJoint::calculatePositionProperties()
