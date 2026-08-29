@@ -197,6 +197,43 @@ void testGridPathfinder()
     CHECK(finder.findPath(3, 3, 3, 3, same));
     CHECK(same.size() == 1);
 
+    // No cutting through the seam where two blocked cells meet at a corner.
+    // The only opening between (1,1) and (2,2) is that diagonal seam:
+    //
+    //     . . .          (2,1) blocked
+    //     . s #          (1,2) blocked
+    //     . # g          s = start (1,1), g = goal (2,2)
+    //
+    // A route that steps straight from s to g is legal cell by cell and
+    // walks through the corner where the two walls touch.
+    {
+        GridMap seam(4);
+        seam.setBlocked(2, 1);
+        seam.setBlocked(1, 2);
+        GridPathfinder seamFinder(&seam);
+
+        std::vector<GridCellCoord> through;
+        const bool found = seamFinder.findPath(1, 1, 2, 2, through);
+        if (found)
+        {
+            // Whatever route it took, no step may be a diagonal between two
+            // blocked cells.
+            for (usize i = 1; i < through.size(); ++i)
+            {
+                const int dx = through[i].x - through[i - 1].x;
+                const int dy = through[i].y - through[i - 1].y;
+                if (dx != 0 && dy != 0)
+                {
+                    CHECK(!seam.isBlocked(through[i].x, through[i - 1].y));
+                    CHECK(!seam.isBlocked(through[i - 1].x, through[i].y));
+                }
+            }
+        }
+        // It has to go the long way round, so more than the two cells a
+        // corner cut would have produced.
+        CHECK(!found || through.size() > 2);
+    }
+
     // Fully enclosed goal (all 8 neighbours blocked) -> unreachable.
     GridMap enclosed(5);
     const int cx = 2, cy = 2;

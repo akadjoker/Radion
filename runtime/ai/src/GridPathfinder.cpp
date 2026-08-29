@@ -26,6 +26,23 @@ struct Node
 const int kDx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
 const int kDy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
 
+// A diagonal step passes between two cells, and both have to be open. With
+// only the destination tested, a route slipped through the seam where two
+// blocked cells touch corner to corner - legal on the grid, and a walk
+// straight through a wall for anything that has width. Both and not either:
+// with one side open the agent still clips the corner it is cutting.
+//
+// Shared by the three searches below, which all had the same hole.
+bool diagonalCutsCorner(const GridMap& grid, int fromX, int fromY, int dx, int dy)
+{
+    if (dx == 0 || dy == 0)
+        return false;
+    const int sideX = fromX + dx;
+    const int sideY = fromY + dy;
+    return !grid.inBounds(sideX, fromY) || grid.isBlocked(sideX, fromY) ||
+           !grid.inBounds(fromX, sideY) || grid.isBlocked(fromX, sideY);
+}
+
 // Walk the parent chain from the goal back to the start, then flip to
 // produce the path start..end.
 bool reconstructPath(const Node* end, const std::vector<Node>& nodes, int size,
@@ -149,6 +166,8 @@ bool GridPathfinder::searchInformed(int startX, int startY, int endX, int endY, 
             int y = ny + kDy[i];
             if (!mGrid->inBounds(x, y) || mGrid->isBlocked(x, y))
                 continue;
+            if (diagonalCutsCorner(*mGrid, nx, ny, kDx[i], kDy[i]))
+                continue;
 
             Node& node = nodeAt(x, y);
             int newg = n->g + mGrid->cost(x, y);
@@ -232,6 +251,8 @@ bool GridPathfinder::searchBestFirst(int startX, int startY, int endX, int endY,
             int y = ny + kDy[i];
             if (!mGrid->inBounds(x, y) || mGrid->isBlocked(x, y))
                 continue;
+            if (diagonalCutsCorner(*mGrid, nx, ny, kDx[i], kDy[i]))
+                continue;
 
             Node& node = nodeAt(x, y);
             if (node.inOpen || node.inClosed)
@@ -285,6 +306,8 @@ bool GridPathfinder::searchBreadthFirst(int startX, int startY, int endX, int en
             int x = nx + kDx[i];
             int y = ny + kDy[i];
             if (!mGrid->inBounds(x, y) || mGrid->isBlocked(x, y))
+                continue;
+            if (diagonalCutsCorner(*mGrid, nx, ny, kDx[i], kDy[i]))
                 continue;
 
             Node& node = nodeAt(x, y);
