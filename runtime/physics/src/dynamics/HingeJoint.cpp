@@ -176,6 +176,10 @@ void HingeJoint::setMotor(f32 targetAngularVelocity, f32 maxTorque)
 {
     if (!std::isfinite(targetAngularVelocity) || !std::isfinite(maxTorque))
         return;
+    // Same reason as setServo(): a new speed on a sleeping joint is an order
+    // nobody is stepping.
+    if (targetAngularVelocity != mMotorTargetVelocity || !mMotorEnabled)
+        wakeBodies();
     mMotorTargetVelocity = targetAngularVelocity;
     mMotorMaxTorque = glm::max(maxTorque, 0.0f);
     mMotorEnabled = mMotorMaxTorque > 0.0f;
@@ -208,6 +212,12 @@ void HingeJoint::setServo(f32 targetAngle, f32 maxTorque, f32 maxAngularVelocity
     if (!std::isfinite(targetAngle) || !std::isfinite(maxTorque) ||
         !std::isfinite(maxAngularVelocity))
         return;
+    // A new target has to wake the joint: a body that has settled is asleep
+    // and the solver skips it, so the order would land on a joint nobody is
+    // stepping. Only on a change - a controller holding a target calls this
+    // every frame, and waking on every call means never sleeping again.
+    if (targetAngle != mServoTargetAngle || !mServoEnabled)
+        wakeBodies();
     mServoTargetAngle = targetAngle;
     mServoMaxAngularVelocity = glm::max(maxAngularVelocity, 0.0f);
     mMotorMaxTorque = glm::max(maxTorque, 0.0f);
@@ -370,7 +380,16 @@ void HingeJoint::setup(f32 duration)
         f32 target = mServoTargetAngle;
         if (mHasLimits)
             target = glm::clamp(target, mLimitsMin, mLimitsMax);
-        f32 velocity = (target - currentAngle()) / duration;
+        const f32 error = target - currentAngle();
+        // A servo still short of its target has work to do, and a sleeping
+        // body is skipped by the solver - so it would sit there forever with
+        // the order accepted and nothing moving. Waking on the error rather
+        // than on the command also covers the target being set before the
+        // joint was built, when there were no bodies to wake yet. Once it
+        // arrives the error falls under this and the body sleeps again.
+        if (std::abs(error) > 0.001f)
+            wakeBodies();
+        f32 velocity = error / duration;
         if (mServoMaxAngularVelocity > 0.0f)
             velocity = glm::clamp(velocity, -mServoMaxAngularVelocity, mServoMaxAngularVelocity);
         mMotorTargetVelocity = velocity;

@@ -14,6 +14,7 @@
 #include "MeshRenderer.h"
 #include "Scene.h"
 #include "SceneSerializer.h"
+#include "dynamics/HingeJoint.h"
 #include "dynamics/RigidBody.h"
 #include "ScriptCache.h"
 #include "ZenBehaviour.h"
@@ -984,7 +985,7 @@ void testScriptDrivesRigidBody()
     const char* script =
         "class Push:\n"
         "    def on_start(self):\n"
-        "        rb = self.node.get_component(RigidBody)\n"
+        "        rb = self.node.get_component<RigidBody>()\n"
         "        if rb == None:\n"
         "            return\n"
         "        self.node.set_name(\"Found\")\n"
@@ -1005,6 +1006,56 @@ void testScriptDrivesRigidBody()
     // Close to 3, not exactly: the script sets the velocity during the
     // update, and the same update then integrates a step of damping over it.
     CHECK(std::abs(body->velocity().x - 3.0f) < 0.05f);
+}
+
+// A script commanding a servo: the same two calls whichever joint kind is
+// under it, which is what a robot's controller wants.
+void testScriptCommandsAJointServo()
+{
+    Scene scene;
+    GameObject* base = scene.createGameObject("Base");
+    Physics::RigidBody* baseBody = base->addComponent<Physics::RigidBody>();
+    // Small enough not to touch the arm a metre away: two half-metre boxes
+    // exactly a metre apart rest against each other, and the contact holds
+    // the joint still however hard the motor pushes.
+    baseBody->setBox(glm::vec3(0.2f));
+    baseBody->setBodyType(Physics::BodyType::Static);
+
+    GameObject* arm = scene.createGameObject("Arm");
+    arm->setPosition(glm::vec3(1.0f, 0.0f, 0.0f));
+    Physics::RigidBody* armBody = arm->addComponent<Physics::RigidBody>();
+    armBody->setBox(glm::vec3(0.5f));
+    armBody->setMass(2.0f);
+    armBody->setInertiaTensor(Physics::Inertia::box(2.0f, glm::vec3(0.5f)));
+    Physics::HingeJoint* hinge = arm->addComponent<Physics::HingeJoint>();
+    hinge->setConnectedBody(base);
+    hinge->setAuthoredAxis(glm::vec3(0.0f, 0.0f, 1.0f));
+
+    ZenBehaviour* behaviour = arm->addComponent<ZenBehaviour>();
+    const char* script =
+        "class Drive:\n"
+        "    def on_start(self):\n"
+        "        j = self.node.get_component<Joint>()\n"
+        "        if j == None:\n"
+        "            return\n"
+        "        if j.get_kind() == \"Hinge\":\n"
+        "            self.node.set_name(\"KnowsKind\")\n"
+        "        j.set_limits(-1.0, 1.0)\n"
+        "        j.set_servo(0.5, 500.0, 2.0)\n";
+    CHECK(behaviour->loadSource(script));
+
+    scene.setRunningInEditor(false);
+    scene.update(1.0f / 60.0f);
+    CHECK(!behaviour->hasError());
+    CHECK(arm->name() == "KnowsKind");
+    CHECK(hinge->servoEnabled());
+    CHECK(std::abs(hinge->servoTargetAngle() - 0.5f) < 1e-4f);
+
+    // And the arm actually goes there - the script's order drove real
+    // physics, not just a stored field.
+    for (u32 i = 0; i < 400; ++i)
+        scene.update(1.0f / 120.0f);
+    CHECK(std::abs(hinge->currentAngle() - 0.5f) < 0.05f);
 }
 
 // Two fetches of the same component must hand back the exact same script
@@ -2225,6 +2276,7 @@ int main()
     testComponentBaseIsActive();
     testGetComponentByClass();
     testScriptDrivesRigidBody();
+    testScriptCommandsAJointServo();
     testComponentHandleIsCached();
     testHandleForgottenWhenOwnerDies();
     testHandleSurvivesBetweenFrames();

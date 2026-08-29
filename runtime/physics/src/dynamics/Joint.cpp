@@ -48,4 +48,12 @@ void Joint::moveJointStateFrom(Joint& other)
         other.mJointScene->removeJoint(&other);
 }
 
+void Joint::wakeBodies()
+{
+    if (RigidBody* a = bodyA())
+        a->setAwake(true);
+    if (RigidBody* b = bodyB())
+        b->setAwake(true);
+}
+
 } // namespace Radion::Physics

@@ -45,8 +45,9 @@ private:
     void calculateProperties();
     void applyVelocityImpulse(f32 impulse);
 
-    RigidBody* mBodyA;
-    RigidBody* mBodyB;
+    // Null until rebuild() resolves them - see HingeJoint.
+    RigidBody* mBodyA = nullptr;
+    RigidBody* mBodyB = nullptr;
     glm::vec3 mLocalAnchorA;
     glm::vec3 mLocalAnchorB;
     f32 mMinDistance = 0.0f;

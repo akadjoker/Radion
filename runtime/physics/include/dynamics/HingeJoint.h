@@ -82,8 +82,12 @@ private:
     void applyVelocityImpulse(const glm::vec3& impulse);
     void applyAngularVelocityImpulse(const glm::vec3& impulse);
 
-    RigidBody* mBodyA;
-    RigidBody* mBodyB;
+    // Null until rebuild() resolves them. Uninitialised, the component path -
+    // where a joint exists from the moment it is added and is only wired up
+    // later - had two garbage pointers that anything asking the joint about
+    // its bodies would follow.
+    RigidBody* mBodyA = nullptr;
+    RigidBody* mBodyB = nullptr;
     glm::vec3 mLocalAnchorA;
     glm::vec3 mLocalAnchorB;
     glm::vec3 mLocalHingeAxisA;

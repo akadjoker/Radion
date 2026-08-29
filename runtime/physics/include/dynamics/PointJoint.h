@@ -40,8 +40,9 @@ private:
     void applyVelocityImpulse(const glm::vec3& impulse);
     void applyMotorImpulse(f32 impulse);
 
-    RigidBody* mBodyA;
-    RigidBody* mBodyB;
+    // Null until rebuild() resolves them - see HingeJoint.
+    RigidBody* mBodyA = nullptr;
+    RigidBody* mBodyB = nullptr;
     glm::vec3 mLocalAnchorA;
     glm::vec3 mLocalAnchorB;
     glm::vec3 mArmA{0.0f};

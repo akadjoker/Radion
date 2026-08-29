@@ -33,8 +33,9 @@ private:
     void applyVelocityImpulse(const glm::vec3& impulse);
     void applyAngularVelocityImpulse(const glm::vec3& impulse);
 
-    RigidBody* mBodyA;
-    RigidBody* mBodyB;
+    // Null until rebuild() resolves them - see HingeJoint.
+    RigidBody* mBodyA = nullptr;
+    RigidBody* mBodyB = nullptr;
     glm::vec3 mLocalAnchorA;
     glm::vec3 mLocalAnchorB;
     glm::quat mInverseInitialOrientation;
