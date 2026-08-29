@@ -120,6 +120,10 @@ private:
     bool mAnimatorSkeletonDialogPending = false;
     bool mAnimatorClipDialogPending = false;
     char mBoneFilter[64] = ""; // the Select Bone popup's search box
+    // The Animator panel's "add event" row - one time and name shared by
+    // every clip, since only one is being edited at a time.
+    char mAnimationEventName[64] = "";
+    f32 mAnimationEventTime = 0.0f;
     // The path field's own edit buffer, refreshed from scriptPath() whenever
     // the selected object's ZenBehaviour changes - otherwise every keystroke
     // fights the field back to whatever loadFile() last reported.

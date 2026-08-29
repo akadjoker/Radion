@@ -966,6 +966,37 @@ static int animationLayerIsFinished(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
+// Events the last update() crossed. Two calls rather than a list, so a
+// script that fires nothing this frame - which is nearly every frame - pays
+// one integer compare and allocates nothing:
+//
+//     for i in range(layer.event_count()):
+//         if layer.event(i) == "footstep":
+//             play_step_sound()
+static int animationLayerEventCount(zen::VM* vm, zen::Value* args, int nargs)
+{
+    (void)vm;
+    (void)nargs;
+    AnimationLayer* layer = selfAnimationLayer(args);
+    args[0] = zen::val_int(layer ? static_cast<int64_t>(layer->firedEvents().size()) : 0);
+    return 1;
+}
+
+static int animationLayerEvent(zen::VM* vm, zen::Value* args, int nargs)
+{
+    AnimationLayer* layer = selfAnimationLayer(args);
+    const int index = nargs >= 1 ? static_cast<int>(zen::to_number(args[0])) : -1;
+    if (!layer || index < 0 || static_cast<usize>(index) >= layer->firedEvents().size())
+    {
+        args[0] = zen::val_nil();
+        return 1;
+    }
+    const AnimationEvent* event = layer->firedEvents()[static_cast<usize>(index)];
+    args[0] = zen::val_obj(
+        (zen::Obj*)vm->make_string(event->name.c_str(), (int)event->name.size()));
+    return 1;
+}
+
 static int animationLayerSeek(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -1078,6 +1109,8 @@ static void sceneScriptBindingsInit(zen::VM* vm)
         .method("get_current", animationLayerGetCurrent, 0)
         .method("get_time", animationLayerGetTime, 0)
         .method("get_duration", animationLayerGetDuration, 0)
+        .method("event_count", animationLayerEventCount, 0)
+        .method("event", animationLayerEvent, 1)
         .method("get_normalized_time", animationLayerGetNormalizedTime, 0)
         .method("get_wrapped_time", animationLayerGetWrappedTime, 0)
         .method("is_finished", animationLayerIsFinished, 0)

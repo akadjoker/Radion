@@ -115,6 +115,14 @@ struct BoneTrack
     std::vector<glm::vec3> scales;
 };
 
+// One named moment in a clip. Time is in seconds from the clip's start, the
+// same scale AnimationClip::duration() uses.
+struct AnimationEvent
+{
+    f32 time = 0.0f;
+    std::string name;
+};
+
 class AnimationClip
 {
 public:
@@ -135,10 +143,22 @@ public:
     // No-op if `bone` has no track or no key within epsilon of `time`.
     void removeKeyframe(s32 bone, f32 time);
 
+    // A named moment inside the clip: the frame a footstep lands, a weapon
+    // fires, a hit connects. It belongs to the clip and not to whoever plays
+    // it - "attack" hits at 0.4s whichever character is playing it.
+    //
+    // Kept sorted by time, which is what lets a layer fire everything the
+    // frame crossed with one walk instead of a search per event.
+    void addEvent(f32 time, const std::string& name);
+    void removeEvent(const std::string& name);
+    void clearEvents();
+    const std::vector<AnimationEvent>& events() const;
+
 private:
     std::string mName;
     f32 mDuration = 0.0f;
     std::vector<BoneTrack> mTracks;
+    std::vector<AnimationEvent> mEvents;
 };
 
 struct AnimationSet
@@ -213,6 +233,18 @@ public:
     // update() just keeps advancing past wherever a drag left it.
     void setPaused(bool paused);
     bool paused() const;
+
+    // The clip's events that this frame's advance crossed, in the order they
+    // occur. Polled after Animator::update() rather than delivered through a
+    // callback, the same shape as Agent::firedThisFrame(): a callback from
+    // inside the animation update would be running user code with the pose
+    // half-built, and would have to cross the script VM once per event.
+    //
+    // Cleared and refilled every update(), so a frame that fires nothing
+    // leaves this empty. A loop that wraps fires the tail of the clip and
+    // then the head; a frame long enough to skip past several fires all of
+    // them, in order, rather than only the last.
+    const std::vector<const AnimationEvent*>& firedEvents() const;
     void setSpeed(f32 speed);
     void setMask(const std::vector<f32>& weights);
     void maskFromBone(const Skeleton& skeleton, const char* rootBone, f32 weight = 1.0f);
@@ -251,6 +283,9 @@ private:
     PlayMode mPreviousMode = PlayMode::Loop;
     std::vector<f32> mMask;
     bool mPaused = false;
+    // Points into the clip's own event list, which outlives the frame: the
+    // AnimationSet holding it is what the Animator is bound to.
+    std::vector<const AnimationEvent*> mFiredEvents;
 };
 
 // Radion's own skeleton/animation file format - the counterpart to
