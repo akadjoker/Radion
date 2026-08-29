@@ -444,8 +444,16 @@ void CruisingBehavior::iterate(float timeDelta, Agent& entity)
     else if (randmove < mRandMoveXChance + mRandMoveYChance + mRandMoveZChance)
         desiredMoveAdj.z += mMinRandomMove * signum;
 
+    // Scaled by how far off the desired speed the agent actually is - which
+    // is what percentDesiredSpeed was computed and clamped for, and was then
+    // dropped in favour of a constant mMinRateChange. With the constant, the
+    // nudge never varied, the "toward/away from the desired speed" half of
+    // this behavior never happened, and mMaxRateChange had no effect at all
+    // (it only ever bounded a value nothing read). The clamp's lower bound
+    // is mMinRateChange, so an agent already at its desired speed gets what
+    // it got before.
     glm::vec3 currentDesiredMove = entity.desiredMove();
-    desiredMoveAdj = safeNormalize(desiredMoveAdj) * (mMinRateChange * signum);
+    desiredMoveAdj = safeNormalize(desiredMoveAdj) * (percentDesiredSpeed * signum);
     currentDesiredMove += desiredMoveAdj * gain();
     entity.setDesiredMove(currentDesiredMove);
 }

@@ -666,6 +666,46 @@ void testCruisingAxisDistribution()
     CHECK(hits[0] > hits[1]); // X's band (0.45) is wider than Y's (0.2)
 }
 
+// The nudge is meant to scale with how far off the desired speed the agent
+// is, between minRateChange and maxRateChange. It used to be a flat
+// minRateChange, which made maxRateChange do nothing at all.
+void testCruisingScalesWithSpeedError()
+{
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
+    settings.desiredSpeed = 2.0f;
+    settings.maxSpeed = 5.0f;
+
+    // Always fires on X, so only the magnitude varies between the two runs.
+    const f32 minRate = 0.1f;
+    const f32 maxRate = 0.8f;
+
+    // At rest: the speed error is the whole desired speed.
+    Agent& slow = *makeAgent(scene, settings, "slow");
+    scene.update(0.0f);
+    slow.setVelocity(glm::vec3(0.0f));
+    slow.setDesiredMove(glm::vec3(0.0f));
+    CruisingBehavior farOff(1.0f, 0.0f, 0.0f, 1.0f, maxRate, minRate);
+    farOff.iterate(0.016f, slow);
+    const f32 farMagnitude = glm::length(slow.desiredMove());
+
+    // Already at the desired speed: no error at all.
+    Agent& atSpeed = *makeAgent(scene, settings, "atSpeed");
+    scene.update(0.0f);
+    atSpeed.setVelocity(glm::vec3(2.0f, 0.0f, 0.0f));
+    atSpeed.setDesiredMove(glm::vec3(0.0f));
+    CruisingBehavior onTarget(1.0f, 0.0f, 0.0f, 1.0f, maxRate, minRate);
+    onTarget.iterate(0.016f, atSpeed);
+    const f32 onTargetMagnitude = glm::length(atSpeed.desiredMove());
+
+    // Being far off must push harder than being on target.
+    CHECK(farMagnitude > onTargetMagnitude);
+    // And on target falls back to the floor, which is what it always did.
+    CHECK(std::abs(onTargetMagnitude - minRate) < 1e-4f);
+    // Never beyond the ceiling - the parameter that used to do nothing.
+    CHECK(farMagnitude <= maxRate + 1e-4f);
+}
+
 void testGridAStarOptimality()
 {
     // Around the same wall as testGridPathfinder. Breadth-first is optimal in
@@ -1801,6 +1841,7 @@ int main()
     testBoxObstacle();
     testSphereObstacleSeenFrom();
     testCruisingAxisDistribution();
+    testCruisingScalesWithSpeedError();
     testGridAStarOptimality();
     testStateMachineRemoveState();
     testStateMachineSurvivesCallbackMutation();
