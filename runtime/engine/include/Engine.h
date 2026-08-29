@@ -146,6 +146,17 @@ public:
     // scene.activeCamera() again - shadows/lighting/decals/everything else
     // only ever reads frame.* - so this path does not touch the scene's
     // real camera at all, not even to read it.
+    // Renders every Camera in the scene that has recording() on into its own
+    // texture, at its own resolution, and leaves the handle on the camera.
+    // Called at the top of render(); public so a custom render loop that does
+    // not use render() can still drive the sensors. Returns how many were
+    // rendered.
+    //
+    // Each one is a full render of the scene from that camera, so the cost is
+    // per recording camera - which is why the resolution is the camera's own
+    // and usually small.
+    u32 renderRecordingCameras(Scene& scene);
+
     bool renderToTexture(Scene& scene, const RenderView& view, u32 width, u32 height,
                          RenderTextureOutput& output,
                          const RenderTextureSettings& settings = RenderTextureSettings());

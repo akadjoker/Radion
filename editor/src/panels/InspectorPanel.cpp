@@ -3477,6 +3477,43 @@ void InspectorPanel::drawCameraComponent(Camera& camera)
     ImGui::DragFloat("Aspect", &aspect);
     ImGui::EndDisabled();
 
+    ImGui::Separator();
+    bool recording = camera.recording();
+    if (ImGui::Checkbox("Record To Texture", &recording))
+    {
+        camera.setRecording(recording);
+        app().markDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Render this camera's view into its own texture every frame, at the "
+                          "resolution below - a sensor feed, a monitor in the scene, a mirror. "
+                          "Costs one full render of the scene per recording camera.");
+    if (recording)
+    {
+        int size[2] = {static_cast<int>(camera.recordWidth()),
+                       static_cast<int>(camera.recordHeight())};
+        if (ImGui::DragInt2("Record Size", size, 1.0f, 1, 4096))
+        {
+            camera.setRecordSize(static_cast<u32>(glm::max(size[0], 1)),
+                                 static_cast<u32>(glm::max(size[1], 1)));
+            app().markDirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Nothing to do with the window: a sensor usually wants 320x240 or "
+                              "640x480, and a small target is a small render. The camera's "
+                              "aspect follows this, not the game view's.");
+        if (camera.recordTexture().valid())
+        {
+            const u32 nativeId = app().engine().getGPU().nativeTextureId(camera.recordTexture());
+            const f32 previewHeight = 160.0f * static_cast<f32>(camera.recordHeight()) /
+                                      static_cast<f32>(camera.recordWidth());
+            ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(nativeId)),
+                         ImVec2(160.0f, previewHeight), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
+        }
+        else
+            ImGui::TextDisabled("  no frame yet - press Play");
+    }
+
     ImGui::Unindent(14.0f);
 }
 
