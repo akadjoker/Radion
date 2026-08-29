@@ -5,6 +5,7 @@
 #include "Animation.h"
 #include "AssetManager.h"
 #include "Camera.h"
+#include "Collider.h"
 #include "DebugDraw3D.h"
 #include "EditorApplication.h"
 #include "Engine.h"
@@ -877,6 +878,12 @@ void ViewportPanel::onImGui()
         app().scene().debugDrawDynamicIndex();
     if (live && app().showOcclusionDebug())
         app().scene().debugDrawOcclusion();
+    if (live && app().engine().debugShowPhysicsShapes)
+        app().scene().debugDrawPhysicsShapes();
+    if (live && app().engine().debugShowPhysicsContacts)
+        app().scene().debugDrawPhysicsContacts();
+    if (live && app().engine().debugShowPhysicsJoints)
+        app().scene().debugDrawPhysicsJoints();
     if (GameObject* selected = live ? app().selection().resolve(app().scene()) : nullptr)
     {
         if (MeshRenderer* renderer = selected->getComponent<MeshRenderer>())
@@ -974,6 +981,29 @@ void ViewportPanel::onImGui()
             case Physics::RigidBodyShape::None:
                 if (rigidBody->shape())
                     rigidBody->shape()->debugDraw(bodyTransform, color);
+                break;
+            }
+        }
+        if (Collider* collider = selected->getComponent<Collider>())
+        {
+            const Color color = Color::Green;
+            const glm::mat4 colliderTransform =
+                glm::translate(glm::mat4(1.0f), selected->globalPosition()) *
+                glm::mat4_cast(selected->globalRotation());
+            switch (collider->shape())
+            {
+            case ColliderShape::Sphere:
+                Physics::SphereShape(collider->radius()).debugDraw(colliderTransform, color);
+                break;
+            case ColliderShape::Box:
+                Physics::BoxShape(collider->halfExtents()).debugDraw(colliderTransform, color);
+                break;
+            case ColliderShape::Capsule:
+                Physics::CapsuleShape(collider->radius(), collider->capsuleSegmentHalfHeight())
+                    .debugDraw(colliderTransform, color);
+                break;
+            case ColliderShape::Mesh:
+                DebugDraw().box(collider->worldBounds(), color);
                 break;
             }
         }

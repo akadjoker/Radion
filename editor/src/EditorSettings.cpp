@@ -107,6 +107,9 @@ bool EditorSettings::load(const std::string& filename)
     readBool(root, "showSubmeshBounds", showSubmeshBounds);
     readBool(root, "showShadowCascades", showShadowCascades);
     readBool(root, "showShadowAtlas", showShadowAtlas);
+    readBool(root, "showPhysicsShapes", showPhysicsShapes);
+    readBool(root, "showPhysicsContacts", showPhysicsContacts);
+    readBool(root, "showPhysicsJoints", showPhysicsJoints);
     readBool(root, "previewShadows", previewShadows);
     readBool(root, "previewSSAO", previewSSAO);
     readBool(root, "previewVolumetrics", previewVolumetrics);
@@ -170,6 +173,9 @@ bool EditorSettings::save(const std::string& filename) const
     root["showSubmeshBounds"] = showSubmeshBounds;
     root["showShadowCascades"] = showShadowCascades;
     root["showShadowAtlas"] = showShadowAtlas;
+    root["showPhysicsShapes"] = showPhysicsShapes;
+    root["showPhysicsContacts"] = showPhysicsContacts;
+    root["showPhysicsJoints"] = showPhysicsJoints;
     root["previewShadows"] = previewShadows;
     root["previewSSAO"] = previewSSAO;
     root["previewVolumetrics"] = previewVolumetrics;

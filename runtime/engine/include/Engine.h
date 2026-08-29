@@ -336,6 +336,10 @@ public:
     bool debugShowShadowCascades = false;
     bool debugShowShadowAtlas = false;
 
+    bool debugShowPhysicsShapes = false;
+    bool debugShowPhysicsContacts = false;
+    bool debugShowPhysicsJoints = false;
+
 private:
     struct GifRecorder;
 

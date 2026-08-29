@@ -183,9 +183,42 @@ void DebugPanel::drawSubmeshBoundsReadout()
                             "  camera, so frustum culling can never reject them");
 }
 
+void DebugPanel::drawPhysicsDebugSection()
+{
+    if (!ImGui::CollapsingHeader("Physics Debug", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    Scene& scene = app().scene();
+    Engine& engine = app().engine();
+
+    ImGui::Checkbox("Draw body shapes", &engine.debugShowPhysicsShapes);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Every RigidBody's collision shape, coloured by body type and shape "
+                          "kind, dimmed to a third of its brightness while asleep.");
+
+    ImGui::Checkbox("Draw contacts", &engine.debugShowPhysicsContacts);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Every active contact point and its normal, the line length scaled by "
+                          "the impulse it is carrying.");
+    if (engine.debugShowPhysicsContacts && scene.runningInEditor())
+        ImGui::TextDisabled("  physics only simulates in Play - nothing to draw yet");
+
+    ImGui::Checkbox("Draw joint direction", &engine.debugShowPhysicsJoints);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Every Joint's anchor pair as a yellow line, and its free axis - "
+                          "hinge, slider, piston, universal, wheel - as a cyan segment from the "
+                          "first anchor.");
+    if (engine.debugShowPhysicsJoints && scene.jointCount() == 0)
+        ImGui::TextDisabled("  no joints in this scene - Joint is not a scene component yet, "
+                            "only reachable from code");
+
+    ImGui::Separator();
+}
+
 void DebugPanel::onImGui()
 {
     drawSpatialDebugSection();
+    drawPhysicsDebugSection();
 
     ImGui::Checkbox("Enable debug preview", &mEnabled);
     app().settings().debugPreviewEnabled = mEnabled;

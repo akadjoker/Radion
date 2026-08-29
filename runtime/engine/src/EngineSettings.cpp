@@ -325,6 +325,9 @@ bool EngineSettings::load(Engine& engine, const std::string& filename)
     {
         read(*node, "showShadowCascades", engine.debugShowShadowCascades);
         read(*node, "showShadowAtlas", engine.debugShowShadowAtlas);
+        read(*node, "showPhysicsShapes", engine.debugShowPhysicsShapes);
+        read(*node, "showPhysicsContacts", engine.debugShowPhysicsContacts);
+        read(*node, "showPhysicsJoints", engine.debugShowPhysicsJoints);
         if (Lighting* lighting = engine.lighting())
             read(*node, "lightingTiles", lighting->debugTiles);
     }
@@ -379,6 +382,9 @@ bool EngineSettings::save(const Engine& engine, const std::string& filename)
     }
     root["debug"]["showShadowCascades"] = engine.debugShowShadowCascades;
     root["debug"]["showShadowAtlas"] = engine.debugShowShadowAtlas;
+    root["debug"]["showPhysicsShapes"] = engine.debugShowPhysicsShapes;
+    root["debug"]["showPhysicsContacts"] = engine.debugShowPhysicsContacts;
+    root["debug"]["showPhysicsJoints"] = engine.debugShowPhysicsJoints;
     root["post"] = writePost(mutableEngine.postProcess());
     root["sky"] = writeSky(mutableEngine.sky());
 
