@@ -223,15 +223,15 @@ template <class T, class Draw>
 void drawComponentInstances(GameObject& object, EditorApplication& app, Component*& toRemove,
                             const char* label, Draw&& draw)
 {
-    for (usize index = 0; T* component = object.getComponentAt<T>(index); ++index)
+    object.forEachComponent<T>([&](T& component)
     {
-        ImGui::PushID(static_cast<int>(component->id()));
-        if (drawComponentHeader(app, label, *component))
-            toRemove = component;
+        ImGui::PushID(static_cast<int>(component.id()));
+        if (drawComponentHeader(app, label, component))
+            toRemove = &component;
         else
-            draw(*component);
+            draw(component);
         ImGui::PopID();
-    }
+    });
 }
 
 // A curated subset, not every KeyCode - the realistic choices for a camera
@@ -715,23 +715,23 @@ void InspectorPanel::drawComponentList(GameObject& object)
                                     if (drawFreeLookController(component))
                                         app().markDirty();
                                 });
-    if (Light* light = object.getComponent<Light>())
+    object.forEachComponent<Light>([&](Light& light)
     {
         const char* label = "Light";
-        switch (light->lightType())
+        switch (light.lightType())
         {
         case LightType::Directional: label = "DirectionalLight"; break;
         case LightType::Point: label = "PointLight"; break;
         case LightType::Spot: label = "SpotLight"; break;
         case LightType::Rectangle: label = "RectangleLight"; break;
         }
-        ImGui::PushID(static_cast<int>(light->id()));
-        if (drawComponentHeader(app(), label, *light))
-            toRemove = light;
+        ImGui::PushID(static_cast<int>(light.id()));
+        if (drawComponentHeader(app(), label, light))
+            toRemove = &light;
         else
-            drawLightComponent(*light);
+            drawLightComponent(light);
         ImGui::PopID();
-    }
+    });
     drawComponentInstances<MeshRenderer>(object, app(), toRemove, "MeshRenderer",
                                          [this, &object](MeshRenderer& component)
                                          { drawMeshRenderer(object, component); });
