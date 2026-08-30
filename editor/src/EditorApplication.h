@@ -409,6 +409,8 @@ private:
     // selection that belonged to the previous active scene.
     void replaceScene(Scene* replacement);
     void startDeferredStartupLoad();
+    void applyPersistedDebugSettings();
+    void storeRuntimeDebugSettings();
 
     Engine& mEngine;
     SceneSerializer mSerializer;

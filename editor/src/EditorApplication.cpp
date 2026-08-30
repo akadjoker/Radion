@@ -220,6 +220,32 @@ void EditorApplication::logSink(LogLevel level, const char* message)
         sInstance->mToasts.warning(message);
 }
 
+void EditorApplication::applyPersistedDebugSettings()
+{
+    mShowDynamicIndexDebug = mSettings.showDynamicIndexDebug;
+    mShowOcclusionDebug = mSettings.showOcclusionDebug;
+    mShowSubmeshBounds = mSettings.showSubmeshBounds;
+    mEngine.debugShowShadowCascades = mSettings.showShadowCascades;
+    mEngine.debugShowShadowAtlas = mSettings.showShadowAtlas;
+    mEngine.debugShowPhysicsShapes = mSettings.showPhysicsShapes;
+    mEngine.debugShowPhysicsContacts = mSettings.showPhysicsContacts;
+    mEngine.debugShowPhysicsJoints = mSettings.showPhysicsJoints;
+    mEngine.debugShowAIObstacles = mSettings.showAIObstacles;
+}
+
+void EditorApplication::storeRuntimeDebugSettings()
+{
+    mSettings.showDynamicIndexDebug = mShowDynamicIndexDebug;
+    mSettings.showOcclusionDebug = mShowOcclusionDebug;
+    mSettings.showSubmeshBounds = mShowSubmeshBounds;
+    mSettings.showShadowCascades = mEngine.debugShowShadowCascades;
+    mSettings.showShadowAtlas = mEngine.debugShowShadowAtlas;
+    mSettings.showPhysicsShapes = mEngine.debugShowPhysicsShapes;
+    mSettings.showPhysicsContacts = mEngine.debugShowPhysicsContacts;
+    mSettings.showPhysicsJoints = mEngine.debugShowPhysicsJoints;
+    mSettings.showAIObstacles = mEngine.debugShowAIObstacles;
+}
+
 EditorApplication::EditorApplication(Engine& engine) : mEngine(engine)
 {
     sInstance = this;
@@ -232,15 +258,7 @@ EditorApplication::EditorApplication(Engine& engine) : mEngine(engine)
         FileSystem::getSingleton().prefPath("Radion", "Editor") + "editor.settings.json";
     mSettings.load(mSettingsFile);
     mCursor3D = mSettings.cursor3D;
-    mShowDynamicIndexDebug = mSettings.showDynamicIndexDebug;
-    mShowOcclusionDebug = mSettings.showOcclusionDebug;
-    mShowSubmeshBounds = mSettings.showSubmeshBounds;
-    mEngine.debugShowShadowCascades = mSettings.showShadowCascades;
-    mEngine.debugShowShadowAtlas = mSettings.showShadowAtlas;
-    mEngine.debugShowPhysicsShapes = mSettings.showPhysicsShapes;
-    mEngine.debugShowPhysicsContacts = mSettings.showPhysicsContacts;
-    mEngine.debugShowPhysicsJoints = mSettings.showPhysicsJoints;
-    mEngine.debugShowAIObstacles = mSettings.showAIObstacles;
+    applyPersistedDebugSettings();
     mViewMode = mSettings.viewMode == 1 ? ViewMode::Game : ViewMode::Scene;
 
     mEngine.createScene();
@@ -297,15 +315,7 @@ EditorApplication::~EditorApplication()
     sInstance = nullptr;
     mSettings.cursor3D = mCursor3D;
     mSettings.viewMode = mViewMode == ViewMode::Game ? 1 : 0;
-    mSettings.showDynamicIndexDebug = mShowDynamicIndexDebug;
-    mSettings.showOcclusionDebug = mShowOcclusionDebug;
-    mSettings.showSubmeshBounds = mShowSubmeshBounds;
-    mSettings.showShadowCascades = mEngine.debugShowShadowCascades;
-    mSettings.showShadowAtlas = mEngine.debugShowShadowAtlas;
-    mSettings.showPhysicsShapes = mEngine.debugShowPhysicsShapes;
-    mSettings.showPhysicsContacts = mEngine.debugShowPhysicsContacts;
-    mSettings.showPhysicsJoints = mEngine.debugShowPhysicsJoints;
-    mSettings.showAIObstacles = mEngine.debugShowAIObstacles;
+    storeRuntimeDebugSettings();
     for (EditorPanel* panel : mPanels)
         mSettings.panelOpen[panel->title()] = panel->active();
     mSettings.save(mSettingsFile);
@@ -1886,15 +1896,7 @@ void EditorApplication::runFrame(f32 deltaTime)
         mSettingsSaveTimer = 0.0f;
         mSettings.cursor3D = mCursor3D;
         mSettings.viewMode = mViewMode == ViewMode::Game ? 1 : 0;
-            mSettings.showDynamicIndexDebug = mShowDynamicIndexDebug;
-        mSettings.showOcclusionDebug = mShowOcclusionDebug;
-        mSettings.showSubmeshBounds = mShowSubmeshBounds;
-        mSettings.showShadowCascades = mEngine.debugShowShadowCascades;
-        mSettings.showShadowAtlas = mEngine.debugShowShadowAtlas;
-        mSettings.showPhysicsShapes = mEngine.debugShowPhysicsShapes;
-        mSettings.showPhysicsContacts = mEngine.debugShowPhysicsContacts;
-        mSettings.showPhysicsJoints = mEngine.debugShowPhysicsJoints;
-        mSettings.showAIObstacles = mEngine.debugShowAIObstacles;
+        storeRuntimeDebugSettings();
         for (EditorPanel* panel : mPanels)
             mSettings.panelOpen[panel->title()] = panel->active();
         mSettings.save(mSettingsFile);
