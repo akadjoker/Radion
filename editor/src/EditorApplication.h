@@ -405,6 +405,7 @@ private:
     void unregisterProjectSearchPaths();
     void buildPanels();
     void buildDefaultScene();
+    void applyNewSceneRenderDefaults();
     // Installs `replacement` through Engine's SceneManager and clears the
     // selection that belonged to the previous active scene.
     void replaceScene(Scene* replacement);
