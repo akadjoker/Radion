@@ -12,11 +12,13 @@
 #include "FileSystem.h"
 #include "GameObject.h"
 #include "Light.h"
+#include "LensFlarePass.h"
 #include "Lighting.h"
 #include "Log.h"
 #include "MaterialManager.h"
 #include "MeshRenderer.h"
 #include "ParticlePass.h"
+#include "PostProcess.h"
 #include "Scene.h"
 #include "ScriptCache.h"
 #include "Shadows.h"
@@ -393,6 +395,40 @@ void EditorApplication::buildDefaultScene()
     scene().update(0.0f);
 }
 
+void EditorApplication::applyNewSceneRenderDefaults()
+{
+    // A new scene should start cheap and neutral: it is easier to opt into a
+    // look than to diagnose bloom, temporal history or a local-light shadow
+    // atlas that was silently inherited from the previous scene.
+    PostProcessStack& post = mEngine.postProcess();
+    post.enabled = false;
+    post.ssaoEnabled = false;
+    post.taaEnabled = false;
+    post.setEnabled(PostEffect::Bloom, false);
+    post.setEnabled(PostEffect::FXAA, false);
+
+    if (LensFlarePass* lensFlare = mEngine.lensFlare())
+        lensFlare->enabled = false;
+
+    // Four stable 1024 cascades cover a normal new scene well while keeping
+    // the first cascade dense. Local-light shadows stay opt-in: a few point
+    // lights can otherwise consume the atlas before the author asks for it.
+    if (CascadeShadowSettings* shadows = mEngine.cascadeSettings())
+    {
+        *shadows = CascadeShadowSettings();
+        shadows->enabled = true;
+        shadows->count = 4;
+        shadows->resolution = 1024;
+        shadows->distance = 150.0f;
+        shadows->stabilize = true;
+        shadows->blend = true;
+        shadows->quality = 2;
+    }
+    mEngine.setSunShadows(true);
+    mEngine.setPointShadows(false);
+    mEngine.setSpotShadows(false);
+}
+
 void EditorApplication::replaceScene(Scene* replacement)
 {
     replacement->setRunningInEditor(true);
@@ -614,6 +650,7 @@ void EditorApplication::newScene()
 {
     Scene* fresh = new Scene();
     replaceScene(fresh);
+    applyNewSceneRenderDefaults();
     // Without this the fresh scene has no active camera and no light - the
     // Viewport/Game panels both bail out with nothing to render ("black
     // screen") until the user adds one by hand.
