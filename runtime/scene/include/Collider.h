@@ -34,10 +34,19 @@ public:
         glm::vec3 point{0.0f};
     };
 
+    ~Collider() override;
+
     void setSphere(f32 radius);
     void setBox(const glm::vec3& halfExtents);
     void setCapsule(f32 radius, f32 height); // height is total, cap to cap
     void setMesh(const TriangleOctree* octree); // borrowed, not owned
+    // Switches the shape to Mesh and reads the sibling MeshRenderer's mesh
+    // asset, baking it through the object's current world transform into an
+    // octree this Collider owns - a one-time bake, never repeated as the
+    // object moves, so the object must be GameObject::isStatic(). False,
+    // with the shape still Mesh but mesh() still null, when the object is
+    // not static, has no MeshRenderer, or its mesh has no geometry yet.
+    bool rebuildMeshFromRenderer();
 
     ColliderShape shape() const;
     f32 radius() const;
@@ -66,12 +75,14 @@ private:
 
     void clearContacts();
     void addContact(Collider* other, const glm::vec3& normal, const glm::vec3& point);
+    void releaseOwnedMesh();
 
     ColliderShape mShape = ColliderShape::Sphere;
     f32 mRadius = 0.5f;
     glm::vec3 mHalfExtents{0.5f, 0.5f, 0.5f};
     f32 mHeight = 1.0f;
     const TriangleOctree* mMesh = nullptr;
+    TriangleOctree* mOwnedMesh = nullptr; // built by rebuildMeshFromRenderer(), freed here
     u32 mType = 0;
     CollisionResponse mResponse{};
     std::vector<Contact> mContacts;
