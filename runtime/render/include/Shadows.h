@@ -37,19 +37,8 @@ struct CascadeShadowSettings
     // Resolution of one cascade region. Four 2048 cascades therefore create
     // the same 4096x4096 directional atlas used by Godot on desktop.
     u32 resolution = 1024;
-    f32 lambda = 0.70f;
     f32 distance = 150.0f;
-    f32 casterExtrusion = 250.0f;
-    f32 depthBiasSlope = 2.5f;
-    f32 depthBiasConstant = 6.0f;
-    // PCF blur width in world units, constant across cascades: the spread in
-    // UV is radius / (2 * halfExtent) per cascade, plus a two-texel floor.
-    f32 filterRadiusWorld = 0.5f;
-    u32 filterTaps = 8;
-    bool stabilize = true;
     bool blend = true;
-    bool cullFront = false;
-    bool alternateFarCascades = true;
 
     u32 quality = 2;
     f32 splitOffset[3] = {0.1f, 0.2f, 0.5f};
@@ -73,7 +62,7 @@ struct CascadeShadowSettings
     static CascadeShadowSettings sizedForScene(f32 sceneRadius);
     // Solves only `distance` (and the extrusion that follows it) so cascade 0
     // reaches `targetTexelsPerUnit`, keeping every other field of `base` -
-    // count, resolution, lambda, taps and bias all feed that density, so they
+    // count, resolution, taps and bias all feed that density, so they
     // have to be the ones already in use rather than this factory's defaults.
     static CascadeShadowSettings sizedForCamera(const CascadeShadowSettings& base, f32 sceneRadius,
                                                 const ShadowCamera& camera,

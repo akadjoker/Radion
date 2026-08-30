@@ -119,10 +119,6 @@ private:
     f32 mSplits[MaxShadowCascades]{};
     u32 mResolution = 0;
     ShadowSkipReason mSkipReason = ShadowSkipReason::None;
-    CascadeShadowData mCached;
-    bool mCascadeCached[MaxShadowCascades]{};
-    glm::vec3 mCachedSunDirection = glm::vec3(0.0f);
-    u32 mCachedCount = 0;
     u32 mFrameIndex = 0;
     bool mAtlasNeedsClear = true;
 

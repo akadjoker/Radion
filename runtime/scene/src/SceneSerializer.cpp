@@ -5231,11 +5231,7 @@ nlohmann::json writeCascadeShadowSettings(const CascadeShadowSettings& settings)
     nlohmann::json json;
     json["count"] = settings.count;
     json["resolution"] = settings.resolution;
-    json["lambda"] = settings.lambda;
     json["distance"] = settings.distance;
-    json["casterExtrusion"] = settings.casterExtrusion;
-    json["depthBiasSlope"] = settings.depthBiasSlope;
-    json["depthBiasConstant"] = settings.depthBiasConstant;
     json["quality"] = settings.quality;
     json["splitOffsets"] = {settings.splitOffset[0], settings.splitOffset[1],
                             settings.splitOffset[2]};
@@ -5246,9 +5242,7 @@ nlohmann::json writeCascadeShadowSettings(const CascadeShadowSettings& settings)
     json["fadeStart"] = settings.fadeStart;
     json["opacity"] = settings.opacity;
     json["angularDiameter"] = settings.angularDiameter;
-    json["stabilize"] = settings.stabilize;
     json["blend"] = settings.blend;
-    json["cullFront"] = settings.cullFront;
     json["enabled"] = settings.enabled;
     return json;
 }
@@ -5257,11 +5251,7 @@ void readCascadeShadowSettings(const nlohmann::json& json, CascadeShadowSettings
 {
     out.count = json.value("count", out.count);
     out.resolution = json.value("resolution", out.resolution);
-    out.lambda = json.value("lambda", out.lambda);
     out.distance = json.value("distance", out.distance);
-    out.casterExtrusion = json.value("casterExtrusion", out.casterExtrusion);
-    out.depthBiasSlope = json.value("depthBiasSlope", out.depthBiasSlope);
-    out.depthBiasConstant = json.value("depthBiasConstant", out.depthBiasConstant);
     out.quality = json.value("quality", out.quality);
     const auto splitField = json.find("splitOffsets");
     if (splitField != json.end() && splitField->is_array() && splitField->size() == 3)
@@ -5275,9 +5265,7 @@ void readCascadeShadowSettings(const nlohmann::json& json, CascadeShadowSettings
     out.fadeStart = json.value("fadeStart", out.fadeStart);
     out.opacity = json.value("opacity", out.opacity);
     out.angularDiameter = json.value("angularDiameter", out.angularDiameter);
-    out.stabilize = json.value("stabilize", out.stabilize);
     out.blend = json.value("blend", out.blend);
-    out.cullFront = json.value("cullFront", out.cullFront);
     out.enabled = json.value("enabled", out.enabled);
 }
 

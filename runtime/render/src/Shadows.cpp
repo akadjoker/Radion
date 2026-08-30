@@ -245,25 +245,13 @@ CascadeShadowSettings CascadeShadowSettings::sizedForScene(f32 sceneRadius)
     const f32 radius = glm::max(sceneRadius, 1.0f);
 
     settings.distance = glm::clamp(radius * 2.0f, settings.distance, 500.0f);
-    // Casters well outside the view still throw shadows into it - a column
-    // behind the camera, sunlight low enough to rake in from the side - so
-    // this reaches further than distance on purpose.
-    settings.casterExtrusion = settings.distance * 1.5f;
-    // A moderate logarithmic bias keeps useful near density without starving
-    // the middle of the view. The previous .9 split placed ordinary demo
-    // subjects almost immediately in the final cascade.
-    settings.lambda = 0.85f;
-    settings.filterRadiusWorld =
-        settings.distance / static_cast<f32>(glm::max(settings.resolution, 1u)) * 6.0f;
     // Count and resolution stay at the struct's own defaults (4, 1024): both
     // are a straight cost multiplier on the shadow pass - one more cascade is
     // another whole pass over the caster list, double the resolution is four
     // times the fill rate - and scaling them off the scene automatically was
     // the fps hit the "Auto" button caused the first time this shipped. Going
     // higher resolution is a choice to make from the panel, priced against
-    // the frame budget, not a default handed out for free. Four splits are a
-    // modest geometry cost, but avoid making one final split cover almost the
-    // entire useful view as the old 3/lambda=.9 combination did.
+    // the frame budget, not a default handed out for free.
     return settings;
 }
 
@@ -296,7 +284,6 @@ CascadeShadowSettings CascadeShadowSettings::sizedForCamera(const CascadeShadowS
     }
 
     settings.distance = glm::clamp(best, 10.0f, 500.0f);
-    settings.casterExtrusion = settings.distance * 1.5f;
     return settings;
 }
 
@@ -307,7 +294,13 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
         camera.aspect <= 0.0f || camera.fieldOfView <= 0.0f)
         return false;
 
-    output.count = glm::clamp(settings.count, 1u, MaxShadowCascades);
+    // A directional light has three shadow modes and no others: ORTHOGONAL,
+    // PARALLEL_2_SPLITS and PARALLEL_4_SPLITS (renderer_scene_cull.cpp:2167-
+    // 2177). Three splits is not one of them: the atlas would leave a
+    // quadrant undrawn, and distances[splits] = max_distance would overwrite
+    // the third offset, silently dropping it. A requested 3 becomes 2.
+    const u32 requested = glm::clamp(settings.count, 1u, MaxShadowCascades);
+    output.count = requested == 3u ? 2u : requested;
     const u32 splits = output.count;
     const glm::vec3 direction = glm::dot(lightDirection, lightDirection) > 0.000000000001f
                                     ? glm::normalize(lightDirection)
@@ -374,7 +367,13 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
 
         const DirectionalShadowRegion region =
             directionalShadowRegion(atlasResolution, splits, cascade);
-        const f32 textureSize = static_cast<f32>(glm::max(region.height, 1u));
+        // MAX(width, height) of the split's rect, not its height
+        // (light_storage.cpp:2813-2833). With two splits the rect is the full
+        // width by half the height, and taking the height there halves the
+        // snap grid and doubles shadow_texel_size - which is what feeds the
+        // normal bias.
+        const f32 textureSize =
+            static_cast<f32>(glm::max(glm::max(region.width, region.height), 1u));
 
         glm::vec3 center(0.0f);
         for (const glm::vec3& point : points)
@@ -396,18 +395,15 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const glm::vec3
             softShadowExpand = tanAngle * zRange;
         }
 
-        f32 xMaxCam = glm::dot(xVec, center) + radius + softShadowExpand;
-        f32 xMinCam = glm::dot(xVec, center) - radius - softShadowExpand;
-        f32 yMaxCam = glm::dot(yVec, center) + radius + softShadowExpand;
-        f32 yMinCam = glm::dot(yVec, center) - radius - softShadowExpand;
-        if (settings.stabilize)
-        {
-            const f32 unit = (radius + softShadowExpand) * 4.0f / textureSize;
-            xMaxCam = snapped(xMaxCam, unit);
-            xMinCam = snapped(xMinCam, unit);
-            yMaxCam = snapped(yMaxCam, unit);
-            yMinCam = snapped(yMinCam, unit);
-        }
+        // Unconditional, as in renderer_scene_cull.cpp:2316-2321: "this trick
+        // here is what stabilizes the shadow (make potential jaggies to not
+        // move) at the cost of some wasted resolution". There is no switch to
+        // turn it off.
+        const f32 unit = (radius + softShadowExpand) * 4.0f / textureSize;
+        const f32 xMaxCam = snapped(glm::dot(xVec, center) + radius + softShadowExpand, unit);
+        const f32 xMinCam = snapped(glm::dot(xVec, center) - radius - softShadowExpand, unit);
+        const f32 yMaxCam = snapped(glm::dot(yVec, center) + radius + softShadowExpand, unit);
+        const f32 yMinCam = snapped(glm::dot(yVec, center) - radius - softShadowExpand, unit);
 
         const f32 zMaxPancake = zDotCenter + radius + settings.pancakeSize;
         const f32 halfX = (xMaxCam - xMinCam) * 0.5f;

@@ -2093,8 +2093,6 @@ void testShadowLayout()
     CascadeShadowCalculator cascades;
     CHECK(cascades.settings.count == 4);
     CHECK(cascades.settings.resolution == 1024);
-    CHECK(near(cascades.settings.filterRadiusWorld, 0.5f));
-    CHECK(cascades.settings.filterTaps == 8);
     ShadowCamera camera;
     camera.view =
         glm::lookAt(glm::vec3(0.0f, 3.0f, 8.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
