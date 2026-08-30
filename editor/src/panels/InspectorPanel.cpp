@@ -27,6 +27,7 @@
 #include "Scene.h"
 #include "Skeleton.h"
 #include "NavMeshSurface.h"
+#include "Octree.h"
 #include "dynamics/JointMatch.h"
 #include "dynamics/RigidBody.h"
 #include "SelfDestroy.h"
@@ -4366,13 +4367,15 @@ void InspectorPanel::drawColliderComponent(GameObject& object, Collider& collide
         case ColliderShape::Sphere: collider.setSphere(collider.radius()); break;
         case ColliderShape::Box: collider.setBox(collider.halfExtents()); break;
         case ColliderShape::Capsule: collider.setCapsule(collider.radius(), collider.height()); break;
-        case ColliderShape::Mesh: collider.setMesh(nullptr); break;
+        case ColliderShape::Mesh: collider.rebuildMeshFromRenderer(); break;
         }
         app().markDirty();
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("The volume this collider tests with. Mesh needs a TriangleOctree "
-                         "assigned in code - it does not round-trip through the scene file.");
+        ImGui::SetTooltip("The volume this collider tests with. Mesh bakes the sibling "
+                         "MeshRenderer's geometry, at its current transform, into an octree "
+                         "the Collider owns - the object must be Static, since nothing re-bakes "
+                         "it if the object moves afterwards.");
 
     switch (collider.shape())
     {
@@ -4419,8 +4422,35 @@ void InspectorPanel::drawColliderComponent(GameObject& object, Collider& collide
         break;
     }
     case ColliderShape::Mesh:
-        ImGui::TextDisabled(collider.mesh() ? "Mesh collider (assigned in code)."
-                                            : "Mesh collider - no TriangleOctree assigned yet.");
+        if (!object.isStatic())
+        {
+            ImGui::TextDisabled("Mesh collider needs this object to be Static - it bakes once "
+                               "and never re-bakes as the object moves.");
+            if (ImGui::Button("Mark Static"))
+            {
+                object.setStatic(true);
+                app().scene().rebuildStaticIndex();
+                app().scene().rebuildDynamicIndex();
+                collider.rebuildMeshFromRenderer();
+                app().markDirty();
+            }
+        }
+        else
+        {
+            if (collider.mesh())
+                ImGui::TextDisabled("Mesh collider - %zu triangles baked from the MeshRenderer.",
+                                   collider.mesh()->triangleCount());
+            else
+                ImGui::TextDisabled("Mesh collider - no MeshRenderer with geometry on this object.");
+            if (ImGui::Button("Rebuild From MeshRenderer"))
+            {
+                collider.rebuildMeshFromRenderer();
+                app().markDirty();
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Re-bakes the octree from the sibling MeshRenderer's current "
+                                 "mesh and the object's current transform.");
+        }
         break;
     }
 

@@ -3298,7 +3298,10 @@ nlohmann::json writeCollider(Collider& collider)
     return json;
 }
 
-// The shape kind round-trips; the octree itself does not (not an asset path).
+// The octree itself is never written - Mesh rebuilds it from the sibling
+// MeshRenderer's mesh asset, the way NavMeshSurface rebuilds its nav mesh
+// from the same source, so it must appear first in this object's component
+// array (writeComponents() already orders MeshRenderer ahead of Collider).
 void readCollider(GameObject& object, const nlohmann::json& json, const std::string& path,
                   SceneLoadResult& result)
 {
@@ -3348,7 +3351,9 @@ void readCollider(GameObject& object, const nlohmann::json& json, const std::str
         collider->setCapsule(radius, height);
         break;
     case ColliderShape::Mesh:
-        collider->setMesh(nullptr);
+        if (!collider->rebuildMeshFromRenderer())
+            result.addWarning(path + ".shape", "Mesh collider has no sibling MeshRenderer with "
+                                                "geometry to build from");
         break;
     }
 

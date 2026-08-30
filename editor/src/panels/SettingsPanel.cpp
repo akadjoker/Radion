@@ -364,19 +364,8 @@ void SettingsPanel::onImGui()
                         shadows->count >= 4 ? 3u : (shadows->count <= 1 ? 0u : 1u);
                     for (u32 i = 0; i < usedSplits; ++i)
                     {
-                        if (ImGui::SliderFloat(kSplitLabels[i], &shadows->splitOffset[i], 0.0f,
-                                               1.0f, "%.3f"))
-                        {
-                            // They have to increase: cascade i ends at
-                            // splitOffset[i] of the distance, so a pair out of
-                            // order gives a slice whose near meets or passes its
-                            // far - a degenerate perspective, and a shader that
-                            // picks the wrong cascade at every depth.
-                            for (u32 j = 1; j < 3; ++j)
-                                shadows->splitOffset[j] = glm::max(shadows->splitOffset[j],
-                                                                   shadows->splitOffset[j - 1] +
-                                                                       0.01f);
-                        }
+                        ImGui::SliderFloat(kSplitLabels[i], &shadows->splitOffset[i], 0.0f, 1.0f,
+                                           "%.3f");
                         if (ImGui::IsItemHovered())
                             ImGui::SetTooltip("Fraction of the shadow distance where cascade %u "
                                               "ends.", i);
