@@ -152,6 +152,17 @@ public:
         return count;
     }
 
+    // Visits every concrete T in insertion order without repeatedly walking
+    // the sibling list as getComponentAt<T>() would. Do not remove a
+    // component from this callback; defer removal until the iteration ends.
+    template <class T, class Function> void forEachComponent(Function&& function) const
+    {
+        for (Component* component = mComponents[static_cast<u8>(T::Type)]; component;
+             component = component->mNextSibling)
+            if (ComponentMatch<T>::test(component))
+                function(*static_cast<T*>(component));
+    }
+
     // Whether ANY component slot is occupied - what tells a genuine "empty"
     // marker node (a spawn point, a rope anchor) apart from an object that
     // just happens not to have the one component a particular caller asked
@@ -207,6 +218,12 @@ public:
     }
 
     bool removeComponent(Component* component);
+
+    // SceneSerializer reserves an authored local ID immediately before it
+    // creates a component. Runtime callers should never need this: normal
+    // attachments receive the next available ID automatically.
+    void reserveNextComponentId(u32 id);
+    void clearReservedComponentId();
 
     const glm::vec3& position() const;
     const glm::quat& rotation() const;
@@ -293,6 +310,7 @@ private:
     std::vector<Component*> mPendingComponentDeletes;
     u32 mComponentCallbackDepth = 0;
     u32 mNextComponentId = 1;
+    u32 mReservedComponentId = 0;
     glm::vec3 mPosition = glm::vec3(0);
     glm::quat mRotation = glm::quat(1, 0, 0, 0);
     glm::vec3 mScale = glm::vec3(1);

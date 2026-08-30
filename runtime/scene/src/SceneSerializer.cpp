@@ -50,6 +50,7 @@
 #include "ZenBehaviour.h"
 
 #include <cmath>
+#include <limits>
 #include <type_traits>
 
 namespace Radion
@@ -4709,13 +4710,12 @@ static_assert(static_cast<u8>(ComponentType::Count) == 46,
 template <class T, class Writer>
 void appendComponents(GameObject& object, nlohmann::json& array, Writer&& write)
 {
-    for (usize index = 0;; ++index)
+    object.forEachComponent<T>([&](T& component)
     {
-        T* component = object.getComponentAt<T>(index);
-        if (!component)
-            return;
-        array.push_back(write(*component));
-    }
+        nlohmann::json json = write(component);
+        json["componentId"] = component.id();
+        array.push_back(std::move(json));
+    });
 }
 
 nlohmann::json writeComponents(GameObject& object)
@@ -4732,14 +4732,15 @@ nlohmann::json writeComponents(GameObject& object)
     // write, so trying produced an "anonymous mesh, not saved" error on every
     // single save. The owning component writes its own settings and rebuilds
     // the renderer on load, which is where that mesh actually comes back from.
-    for (usize index = 0;; ++index)
+    object.forEachComponent<MeshRenderer>([&](MeshRenderer& renderer)
     {
-        MeshRenderer* renderer = object.getComponentAt<MeshRenderer>(index);
-        if (!renderer)
-            break;
-        if (!renderer->generated())
-            array.push_back(writeMeshRenderer(*renderer));
-    }
+        if (!renderer.generated())
+        {
+            nlohmann::json json = writeMeshRenderer(renderer);
+            json["componentId"] = renderer.id();
+            array.push_back(std::move(json));
+        }
+    });
     appendComponents<CharacterController>(object, array, writeCharacterController);
     appendComponents<FreeFly>(object, array,
                               [](FreeFly& component) { return writeFreeLookController("FreeFly", component); });
@@ -4815,6 +4816,16 @@ void readComponent(GameObject& object, const nlohmann::json& json, const std::st
         return;
     }
     const std::string type = typeField->get<std::string>();
+    const auto componentId = json.find("componentId");
+    if (componentId != json.end())
+    {
+        u64 value = 0;
+        if (!readNonNegativeInteger(*componentId, value) || value == 0 ||
+            value > std::numeric_limits<u32>::max())
+            result.addWarning(path + ".componentId", "invalid component ID ignored");
+        else
+            object.reserveNextComponentId(static_cast<u32>(value));
+    }
     const auto readMarker = [&](auto* marker)
     {
         using ComponentType = std::remove_pointer_t<decltype(marker)>;
@@ -4914,6 +4925,7 @@ void readComponent(GameObject& object, const nlohmann::json& json, const std::st
                           "ActionRunner is not serializable yet (no read-back API), ignored");
     else
         result.addWarning(path + ".type", "unknown component type '" + type + "', ignored");
+    object.clearReservedComponentId();
 }
 
 // One GameObject entry read out of the "objects" array, before any Scene

@@ -66,6 +66,11 @@ enum ComponentEventFlags : u8
     ComponentEventLateUpdate = 1 << 1
 };
 
+// Most components are composable. Types that model one authoritative state
+// for an object (a physics body, terrain generator, or skeleton) remain
+// explicitly exclusive even though the storage supports sibling instances.
+bool componentTypeAllowsMultiple(ComponentType type);
+
 class Component;
 
 // A component's ComponentType normally identifies its class outright, so

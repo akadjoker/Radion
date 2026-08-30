@@ -2747,6 +2747,14 @@ void testMultipleComponentsOfSameType()
     CHECK(object->getComponentAt<CountingComponent>(2) == last);
     CHECK(first->id() < middle->id() && middle->id() < last->id());
 
+    u32 visited = 0;
+    object->forEachComponent<CountingComponent>([&](CountingComponent& component)
+    {
+        CHECK(&component == object->getComponentAt<CountingComponent>(visited));
+        ++visited;
+    });
+    CHECK(visited == 3);
+
     scene.update(1.0f / 60.0f);
     CHECK(first->updates == 1 && middle->updates == 1 && last->updates == 1);
 
@@ -2757,6 +2765,10 @@ void testMultipleComponentsOfSameType()
 
     scene.update(1.0f / 60.0f);
     CHECK(first->updates == 2 && last->updates == 2);
+
+    GameObject* terrainObject = scene.createGameObject("exclusive_component");
+    CHECK(terrainObject->addComponent<TiledTerrain>() != nullptr);
+    CHECK(terrainObject->addComponent<TiledTerrain>() == nullptr);
 }
 
 void testStaticMeshLoad()

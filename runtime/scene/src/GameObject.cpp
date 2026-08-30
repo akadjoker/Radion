@@ -324,8 +324,12 @@ bool GameObject::attachComponent(Component* component)
     const u8 index = static_cast<u8>(component->type());
     if (index >= static_cast<u8>(ComponentType::Count))
         return false;
+    if (!componentTypeAllowsMultiple(component->type()) && mComponents[index])
+        return false;
     component->mOwner = this;
-    component->mLocalId = mNextComponentId++;
+    component->mLocalId = mReservedComponentId ? mReservedComponentId : mNextComponentId++;
+    mReservedComponentId = 0;
+    mNextComponentId = glm::max(mNextComponentId, component->mLocalId + 1);
     component->mPreviousSibling = mComponentTails[index];
     component->mNextSibling = nullptr;
     Component*& head = mComponents[index];
@@ -338,6 +342,16 @@ bool GameObject::attachComponent(Component* component)
     if (mScene)
         mScene->componentAdded(component);
     return true;
+}
+
+void GameObject::reserveNextComponentId(u32 id)
+{
+    mReservedComponentId = id;
+}
+
+void GameObject::clearReservedComponentId()
+{
+    mReservedComponentId = 0;
 }
 
 bool GameObject::removeComponent(Component* component)

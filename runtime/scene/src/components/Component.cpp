@@ -5,6 +5,21 @@
 namespace Radion
 {
 
+bool componentTypeAllowsMultiple(ComponentType type)
+{
+    switch (type)
+    {
+    case ComponentType::ManualMesh:
+    case ComponentType::Animator:
+    case ComponentType::Terrain:
+    case ComponentType::TiledTerrain:
+    case ComponentType::VoxelWorld:
+    case ComponentType::CharacterController:
+    case ComponentType::RigidBody: return false;
+    default: return true;
+    }
+}
+
 Component::Component(ComponentType type, u8 events) : mType(type), mEvents(events)
 {
 }
