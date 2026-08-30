@@ -35,6 +35,7 @@
 #include "Text3D.h"
 #include "Terrain.h"
 #include "TiledTerrain.h"
+#include "Pixmap.h"
 #include "VoxelWorldComponent.h"
 #include "Forest.h"
 #include "Grass.h"
@@ -218,49 +219,18 @@ bool drawComponentHeader(EditorApplication& app, const char* label, Component& c
     return clicked;
 }
 
-// GameObject::removeComponent(ComponentType) is private (Component.h keeps
-// the type-erased overload internal, addComponent<T>()'s own counterpart) -
-// only the templated removeComponent<T>() is public, so drawComponentList's
-// single deferred removal (picked at runtime, one frame after the button
-// that requested it) needs this to get from the enum back to a concrete T.
-void removeComponentByType(GameObject& object, ComponentType type)
+template <class T, class Draw>
+void drawComponentInstances(GameObject& object, EditorApplication& app, Component*& toRemove,
+                            const char* label, Draw&& draw)
 {
-    switch (type)
+    for (usize index = 0; T* component = object.getComponentAt<T>(index); ++index)
     {
-    case ComponentType::Camera: object.removeComponent<Camera>(); break;
-    case ComponentType::FreeFly: object.removeComponent<FreeFly>(); break;
-    case ComponentType::FPS: object.removeComponent<FPS>(); break;
-    case ComponentType::Light: object.removeComponent<Light>(); break;
-    case ComponentType::MeshRenderer: object.removeComponent<MeshRenderer>(); break;
-    case ComponentType::ReflectionProbe: object.removeComponent<ReflectionProbe>(); break;
-    case ComponentType::Text3D: object.removeComponent<Text3D>(); break;
-    case ComponentType::Billboard: object.removeComponent<Billboard>(); break;
-    case ComponentType::BoneAttachment: object.removeComponent<BoneAttachment>(); break;
-    case ComponentType::Orbit: object.removeComponent<Orbit>(); break;
-    case ComponentType::Maya: object.removeComponent<Maya>(); break;
-    case ComponentType::SelfDestroy: object.removeComponent<SelfDestroy>(); break;
-    case ComponentType::Waypoints: object.removeComponent<Waypoints>(); break;
-    case ComponentType::NavMeshSurface: object.removeComponent<NavMeshSurface>(); break;
-    case ComponentType::ThirdPerson: object.removeComponent<ThirdPerson>(); break;
-    case ComponentType::Animator: object.removeComponent<Animator>(); break;
-    case ComponentType::ParticleEffect: object.removeComponent<ParticleEffect>(); break;
-    case ComponentType::Terrain: object.removeComponent<Terrain>(); break;
-    case ComponentType::Landscape: object.removeComponent<Landscape>(); break;
-    case ComponentType::Road: object.removeComponent<Road>(); break;
-    case ComponentType::Grass: object.removeComponent<Grass>(); break;
-    case ComponentType::Hair: object.removeComponent<Hair>(); break;
-    case ComponentType::TiledTerrain: object.removeComponent<TiledTerrain>(); break;
-    case ComponentType::Forest: object.removeComponent<Forest>(); break;
-    case ComponentType::Ocean: object.removeComponent<Ocean>(); break;
-    case ComponentType::VoxelWorld: object.removeComponent<VoxelWorldComponent>(); break;
-    case ComponentType::Script: object.removeComponent<ScriptComponent>(); break;
-    case ComponentType::Collider: object.removeComponent<Collider>(); break;
-    case ComponentType::RigidBody: object.removeComponent<Physics::RigidBody>(); break;
-    case ComponentType::Joint: object.removeComponent<Physics::Joint>(); break;
-    case ComponentType::AudioPlayer:
-        object.removeComponent<AudioPlayer>();
-        break;
-    default: break;
+        ImGui::PushID(static_cast<int>(component->id()));
+        if (drawComponentHeader(app, label, *component))
+            toRemove = component;
+        else
+            draw(*component);
+        ImGui::PopID();
     }
 }
 
@@ -724,7 +694,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     // removing mid-loop would leave whichever component's `if` runs next
     // (drawAnimatorComponent, e.g.) holding a pointer into a slot that no
     // longer exists.
-    ComponentType toRemove = ComponentType::Count;
+    Component* toRemove = nullptr;
 
     // Every block below is wrapped in PushID(label)/PopID() at the call site,
     // not just inside drawComponentHeader() (which pops its own before this
@@ -733,33 +703,18 @@ void InspectorPanel::drawComponentList(GameObject& object)
     // land in the same window-level ID scope otherwise. CollapsingHeader
     // (drawComponentHeader's own) does not push a scope for what follows it
     // the way TreeNode does, so nothing upstream was covering this.
-    if (Camera* camera = object.getComponent<Camera>())
-    {
-        ImGui::PushID("Camera");
-        if (drawComponentHeader(app(), "Camera", *camera))
-            toRemove = ComponentType::Camera;
-        else
-            drawCameraComponent(*camera);
-        ImGui::PopID();
-    }
-    if (FreeFly* freeFly = object.getComponent<FreeFly>())
-    {
-        ImGui::PushID("FreeFly");
-        if (drawComponentHeader(app(), "FreeFly", *freeFly))
-            toRemove = ComponentType::FreeFly;
-        else if (drawFreeLookController(*freeFly))
-            app().markDirty();
-        ImGui::PopID();
-    }
-    if (FPS* fps = object.getComponent<FPS>())
-    {
-        ImGui::PushID("FPS");
-        if (drawComponentHeader(app(), "FPS", *fps))
-            toRemove = ComponentType::FPS;
-        else if (drawFreeLookController(*fps))
-            app().markDirty();
-        ImGui::PopID();
-    }
+    drawComponentInstances<Camera>(object, app(), toRemove, "Camera",
+                                   [this](Camera& component) { drawCameraComponent(component); });
+    drawComponentInstances<FreeFly>(object, app(), toRemove, "FreeFly", [this](FreeFly& component)
+                                    {
+                                        if (drawFreeLookController(component))
+                                            app().markDirty();
+                                    });
+    drawComponentInstances<FPS>(object, app(), toRemove, "FPS", [this](FPS& component)
+                                {
+                                    if (drawFreeLookController(component))
+                                        app().markDirty();
+                                });
     if (Light* light = object.getComponent<Light>())
     {
         const char* label = "Light";
@@ -770,135 +725,54 @@ void InspectorPanel::drawComponentList(GameObject& object)
         case LightType::Spot: label = "SpotLight"; break;
         case LightType::Rectangle: label = "RectangleLight"; break;
         }
-        ImGui::PushID(label);
+        ImGui::PushID(static_cast<int>(light->id()));
         if (drawComponentHeader(app(), label, *light))
-            toRemove = ComponentType::Light;
+            toRemove = light;
         else
             drawLightComponent(*light);
         ImGui::PopID();
     }
-    if (MeshRenderer* renderer = object.getComponent<MeshRenderer>())
-    {
-        ImGui::PushID("MeshRenderer");
-        if (drawComponentHeader(app(), "MeshRenderer", *renderer))
-            toRemove = ComponentType::MeshRenderer;
-        else
-            drawMeshRenderer(object, *renderer);
-        ImGui::PopID();
-    }
-    if (ReflectionProbe* probeComponent = object.getComponent<ReflectionProbe>())
-    {
-        ImGui::PushID("ReflectionProbe");
-        if (drawComponentHeader(app(), "ReflectionProbe", *probeComponent))
-            toRemove = ComponentType::ReflectionProbe;
-        else
-            drawReflectionProbe(*probeComponent);
-        ImGui::PopID();
-    }
-    if (Text3D* text = object.getComponent<Text3D>())
-    {
-        ImGui::PushID("Text3D");
-        if (drawComponentHeader(app(), "Text3D", *text))
-            toRemove = ComponentType::Text3D;
-        else
-            drawText3DComponent(*text);
-        ImGui::PopID();
-    }
-    if (Billboard* billboard = object.getComponent<Billboard>())
-    {
-        ImGui::PushID("Billboard");
-        if (drawComponentHeader(app(), "Billboard", *billboard))
-            toRemove = ComponentType::Billboard;
-        else
-            drawBillboardComponent(*billboard);
-        ImGui::PopID();
-    }
-    if (Waypoints* waypoints = object.getComponent<Waypoints>())
-    {
-        ImGui::PushID("Waypoints");
-        if (drawComponentHeader(app(), "Waypoints", *waypoints))
-            toRemove = ComponentType::Waypoints;
-        else
-            drawWaypointsComponent(object, *waypoints);
-        ImGui::PopID();
-    }
-    if (NavMeshSurface* surface = object.getComponent<NavMeshSurface>())
-    {
-        ImGui::PushID("NavMeshSurface");
-        if (drawComponentHeader(app(), "NavMeshSurface", *surface))
-            toRemove = ComponentType::NavMeshSurface;
-        else
-            drawNavMeshSurfaceComponent(object, *surface);
-        ImGui::PopID();
-    }
-    if (SelfDestroy* selfDestroy = object.getComponent<SelfDestroy>())
-    {
-        ImGui::PushID("SelfDestroy");
-        if (drawComponentHeader(app(), "SelfDestroy", *selfDestroy))
-            toRemove = ComponentType::SelfDestroy;
-        else
-            drawSelfDestroyComponent(object, *selfDestroy);
-        ImGui::PopID();
-    }
-    if (Collider* collider = object.getComponent<Collider>())
-    {
-        ImGui::PushID("Collider");
-        if (drawComponentHeader(app(), "Collider", *collider))
-            toRemove = ComponentType::Collider;
-        else
-            drawColliderComponent(object, *collider);
-        ImGui::PopID();
-    }
-    if (Physics::RigidBody* rigidBody = object.getComponent<Physics::RigidBody>())
-    {
-        ImGui::PushID("RigidBody");
-        if (drawComponentHeader(app(), "RigidBody", *rigidBody))
-            toRemove = ComponentType::RigidBody;
-        else
-            drawRigidBodyComponent(object, *rigidBody);
-        ImGui::PopID();
-    }
-    if (Physics::Joint* joint = object.getComponent<Physics::Joint>())
-    {
-        ImGui::PushID("Joint");
-        if (drawComponentHeader(app(), "Joint", *joint))
-            toRemove = ComponentType::Joint;
-        else
-            drawJointComponent(object, *joint);
-        ImGui::PopID();
-    }
-    if (AudioPlayer* audioPlayer = object.getComponent<AudioPlayer>())
-    {
-        ImGui::PushID("AudioPlayer");
-        if (drawComponentHeader(app(), "AudioPlayer", *audioPlayer))
-            toRemove = ComponentType::AudioPlayer;
-        else
-            drawAudioPlayerComponent(*audioPlayer);
-        ImGui::PopID();
-    }
-    if (ZenBehaviour* behaviour = object.findComponent<ZenBehaviour>())
-    {
-        ImGui::PushID("ZenBehaviour");
-        if (drawComponentHeader(app(), "Zen Behaviour", *behaviour))
-            toRemove = ComponentType::Script;
-        else
-            drawZenBehaviourComponent(object, *behaviour);
-        ImGui::PopID();
-    }
-    if (BoneAttachment* attachment = object.getComponent<BoneAttachment>())
-    {
-        ImGui::PushID("BoneAttachment");
-        if (drawComponentHeader(app(), "BoneAttachment", *attachment))
-            toRemove = ComponentType::BoneAttachment;
-        else
-            drawBoneAttachmentComponent(*attachment);
-        ImGui::PopID();
-    }
+    drawComponentInstances<MeshRenderer>(object, app(), toRemove, "MeshRenderer",
+                                         [this, &object](MeshRenderer& component)
+                                         { drawMeshRenderer(object, component); });
+    drawComponentInstances<ReflectionProbe>(object, app(), toRemove, "ReflectionProbe",
+                                             [this](ReflectionProbe& component)
+                                             { drawReflectionProbe(component); });
+    drawComponentInstances<Text3D>(object, app(), toRemove, "Text3D",
+                                   [this](Text3D& component) { drawText3DComponent(component); });
+    drawComponentInstances<Billboard>(object, app(), toRemove, "Billboard",
+                                      [this](Billboard& component) { drawBillboardComponent(component); });
+    drawComponentInstances<Waypoints>(object, app(), toRemove, "Waypoints",
+                                      [this, &object](Waypoints& component)
+                                      { drawWaypointsComponent(object, component); });
+    drawComponentInstances<NavMeshSurface>(object, app(), toRemove, "NavMeshSurface",
+                                           [this, &object](NavMeshSurface& component)
+                                           { drawNavMeshSurfaceComponent(object, component); });
+    drawComponentInstances<SelfDestroy>(object, app(), toRemove, "SelfDestroy",
+                                        [this, &object](SelfDestroy& component)
+                                        { drawSelfDestroyComponent(object, component); });
+    drawComponentInstances<Collider>(object, app(), toRemove, "Collider",
+                                     [this, &object](Collider& component)
+                                     { drawColliderComponent(object, component); });
+    drawComponentInstances<Physics::RigidBody>(object, app(), toRemove, "RigidBody",
+                                                [this, &object](Physics::RigidBody& component)
+                                                { drawRigidBodyComponent(object, component); });
+    drawComponentInstances<Physics::Joint>(object, app(), toRemove, "Joint",
+                                            [this, &object](Physics::Joint& component)
+                                            { drawJointComponent(object, component); });
+    drawComponentInstances<AudioPlayer>(object, app(), toRemove, "AudioPlayer",
+                                        [this](AudioPlayer& component) { drawAudioPlayerComponent(component); });
+    drawComponentInstances<ZenBehaviour>(object, app(), toRemove, "Zen Behaviour",
+                                         [this, &object](ZenBehaviour& component)
+                                         { drawZenBehaviourComponent(object, component); });
+    drawComponentInstances<BoneAttachment>(object, app(), toRemove, "BoneAttachment",
+                                            [this](BoneAttachment& component)
+                                            { drawBoneAttachmentComponent(component); });
     if (Orbit* orbit = object.getComponent<Orbit>())
     {
         ImGui::PushID("Orbit");
         if (drawComponentHeader(app(), "Orbit", *orbit))
-            toRemove = ComponentType::Orbit;
+            toRemove = orbit;
         else
             drawOrbitComponent(object, *orbit);
         ImGui::PopID();
@@ -907,7 +781,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Maya");
         if (drawComponentHeader(app(), "Maya", *maya))
-            toRemove = ComponentType::Maya;
+            toRemove = maya;
         else
             drawMayaComponent(object, *maya);
         ImGui::PopID();
@@ -916,7 +790,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("ThirdPerson");
         if (drawComponentHeader(app(), "ThirdPerson", *thirdPerson))
-            toRemove = ComponentType::ThirdPerson;
+            toRemove = thirdPerson;
         else
             drawThirdPersonComponent(object, *thirdPerson);
         ImGui::PopID();
@@ -925,7 +799,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Animator");
         if (drawComponentHeader(app(), "Animator", *animator))
-            toRemove = ComponentType::Animator;
+            toRemove = animator;
         else
             drawAnimatorComponent(*animator);
         ImGui::PopID();
@@ -934,7 +808,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("ParticleEffect");
         if (drawComponentHeader(app(), "ParticleEffect", *effect))
-            toRemove = ComponentType::ParticleEffect;
+            toRemove = effect;
         else
             drawParticleEffectComponent(*effect);
         ImGui::PopID();
@@ -943,7 +817,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("ParticleEmitter");
         if (drawComponentHeader(app(), "ParticleEmitter", *emitter))
-            toRemove = ComponentType::ParticleEmitter;
+            toRemove = emitter;
         else
             drawParticleEmitterComponent(*emitter);
         ImGui::PopID();
@@ -956,7 +830,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Terrain");
         if (drawComponentHeader(app(), "Terrain", *component))
-            toRemove = ComponentType::Terrain;
+            toRemove = component;
         else
             drawTerrainComponent(*component);
         ImGui::PopID();
@@ -965,7 +839,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Landscape");
         if (drawComponentHeader(app(), "Landscape", *component))
-            toRemove = ComponentType::Landscape;
+            toRemove = component;
         else
             markerWarning();
         ImGui::PopID();
@@ -974,7 +848,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Road");
         if (drawComponentHeader(app(), "Road", *component))
-            toRemove = ComponentType::Road;
+            toRemove = component;
         else
             drawRoadComponent(object, *component);
         ImGui::PopID();
@@ -983,7 +857,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Grass");
         if (drawComponentHeader(app(), "Grass", *component))
-            toRemove = ComponentType::Grass;
+            toRemove = component;
         else
             drawGrassComponent(*component);
         ImGui::PopID();
@@ -992,7 +866,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("TiledTerrain");
         if (drawComponentHeader(app(), "TiledTerrain", *component))
-            toRemove = ComponentType::TiledTerrain;
+            toRemove = component;
         else
             drawTiledTerrainComponent(*component);
         ImGui::PopID();
@@ -1001,7 +875,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Hair");
         if (drawComponentHeader(app(), "Hair", *component))
-            toRemove = ComponentType::Hair;
+            toRemove = component;
         else
             drawHairComponent(*component);
         ImGui::PopID();
@@ -1010,7 +884,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Forest");
         if (drawComponentHeader(app(), "Forest", *component))
-            toRemove = ComponentType::Forest;
+            toRemove = component;
         else
             drawForestComponent(*component);
         ImGui::PopID();
@@ -1019,7 +893,7 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("Ocean");
         if (drawComponentHeader(app(), "Ocean", *component))
-            toRemove = ComponentType::Ocean;
+            toRemove = component;
         else
             drawOceanComponent(*component);
         ImGui::PopID();
@@ -1028,15 +902,15 @@ void InspectorPanel::drawComponentList(GameObject& object)
     {
         ImGui::PushID("VoxelWorld");
         if (drawComponentHeader(app(), "Voxel World", *component))
-            toRemove = ComponentType::VoxelWorld;
+            toRemove = component;
         else
             drawVoxelWorldComponent(*component);
         ImGui::PopID();
     }
 
-    if (toRemove != ComponentType::Count)
+    if (toRemove)
     {
-        removeComponentByType(object, toRemove);
+        object.removeComponent(toRemove);
         app().markDirty();
     }
 
@@ -1790,14 +1664,14 @@ void InspectorPanel::drawTiledTerrainComponent(TiledTerrain& terrain)
     ImGui::Indent(14.0f);
 
     int tilesInSide = terrain.tilesInSide();
-    if (ImGui::DragInt("Tiles in side", &tilesInSide, 1.0f, 1, 256))
+    if (ImGui::DragInt("Tiles in side", &tilesInSide, 1.0f, 1, 8))
     {
         terrain.setTilesInSide(tilesInSide);
         changed = true;
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Atlas grid size - the atlas texture is read as a tilesInSide x "
-                          "tilesInSide grid, each tile ID indexing into it row-major.");
+        ImGui::SetTooltip("Atlas grid size. The Apocalyx tile byte encodes 64 atlas cells, so "
+                          "the atlas may be at most 8 by 8.");
 
     int tilesPerPatch = terrain.tilesPerPatch();
     if (ImGui::DragInt("Tiles per patch", &tilesPerPatch, 1.0f, 1, 256))
@@ -1826,15 +1700,46 @@ void InspectorPanel::drawTiledTerrainComponent(TiledTerrain& terrain)
         ImGui::SetTooltip("Tile ID a patch overhanging the map edge samples, and what a freshly "
                           "built tilemap starts filled with.");
 
-    ImGui::TextUnformatted("Atlas material");
-    ImGui::Button(terrain.atlasMaterial().empty() ? "Drop material asset here"
-                                                  : terrain.atlasMaterial().c_str(),
+    ImGui::TextUnformatted("Atlas image");
+    ImGui::Button(terrain.atlasTexture().empty() ? "Drop atlas image here"
+                                                 : terrain.atlasTexture().c_str(),
                   ImVec2(-FLT_MIN, 0.0f));
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("The tile sheet itself - the terrain builds its own material from it "
+                          "(lit, point-sampled and clamped so tiles do not bleed into each "
+                          "other). Use this unless you have an authored .material.");
     if (ImGui::BeginDragDropTarget())
     {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kAssetFileDragPayload))
         {
             const std::string path(static_cast<const char*>(payload->Data), payload->DataSize);
+            app().recordUndo();
+            terrain.setAtlasTexture(path);
+            changed = true;
+        }
+        ImGui::EndDragDropTarget();
+    }
+    if (!terrain.atlasTexture().empty() && ImGui::SmallButton("Clear atlas image"))
+    {
+        app().recordUndo();
+        terrain.setAtlasTexture(std::string());
+        changed = true;
+    }
+
+    ImGui::TextUnformatted("Atlas material (optional)");
+    ImGui::Button(terrain.atlasMaterial().empty() ? "Drop material asset here"
+                                                  : terrain.atlasMaterial().c_str(),
+                  ImVec2(-FLT_MIN, 0.0f));
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("An authored .material, for a terrain that needs more than an albedo "
+                          "sheet. An atlas image, if one is set above, still supplies the "
+                          "albedo.");
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kAssetFileDragPayload))
+        {
+            const std::string path(static_cast<const char*>(payload->Data), payload->DataSize);
+            app().recordUndo();
             terrain.setAtlasMaterial(path);
             changed = true;
         }
@@ -1847,7 +1752,7 @@ void InspectorPanel::drawTiledTerrainComponent(TiledTerrain& terrain)
     static int newHeight = 8;
     ImGui::DragInt("Width##TiledTerrainMapWidth", &newWidth, 1.0f, 1, 4096);
     ImGui::DragInt("Height##TiledTerrainMapHeight", &newHeight, 1.0f, 1, 4096);
-    if (ImGui::Button("Build Tilemap", ImVec2(-FLT_MIN, 0.0f)))
+    if (ImGui::Button("Create empty tilemap", ImVec2(-FLT_MIN, 0.0f)))
     {
         app().recordUndo();
         const u32 width = static_cast<u32>(newWidth);
@@ -1856,7 +1761,51 @@ void InspectorPanel::drawTiledTerrainComponent(TiledTerrain& terrain)
         terrain.loadTilemap(width, height, tiles.data());
         changed = true;
     }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Creates a map filled entirely with Default tile. To reproduce an "
+                          "Apocalyx map, drop its grayscale tiles.png below instead.");
     ImGui::Text("Current: %u x %u", terrain.mapWidth(), terrain.mapHeight());
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Import from image");
+    ImGui::Button("Drop grayscale tilemap here", ImVec2(-FLT_MIN, 0.0f));
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("One grayscale pixel is one encoded tile byte. Bits 0-5 select one "
+                          "of the 64 atlas tiles; bits 6-7 select its 0, 90, 180 or 270 degree "
+                          "rotation. Up to 1024x1024 pixels. Replaces the current map.");
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kAssetFileDragPayload))
+        {
+            const std::string path(static_cast<const char*>(payload->Data), payload->DataSize);
+            Pixmap image;
+            std::vector<u8> tiles;
+            if (image.load(path.c_str()) &&
+                TiledTerrain::tilesFromImageColors(image, tiles))
+            {
+                app().recordUndo();
+                terrain.loadTilemap(static_cast<u32>(image.width), static_cast<u32>(image.height),
+                                    tiles.data());
+                changed = true;
+            }
+            else
+                Log::error("TiledTerrain: could not read tiles from image '%s'", path.c_str());
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    static char tilemapExportPath[512] = "assets/tilemap_export.png";
+    ImGui::InputText("Export path##TiledTerrain", tilemapExportPath, sizeof(tilemapExportPath));
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("PNG path relative to the project. The grayscale image stores the tile "
+                          "index and rotation together, so importing it recreates this map.");
+    if (ImGui::Button("Export grayscale tilemap", ImVec2(-FLT_MIN, 0.0f)))
+    {
+        if (terrain.saveTilemapImage(tilemapExportPath))
+            Log::info("TiledTerrain: exported tilemap to '%s'", tilemapExportPath);
+        else
+            Log::error("TiledTerrain: could not export tilemap to '%s'", tilemapExportPath);
+    }
 
     if (changed)
         app().markDirty();
@@ -3145,107 +3094,120 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
 
     if (ImGui::BeginPopup("AddComponentMenu"))
     {
-        if (!object.getComponent<Camera>() && ImGui::MenuItem("Camera"))
+        if (ImGui::MenuItem("Camera"))
         {
             object.addComponent<Camera>();
             app().markDirty();
         }
         if (object.getComponent<Camera>() && ImGui::BeginMenu("Camera Controller"))
         {
-            if (!object.getComponent<FreeFly>() && ImGui::MenuItem("FreeFly"))
+        if (ImGui::MenuItem("FreeFly"))
             {
                 object.addComponent<FreeFly>();
                 app().markDirty();
             }
-            if (!object.getComponent<FPS>() && ImGui::MenuItem("FPS"))
+        if (ImGui::MenuItem("FPS"))
             {
                 object.addComponent<FPS>();
                 app().markDirty();
             }
-            if (!object.getComponent<Orbit>() && ImGui::MenuItem("Orbit"))
+        if (ImGui::MenuItem("Orbit"))
             {
                 object.addComponent<Orbit>();
                 app().markDirty();
             }
-            if (!object.getComponent<Maya>() && ImGui::MenuItem("Maya"))
+        if (ImGui::MenuItem("Maya"))
             {
                 object.addComponent<Maya>();
                 app().markDirty();
             }
-            if (!object.getComponent<ThirdPerson>() && ImGui::MenuItem("ThirdPerson"))
+        if (ImGui::MenuItem("ThirdPerson"))
             {
                 object.addComponent<ThirdPerson>();
                 app().markDirty();
             }
             ImGui::EndMenu();
         }
-        if (!object.getComponent<Light>() && ImGui::BeginMenu("Light"))
+        if (ImGui::BeginMenu("Light"))
         {
+            bool added = false;
             if (ImGui::MenuItem("Directional"))
+            {
                 object.addComponent<DirectionalLight>();
+                added = true;
+            }
             if (ImGui::MenuItem("Point"))
+            {
                 object.addComponent<PointLight>();
+                added = true;
+            }
             if (ImGui::MenuItem("Spot"))
+            {
                 object.addComponent<SpotLight>();
+                added = true;
+            }
             if (ImGui::MenuItem("Rectangle"))
+            {
                 object.addComponent<RectangleLight>();
-            if (object.getComponent<Light>())
+                added = true;
+            }
+            if (added)
                 app().markDirty();
             ImGui::EndMenu();
         }
-        if (!object.getComponent<Text3D>() && ImGui::MenuItem("Text3D"))
+        if (ImGui::MenuItem("Text3D"))
         {
             object.addComponent<Text3D>();
             app().markDirty();
         }
-        if (!object.getComponent<Billboard>() && ImGui::MenuItem("Billboard"))
+        if (ImGui::MenuItem("Billboard"))
         {
             object.addComponent<Billboard>();
             app().markDirty();
         }
-        if (!object.getComponent<Waypoints>() && ImGui::MenuItem("Waypoints"))
+        if (ImGui::MenuItem("Waypoints"))
         {
             app().recordUndo();
             object.addComponent<Waypoints>();
             app().markDirty();
         }
-        if (!object.getComponent<NavMeshSurface>() && ImGui::MenuItem("NavMeshSurface"))
+        if (ImGui::MenuItem("NavMeshSurface"))
         {
             app().recordUndo();
             object.addComponent<NavMeshSurface>();
             app().markDirty();
         }
-        if (!object.getComponent<SelfDestroy>() && ImGui::MenuItem("SelfDestroy"))
+        if (ImGui::MenuItem("SelfDestroy"))
         {
             object.addComponent<SelfDestroy>();
             app().markDirty();
         }
-        if (!object.getComponent<Collider>() && ImGui::MenuItem("Collider"))
+        if (ImGui::MenuItem("Collider"))
         {
             object.addComponent<Collider>();
             app().markDirty();
         }
-        if (!object.getComponent<Physics::RigidBody>() && ImGui::MenuItem("RigidBody"))
+        if (ImGui::MenuItem("RigidBody"))
         {
             object.addComponent<Physics::RigidBody>();
             app().markDirty();
         }
-        if (!object.getComponent<Physics::Joint>() && ImGui::MenuItem("Joint"))
+        if (ImGui::MenuItem("Joint"))
         {
             object.addComponent<Physics::HingeJoint>();
             app().markDirty();
         }
-        if (!object.getComponent<AudioPlayer>() && ImGui::MenuItem("AudioPlayer"))
+        if (ImGui::MenuItem("AudioPlayer"))
         {
             object.addComponent<AudioPlayer>();
             app().markDirty();
         }
-        if (!object.getComponent<ScriptComponent>() && ImGui::MenuItem("Zen Behaviour"))
+        if (ImGui::MenuItem("Zen Behaviour"))
         {
             object.addComponent<ZenBehaviour>();
             app().markDirty();
         }
-        if (!object.getComponent<BoneAttachment>() && ImGui::MenuItem("Bone Attachment"))
+        if (ImGui::MenuItem("Bone Attachment"))
         {
             object.addComponent<BoneAttachment>();
             app().markDirty();
@@ -3257,7 +3219,7 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             hair->generate();
             app().markDirty();
         }
-        if (!object.getComponent<ReflectionProbe>() && ImGui::MenuItem("Reflection Probe"))
+        if (ImGui::MenuItem("Reflection Probe"))
         {
             // Same one-time setup HierarchyPanel's createReflectionProbeObject()
             // gives a freshly created one - addComponent<T>() alone leaves this
@@ -3272,19 +3234,19 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             env.invalidate();
             app().markDirty();
         }
-        if (!object.getComponent<VoxelWorldComponent>() && ImGui::MenuItem("Voxel World"))
+        if (ImGui::MenuItem("Voxel World"))
         {
             app().recordUndo();
             object.addComponent<VoxelWorldComponent>();
             app().markDirty();
         }
-        if (!object.getComponent<TiledTerrain>() && ImGui::MenuItem("TiledTerrain"))
+        if (ImGui::MenuItem("TiledTerrain"))
         {
             app().recordUndo();
             object.addComponent<TiledTerrain>();
             app().markDirty();
         }
-        if (!object.getComponent<Animator>() && ImGui::MenuItem("Animator..."))
+        if (ImGui::MenuItem("Animator..."))
         {
             mNewAnimatorClipFiles.clear();
             mNewAnimatorError.clear();

@@ -16,6 +16,10 @@ ComponentType Component::type() const
 {
     return mType;
 }
+u32 Component::id() const
+{
+    return mLocalId;
+}
 bool Component::active() const
 {
     return mActive;

@@ -2416,6 +2416,42 @@ void testCharacterRigidBodyOnSteepGround()
     character.removeFromWorld();
 }
 
+// Regression: the reference treats a (near) 0 degree max slope angle as
+// "turn the check off", not "reject every slope, including a flat one that
+// only misses by rounding". Same steep ramp as
+// testCharacterRigidBodyOnSteepGround(), but with the limit set to the
+// escape-hatch value - it must read OnGround, not OnSteepGround.
+void testCharacterRigidBodyMaxSlopeAngleZeroDisablesTheCheck()
+{
+    const f32 angleDegrees = 70.0f;
+    const glm::quat rotation =
+        glm::angleAxis(glm::radians(angleDegrees), glm::vec3(0.0f, 0.0f, 1.0f));
+    const glm::vec3 normal = glm::normalize(rotation * glm::vec3(0.0f, 1.0f, 0.0f));
+
+    BoxShape ramp(glm::vec3(5.0f, 0.5f, 5.0f));
+    RigidBody rampBody;
+    rampBody.setBodyType(BodyType::Static);
+    rampBody.setPosition(glm::vec3(0.0f));
+    rampBody.setOrientation(rotation);
+
+    rampBody.setShape(&ramp);
+
+    Radion::Scene world;
+    world.addBody(rampBody);
+
+    const glm::vec3 topFaceCentre = rotation * glm::vec3(0.0f, 0.5f, 0.0f);
+    CharacterRigidBody character;
+    character.setShape(0.4f, 0.0f);
+    character.setMaxSlopeAngle(0.0f);
+    character.addToWorld(world, topFaceCentre + normal * 0.38f);
+    character.postSimulation(0.05f);
+
+    CHECK(character.groundState() == CharacterRigidBody::GroundState::OnGround);
+    CHECK(character.isSupported());
+
+    character.removeFromWorld();
+}
+
 void testCharacterRigidBodyInAir()
 {
     Radion::Scene world;
@@ -3167,6 +3203,7 @@ int main()
     testConvexTrimeshBoxRestsOnFloorAndInCorner();
     testCharacterRigidBodyOnGround();
     testCharacterRigidBodyOnSteepGround();
+    testCharacterRigidBodyMaxSlopeAngleZeroDisablesTheCheck();
     testCharacterRigidBodyInAir();
     testCharacterRigidBodyPushesALightDynamicBox();
     testCharacterRigidBodyMovesAfterFallingAsleep();

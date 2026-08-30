@@ -41,6 +41,7 @@
 #include "Sky.h"
 #include "Terrain.h"
 #include "Text3D.h"
+#include "ManualMesh.h"
 #include "TiledTerrain.h"
 #include "UiControls.h"
 #include "VolumetricPass.h"
@@ -587,6 +588,7 @@ nlohmann::json writeTiledTerrain(TiledTerrain& terrain)
                         {"tilesPerPatch", terrain.tilesPerPatch()},
                         {"defaultTile", terrain.defaultTile()},
                         {"atlasMaterial", terrain.atlasMaterial()},
+                        {"atlasTexture", terrain.atlasTexture()},
                         {"mapWidth", terrain.mapWidth()},
                         {"mapHeight", terrain.mapHeight()}};
     nlohmann::json tiles = nlohmann::json::array();
@@ -1099,11 +1101,14 @@ void readTiledTerrain(GameObject& object, const nlohmann::json& json, const std:
     // longer empty, and the map is still empty at this point.
     terrain->setTilesInSide(static_cast<int>(readNumberOr(json, "tilesInSide", 8.0f)));
     terrain->setPatchLength(readNumberOr(json, "patchLength", 1.0f));
-    terrain->setTilesPerPatch(static_cast<int>(readNumberOr(json, "tilesPerPatch", 1.0f)));
+    terrain->setTilesPerPatch(static_cast<int>(readNumberOr(json, "tilesPerPatch", 8.0f)));
     terrain->setDefaultTile(static_cast<u8>(readNumberOr(json, "defaultTile", 0.0f)));
     const auto atlasMaterial = json.find("atlasMaterial");
     if (atlasMaterial != json.end() && atlasMaterial->is_string())
         terrain->setAtlasMaterial(atlasMaterial->get<std::string>());
+    const auto atlasTexture = json.find("atlasTexture");
+    if (atlasTexture != json.end() && atlasTexture->is_string())
+        terrain->setAtlasTexture(atlasTexture->get<std::string>());
 
     const u32 mapWidth = static_cast<u32>(glm::max(0.0f, readNumberOr(json, "mapWidth", 0.0f)));
     const u32 mapHeight = static_cast<u32>(glm::max(0.0f, readNumberOr(json, "mapHeight", 0.0f)));
@@ -4584,7 +4589,7 @@ void readAnimator(GameObject& object, const nlohmann::json& json, const std::str
 // out for writing.
 struct PendingBoneAttachment
 {
-    u64 ownerId = 0;
+    BoneAttachment* attachment = nullptr;
     u64 targetId = 0;
     std::string boneName;
     std::string path;
@@ -4648,7 +4653,7 @@ void readBoneAttachment(GameObject& object, const nlohmann::json& json, const st
         result.addWarning(path + ".bone", "missing bone name, attachment left unbound");
         return;
     }
-    pending.push_back({object.id(), targetId, boneField->get<std::string>(), path});
+    pending.push_back({attachment, targetId, boneField->get<std::string>(), path});
 }
 
 void resolveBoneAttachments(Scene& out, const std::vector<PendingBoneAttachment>& pending,
@@ -4656,8 +4661,7 @@ void resolveBoneAttachments(Scene& out, const std::vector<PendingBoneAttachment>
 {
     for (const PendingBoneAttachment& entry : pending)
     {
-        GameObject* owner = out.findGameObject(entry.ownerId);
-        BoneAttachment* attachment = owner ? owner->getComponent<BoneAttachment>() : nullptr;
+        BoneAttachment* attachment = entry.attachment;
         if (!attachment)
             continue; // created moments ago by readBoneAttachment(); should always exist
 
@@ -4702,6 +4706,18 @@ static_assert(static_cast<u8>(ComponentType::Count) == 46,
               "ComponentType changed - teach writeComponents()/readComponent() about it (or "
               "record why it is deliberately not serialized) before updating this count");
 
+template <class T, class Writer>
+void appendComponents(GameObject& object, nlohmann::json& array, Writer&& write)
+{
+    for (usize index = 0;; ++index)
+    {
+        T* component = object.getComponentAt<T>(index);
+        if (!component)
+            return;
+        array.push_back(write(*component));
+    }
+}
+
 nlohmann::json writeComponents(GameObject& object)
 {
     nlohmann::json array = nlohmann::json::array();
@@ -4709,64 +4725,49 @@ nlohmann::json writeComponents(GameObject& object)
     // still owns no writer for; checking each covered type directly is
     // simpler while the list is this short. Revisit as a real dispatch table
     // once more component types are covered (see PLANO_SERIALIZACAO_CENA.md).
-    if (Camera* camera = object.getComponent<Camera>())
-        array.push_back(writeCamera(*camera));
-    if (Light* light = object.getComponent<Light>())
-        array.push_back(writeLight(*light));
-    if (MeshRenderer* renderer = object.getComponent<MeshRenderer>())
-        array.push_back(writeMeshRenderer(*renderer));
-    if (CharacterController* controller = object.getComponent<CharacterController>())
-        array.push_back(writeCharacterController(*controller));
-    if (FreeFly* freeFly = object.getComponent<FreeFly>())
-        array.push_back(writeFreeLookController("FreeFly", *freeFly));
-    if (FPS* fps = object.getComponent<FPS>())
-        array.push_back(writeFreeLookController("FPS", *fps));
-    if (Orbit* orbit = object.getComponent<Orbit>())
-        array.push_back(writeOrbit(*orbit));
-    if (Maya* maya = object.getComponent<Maya>())
-        array.push_back(writeMaya(*maya));
-    if (ThirdPerson* thirdPerson = object.getComponent<ThirdPerson>())
-        array.push_back(writeThirdPerson(*thirdPerson));
-    if (RibbonTrail* trail = object.getComponent<RibbonTrail>())
-        array.push_back(writeRibbonTrail(*trail));
-    if (Billboard* billboard = object.getComponent<Billboard>())
-        array.push_back(writeBillboard(*billboard));
-    if (Text3D* text = object.getComponent<Text3D>())
-        array.push_back(writeText3D(*text));
-    if (SelfDestroy* selfDestroy = object.getComponent<SelfDestroy>())
-        array.push_back(writeSelfDestroy(*selfDestroy));
-    if (AudioPlayer* audioPlayer = object.getComponent<AudioPlayer>())
-        array.push_back(writeAudioPlayer(*audioPlayer));
-    if (UiPanel* panel = object.getComponent<UiPanel>())
-        array.push_back(writeUiPanel(*panel));
-    if (UiLabel* label = object.getComponent<UiLabel>())
-        array.push_back(writeUiLabel(*label));
-    if (UiButton* button = object.getComponent<UiButton>())
-        array.push_back(writeUiButton(*button));
-    if (UiCheckBox* checkBox = object.getComponent<UiCheckBox>())
-        array.push_back(writeUiCheckBox(*checkBox));
-    if (UiSlider* slider = object.getComponent<UiSlider>())
-        array.push_back(writeUiSlider(*slider));
-    if (Collider* collider = object.getComponent<Collider>())
-        array.push_back(writeCollider(*collider));
-    if (Physics::RigidBody* body = object.getComponent<Physics::RigidBody>())
-        array.push_back(writeRigidBody(*body));
-    if (Physics::Joint* joint = object.getComponent<Physics::Joint>())
-        array.push_back(writeJoint(*joint));
-    if (Waypoints* waypoints = object.getComponent<Waypoints>())
-        array.push_back(writeWaypoints(*waypoints));
-    if (NavMeshSurface* surface = object.getComponent<NavMeshSurface>())
-        array.push_back(writeNavMeshSurface(*surface));
-    if (ParticleEffect* effect = object.getComponent<ParticleEffect>())
-        array.push_back(writeParticleEffect(*effect));
-    if (ParticleEmitter* emitter = object.getComponent<ParticleEmitter>())
-        array.push_back(writeParticleEmitter(*emitter));
-    if (Animator* animator = object.getComponent<Animator>())
-        array.push_back(writeAnimator(*animator));
-    if (BoneAttachment* attachment = object.getComponent<BoneAttachment>())
-        array.push_back(writeBoneAttachment(*attachment));
-    if (ReflectionProbe* probeComponent = object.getComponent<ReflectionProbe>())
-        array.push_back(writeReflectionProbe(*probeComponent));
+    appendComponents<Camera>(object, array, writeCamera);
+    appendComponents<Light>(object, array, writeLight);
+    // A MeshRenderer that another component generated and owns is derived
+    // data, not authored data: its mesh is built in code and has no recipe to
+    // write, so trying produced an "anonymous mesh, not saved" error on every
+    // single save. The owning component writes its own settings and rebuilds
+    // the renderer on load, which is where that mesh actually comes back from.
+    for (usize index = 0;; ++index)
+    {
+        MeshRenderer* renderer = object.getComponentAt<MeshRenderer>(index);
+        if (!renderer)
+            break;
+        if (!renderer->generated())
+            array.push_back(writeMeshRenderer(*renderer));
+    }
+    appendComponents<CharacterController>(object, array, writeCharacterController);
+    appendComponents<FreeFly>(object, array,
+                              [](FreeFly& component) { return writeFreeLookController("FreeFly", component); });
+    appendComponents<FPS>(object, array,
+                          [](FPS& component) { return writeFreeLookController("FPS", component); });
+    appendComponents<Orbit>(object, array, writeOrbit);
+    appendComponents<Maya>(object, array, writeMaya);
+    appendComponents<ThirdPerson>(object, array, writeThirdPerson);
+    appendComponents<RibbonTrail>(object, array, writeRibbonTrail);
+    appendComponents<Billboard>(object, array, writeBillboard);
+    appendComponents<Text3D>(object, array, writeText3D);
+    appendComponents<SelfDestroy>(object, array, writeSelfDestroy);
+    appendComponents<AudioPlayer>(object, array, writeAudioPlayer);
+    appendComponents<UiPanel>(object, array, writeUiPanel);
+    appendComponents<UiLabel>(object, array, writeUiLabel);
+    appendComponents<UiButton>(object, array, writeUiButton);
+    appendComponents<UiCheckBox>(object, array, writeUiCheckBox);
+    appendComponents<UiSlider>(object, array, writeUiSlider);
+    appendComponents<Collider>(object, array, writeCollider);
+    appendComponents<Physics::RigidBody>(object, array, writeRigidBody);
+    appendComponents<Physics::Joint>(object, array, writeJoint);
+    appendComponents<Waypoints>(object, array, writeWaypoints);
+    appendComponents<NavMeshSurface>(object, array, writeNavMeshSurface);
+    appendComponents<ParticleEffect>(object, array, writeParticleEffect);
+    appendComponents<ParticleEmitter>(object, array, writeParticleEmitter);
+    appendComponents<Animator>(object, array, writeAnimator);
+    appendComponents<BoneAttachment>(object, array, writeBoneAttachment);
+    appendComponents<ReflectionProbe>(object, array, writeReflectionProbe);
     const auto writeMarker = [](const char* type, const Component& component)
     {
         return nlohmann::json{{"type", type}, {"version", 1}, {"active", component.active()}};
@@ -4774,28 +4775,19 @@ nlohmann::json writeComponents(GameObject& object)
     // These components currently expose creation but no authoring controls
     // in the editor. Persisting the component and active state still matters:
     // an object created from Hierarchy must not reopen as an empty node.
-    if (Terrain* component = object.getComponent<Terrain>())
-        array.push_back(writeTerrain(*component));
-    if (TiledTerrain* component = object.getComponent<TiledTerrain>())
-        array.push_back(writeTiledTerrain(*component));
-    if (Landscape* component = object.getComponent<Landscape>())
-        array.push_back(writeMarker("Landscape", *component));
-    if (UiCanvas* canvas = object.getComponent<UiCanvas>())
-        array.push_back(writeMarker("UiCanvas", *canvas));
-    if (Road* component = object.getComponent<Road>())
-        array.push_back(writeRoad(*component));
-    if (Grass* component = object.getComponent<Grass>())
-        array.push_back(writeGrass(*component));
-    if (Hair* component = object.getComponent<Hair>())
-        array.push_back(writeHair(*component));
-    if (Forest* component = object.getComponent<Forest>())
-        array.push_back(writeForest(*component));
-    if (Ocean* component = object.getComponent<Ocean>())
-        array.push_back(writeOcean(*component));
-    if (VoxelWorldComponent* component = object.getComponent<VoxelWorldComponent>())
-        array.push_back(writeVoxelWorld(*component));
-    if (ZenBehaviour* component = object.findComponent<ZenBehaviour>())
-        array.push_back(writeZenBehaviour(*component));
+    appendComponents<Terrain>(object, array, writeTerrain);
+    appendComponents<TiledTerrain>(object, array, writeTiledTerrain);
+    appendComponents<Landscape>(object, array,
+                                [&writeMarker](Landscape& component) { return writeMarker("Landscape", component); });
+    appendComponents<UiCanvas>(object, array,
+                               [&writeMarker](UiCanvas& component) { return writeMarker("UiCanvas", component); });
+    appendComponents<Road>(object, array, writeRoad);
+    appendComponents<Grass>(object, array, writeGrass);
+    appendComponents<Hair>(object, array, writeHair);
+    appendComponents<Forest>(object, array, writeForest);
+    appendComponents<Ocean>(object, array, writeOcean);
+    appendComponents<VoxelWorldComponent>(object, array, writeVoxelWorld);
+    appendComponents<ZenBehaviour>(object, array, writeZenBehaviour);
     // Not written: ActionRunner (no getters over its command queue - cannot
     // be read back at all, see PLANO_SERIALIZACAO_CENA.md) and a C++
     // ScriptComponent subclass other than ZenBehaviour (user extension slot,

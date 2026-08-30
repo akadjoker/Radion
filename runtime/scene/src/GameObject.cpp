@@ -322,27 +322,33 @@ bool GameObject::attachComponent(Component* component)
     if (!component || component->mOwner)
         return false;
     const u8 index = static_cast<u8>(component->type());
-    if (index >= static_cast<u8>(ComponentType::Count) || mComponents[index])
+    if (index >= static_cast<u8>(ComponentType::Count))
         return false;
     component->mOwner = this;
-    mComponents[index] = component;
+    component->mLocalId = mNextComponentId++;
+    component->mPreviousSibling = mComponentTails[index];
+    component->mNextSibling = nullptr;
+    Component*& head = mComponents[index];
+    if (!head)
+        head = component;
+    else
+        mComponentTails[index]->mNextSibling = component;
+    mComponentTails[index] = component;
     component->attached();
     if (mScene)
         mScene->componentAdded(component);
     return true;
 }
 
-bool GameObject::removeComponent(ComponentType type)
+bool GameObject::removeComponent(Component* component)
 {
-    const u8 index = static_cast<u8>(type);
-    if (index >= static_cast<u8>(ComponentType::Count) || !mComponents[index])
+    if (!component || component->mOwner != this)
         return false;
-    Component* component = mComponents[index];
     if (mScene)
         mScene->componentRemoved(component);
     component->detached();
     component->mOwner = nullptr;
-    mComponents[index] = nullptr;
+    unlinkComponent(component);
     // Only the actual free waits: a callback still running on this component
     // - reached through the loop in updateComponents()/lateUpdateComponents()
     // - must not have it deleted out from under itself.
@@ -351,6 +357,19 @@ bool GameObject::removeComponent(ComponentType type)
     else
         delete component;
     return true;
+}
+
+void GameObject::unlinkComponent(Component* component)
+{
+    const u8 index = static_cast<u8>(component->type());
+    if (component->mPreviousSibling)
+        component->mPreviousSibling->mNextSibling = component->mNextSibling;
+    else
+        mComponents[index] = component->mNextSibling;
+    if (component->mNextSibling)
+        component->mNextSibling->mPreviousSibling = component->mPreviousSibling;
+    else
+        mComponentTails[index] = component->mPreviousSibling;
 }
 
 void GameObject::flushPendingComponentDeletes()
@@ -363,20 +382,22 @@ void GameObject::flushPendingComponentDeletes()
 void GameObject::deleteComponents()
 {
     for (u8 i = 0; i < static_cast<u8>(ComponentType::Count); ++i)
-        if (mComponents[i])
-            removeComponent(static_cast<ComponentType>(i));
+        while (mComponents[i])
+            removeComponent(mComponents[i]);
 }
 
 void GameObject::updateComponents(f32 deltaTime)
 {
-    for (Component* component : mComponents)
-        updateComponent(component, deltaTime);
+    for (Component* head : mComponents)
+        for (Component* component = head; component; component = component->mNextSibling)
+            updateComponent(component, deltaTime);
 }
 
 void GameObject::lateUpdateComponents(f32 deltaTime)
 {
-    for (Component* component : mComponents)
-        lateUpdateComponent(component, deltaTime);
+    for (Component* head : mComponents)
+        for (Component* component = head; component; component = component->mNextSibling)
+            lateUpdateComponent(component, deltaTime);
 }
 
 void GameObject::updateComponent(Component* component, f32 deltaTime)

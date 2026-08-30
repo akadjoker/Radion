@@ -25,6 +25,7 @@
 #include "Scene.h"
 #include "Terrain.h"
 #include "Text3D.h"
+#include "TiledTerrain.h"
 
 #include <IconsMaterialDesignIcons.h>
 #include <imgui.h>
@@ -74,6 +75,30 @@ void createComponentObject(EditorApplication& app, GameObject* parent, const cha
     GameObject* object = beginCreateObject(app, name, parent);
     if (object)
         object->addComponent<ComponentType>();
+    finishCreateObject(app, object);
+}
+
+// Created whole rather than through a popup asking for an atlas first. A
+// modal popup blocks every other window from being hovered (imgui.cpp,
+// IsWindowContentHoverable), so an asset cannot be dragged out of the Assets
+// panel and into it - a drop target in a modal is dead. Everything here has
+// a working default and the atlas is dropped afterwards in the Inspector,
+// where drag and drop actually works, and only if the terrain wants one.
+void createTiledTerrainObject(EditorApplication& app, GameObject* parent)
+{
+    GameObject* object = beginCreateObject(app, "Tiled Terrain", parent);
+    if (object)
+    {
+        if (TiledTerrain* terrain = object->addComponent<TiledTerrain>())
+        {
+            // Built immediately: an empty tile map makes no mesh at all, so
+            // the object would come back as an invisible marker and read as
+            // "nothing happened".
+            const u32 side = 16;
+            const std::vector<u8> tiles(static_cast<usize>(side) * side, terrain->defaultTile());
+            terrain->loadTilemap(side, side, tiles.data());
+        }
+    }
     finishCreateObject(app, object);
 }
 
@@ -379,6 +404,11 @@ void HierarchyPanel::drawCreateMenu(GameObject* parent)
         ImGui::BeginDisabled();
         ImGui::MenuItem("Landscape (serialization pending)");
         ImGui::EndDisabled();
+        if (ImGui::MenuItem("Tiled Terrain"))
+            createTiledTerrainObject(app(), parent);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("A 16x16 tile grid, ready to paint. Drop the atlas image on it in "
+                              "the Inspector, then paint in Windows > Tile Painter.");
         if (ImGui::MenuItem("Road"))
             createComponentObject<Road>(app(), parent, "Road");
         if (ImGui::MenuItem("Grass"))

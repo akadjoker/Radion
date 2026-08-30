@@ -53,6 +53,16 @@ void MeshRenderer::setMesh(MeshHandle mesh)
     if (owner())
         owner()->invalidateSpatialMembership();
 }
+
+bool MeshRenderer::generated() const
+{
+    return mGeneratedBy != nullptr;
+}
+
+void MeshRenderer::setGeneratedBy(Component* component)
+{
+    mGeneratedBy = component;
+}
 MeshHandle MeshRenderer::mesh() const
 {
     return mMesh;

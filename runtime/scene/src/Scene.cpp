@@ -1956,8 +1956,8 @@ void Scene::registerBranch(GameObject* object)
     object->mScene = this;
     stampId(object);
     mObjects.push_back(object);
-    for (Component* component : object->mComponents)
-        if (component)
+    for (Component* head : object->mComponents)
+        for (Component* component = head; component; component = component->mNextSibling)
             componentAdded(component);
     if (object->debugFlags() != DebugNone)
         mDebugObjects.push_back(object);
@@ -1969,8 +1969,8 @@ void Scene::unregisterBranch(GameObject* object)
 {
     for (usize i = 0; i < object->childCount(); ++i)
         unregisterBranch(object->child(i));
-    for (Component* component : object->mComponents)
-        if (component)
+    for (Component* head : object->mComponents)
+        for (Component* component = head; component; component = component->mNextSibling)
             componentRemoved(component);
     removePointer(mDebugObjects, object);
     removePointer(mObjects, object);

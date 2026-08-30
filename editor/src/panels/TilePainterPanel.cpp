@@ -24,21 +24,6 @@ bool insideMap(TiledTerrain& terrain, int x, int z)
     return x >= 0 && x < static_cast<int>(terrain.mapWidth()) &&
           z >= 0 && z < static_cast<int>(terrain.mapHeight());
 }
-
-// TiledTerrain only carries an atlas material by name - resolving it here,
-// rather than reading a texture pointer straight off the component, is the
-// one place this panel's shape diverges from a component that owns its
-// texture directly.
-bool resolveAtlasTexture(const std::string& materialName, TextureHandle& out)
-{
-    if (materialName.empty() || !GPU::ready())
-        return false;
-    std::vector<Material> loaded;
-    if (!MaterialManager::getSingleton().load(materialName, loaded) || loaded.empty())
-        return false;
-    out = loaded.front().textures[SlotAlbedo].texture;
-    return out.valid();
-}
 } // namespace
 
 TilePainterPanel::TilePainterPanel(EditorApplication& app) : EditorPanel("Tile Painter", app)
@@ -60,12 +45,11 @@ void TilePainterPanel::onImGui()
         return;
     }
     u32 atlasWidth = 0, atlasHeight = 0;
-    TextureHandle atlasTexture;
-    if (terrain->atlasMaterial().empty() || !terrain->atlasSize(atlasWidth, atlasHeight) ||
-        !resolveAtlasTexture(terrain->atlasMaterial(), atlasTexture))
+    const TextureHandle atlasTexture = terrain->resolveAtlasTexture();
+    if (!atlasTexture.valid() || !terrain->atlasSize(atlasWidth, atlasHeight))
     {
         ImGui::TextDisabled(
-            "Assign an atlas material to the TiledTerrain in the Inspector first.");
+            "Drop an atlas image (or material) on the TiledTerrain in the Inspector first.");
         return;
     }
 
@@ -93,11 +77,26 @@ void TilePainterPanel::onImGui()
         mSelectedTile = static_cast<int>(terrain->defaultTile());
     ImGui::SameLine();
     ImGui::TextDisabled("Tile: %d", mSelectedTile);
+    int rotation = (mSelectedTile >> 6) & 0x03;
+    ImGui::TextUnformatted("Rotation");
+    ImGui::SameLine();
+    if (ImGui::RadioButton("0 degrees", rotation == 0))
+        rotation = 0;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("90 degrees", rotation == 1))
+        rotation = 1;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("180 degrees", rotation == 2))
+        rotation = 2;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("270 degrees", rotation == 3))
+        rotation = 3;
+    mSelectedTile = (mSelectedTile & 0x3f) | (rotation << 6);
     ImGui::SliderFloat("Atlas zoom", &mAtlasZoom, 0.25f, 3.0f, "%.2fx");
     ImGui::SliderFloat("Map zoom", &mMapZoom, 0.25f, 3.0f, "%.2fx");
     ImGui::TextDisabled(
         "Left paints; right erases to the default tile. Pick reads a tile; fill affects "
-        "connected cells.");
+        "connected cells. The original format has rotations, not separate flip flags.");
 
     ImGui::SeparatorText("Atlas");
     const ImTextureID atlasTextureId = static_cast<ImTextureID>(
@@ -122,11 +121,12 @@ void TilePainterPanel::onImGui()
         const int x = static_cast<int>((mouse.x - atlasOrigin.x) / (tileStepX * mAtlasZoom));
         const int y = static_cast<int>((mouse.y - atlasOrigin.y) / (tileStepY * mAtlasZoom));
         if (x >= 0 && x < tilesInSide && y >= 0 && y < tilesInSide)
-            mSelectedTile = y * tilesInSide + x;
+            mSelectedTile = (tilesInSide - 1 - y) * tilesInSide + x;
     }
     {
-        const int x = mSelectedTile % tilesInSide;
-        const int y = mSelectedTile / tilesInSide;
+        const int atlasTile = mSelectedTile & 0x3f;
+        const int x = atlasTile % tilesInSide;
+        const int y = tilesInSide - 1 - atlasTile / tilesInSide;
         draw->AddRect(ImVec2(atlasOrigin.x + x * tileStepX * mAtlasZoom,
                              atlasOrigin.y + y * tileStepY * mAtlasZoom),
                       ImVec2(atlasOrigin.x + (x + 1) * tileStepX * mAtlasZoom,
@@ -152,11 +152,14 @@ void TilePainterPanel::onImGui()
             const ImVec2 min(mapOrigin.x + static_cast<f32>(x) * drawCellW,
                              mapOrigin.y + static_cast<f32>(z) * drawCellH);
             const ImVec2 max(min.x + drawCellW, min.y + drawCellH);
-            glm::vec2 uvMin, uvMax;
-            TiledTerrain::atlasUV(terrain->tile(static_cast<u32>(x), static_cast<u32>(z)),
-                                  tilesInSide, uvMin, uvMax);
-            draw->AddImage(atlasTextureId, min, max, ImVec2(uvMin.x, uvMin.y),
-                          ImVec2(uvMax.x, uvMax.y));
+            glm::vec2 bottomLeft, bottomRight, topLeft, topRight;
+            const int terrainZ = mapH - 1 - z;
+            TiledTerrain::atlasUVs(terrain->tile(static_cast<u32>(x), static_cast<u32>(terrainZ)),
+                                   tilesInSide, bottomLeft, bottomRight, topLeft, topRight);
+            draw->AddImageQuad(atlasTextureId, min, ImVec2(max.x, min.y), max, ImVec2(min.x, max.y),
+                               ImVec2(topLeft.x, topLeft.y), ImVec2(topRight.x, topRight.y),
+                               ImVec2(bottomRight.x, bottomRight.y),
+                               ImVec2(bottomLeft.x, bottomLeft.y));
             draw->AddRect(min, max, IM_COL32(255, 255, 255, 36));
         }
     }
@@ -169,14 +172,15 @@ void TilePainterPanel::onImGui()
     const ImVec2 mouse = ImGui::GetIO().MousePos;
     const int cellX = static_cast<int>(std::floor((mouse.x - mapOrigin.x) / drawCellW));
     const int cellZ = static_cast<int>(std::floor((mouse.y - mapOrigin.y) / drawCellH));
+    const int terrainZ = mapH - 1 - cellZ;
     const bool erase = rightDown;
     const u8 paintTile = erase ? terrain->defaultTile() : static_cast<u8>(mSelectedTile);
 
     if (hovered && mTool == Tool::Pick && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-        insideMap(*terrain, cellX, cellZ))
+        insideMap(*terrain, cellX, terrainZ))
     {
         mSelectedTile =
-            static_cast<int>(terrain->tile(static_cast<u32>(cellX), static_cast<u32>(cellZ)));
+            static_cast<int>(terrain->tile(static_cast<u32>(cellX), static_cast<u32>(terrainZ)));
         mTool = Tool::Brush;
     }
     else if (hovered && (leftDown || rightDown) && mTool != Tool::Pick)
@@ -187,20 +191,20 @@ void TilePainterPanel::onImGui()
             mPainting = true;
             mActionApplied = false;
             mRectStartX = mRectEndX = cellX;
-            mRectStartZ = mRectEndZ = cellZ;
+            mRectStartZ = mRectEndZ = terrainZ;
             mRectangleErase = erase;
         }
         if (mTool == Tool::Brush)
-            TiledTerrain::paintCell(*terrain, cellX, cellZ, paintTile);
+            TiledTerrain::paintCell(*terrain, cellX, terrainZ, paintTile);
         else if (mTool == Tool::Fill && !mActionApplied)
         {
-            TiledTerrain::fillCells(*terrain, cellX, cellZ, paintTile);
+            TiledTerrain::fillCells(*terrain, cellX, terrainZ, paintTile);
             mActionApplied = true;
         }
         else if (mTool == Tool::Rectangle)
         {
             mRectEndX = cellX;
-            mRectEndZ = cellZ;
+            mRectEndZ = terrainZ;
         }
     }
     if (mPainting && !leftDown && !rightDown)
@@ -216,8 +220,8 @@ void TilePainterPanel::onImGui()
     {
         const int left = std::min(mRectStartX, mRectEndX);
         const int right = std::max(mRectStartX, mRectEndX);
-        const int top = std::min(mRectStartZ, mRectEndZ);
-        const int bottom = std::max(mRectStartZ, mRectEndZ);
+        const int top = mapH - 1 - std::max(mRectStartZ, mRectEndZ);
+        const int bottom = mapH - 1 - std::min(mRectStartZ, mRectEndZ);
         draw->AddRect(ImVec2(mapOrigin.x + static_cast<f32>(left) * drawCellW,
                              mapOrigin.y + static_cast<f32>(top) * drawCellH),
                       ImVec2(mapOrigin.x + static_cast<f32>(right + 1) * drawCellW,
