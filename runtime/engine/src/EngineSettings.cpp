@@ -48,11 +48,7 @@ void readCascades(const Json& node, CascadeShadowSettings& settings)
 {
     read(node, "count", settings.count);
     read(node, "resolution", settings.resolution);
-    read(node, "lambda", settings.lambda);
     read(node, "distance", settings.distance);
-    read(node, "casterExtrusion", settings.casterExtrusion);
-    read(node, "depthBiasSlope", settings.depthBiasSlope);
-    read(node, "depthBiasConstant", settings.depthBiasConstant);
     read(node, "quality", settings.quality);
     read(node, "bias", settings.bias);
     read(node, "normalBias", settings.normalBias);
@@ -61,9 +57,7 @@ void readCascades(const Json& node, CascadeShadowSettings& settings)
     read(node, "fadeStart", settings.fadeStart);
     read(node, "opacity", settings.opacity);
     read(node, "angularDiameter", settings.angularDiameter);
-    read(node, "stabilize", settings.stabilize);
     read(node, "blend", settings.blend);
-    read(node, "cullFront", settings.cullFront);
     read(node, "enabled", settings.enabled);
 }
 
@@ -72,11 +66,7 @@ Json writeCascades(const CascadeShadowSettings& settings)
     Json node;
     node["count"] = settings.count;
     node["resolution"] = settings.resolution;
-    node["lambda"] = settings.lambda;
     node["distance"] = settings.distance;
-    node["casterExtrusion"] = settings.casterExtrusion;
-    node["depthBiasSlope"] = settings.depthBiasSlope;
-    node["depthBiasConstant"] = settings.depthBiasConstant;
     node["quality"] = settings.quality;
     node["bias"] = settings.bias;
     node["normalBias"] = settings.normalBias;
@@ -85,9 +75,7 @@ Json writeCascades(const CascadeShadowSettings& settings)
     node["fadeStart"] = settings.fadeStart;
     node["opacity"] = settings.opacity;
     node["angularDiameter"] = settings.angularDiameter;
-    node["stabilize"] = settings.stabilize;
     node["blend"] = settings.blend;
-    node["cullFront"] = settings.cullFront;
     node["enabled"] = settings.enabled;
     return node;
 }

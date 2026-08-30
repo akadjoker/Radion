@@ -36,11 +36,10 @@ public:
     void executeBiased(const FrameContext& frame, f32 biasSlope, f32 biasConstant,
                        bool cullFront = false);
 
-    // Directional shadow variant: casters draw both faces (or front faces
-    // only when asked) and the vertex shader flattens geometry behind the
-    // far plane instead of clipping it away.
-    void executeShadow(const FrameContext& frame, f32 biasSlope, f32 biasConstant,
-                       bool cullFront = false);
+    // Directional shadow variant: casters draw both faces and the vertex
+    // shader flattens geometry behind the far plane instead of clipping it
+    // away.
+    void executeShadow(const FrameContext& frame);
 
 private:
     struct GPUInstance

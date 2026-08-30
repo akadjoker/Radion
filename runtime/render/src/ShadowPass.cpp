@@ -68,8 +68,6 @@ bool ShadowPass::createResources()
         return false;
     mResolution = resolution;
     mAtlasNeedsClear = true;
-    for (bool& cached : mCascadeCached)
-        cached = false;
     return true;
 }
 
@@ -185,30 +183,6 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
     reportSkip(ShadowSkipReason::None);
 
     const glm::vec3 sunDirection = glm::normalize(sun->direction);
-    if (glm::dot(sunDirection, mCachedSunDirection) < 0.9999f || cascades.count != mCachedCount)
-        for (bool& cached : mCascadeCached)
-            cached = false;
-    mCachedSunDirection = sunDirection;
-    mCachedCount = cascades.count;
-
-    bool redraw[MaxShadowCascades] = {true, true, true, true};
-    for (u32 i = 0; i < cascades.count; ++i)
-    {
-        redraw[i] = i < 2 || !mCalculator.settings.alternateFarCascades || !mCascadeCached[i] ||
-                    ((mFrameIndex + i) & 1u) == 0u;
-        if (!redraw[i])
-        {
-            cascades.viewProjection[i] = mCached.viewProjection[i];
-            cascades.cullViewProjection[i] = mCached.cullViewProjection[i];
-            cascades.shadowMatrix[i] = mCached.shadowMatrix[i];
-            cascades.halfExtents[i] = mCached.halfExtents[i];
-            cascades.shadowBias[i] = mCached.shadowBias[i];
-            cascades.shadowNormalBias[i] = mCached.shadowNormalBias[i];
-            cascades.rangeBegin[i] = mCached.rangeBegin[i];
-            cascades.uvScale[i] = mCached.uvScale[i];
-            cascades.texelSize[i] = mCached.texelSize[i];
-        }
-    }
     ++mFrameIndex;
 
     rebuildKernels();
@@ -267,8 +241,6 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
         "Shadow cascade 0", "Shadow cascade 1", "Shadow cascade 2", "Shadow cascade 3"};
     for (u32 cascade = 0; cascade < cascades.count; ++cascade)
     {
-        if (!redraw[cascade])
-            continue;
         GPUProfileScope cascadeScope(cascadeScopes[cascade]);
         const DirectionalShadowRegion region =
             directionalShadowRegion(mResolution, cascades.count, cascade);
@@ -294,19 +266,7 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
                                 static_cast<f32>(region.width), static_cast<f32>(region.height),
                                 0.0f, 1.0f};
         GPUProfileScope drawScope("Shadow draw");
-        depthPass.executeShadow(shadowFrame, mCalculator.settings.depthBiasSlope,
-                                mCalculator.settings.depthBiasConstant,
-                                mCalculator.settings.cullFront);
-        mCached.viewProjection[cascade] = cascades.viewProjection[cascade];
-        mCached.cullViewProjection[cascade] = cascades.cullViewProjection[cascade];
-        mCached.shadowMatrix[cascade] = cascades.shadowMatrix[cascade];
-        mCached.halfExtents[cascade] = cascades.halfExtents[cascade];
-        mCached.shadowBias[cascade] = cascades.shadowBias[cascade];
-        mCached.shadowNormalBias[cascade] = cascades.shadowNormalBias[cascade];
-        mCached.rangeBegin[cascade] = cascades.rangeBegin[cascade];
-        mCached.uvScale[cascade] = cascades.uvScale[cascade];
-        mCached.texelSize[cascade] = cascades.texelSize[cascade];
-        mCascadeCached[cascade] = true;
+        depthPass.executeShadow(shadowFrame);
     }
 }
 

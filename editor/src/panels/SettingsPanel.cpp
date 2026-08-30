@@ -289,7 +289,6 @@ void SettingsPanel::onImGui()
                 shadows->count = count;
                 shadows->resolution = resolution;
                 shadows->distance = distance;
-                shadows->casterExtrusion = distance * 1.5f;
                 shadows->quality = quality;
                 shadows->splitOffset[0] = 0.1f;
                 shadows->splitOffset[1] = 0.2f;
@@ -301,11 +300,7 @@ void SettingsPanel::onImGui()
                 shadows->fadeStart = 0.8f;
                 shadows->opacity = 1.0f;
                 shadows->angularDiameter = 0.0f;
-                shadows->depthBiasSlope = 0.0f;
-                shadows->depthBiasConstant = 0.0f;
-                shadows->stabilize = true;
                 shadows->blend = true;
-                shadows->cullFront = false;
             };
 
             ImGui::TextUnformatted("Directional quality");
@@ -337,9 +332,15 @@ void SettingsPanel::onImGui()
             {
                 if (ImGui::TreeNode("Cascade layout"))
                 {
-                    int count = static_cast<int>(shadows->count);
-                    if (ImGui::SliderInt("Count", &count, 1, static_cast<int>(MaxShadowCascades)))
-                        shadows->count = static_cast<u32>(count);
+                    // Three shadow modes, no others (light_3d.cpp:583, and
+                    // renderer_scene_cull.cpp:2167-2177): Orthogonal, 2 splits,
+                    // 4 splits. A free 1..4 slider offered a 3 that the
+                    // calculator turns back into 2 without saying so.
+                    static const u32 kSplitCounts[3] = {1, 2, 4};
+                    const char* splitNames[] = {"Orthogonal (1)", "2 Splits", "4 Splits"};
+                    int splitIndex = shadows->count >= 4 ? 2 : (shadows->count <= 1 ? 0 : 1);
+                    if (ImGui::Combo("Shadow mode", &splitIndex, splitNames, 3))
+                        shadows->count = kSplitCounts[splitIndex];
 
                     static const u32 resolutionValues[] = {512, 1024, 2048, 4096};
                     const char* resolutionNames[] = {"512", "1024", "2048", "4096"};
@@ -352,11 +353,34 @@ void SettingsPanel::onImGui()
                     if (ImGui::Combo("Resolution##cascades", &resolutionIndex, resolutionNames, 4))
                         shadows->resolution = resolutionValues[resolutionIndex];
 
-                    ImGui::SliderFloat3("Split offsets", shadows->splitOffset, 0.01f, 0.99f,
-                                        "%.2f");
-                    if (ImGui::IsItemHovered())
-                        ImGui::SetTooltip("Fractions of the shadow distance where each cascade "
-                                          "ends.");
+                    // Only the offsets this mode actually reads are shown, as in
+                    // DirectionalLight3D::_validate_property (light_3d.cpp:559-
+                    // 570): one split reads none of them, two reads only the
+                    // first, and distances[splits] = max_distance overwrites the
+                    // rest. Showing a slider that changes nothing is what makes
+                    // these hard to set.
+                    static const char* kSplitLabels[3] = {"Split 1", "Split 2", "Split 3"};
+                    const u32 usedSplits =
+                        shadows->count >= 4 ? 3u : (shadows->count <= 1 ? 0u : 1u);
+                    for (u32 i = 0; i < usedSplits; ++i)
+                    {
+                        if (ImGui::SliderFloat(kSplitLabels[i], &shadows->splitOffset[i], 0.0f,
+                                               1.0f, "%.3f"))
+                        {
+                            // They have to increase: cascade i ends at
+                            // splitOffset[i] of the distance, so a pair out of
+                            // order gives a slice whose near meets or passes its
+                            // far - a degenerate perspective, and a shader that
+                            // picks the wrong cascade at every depth.
+                            for (u32 j = 1; j < 3; ++j)
+                                shadows->splitOffset[j] = glm::max(shadows->splitOffset[j],
+                                                                   shadows->splitOffset[j - 1] +
+                                                                       0.01f);
+                        }
+                        if (ImGui::IsItemHovered())
+                            ImGui::SetTooltip("Fraction of the shadow distance where cascade %u "
+                                              "ends.", i);
+                    }
                     if (const Camera* cam = app().scene().activeCamera())
                     {
                         const f32 farPlane = glm::max(cam->farPlane(), 1.0f);
@@ -374,8 +398,11 @@ void SettingsPanel::onImGui()
                             "Shadow distance", &shadows->distance, 1.0f, 1000.0f, "%.0f",
                             ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
                     }
-                    ImGui::Checkbox("Stabilize", &shadows->stabilize);
-                    ImGui::Checkbox("Blend cascades", &shadows->blend);
+                    // Hidden with a single split, for the same reason and in the
+                    // same place as split 1 (light_3d.cpp:561-564): there is no
+                    // second cascade to blend into.
+                    if (shadows->count > 1)
+                        ImGui::Checkbox("Blend cascades", &shadows->blend);
 
                     if (ImGui::Button("Fit to Scene"))
                         app().fitShadowsToScene();
@@ -396,7 +423,14 @@ void SettingsPanel::onImGui()
                                              : texelsPerUnit > 6.0f
                                                  ? ImVec4(0.9f, 0.8f, 0.4f, 1.0f)
                                                  : ImVec4(0.9f, 0.45f, 0.35f, 1.0f);
-                        ImGui::TextColored(color, "%u: %.1f units, %.1f texels/unit", cascade,
+                        // The band each cascade actually covers, so the three
+                        // offsets above read as distances rather than as
+                        // fractions to guess at.
+                        const f32 bandNear = cascade == 0 ? 0.0f : engine.cascadeSplit(cascade - 1);
+                        const f32 bandFar = engine.cascadeSplit(cascade);
+                        ImGui::TextColored(color, "%u: %.1f-%.1f m, %.1f units, %.1f texels/unit",
+                                           cascade, static_cast<double>(bandNear),
+                                           static_cast<double>(bandFar),
                                            static_cast<double>(extent),
                                            static_cast<double>(texelsPerUnit));
                     }
@@ -428,7 +462,6 @@ void SettingsPanel::onImGui()
                     ImGui::SliderFloat("Pancake size", &shadows->pancakeSize, 0.0f, 100.0f);
                     ImGui::SliderFloat("Fade start", &shadows->fadeStart, 0.0f, 1.0f);
                     ImGui::SliderFloat("Opacity", &shadows->opacity, 0.0f, 1.0f);
-                    ImGui::Checkbox("Front-face culling", &shadows->cullFront);
                     ImGui::TreePop();
                 }
             }

@@ -452,17 +452,19 @@ void DepthPass::executeBiased(const FrameContext& frame, f32 biasSlope, f32 bias
     drawCategory(frame, RenderCategory::AlphaTest, biasSlope, biasConstant, cullFront);
 }
 
-void DepthPass::executeShadow(const FrameContext& frame, f32 biasSlope, f32 biasConstant,
-                              bool cullFront)
+void DepthPass::executeShadow(const FrameContext& frame)
 {
+    // No hardware depth bias and no reversed culling: a directional shadow is
+    // biased entirely in the shader, through BIAS_FUNC's shadow_bias and
+    // shadow_normal_bias (scene_forward_clustered.glsl:2346-2350), which is
+    // why depth_bias_enable is never switched on anywhere in the reference.
     {
         GPUProfileScope scope("Shadow opaque");
-        drawCategory(frame, RenderCategory::Opaque, biasSlope, biasConstant, cullFront, true, true);
+        drawCategory(frame, RenderCategory::Opaque, 0.0f, 0.0f, false, true, true);
     }
     {
         GPUProfileScope scope("Shadow alpha test");
-        drawCategory(frame, RenderCategory::AlphaTest, biasSlope, biasConstant, cullFront, true,
-                     true);
+        drawCategory(frame, RenderCategory::AlphaTest, 0.0f, 0.0f, false, true, true);
     }
 }
 

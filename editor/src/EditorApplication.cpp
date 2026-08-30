@@ -420,7 +420,6 @@ void EditorApplication::applyNewSceneRenderDefaults()
         shadows->count = 4;
         shadows->resolution = 1024;
         shadows->distance = 150.0f;
-        shadows->stabilize = true;
         shadows->blend = true;
         shadows->quality = 2;
     }
