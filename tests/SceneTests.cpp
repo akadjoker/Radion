@@ -1313,7 +1313,7 @@ void testSceneSerializerComponentValidation()
         CHECK(sawWarning);
     }
 
-    // Two components of the same type on one object.
+    // Several instances of a component type are valid and retain their order.
     {
         Scene scene;
         SceneLoadResult result;
@@ -1327,8 +1327,11 @@ void testSceneSerializerComponentValidation()
         camera["far"] = 1000.0;
         nlohmann::json objects = nlohmann::json::array();
         objects.push_back(objectWithComponents(1, nlohmann::json::array({camera, camera})));
-        CHECK(!serializer.fromJson(baseDocument(objects), scene, result));
-        CHECK(!result.success());
+        CHECK(serializer.fromJson(baseDocument(objects), scene, result));
+        CHECK(result.success());
+        GameObject* object = scene.findGameObject(1);
+        CHECK(object != nullptr);
+        CHECK(object && object->componentCount<Camera>() == 2);
     }
 
     // Camera missing its projection field.
@@ -1681,6 +1684,7 @@ void testTiledTerrainRoundTrip()
     terrain->setPatchLength(2.5f);
     terrain->setDefaultTile(3);
     terrain->setAtlasMaterial("materials/tiles.material");
+    terrain->setAtlasTexture("textures/tiles.png");
 
     const u32 width = 3, height = 2;
     std::vector<u8> tiles = {1, 2, 3, 4, 5, 6};
@@ -1708,6 +1712,7 @@ void testTiledTerrainRoundTrip()
     CHECK(near(reTerrain->patchLength(), 2.5f));
     CHECK(reTerrain->defaultTile() == 3);
     CHECK(reTerrain->atlasMaterial() == "materials/tiles.material");
+    CHECK(reTerrain->atlasTexture() == "textures/tiles.png");
     CHECK(reTerrain->mapWidth() == width);
     CHECK(reTerrain->mapHeight() == height);
     CHECK(reTerrain->tile(0, 0) == 1);
@@ -1990,24 +1995,31 @@ void testSceneQueues()
     CHECK(scene.renderableCount() == 1);
     CHECK(scene.cameraCount() == 1);
     CHECK(scene.activeCamera() == camera);
-    CHECK(mesh->getComponent<MeshRenderer>() != nullptr);
-    CHECK(mesh->addComponent<MeshRenderer>() == nullptr);
+    MeshRenderer* firstRenderer = mesh->getComponent<MeshRenderer>();
+    CHECK(firstRenderer != nullptr);
+    MeshRenderer* secondRenderer = mesh->addComponent<MeshRenderer>();
+    CHECK(secondRenderer != nullptr);
+    CHECK(secondRenderer != firstRenderer);
+    CHECK(mesh->componentCount<MeshRenderer>() == 2);
+    CHECK(mesh->getComponentAt<MeshRenderer>(1) == secondRenderer);
+    CHECK(scene.renderableCount() == 2);
 
     CHECK(mesh->removeComponent<MeshRenderer>());
-    CHECK(mesh->getComponent<MeshRenderer>() == nullptr);
-    CHECK(scene.renderableCount() == 0);
-    CHECK(mesh->addComponent<MeshRenderer>() != nullptr);
+    CHECK(mesh->getComponent<MeshRenderer>() == secondRenderer);
+    CHECK(mesh->componentCount<MeshRenderer>() == 1);
     CHECK(scene.renderableCount() == 1);
+    CHECK(mesh->addComponent<MeshRenderer>() != nullptr);
+    CHECK(scene.renderableCount() == 2);
 
     CHECK(scene.remove(mesh));
-    CHECK(scene.renderableCount() == 1);
+    CHECK(scene.renderableCount() == 2);
     scene.update(0.0f);
     CHECK(scene.renderableCount() == 0);
     CHECK(mesh->parent() == nullptr);
 
     CHECK(scene.add(mesh));
     scene.update(0.0f);
-    CHECK(scene.renderableCount() == 1);
+    CHECK(scene.renderableCount() == 2);
     CHECK(mesh->parent() == &scene.root());
 
     CHECK(scene.destroy(cameraObject));
@@ -2720,6 +2732,33 @@ void testComponentSelfRemovalCompactsLazily()
     CHECK(counter->updates == 2);
 }
 
+void testMultipleComponentsOfSameType()
+{
+    Scene scene;
+    GameObject* object = scene.createGameObject("multiple_components");
+    CountingComponent* first = object->addComponent<CountingComponent>();
+    CountingComponent* middle = object->addComponent<CountingComponent>();
+    CountingComponent* last = object->addComponent<CountingComponent>();
+
+    CHECK(first != nullptr && middle != nullptr && last != nullptr);
+    CHECK(object->componentCount<CountingComponent>() == 3);
+    CHECK(object->getComponent<CountingComponent>() == first);
+    CHECK(object->getComponentAt<CountingComponent>(1) == middle);
+    CHECK(object->getComponentAt<CountingComponent>(2) == last);
+    CHECK(first->id() < middle->id() && middle->id() < last->id());
+
+    scene.update(1.0f / 60.0f);
+    CHECK(first->updates == 1 && middle->updates == 1 && last->updates == 1);
+
+    CHECK(object->removeComponent(middle));
+    CHECK(object->componentCount<CountingComponent>() == 2);
+    CHECK(object->getComponentAt<CountingComponent>(0) == first);
+    CHECK(object->getComponentAt<CountingComponent>(1) == last);
+
+    scene.update(1.0f / 60.0f);
+    CHECK(first->updates == 2 && last->updates == 2);
+}
+
 void testStaticMeshLoad()
 {
     const std::filesystem::path bistroFile = "/media/projectos/assets/bistro/extrior.rstm";
@@ -2966,6 +3005,7 @@ int main()
     testForestWithoutSpecies();
     testParticleEffect();
     testComponentSelfRemovalCompactsLazily();
+    testMultipleComponentsOfSameType();
     testMaterialSaveParserRoundTrip();
     testMeshRendererMaterialOwnershipState();
     testAllAuthoredMaterialFilesParse();

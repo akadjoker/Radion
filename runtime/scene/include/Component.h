@@ -72,9 +72,9 @@ class Component;
 // finding the slot occupied is proof enough and this default says so. Where
 // several classes share one type - the four light classes all register as
 // ComponentType::Light - it is specialised next to them to consult whatever
-// runtime discriminator they carry. GameObject::contains<T>() and
-// findComponent<T>() go through here; getComponent<T>() does not, and casts
-// on the slot alone.
+// runtime discriminator they carry. All typed GameObject queries go through
+// this predicate so a shared type slot can still hold several concrete
+// component classes.
 template <class T> struct ComponentMatch
 {
     static bool test(const Component*)
@@ -95,6 +95,7 @@ public:
 
     GameObject* owner() const;
     ComponentType type() const;
+    u32 id() const;
     bool active() const;
     void setActive(bool active);
 
@@ -116,7 +117,10 @@ private:
     void detached();
 
     GameObject* mOwner = nullptr;
+    Component* mPreviousSibling = nullptr;
+    Component* mNextSibling = nullptr;
     ComponentType mType;
+    u32 mLocalId = 0;
     u8 mEvents;
     bool mActive = true;
     bool mStarted = false;

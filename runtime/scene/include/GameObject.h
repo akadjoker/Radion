@@ -109,8 +109,6 @@ public:
 
     template <class T, class... Args> T* addComponent(Args&&... args)
     {
-        if (getComponent<T>())
-            return nullptr;
         T* component = new T(std::forward<Args>(args)...);
         if (!attachComponent(component))
         {
@@ -120,12 +118,38 @@ public:
         return component;
     }
 
-    // Casts on the slot alone: with several classes sharing a ComponentType
-    // this hands back the wrong one rather than nothing. Ask for the base
-    // class here, or use as<T>() when the exact class matters.
     template <class T> T* getComponent() const
     {
-        return static_cast<T*>(mComponents[static_cast<u8>(T::Type)]);
+        for (Component* component = mComponents[static_cast<u8>(T::Type)]; component;
+             component = component->mNextSibling)
+            if (ComponentMatch<T>::test(component))
+                return static_cast<T*>(component);
+        return nullptr;
+    }
+
+    template <class T> T* getComponentAt(usize index) const
+    {
+        usize seen = 0;
+        for (Component* component = mComponents[static_cast<u8>(T::Type)]; component;
+             component = component->mNextSibling)
+        {
+            if (!ComponentMatch<T>::test(component))
+                continue;
+            if (seen == index)
+                return static_cast<T*>(component);
+            ++seen;
+        }
+        return nullptr;
+    }
+
+    template <class T> usize componentCount() const
+    {
+        usize count = 0;
+        for (Component* component = mComponents[static_cast<u8>(T::Type)]; component;
+             component = component->mNextSibling)
+            if (ComponentMatch<T>::test(component))
+                ++count;
+        return count;
     }
 
     // Whether ANY component slot is occupied - what tells a genuine "empty"
@@ -140,12 +164,24 @@ public:
         return false;
     }
 
-    // The component in one slot, addressed by a type known only at runtime -
-    // for code that has to walk every kind rather than ask for one, like the
-    // scene serializer checking that it left nothing behind.
-    Component* component(ComponentType type) const
+    Component* component(ComponentType type, usize index = 0) const
     {
-        return mComponents[static_cast<u8>(type)];
+        Component* component = mComponents[static_cast<u8>(type)];
+        while (component && index > 0)
+        {
+            component = component->mNextSibling;
+            --index;
+        }
+        return component;
+    }
+
+    usize componentCount(ComponentType type) const
+    {
+        usize count = 0;
+        for (Component* component = mComponents[static_cast<u8>(type)]; component;
+             component = component->mNextSibling)
+            ++count;
+        return count;
     }
 
     // Whether the object carries exactly a T, consulting the class's own
@@ -153,8 +189,7 @@ public:
     // from a point light, since the ComponentType cannot.
     template <class T> bool contains() const
     {
-        const Component* component = mComponents[static_cast<u8>(T::Type)];
-        return component != nullptr && ComponentMatch<T>::test(component);
+        return getComponent<T>() != nullptr;
     }
 
     // getComponent<T>() with that same check: null when the slot holds a
@@ -163,15 +198,15 @@ public:
     // to come back empty.
     template <class T> T* findComponent() const
     {
-        Component* component = mComponents[static_cast<u8>(T::Type)];
-        return (component && ComponentMatch<T>::test(component)) ? static_cast<T*>(component)
-                                                                 : nullptr;
+        return getComponent<T>();
     }
 
     template <class T> bool removeComponent()
     {
-        return removeComponent(T::Type);
+        return removeComponent(getComponent<T>());
     }
+
+    bool removeComponent(Component* component);
 
     const glm::vec3& position() const;
     const glm::quat& rotation() const;
@@ -224,7 +259,7 @@ private:
     void deleteChildrenRaw();
 
     bool attachComponent(Component* component);
-    bool removeComponent(ComponentType type);
+    void unlinkComponent(Component* component);
     void deleteComponents();
     void updateComponents(f32 deltaTime);
     void lateUpdateComponents(f32 deltaTime);
@@ -247,6 +282,7 @@ private:
     GameObject* mParent = nullptr;
     std::vector<GameObject*> mChildren;
     Component* mComponents[static_cast<u8>(ComponentType::Count)]{};
+    Component* mComponentTails[static_cast<u8>(ComponentType::Count)]{};
     // A component whose onStart()/onUpdate()/onLateUpdate() calls
     // removeComponent<Self>() on its own owner used to be an implicit
     // `delete this`: the slot cleared immediately, but so did the component
@@ -256,6 +292,7 @@ private:
     // loop that might still be on this component's stack has finished.
     std::vector<Component*> mPendingComponentDeletes;
     u32 mComponentCallbackDepth = 0;
+    u32 mNextComponentId = 1;
     glm::vec3 mPosition = glm::vec3(0);
     glm::quat mRotation = glm::quat(1, 0, 0, 0);
     glm::vec3 mScale = glm::vec3(1);

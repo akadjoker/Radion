@@ -1095,6 +1095,45 @@ void testObstacleAvoidance()
     CHECK(glm::length(vehicle->position() - sphere.center) > sphere.radius);
 }
 
+// Regression: Agent::update() must call alignWithVelocity() itself, or
+// nothing steered purely by velocity (no explicit setOrientation() call, the
+// common case outside these tests) ever turns to face the way it is actually
+// moving - and every "is this ahead of me" test, obstacle avoidance included,
+// keeps reasoning about whichever way the agent happened to spawn facing.
+// Unlike testObstacleAvoidance() above, this vehicle's orientation is never
+// touched by hand.
+void testObstacleAvoidanceTracksVelocityDirection()
+{
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
+    settings.radius = 0.5f;
+
+    // Same geometry as testObstacleAvoidance(): a sphere off the +X travel
+    // line so there is a lateral component to steer along.
+    SphereObstacle sphere(3.0f, glm::vec3(8.0f, 0.0f, 2.0f));
+    ObstacleGroup obstacles;
+    obstacles.push_back(&sphere);
+
+    Agent* vehicle = makeAgent(scene, settings, "vehicle");
+    scene.update(0.0f);
+    vehicle->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X, orientation left at spawn
+    ObstacleAvoidanceBehavior* avoidance = vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f);
+    avoidance->setObstacles(obstacles);
+
+    // First tick: forward is still wherever the agent spawned facing, so the
+    // sphere is not yet "ahead" - this step only exists to let
+    // alignWithVelocity() turn the agent to face its actual velocity before
+    // the next one.
+    scene.updateAgents(0.016f);
+
+    // Second tick: forward now tracks the +X velocity, so the sphere is
+    // finally on the vehicle's path and avoidance must engage.
+    scene.updateAgents(0.016f);
+    CHECK(finiteVec(vehicle->desiredMove()));
+    CHECK(vehicle->desiredMove().z < 0.0f);
+}
+
 // --- predictNearestApproachTime / avoidNeighbors ----------------------------
 //
 // Regression coverage for the sign bug fixed in Steering.cpp:306 (see
@@ -1215,6 +1254,80 @@ void testPathfindLineOfSight()
     // Walked toward the goal along +X, back off the Z=30 detour.
     CHECK(member->position().x > 10.0f);
     CHECK(std::fabs(member->position().z) < 5.0f);
+}
+
+// Regression: addSquadMember() must hand out slot ids itself (1, 2, 3, ... in
+// join order), or every member sits at squadId() -1 forever and
+// FormationBehavior falls through every case to "default: head straight for
+// the shared goal" - the squad never takes a formation shape at all. See
+// addSquadMember()'s own comment.
+void testAddSquadMemberAssignsSlotIds()
+{
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
+
+    Agent* leader = makeAgent(scene, settings, "leader");
+    leader->setSquadId(0);
+    Agent* first = makeAgent(scene, settings, "first");
+    Agent* second = makeAgent(scene, settings, "second");
+    Agent* third = makeAgent(scene, settings, "third");
+    scene.update(0.0f);
+
+    leader->addSquadMember(first);
+    leader->addSquadMember(second);
+    leader->addSquadMember(third);
+
+    CHECK(first->squadId() == 1);
+    CHECK(second->squadId() == 2);
+    CHECK(third->squadId() == 3);
+
+    // A caller that already assigned a slot (promoting a member into a
+    // vacated one, or a test seeding a specific id) keeps it - 99 is
+    // deliberately not the join-order slot (4) this member would otherwise get.
+    Agent* preAssigned = makeAgent(scene, settings, "preAssigned");
+    preAssigned->setSquadId(99);
+    scene.update(0.0f);
+    leader->addSquadMember(preAssigned);
+    CHECK(preAssigned->squadId() == 99);
+}
+
+// Regression: found reviewing the fix above. removeSquadMember() must give up
+// the departing member's slot, and addSquadMember() must refill the lowest
+// free one - not mSquadMembers.size() - or a squad that loses a member and
+// recruits a replacement hands the newcomer an id a survivor still holds
+// (here: remove the middle of three, recruit a fourth, size()-based
+// assignment would have collided it with the third member's id).
+void testSquadMemberSlotIsReusedAfterRemoval()
+{
+    Scene scene;
+    Agent::Settings settings = defaultAgentSettings();
+
+    Agent* leader = makeAgent(scene, settings, "leader");
+    leader->setSquadId(0);
+    Agent* first = makeAgent(scene, settings, "first");
+    Agent* second = makeAgent(scene, settings, "second");
+    Agent* third = makeAgent(scene, settings, "third");
+    scene.update(0.0f);
+
+    leader->addSquadMember(first);
+    leader->addSquadMember(second);
+    leader->addSquadMember(third);
+    CHECK(first->squadId() == 1);
+    CHECK(second->squadId() == 2);
+    CHECK(third->squadId() == 3);
+
+    leader->removeSquadMember(second);
+    CHECK(second->squadLeader() == nullptr);
+    CHECK(second->squadId() == -1); // slot given up, not carried around
+
+    Agent* fourth = makeAgent(scene, settings, "fourth");
+    scene.update(0.0f);
+    leader->addSquadMember(fourth);
+
+    // The vacated slot (2), not a new one past the current head count - that
+    // would collide with `third`, which still holds id 3.
+    CHECK(fourth->squadId() == 2);
+    CHECK(third->squadId() == 3);
 }
 
 // --- FormationBehavior -------------------------------------------------------
@@ -1906,8 +2019,11 @@ int main()
     testSeekFlee();
     testWander();
     testObstacleAvoidance();
+    testObstacleAvoidanceTracksVelocityDirection();
     testNearestApproach();
     testPathfindLineOfSight();
+    testAddSquadMemberAssignsSlotIds();
+    testSquadMemberSlotIsReusedAfterRemoval();
     testFormationFollowsItsOwnLeader();
     testFormationAbreast();
     testFormationPentagonSymmetry();

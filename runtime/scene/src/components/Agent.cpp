@@ -203,6 +203,14 @@ void Agent::update(f32 deltaTime)
     // the camera.
     if (glm::length(mVelocity) < 0.1f)
         mVelocity = glm::vec3(0.0f);
+
+    // Keep forward tracking the velocity just computed. Every steering
+    // routine that reasons about "ahead" - obstacle avoidance, avoidNeighbors,
+    // isAhead/isAside/isBehind, pursuit - projects into this agent's local
+    // frame, so without this call forward() stays wherever the agent spawned
+    // facing and those tests are run against the wrong cone forever, no
+    // matter which way the agent is actually moving.
+    alignWithVelocity();
 }
 
 void Agent::updateVisibility()
@@ -493,6 +501,36 @@ void Agent::addSquadMember(Agent* member)
         member->mSquadLeader->removeSquadMember(member);
     member->mSquadLeader = this;
     mSquadMembers.push_back(member);
+
+    // Slot id, filled in with the lowest one no squadmate already holds -
+    // what FormationBehavior switches on to place point man/flanks/rear
+    // guard. Reference: the leader is 0, the first member is 1, the second
+    // 2, and so on. -1 means "never assigned"; a caller that already gave
+    // this member a specific slot keeps it. The lowest free slot, not
+    // mSquadMembers.size(), matters once the squad has lost a member:
+    // size() alone would hand the newcomer an id a survivor still holds
+    // (removeSquadMember() below frees the slot it takes back, so there is
+    // always a gap to fill before the id count needs to grow).
+    if (member->mSquadId < 0)
+    {
+        int slot = 1;
+        for (;;)
+        {
+            bool taken = false;
+            for (Agent* other : mSquadMembers)
+            {
+                if (other != member && other->mSquadId == slot)
+                {
+                    taken = true;
+                    break;
+                }
+            }
+            if (!taken)
+                break;
+            ++slot;
+        }
+        member->mSquadId = slot;
+    }
 }
 
 void Agent::removeSquadMember(Agent* member)
@@ -501,13 +539,21 @@ void Agent::removeSquadMember(Agent* member)
     if (it == mSquadMembers.end())
         return;
     (*it)->mSquadLeader = nullptr;
+    // Give up the slot - otherwise it either sits unfilled forever (nobody
+    // else reads it once this member is out of mSquadMembers) or, worse,
+    // travels with the member into a later addSquadMember() call and
+    // collides with whoever already holds that id in the new squad.
+    (*it)->mSquadId = -1;
     mSquadMembers.erase(it);
 }
 
 void Agent::clearSquadMembers()
 {
     for (Agent* member : mSquadMembers)
+    {
         member->mSquadLeader = nullptr;
+        member->mSquadId = -1;
+    }
     mSquadMembers.clear();
 }
 

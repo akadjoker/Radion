@@ -90,7 +90,11 @@ bool ManualMesh::end()
     if (!mMesh.valid())
         return false;
     if (!mRenderer)
+    {
         mRenderer = owner()->addComponent<MeshRenderer>(mMesh);
+        if (mRenderer)
+            mRenderer->setGeneratedBy(this);
+    }
     else
         mRenderer->setMesh(mMesh);
     mBuilding = false;
