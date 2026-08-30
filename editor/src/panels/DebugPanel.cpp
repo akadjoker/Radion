@@ -240,7 +240,10 @@ void DebugPanel::onImGui()
     drawPhysicsDebugSection();
     drawAIDebugSection();
 
-    ImGui::Checkbox("Enable debug preview", &mEnabled);
+    if (!ImGui::CollapsingHeader("GPU Resource Inspector", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    ImGui::Checkbox("Enable resource preview", &mEnabled);
     app().settings().debugPreviewEnabled = mEnabled;
     if (!mEnabled)
     {
