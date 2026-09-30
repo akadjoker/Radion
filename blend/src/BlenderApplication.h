@@ -9,6 +9,7 @@
 #include "Log.h"
 #include "MiniBatch.h"
 #include "MiniRenderer.h"
+#include "mesh/MeshBoolean.h"
 #include "mesh/MeshTopology.h"
 #include "ViewportCamera.h"
 #include "Types.h"
@@ -306,6 +307,12 @@ public:
     // the plane where coordinate `axis` equals `offset`; geometry within `weld` of
     // the plane is shared so the halves join.
     bool mirrorGeometry(s32 axis, f32 offset, f32 weld, std::string* error = nullptr);
+    // Combines two parts as solids - union, difference (first minus second) or
+    // intersection - into one new part that replaces them. A remesh on a grid
+    // `resolution` cells along the longest side, not an exact cut; see
+    // MeshEdit::booleanMeshes. Both parts must be closed solids.
+    bool booleanParts(MeshEdit::BooleanOp op, u32 partA, u32 partB, u32 resolution, const std::string& name,
+                      s32* resultPart = nullptr, std::string* error = nullptr);
     // Joins parts (submeshes) into the lowest-numbered of them.
     bool mergeParts(const std::vector<u32>& parts, std::string* error = nullptr);
     // Makes the selected faces a part of their own. `newPart` receives its index.
@@ -421,6 +428,8 @@ public:
         f32 metallic = 0.0f;
     };
 
+    // The engine's own primitive, built but not added to the document.
+    static bool buildPrimitive(const PrimitiveParams& params, MeshData& out);
     // Builds a primitive, places it with `placement` and adds it as its own
     // submesh (or starts a new mesh with it when `replace` or the mesh is
     // empty). `submeshOut` receives the new submesh's index.
@@ -429,8 +438,10 @@ public:
     // The same for geometry that did not come from a primitive - a part built
     // vertex by vertex. Takes the part by value: it is placed and styled in
     // place before it is merged.
+    // `undoStep` false leaves the undo snapshot to the caller (an operation that
+    // also removes parts takes one for both).
     bool appendPart(MeshData part, const glm::mat4& placement, const PartStyle& style,
-                    const char* sourceName, bool replace, s32* submeshOut = nullptr);
+                    const char* sourceName, bool replace, s32* submeshOut = nullptr, bool undoStep = true);
 
     // Moves/rotates/scales one submesh's vertices. `matrix` acts about `pivot`.
     // A mirroring matrix turns the submesh's winding back the right way out.
@@ -609,6 +620,8 @@ private:
     void setHiddenFaces(std::vector<u8>&& faces);
     // Forgets the hidden set when the triangle count no longer matches it.
     void validateHidden();
+    // Drops one part's triangles and its entry, with no undo snapshot and no refresh.
+    void removeSubmeshData(u32 index);
 
     // Timeline
     u32 mCurrentFrame = 0;

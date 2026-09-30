@@ -1,8 +1,10 @@
 #include "PCH.h"
 
 #include "ProceduralShapes.h"
+#include "mesh/MeshTopology.h"
 
 #include <cstdio>
+#include <map>
 
 using namespace Radion;
 
@@ -276,10 +278,233 @@ void testLoftRejectsBadInput()
     CHECK(!buildLoft(badExponent, mesh));
 }
 
+// ------------------------------------------------------------- solids
+
+f32 signedVolume(const MeshData& mesh)
+{
+    f32 volume = 0.0f;
+    for (usize f = 0; f + 2 < mesh.indices.size(); f += 3)
+    {
+        const glm::vec3& a = mesh.positions[mesh.indices[f]];
+        const glm::vec3& b = mesh.positions[mesh.indices[f + 1]];
+        const glm::vec3& c = mesh.positions[mesh.indices[f + 2]];
+        volume += glm::dot(a, glm::cross(b, c)) / 6.0f;
+    }
+    return volume;
+}
+
+// A closed solid: every edge shared by exactly two triangles that walk it in
+// opposite directions, facing out (positive volume), with flat normals that agree
+// with their triangle. `volume` is what it should enclose.
+void checkSolid(const MeshData& mesh, f32 volume, f32 tolerance, int line)
+{
+    check(!mesh.positions.empty() && mesh.indices.size() % 3 == 0, "has geometry", line);
+    check(mesh.normals.size() == mesh.positions.size() && mesh.uvs.size() == mesh.positions.size(),
+          "normals and uvs per vertex", line);
+    check(mesh.submeshes.size() == 1 && mesh.submeshes[0].indexCount == mesh.indices.size(), "one submesh", line);
+
+    MeshTopology topology;
+    topology.build(mesh);
+    u32 notClosed = 0;
+    for (const MeshTopology::Edge& edge : topology.edges())
+        if (edge.faces.size() != 2)
+            ++notClosed;
+    check(notClosed == 0, "every edge has two triangles", line);
+
+    std::map<std::pair<u32, u32>, int> directed;
+    for (usize f = 0; f + 2 < mesh.indices.size(); f += 3)
+        for (usize c = 0; c < 3; ++c)
+            ++directed[{topology.canonical(mesh.indices[f + c]), topology.canonical(mesh.indices[f + (c + 1) % 3])}];
+    u32 conflicting = 0;
+    for (const auto& entry : directed)
+        if (entry.second != 1)
+            ++conflicting;
+    check(conflicting == 0, "triangles agree on which way is out", line);
+
+    check(std::abs(signedVolume(mesh) - volume) <= tolerance * volume, "encloses the expected volume", line);
+
+    u32 badNormals = 0;
+    for (usize f = 0; f + 2 < mesh.indices.size(); f += 3)
+    {
+        const glm::vec3& a = mesh.positions[mesh.indices[f]];
+        const glm::vec3& b = mesh.positions[mesh.indices[f + 1]];
+        const glm::vec3& c = mesh.positions[mesh.indices[f + 2]];
+        const glm::vec3 geometric = glm::normalize(glm::cross(b - a, c - a));
+        for (usize k = 0; k < 3; ++k)
+            if (glm::dot(mesh.normals[mesh.indices[f + k]], geometric) < 0.99f)
+                ++badNormals;
+    }
+    check(badNormals == 0, "flat normals agree with their triangle", line);
+}
+
+#define CHECK_SOLID(mesh, volume, tolerance) checkSolid((mesh), (volume), (tolerance), __LINE__)
+
+f32 polygonArea(u32 sides, f32 radius)
+{
+    return 0.5f * static_cast<f32>(sides) * radius * radius * std::sin(2.0f * 3.14159265f / static_cast<f32>(sides));
+}
+
+void testPrism()
+{
+    PrismParams params;
+    params.sides = 6;
+    params.radius = 1.0f;
+    params.height = 2.0f;
+    MeshData mesh;
+    std::string error;
+    CHECK(buildPrism(params, mesh, &error));
+    CHECK_SOLID(mesh, polygonArea(6, 1.0f) * 2.0f, 1.0e-3f);
+    CHECK(std::abs(mesh.bounds.min.y + 1.0f) < 1.0e-5f && std::abs(mesh.bounds.max.y - 1.0f) < 1.0e-5f);
+
+    PrismParams bad;
+    bad.sides = 2;
+    CHECK(!buildPrism(bad, mesh, &error));
+    bad.sides = 6;
+    bad.height = 0.0f;
+    CHECK(!buildPrism(bad, mesh, &error));
+}
+
+void testTube()
+{
+    TubeParams params;
+    params.outerRadius = 1.0f;
+    params.innerRadius = 0.5f;
+    params.height = 2.0f;
+    params.slices = 24;
+    MeshData mesh;
+    std::string error;
+    CHECK(buildTube(params, mesh, &error));
+    CHECK_SOLID(mesh, (polygonArea(24, 1.0f) - polygonArea(24, 0.5f)) * 2.0f, 1.0e-3f);
+    CHECK(std::abs(mesh.bounds.min.y + 1.0f) < 1.0e-5f && std::abs(mesh.bounds.max.y - 1.0f) < 1.0e-5f);
+    CHECK(std::abs(mesh.bounds.max.x - 1.0f) < 1.0e-5f);
+
+    TubeParams bad = params;
+    bad.innerRadius = 1.0f;
+    CHECK(!buildTube(bad, mesh, &error));
+    bad = params;
+    bad.slices = 2;
+    CHECK(!buildTube(bad, mesh, &error));
+}
+
+void testDisc()
+{
+    DiscParams params;
+    params.radius = 2.0f;
+    params.slices = 16;
+    MeshData mesh;
+    CHECK(buildDisc(params, mesh));
+    CHECK(mesh.indices.size() == 16 * 3);
+    f32 area = 0.0f;
+    for (usize f = 0; f + 2 < mesh.indices.size(); f += 3)
+    {
+        const glm::vec3& a = mesh.positions[mesh.indices[f]];
+        const glm::vec3& b = mesh.positions[mesh.indices[f + 1]];
+        const glm::vec3& c = mesh.positions[mesh.indices[f + 2]];
+        const glm::vec3 n = glm::cross(b - a, c - a);
+        CHECK(n.y > 0.0f); // faces up
+        area += 0.5f * glm::length(n);
+    }
+    CHECK(std::abs(area - polygonArea(16, 2.0f)) < 1.0e-3f);
+    DiscParams bad;
+    bad.radius = -1.0f;
+    CHECK(!buildDisc(bad, mesh));
+}
+
+void testStairs()
+{
+    StairsParams params;
+    params.steps = 5;
+    params.width = 2.0f;
+    params.stepHeight = 0.2f;
+    params.stepDepth = 0.3f;
+    MeshData mesh;
+    std::string error;
+    CHECK(buildStairs(params, mesh, &error));
+    // Volume: width x sum over steps of (i + 1) * rise * run.
+    CHECK_SOLID(mesh, 2.0f * 0.2f * 0.3f * (1 + 2 + 3 + 4 + 5), 1.0e-3f);
+    CHECK(std::abs(mesh.bounds.min.x + 1.0f) < 1.0e-5f && std::abs(mesh.bounds.max.x - 1.0f) < 1.0e-5f);
+    CHECK(std::abs(mesh.bounds.min.y + 0.5f) < 1.0e-5f && std::abs(mesh.bounds.max.y - 0.5f) < 1.0e-5f);
+    CHECK(std::abs(mesh.bounds.min.z + 0.75f) < 1.0e-5f && std::abs(mesh.bounds.max.z - 0.75f) < 1.0e-5f);
+    // The top is at the +Z end: that is where the stairs go up to.
+    for (const glm::vec3& p : mesh.positions)
+        if (p.y > 0.49f)
+            CHECK(p.z > 0.4f);
+
+    StairsParams bad;
+    bad.steps = 0;
+    CHECK(!buildStairs(bad, mesh, &error));
+    bad.steps = 3;
+    bad.stepDepth = 0.0f;
+    CHECK(!buildStairs(bad, mesh, &error));
+}
+
+void testArch()
+{
+    ArchParams params;
+    params.width = 2.0f;
+    params.height = 2.5f;
+    params.depth = 0.5f;
+    params.thickness = 0.4f;
+    params.segments = 16;
+    MeshData mesh;
+    std::string error;
+    CHECK(buildArch(params, mesh, &error));
+
+    // Outer minus inner, each a rectangle under a half polygon.
+    const f32 spring = 1.5f;
+    const f32 outer = 2.0f * spring + 0.5f * polygonArea(32, 1.0f);
+    const f32 inner = 1.2f * spring + 0.5f * polygonArea(32, 0.6f);
+    CHECK_SOLID(mesh, (outer - inner) * 0.5f, 2.0e-3f);
+    CHECK(std::abs(mesh.bounds.min.x + 1.0f) < 1.0e-5f && std::abs(mesh.bounds.max.x - 1.0f) < 1.0e-5f);
+    CHECK(std::abs(mesh.bounds.min.y + 1.25f) < 1.0e-5f && std::abs(mesh.bounds.max.y - 1.25f) < 1.0e-5f);
+    CHECK(std::abs(mesh.bounds.min.z + 0.25f) < 1.0e-5f && std::abs(mesh.bounds.max.z - 0.25f) < 1.0e-5f);
+
+    ArchParams bad = params;
+    bad.thickness = 1.0f; // as wide as half the arch: no opening
+    CHECK(!buildArch(bad, mesh, &error));
+    bad = params;
+    bad.height = 0.5f; // lower than the semicircle
+    CHECK(!buildArch(bad, mesh, &error));
+}
+
+void testExtrusionOfAConcaveOutline()
+{
+    // An L, given clockwise: it is reversed, and still comes out a solid.
+    ExtrusionParams params;
+    params.depth = 2.0f;
+    params.profile = {{0, 0}, {0, 3}, {1, 3}, {1, 1}, {3, 1}, {3, 0}};
+    MeshData mesh;
+    std::string error;
+    CHECK(buildExtrusion(params, mesh, &error));
+    // Area of the L: 3x1 + 1x2 = 5.
+    // The mesh is not centred on X/Y (the outline is used as given), so measure volume
+    // by the divergence theorem, which does not care.
+    CHECK_SOLID(mesh, 5.0f * 2.0f, 1.0e-3f);
+    CHECK(std::abs(mesh.bounds.min.z + 1.0f) < 1.0e-5f && std::abs(mesh.bounds.max.z - 1.0f) < 1.0e-5f);
+
+    ExtrusionParams bad;
+    bad.profile = {{0, 0}, {1, 0}};
+    CHECK(!buildExtrusion(bad, mesh, &error));
+    bad.profile = {{0, 0}, {1, 0}, {2, 0}}; // a line, no area
+    CHECK(!buildExtrusion(bad, mesh, &error));
+    bad.profile = {{0, 0}, {1, 0}, {0, 1}};
+    bad.depth = 0.0f;
+    CHECK(!buildExtrusion(bad, mesh, &error));
+    bad.depth = 1.0f;
+    bad.profile = {{0, 0}, {1, 0}, {NAN, 1}};
+    CHECK(!buildExtrusion(bad, mesh, &error));
+}
+
 } // namespace
 
 int main()
 {
+    testPrism();
+    testTube();
+    testDisc();
+    testStairs();
+    testArch();
+    testExtrusionOfAConcaveOutline();
     testLatheSphere();
     testLatheDescendingProfileStillFacesOutward();
     testLatheCylinderCaps();

@@ -97,7 +97,7 @@ texturas, esqueleto nem animação), `undo`, `redo`
 ### Construir (cada um acrescenta uma parte)
 | Comando | Para quê |
 |---|---|
-| `add_primitive` | `box`, `plane`, `sphere`, `cylinder`, `cone`, `capsule`, `torus`, já colocado e colorido |
+| `add_primitive` | `box`, `plane`, `sphere`, `cylinder`, `cone`, `capsule`, `torus`, `disc`, `tube`, `prism`, `stairs`, `arch`, já colocado e colorido. Todas ficam **centradas** na origem (a caixa envolvente); `origin: "base"` pousa-as em y=0 |
 | `add_lathe` | rotação de um perfil `[raio, y]` em torno de Y: cones, cúpulas, tanques |
 | `add_loft` | secções transversais (elipse/superelipse) ao longo de um eixo: fuselagens, caudas, asas |
 | `add_mesh` | vértices e triângulos em bruto; as normais são calculadas |
@@ -114,6 +114,8 @@ texturas, esqueleto nem animação), `undo`, `redo`
 `transform_selection`, `transform_mesh`, `extrude`, `delete_selection`, `weld_vertices`,
 `smooth_vertices`, `recalculate_normals`, `flip_winding`, `center_mesh`, `bisect`,
 `convex_hull`, `generate_uv`, `unwrap_uv`, `simplify`, `optimize`
+
+`boolean` (`union`/`difference`/`intersection` entre duas partes): remalha um volume numa grelha de `resolution` células (8–160) — estanque e suave mas não é um corte exato; só sólidos fechados; evitar faces exatamente coplanares.
 
 ### Animação
 `set_animation` (clip, frame, playing) — para meshes com esqueleto.

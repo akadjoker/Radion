@@ -1610,105 +1610,6 @@ bool borderHasEdge(const Border& border, u64 key)
     return false;
 }
 
-// Triangulates a planar-ish polygon by ear clipping. `points` are in order;
-// returns index triples into `points`, counter-clockwise relative to that order.
-std::vector<std::array<u32, 3>> triangulatePolygon(const std::vector<glm::vec3>& points)
-{
-    const usize n = points.size();
-    std::vector<std::array<u32, 3>> out;
-    if (n < 3)
-        return out;
-
-    // The plane the outline lies nearest to: Newell's normal.
-    glm::vec3 normal(0.0f);
-    for (usize i = 0; i < n; ++i)
-    {
-        const glm::vec3& a = points[i];
-        const glm::vec3& b = points[(i + 1) % n];
-        normal.x += (a.y - b.y) * (a.z + b.z);
-        normal.y += (a.z - b.z) * (a.x + b.x);
-        normal.z += (a.x - b.x) * (a.y + b.y);
-    }
-    if (glm::length(normal) < 1.0e-12f)
-    {
-        // Degenerate outline: a fan is as good as anything.
-        for (u32 i = 1; i + 1 < n; ++i)
-            out.push_back({0, i, i + 1});
-        return out;
-    }
-    normal = glm::normalize(normal);
-
-    // Project onto the two axes that best keep the shape.
-    glm::vec3 u = glm::normalize(std::abs(normal.x) < 0.9f ? glm::cross(normal, glm::vec3(1, 0, 0))
-                                                          : glm::cross(normal, glm::vec3(0, 1, 0)));
-    const glm::vec3 v = glm::cross(normal, u);
-    std::vector<glm::vec2> flat(n);
-    for (usize i = 0; i < n; ++i)
-        flat[i] = glm::vec2(glm::dot(points[i], u), glm::dot(points[i], v));
-
-    // With Newell's normal the outline runs counter-clockwise in (u, v).
-    auto cross2 = [](const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
-    { return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x); };
-    auto inside = [&](const glm::vec2& p, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
-    {
-        const f32 d1 = cross2(a, b, p);
-        const f32 d2 = cross2(b, c, p);
-        const f32 d3 = cross2(c, a, p);
-        return d1 >= -1.0e-9f && d2 >= -1.0e-9f && d3 >= -1.0e-9f;
-    };
-
-    std::vector<u32> ring(n);
-    for (u32 i = 0; i < n; ++i)
-        ring[i] = i;
-
-    while (ring.size() > 3)
-    {
-        bool clipped = false;
-        f32 flattest = 1.0e30f;
-        usize flattestAt = 0;
-        for (usize k = 0; k < ring.size(); ++k)
-        {
-            const u32 a = ring[(k + ring.size() - 1) % ring.size()];
-            const u32 b = ring[k];
-            const u32 c = ring[(k + 1) % ring.size()];
-            const f32 area = cross2(flat[a], flat[b], flat[c]);
-            if (std::abs(area) < flattest)
-            {
-                flattest = std::abs(area);
-                flattestAt = k;
-            }
-            if (area <= 1.0e-12f)
-                continue; // a reflex (or flat) corner is not an ear
-            bool empty = true;
-            for (const u32 other : ring)
-            {
-                if (other == a || other == b || other == c)
-                    continue;
-                if (inside(flat[other], flat[a], flat[b], flat[c]))
-                {
-                    empty = false;
-                    break;
-                }
-            }
-            if (!empty)
-                continue;
-            out.push_back({a, b, c});
-            ring.erase(ring.begin() + static_cast<long>(k));
-            clipped = true;
-            break;
-        }
-        if (!clipped)
-        {
-            // No proper ear (a degenerate or self-touching outline): take the
-            // flattest corner so the loop always finishes.
-            const usize k = flattestAt;
-            out.push_back({ring[(k + ring.size() - 1) % ring.size()], ring[k], ring[(k + 1) % ring.size()]});
-            ring.erase(ring.begin() + static_cast<long>(k));
-        }
-    }
-    out.push_back({ring[0], ring[1], ring[2]});
-    return out;
-}
 } // namespace
 
 bool MeshEdit::fillHoles(MeshData& mesh, const std::vector<u64>& edges, u32 maxEdges, u32* filled, std::string* error)
@@ -1980,4 +1881,104 @@ bool MeshEdit::mergeSubmeshes(MeshData& mesh, const std::vector<u32>& submeshes,
 
     writeFaces(mesh, faces);
     return true;
+}
+
+// ---------------------------------------------------------------- polygons
+
+std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<glm::vec3>& points)
+{
+    const usize n = points.size();
+    std::vector<std::array<u32, 3>> out;
+    if (n < 3)
+        return out;
+
+    // The plane the outline lies nearest to: Newell's normal.
+    glm::vec3 normal(0.0f);
+    for (usize i = 0; i < n; ++i)
+    {
+        const glm::vec3& a = points[i];
+        const glm::vec3& b = points[(i + 1) % n];
+        normal.x += (a.y - b.y) * (a.z + b.z);
+        normal.y += (a.z - b.z) * (a.x + b.x);
+        normal.z += (a.x - b.x) * (a.y + b.y);
+    }
+    if (glm::length(normal) < 1.0e-12f)
+    {
+        // Degenerate outline: a fan is as good as anything.
+        for (u32 i = 1; i + 1 < n; ++i)
+            out.push_back({0, i, i + 1});
+        return out;
+    }
+    normal = glm::normalize(normal);
+
+    // Project onto the two axes that best keep the shape.
+    glm::vec3 u = glm::normalize(std::abs(normal.x) < 0.9f ? glm::cross(normal, glm::vec3(1, 0, 0))
+                                                          : glm::cross(normal, glm::vec3(0, 1, 0)));
+    const glm::vec3 v = glm::cross(normal, u);
+    std::vector<glm::vec2> flat(n);
+    for (usize i = 0; i < n; ++i)
+        flat[i] = glm::vec2(glm::dot(points[i], u), glm::dot(points[i], v));
+
+    // With Newell's normal the outline runs counter-clockwise in (u, v).
+    auto cross2 = [](const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+    { return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x); };
+    auto inside = [&](const glm::vec2& p, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+    {
+        const f32 d1 = cross2(a, b, p);
+        const f32 d2 = cross2(b, c, p);
+        const f32 d3 = cross2(c, a, p);
+        return d1 >= -1.0e-9f && d2 >= -1.0e-9f && d3 >= -1.0e-9f;
+    };
+
+    std::vector<u32> ring(n);
+    for (u32 i = 0; i < n; ++i)
+        ring[i] = i;
+
+    while (ring.size() > 3)
+    {
+        bool clipped = false;
+        f32 flattest = 1.0e30f;
+        usize flattestAt = 0;
+        for (usize k = 0; k < ring.size(); ++k)
+        {
+            const u32 a = ring[(k + ring.size() - 1) % ring.size()];
+            const u32 b = ring[k];
+            const u32 c = ring[(k + 1) % ring.size()];
+            const f32 area = cross2(flat[a], flat[b], flat[c]);
+            if (std::abs(area) < flattest)
+            {
+                flattest = std::abs(area);
+                flattestAt = k;
+            }
+            if (area <= 1.0e-12f)
+                continue; // a reflex (or flat) corner is not an ear
+            bool empty = true;
+            for (const u32 other : ring)
+            {
+                if (other == a || other == b || other == c)
+                    continue;
+                if (inside(flat[other], flat[a], flat[b], flat[c]))
+                {
+                    empty = false;
+                    break;
+                }
+            }
+            if (!empty)
+                continue;
+            out.push_back({a, b, c});
+            ring.erase(ring.begin() + static_cast<long>(k));
+            clipped = true;
+            break;
+        }
+        if (!clipped)
+        {
+            // No proper ear (a degenerate or self-touching outline): take the
+            // flattest corner so the loop always finishes.
+            const usize k = flattestAt;
+            out.push_back({ring[(k + ring.size() - 1) % ring.size()], ring[k], ring[(k + 1) % ring.size()]});
+            ring.erase(ring.begin() + static_cast<long>(k));
+        }
+    }
+    out.push_back({ring[0], ring[1], ring[2]});
+    return out;
 }

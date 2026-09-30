@@ -375,8 +375,14 @@ bool BlenderApplication::deleteSubmesh(u32 index)
         return false;
 
     recordUndo();
+    removeSubmeshData(index);
+    applyMeshEdit();
+    return true;
+}
 
-    const SubMesh& removed = mMeshData->submeshes[index];
+void BlenderApplication::removeSubmeshData(u32 index)
+{
+    const SubMesh removed = mMeshData->submeshes[index];
     std::vector<u32>& indices = mMeshData->indices;
     indices.erase(indices.begin() + removed.indexOffset,
                  indices.begin() + removed.indexOffset + removed.indexCount);
@@ -398,9 +404,6 @@ bool BlenderApplication::deleteSubmesh(u32 index)
         mSelectedSubmesh = -1;
     else if (mSelectedSubmesh > static_cast<s32>(index))
         --mSelectedSubmesh;
-
-    applyMeshEdit();
-    return true;
 }
 
 bool BlenderApplication::isSubmeshVisible(u32 index)
@@ -1298,6 +1301,75 @@ bool BlenderApplication::mirrorGeometry(s32 axis, f32 offset, f32 weld, std::str
     Log::info("BlenderApplication: mirrored %s across %c = %.3f", faces.empty() ? "the mesh" : "the selection",
               "xyz"[axis], offset);
     applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::booleanParts(MeshEdit::BooleanOp op, u32 partA, u32 partB, u32 resolution,
+                                      const std::string& name, s32* resultPart, std::string* error)
+{
+    if (!mMeshData || partA >= mMeshData->submeshes.size() || partB >= mMeshData->submeshes.size() ||
+        partA == partB)
+    {
+        if (error)
+            *error = "give two different parts of the mesh";
+        return false;
+    }
+
+    MeshData a;
+    MeshData b;
+    if (!Assets().extractSubmesh(*mMeshData, partA, a) || !Assets().extractSubmesh(*mMeshData, partB, b))
+    {
+        if (error)
+            *error = "could not read the two parts";
+        return false;
+    }
+
+    MeshData combined;
+    std::string why;
+    if (!MeshEdit::booleanMeshes(a, b, op, resolution, combined, &why))
+    {
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    // The result takes the first part's look and name.
+    const SubMesh& first = mMeshData->submeshes[partA];
+    Material material;
+    if (first.materialSlot < mMeshData->materials.size())
+        material = mMeshData->materials[first.materialSlot];
+    if (!name.empty())
+        material.name = name;
+    combined.materials.assign(1, material);
+
+    recordUndo();
+    // Higher index first, so the lower one is still where it was.
+    removeSubmeshData(std::max(partA, partB));
+    removeSubmeshData(std::min(partA, partB));
+    // Nothing references the old triangles' vertices any more.
+    if (mMeshData->indices.empty())
+    {
+        mMeshData->clear();
+    }
+    else
+    {
+        Assets().compactGeometry(*mMeshData);
+    }
+
+    s32 index = -1;
+    PartStyle keep;
+    if (!appendPart(std::move(combined), glm::mat4(1.0f), keep, "Boolean", false, &index, false))
+    {
+        discardUndo();
+        if (error)
+            *error = "the combined shape could not be added";
+        return false;
+    }
+
+    mSelection.clearAll();
+    if (resultPart)
+        *resultPart = index;
+    Log::info("BlenderApplication: combined two parts (%zu triangles now)", mMeshData->indices.size() / 3);
     return true;
 }
 
@@ -3242,26 +3314,32 @@ bool BlenderApplication::createPrimitive(bool replace)
     return true;
 }
 
-bool BlenderApplication::createPrimitive(const PrimitiveParams& params, const glm::mat4& placement,
-                                         const PartStyle& style, bool replace, s32* submeshOut)
+bool BlenderApplication::buildPrimitive(const PrimitiveParams& params, MeshData& out)
 {
     MeshDesc desc;
     if (!describePrimitive(params, desc))
         return false;
-
-    MeshData built;
-    if (!Assets().buildMeshData(desc, built))
+    if (!Assets().buildMeshData(desc, out))
     {
         Log::error("BlenderApplication: could not build a %s", primitiveName(params.type));
         return false;
     }
+    return true;
+}
+
+bool BlenderApplication::createPrimitive(const PrimitiveParams& params, const glm::mat4& placement,
+                                         const PartStyle& style, bool replace, s32* submeshOut)
+{
+    MeshData built;
+    if (!buildPrimitive(params, built))
+        return false;
     return appendPart(std::move(built), placement, style, primitiveName(params.type), replace,
                       submeshOut);
 }
 
 bool BlenderApplication::appendPart(MeshData part, const glm::mat4& placement,
                                     const PartStyle& style, const char* sourceName, bool replace,
-                                    s32* submeshOut)
+                                    s32* submeshOut, bool undoStep)
 {
     if (!mMeshData || part.positions.empty() || part.indices.empty())
         return false;
@@ -3275,7 +3353,8 @@ bool BlenderApplication::appendPart(MeshData part, const glm::mat4& placement,
     applyPartStyle(part, style);
     Assets().transform(part, placement);
 
-    recordUndo();
+    if (undoStep)
+        recordUndo();
 
     if (replace || mMeshData->positions.empty())
     {
@@ -3303,7 +3382,8 @@ bool BlenderApplication::appendPart(MeshData part, const glm::mat4& placement,
         if (!Assets().mergeMeshes({current, incoming}, options, merged, &error))
         {
             Log::error("BlenderApplication: could not add a %s: %s", sourceName, error.c_str());
-            discardUndo();
+            if (undoStep)
+                discardUndo();
             return false;
         }
 

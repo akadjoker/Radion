@@ -36,6 +36,8 @@ set(BLENDER_SOURCES
     src/BlenderApplication.h
     src/BlenderCapture.cpp
     src/GltfExporter.cpp
+    src/mesh/MeshBoolean.cpp
+    src/mesh/MeshBoolean.h
     src/mesh/MeshEdit.cpp
     src/mesh/MeshEdit.h
     src/mesh/MeshTopology.cpp

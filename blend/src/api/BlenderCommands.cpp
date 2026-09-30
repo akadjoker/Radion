@@ -873,55 +873,142 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
 
     {
         Json properties = {
-            {"type", choiceSchema("Shape. Box and plane use 'size'; sphere, cylinder, cone, capsule "
-                                  "and torus use 'radius' (and 'height' / 'minor_radius').",
-                                  {"box", "plane", "sphere", "cylinder", "cone", "capsule", "torus"})},
-            {"size", vec3Schema("Box size [x,y,z], or plane extent [x,_,z]. Default [1,1,1].")},
-            {"radius", numberSchema("Sphere/cylinder/cone/capsule radius, torus major radius. "
-                                    "Default 0.5.")},
+            {"type", choiceSchema("Shape. box and plane use 'size'; sphere, cylinder, cone, capsule and "
+                                  "torus use 'radius' (and 'height' / 'minor_radius'); disc 'radius'; "
+                                  "tube 'radius' (outer), 'inner_radius', 'height'; prism 'sides', "
+                                  "'radius', 'height' (a regular n-sided column); stairs 'steps', "
+                                  "'step_height', 'step_depth' and width = size[0] (run along +Z, rising "
+                                  "toward +Z); arch size = [width, height, depth] and 'thickness' (an "
+                                  "archway with a semicircular head and a matching opening).",
+                                  {"box", "plane", "sphere", "cylinder", "cone", "capsule", "torus", "disc",
+                                   "tube", "prism", "stairs", "arch"})},
+            {"size", vec3Schema("Box size [x,y,z]; plane extent [x,_,z]; stairs width [x,_,_]; arch "
+                                "[width,height,depth]. Default [1,1,1].")},
+            {"radius", numberSchema("Sphere/cylinder/cone/capsule/disc/prism radius, tube outer radius, "
+                                    "torus major radius. Default 0.5.")},
             {"minor_radius", numberSchema("Torus tube radius. Default 0.2.")},
-            {"height", numberSchema("Cylinder/cone/capsule height along Y. Default 1. A cylinder "
-                                    "or cone is centred on its origin.")},
+            {"inner_radius", numberSchema("Tube hole radius. Default 70% of the radius.")},
+            {"height", numberSchema("Cylinder/cone/tube/prism height along Y; for a capsule the length of "
+                                    "the straight part (total = height + 2 x radius). Default 1.")},
+            {"sides", integerSchema("Prism sides, 3-64. Default 6.")},
+            {"steps", integerSchema("Stairs: number of steps, 1-128. Default 5.")},
+            {"step_height", numberSchema("Stairs: rise of each step. Default 0.2.")},
+            {"step_depth", numberSchema("Stairs: run of each step. Default 0.3.")},
+            {"thickness", numberSchema("Arch: thickness of the ring. Default 20% of the width.")},
             {"slices", integerSchema("Segments around the axis, 3-256. Default 24.")},
             {"rings", integerSchema("Rings (sphere/capsule) or tube segments (torus), 2-256. "
                                     "Default 16.")},
             {"segments_x", integerSchema("Plane subdivisions along X, 1-256. Default 8.")},
             {"segments_z", integerSchema("Plane subdivisions along Z, 1-256. Default 8.")},
+            {"origin", choiceSchema("Where the shape's own origin is, before position/rotation/scale: "
+                                    "'center' (default) puts the middle of its bounding box on the "
+                                    "origin; 'base' puts the middle of its footprint there with the "
+                                    "bottom at y = 0, so it stands on whatever position.y says.",
+                                    {"center", "base"})},
             {"replace", boolSchema("Start a new mesh instead of adding a part (default false).")}};
         addPlacementProperties(properties);
         addStyleProperties(properties);
         add("add_primitive",
             "Adds a basic solid as a new part, already placed and coloured. Every other shape is "
             "built from these: stretch a sphere with a non-uniform 'scale' for a fuselage, use "
-            "boxes for blades and struts, cylinders for masts and skids. Returns the part's "
+            "boxes for blades and struts, cylinders for masts and skids. Every shape is centred on "
+            "its position by default (even cylinders and cones, which the engine itself builds "
+            "standing on y = 0); use origin 'base' to stand it on the floor. Returns the part's "
             "index, name and bounds.",
             objectSchema(properties, {"type"}), false,
             [editor](const CommandArgs& args)
             {
-                BlenderApplication::PrimitiveParams params;
-                const std::string type = args.requireChoice(
-                    "type", {"box", "plane", "sphere", "cylinder", "cone", "capsule", "torus"});
-                if (!BlenderApplication::primitiveTypeFromName(type, params.type))
-                    invalid("unknown primitive '" + type + "'");
+                static const std::vector<std::string> kTypes = {"box", "plane", "sphere", "cylinder", "cone", "capsule",
+                                                                "torus", "disc", "tube", "prism", "stairs", "arch"};
+                const std::string type = args.requireChoice("type", kTypes);
 
                 const std::vector<double> size = args.numbers("size", 3, {1.0, 1.0, 1.0});
                 requireFiniteRange("size", size, kMaxCoordinate);
                 for (const double value : size)
                     if (value <= 0.0)
                         invalid("argument 'size' must be positive");
-                params.size = toVec3(size);
-                params.radius = static_cast<f32>(args.number("radius", 0.5, 0.0001, kMaxCoordinate));
-                params.minorRadius =
-                    static_cast<f32>(args.number("minor_radius", 0.2, 0.0001, kMaxCoordinate));
-                params.height = static_cast<f32>(args.number("height", 1.0, 0.0001, kMaxCoordinate));
-                params.slices = static_cast<s32>(args.integer("slices", 24, 3, 256));
-                params.rings = static_cast<s32>(args.integer("rings", 16, 2, 256));
-                params.segmentsX = static_cast<s32>(args.integer("segments_x", 8, 1, 256));
-                params.segmentsZ = static_cast<s32>(args.integer("segments_z", 8, 1, 256));
+                const f32 radius = static_cast<f32>(args.number("radius", 0.5, 0.0001, kMaxCoordinate));
+                const f32 height = static_cast<f32>(args.number("height", 1.0, 0.0001, kMaxCoordinate));
+                const s32 slices = static_cast<s32>(args.integer("slices", 24, 3, 256));
+
+                MeshData built;
+                std::string why;
+                BlenderApplication::PrimitiveParams params;
+                if (BlenderApplication::primitiveTypeFromName(type, params.type))
+                {
+                    params.size = toVec3(size);
+                    params.radius = radius;
+                    params.minorRadius = static_cast<f32>(args.number("minor_radius", 0.2, 0.0001, kMaxCoordinate));
+                    params.height = height;
+                    params.slices = slices;
+                    params.rings = static_cast<s32>(args.integer("rings", 16, 2, 256));
+                    params.segmentsX = static_cast<s32>(args.integer("segments_x", 8, 1, 256));
+                    params.segmentsZ = static_cast<s32>(args.integer("segments_z", 8, 1, 256));
+                    if (!BlenderApplication::buildPrimitive(params, built))
+                        failed("could not build the " + type);
+                }
+                else if (type == "disc")
+                {
+                    DiscParams disc;
+                    disc.radius = radius;
+                    disc.slices = static_cast<u32>(slices);
+                    if (!buildDisc(disc, built, &why))
+                        invalid(why);
+                }
+                else if (type == "tube")
+                {
+                    TubeParams tube;
+                    tube.outerRadius = radius;
+                    tube.innerRadius = static_cast<f32>(args.number("inner_radius", radius * 0.7, 0.0001, kMaxCoordinate));
+                    tube.height = height;
+                    tube.slices = static_cast<u32>(slices);
+                    if (!buildTube(tube, built, &why))
+                        invalid(why);
+                }
+                else if (type == "prism")
+                {
+                    PrismParams prism;
+                    prism.sides = static_cast<u32>(args.integer("sides", 6, 3, 64));
+                    prism.radius = radius;
+                    prism.height = height;
+                    if (!buildPrism(prism, built, &why))
+                        invalid(why);
+                }
+                else if (type == "stairs")
+                {
+                    StairsParams stairs;
+                    stairs.steps = static_cast<u32>(args.integer("steps", 5, 1, 128));
+                    stairs.width = static_cast<f32>(size[0]);
+                    stairs.stepHeight = static_cast<f32>(args.number("step_height", 0.2, 0.0001, kMaxCoordinate));
+                    stairs.stepDepth = static_cast<f32>(args.number("step_depth", 0.3, 0.0001, kMaxCoordinate));
+                    if (!buildStairs(stairs, built, &why))
+                        invalid(why);
+                }
+                else // arch
+                {
+                    ArchParams arch;
+                    arch.width = static_cast<f32>(size[0]);
+                    arch.height = static_cast<f32>(size[1]);
+                    arch.depth = static_cast<f32>(size[2]);
+                    arch.thickness = static_cast<f32>(args.number("thickness", size[0] * 0.2, 0.0001, kMaxCoordinate));
+                    arch.segments = static_cast<u32>(args.integer("segments", 16, 3, 128));
+                    if (!buildArch(arch, built, &why))
+                        invalid(why);
+                }
+
+                // Where the shape's own origin sits. The engine builds some shapes
+                // centred and some standing on y = 0; a model describing a part by its
+                // middle should not have to know which.
+                AABB box;
+                for (const glm::vec3& p : built.positions)
+                    box.expand(p);
+                const bool base = args.choice("origin", {"center", "base"}, "center") == "base";
+                const glm::vec3 centre = box.center();
+                const glm::vec3 shift = base ? glm::vec3(-centre.x, -box.min.y, -centre.z) : -centre;
 
                 s32 submesh = -1;
-                if (!editor->createPrimitive(params, placementArg(args), styleArg(args),
-                                             args.boolean("replace", false), &submesh))
+                if (!editor->appendPart(std::move(built), placementArg(args) * glm::translate(glm::mat4(1.0f), shift),
+                                        styleArg(args), type.c_str(), args.boolean("replace", false), &submesh))
                     failed("could not build the " + type);
                 return partAdded(*editor, submesh);
             });
@@ -1782,6 +1869,40 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             if (!editor->bevelSelectedEdges(width, &why))
                 failed(why.empty() ? "nothing was bevelled" : why);
             return result({{"triangles", mesh.indices.size() / 3}, {"vertices", mesh.positions.size()}});
+        });
+
+    add("boolean",
+        "Combines two parts as solids: 'union', 'difference' (a minus b) or 'intersection', into one "
+        "new part that replaces them. Drill holes, cut windows, merge blobs. It is a remesh on a "
+        "grid of 'resolution' cells along the longest side - watertight and smooth, but not an exact "
+        "cut: features smaller than a cell disappear, edges are as sharp as the grid, and UVs are "
+        "lost. Both parts must be closed solids (no open borders), and faces that lie exactly in the "
+        "same plane in both can leave specks - nudge one. Higher resolution = finer and slower.",
+        objectSchema({{"operation", choiceSchema("How to combine.", {"union", "difference", "intersection"})},
+                      {"a", partRefSchema()},
+                      {"b", partRefSchema()},
+                      {"resolution", integerSchema("Grid cells along the longest side, 8-160. Default 64.")},
+                      {"name", stringSchema("Name of the resulting part. Default: the first part's name.")}},
+                     {"operation", "a", "b"}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            requireMesh(*editor);
+            const std::string operation = args.requireChoice("operation", {"union", "difference", "intersection"});
+            const u32 a = resolvePart(*editor, args, "a");
+            const u32 b = resolvePart(*editor, args, "b");
+            if (a == b)
+                invalid("'a' and 'b' must be different parts");
+            const u32 resolution = static_cast<u32>(args.integer("resolution", 64, MeshEdit::kMinBooleanResolution,
+                                                                 MeshEdit::kMaxBooleanResolution));
+            const MeshEdit::BooleanOp op = operation == "union"        ? MeshEdit::BooleanOp::Union
+                                           : operation == "difference" ? MeshEdit::BooleanOp::Difference
+                                                                       : MeshEdit::BooleanOp::Intersection;
+            s32 part = -1;
+            std::string why;
+            if (!editor->booleanParts(op, a, b, resolution, args.string("name", ""), &part, &why))
+                failed(why.empty() ? "the boolean failed" : why);
+            return partAdded(*editor, part);
         });
 
     add("fill_holes",

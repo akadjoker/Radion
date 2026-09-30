@@ -128,6 +128,12 @@ bool inset(MeshData& mesh, const std::vector<u32>& faces, f32 thickness, f32 dep
 // mesh, so vertex numbers change.
 bool bevel(MeshData& mesh, const std::vector<u64>& edges, f32 width, std::string* error = nullptr);
 
+// Triangulates a simple polygon (concave allowed, no holes) by ear clipping, in
+// the plane it lies nearest to. `points` are in order; the triples returned index
+// them and are wound the same way as the points are - counter-clockwise seen from
+// the side the outline turns counter-clockwise towards.
+std::vector<std::array<u32, 3>> triangulatePolygon(const std::vector<glm::vec3>& points);
+
 // Closes open borders with triangles. `edges` picks the borders to close (every
 // border that has one of those edges); empty means every border. A border
 // longer than `maxEdges` is left open. Concave outlines are triangulated by ear

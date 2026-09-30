@@ -310,7 +310,57 @@ def group_assemble(api):
     expect_error(api, "failed", "separate_selection")
 
 
-GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble}
+def group_solids(api):
+    # Every primitive type builds, and 'origin' decides where the part's origin sits.
+    for kind in ["box", "plane", "sphere", "cylinder", "cone", "capsule", "torus", "disc", "tube", "prism", "stairs", "arch"]:
+        api.call("new_document")
+        api.call("add_primitive", type=kind, name=kind)
+        check(status(api)["triangles"] > 0, f"{kind} has triangles")
+        api.call("add_primitive", type=kind, name=kind + "_base", origin="base", replace=True)
+        b = status(api)["bounds"]
+        check(approx(b["min"][1], 0.0, 1e-2), f"{kind} with origin=base stands on y=0: {b}")
+    api.call("new_document")
+    api.call("add_primitive", type="cylinder", name="c")
+    b = status(api)["bounds"]
+    check(approx(b["min"][1], -b["max"][1], 1e-2), f"a cylinder is centred by default: {b}")
+    expect_error(api, "invalid_params", "add_primitive", type="box", origin="corner")
+
+    # Booleans.
+    def two_boxes():
+        api.call("new_document")
+        api.call("add_primitive", type="box", size=[2, 2, 2], name="a")
+        api.call("add_primitive", type="box", size=[2, 2, 2], name="b", position=[1, 0, 0])
+
+    two_boxes()
+    r = api.call("boolean", operation="union", a="a", b="b", resolution=48, name="both")
+    parts = status(api)["parts"]
+    check(len(parts) == 1 and parts[0]["name"] == "both", f"union leaves one part: {parts}")
+    b = status(api)["bounds"]
+    check(approx(b["min"][0], -1.0, 0.1) and approx(b["max"][0], 2.0, 0.1), f"union spans 3 along X: {b}")
+
+    two_boxes()
+    api.call("boolean", operation="intersection", a="a", b="b", resolution=48)
+    b = status(api)["bounds"]
+    check(approx(b["min"][0], 0.0, 0.1) and approx(b["max"][0], 1.0, 0.1), f"intersection is the overlap: {b}")
+
+    two_boxes()
+    api.call("boolean", operation="difference", a="a", b="b", resolution=48)
+    b = status(api)["bounds"]
+    check(approx(b["min"][0], -1.0, 0.1) and approx(b["max"][0], 0.0, 0.1), f"difference keeps a's far half: {b}")
+    api.call("undo")
+    check(len(status(api)["parts"]) == 2, "one undo restores both parts")
+
+    expect_error(api, "invalid_params", "boolean", operation="union", a="a", b="a")
+    expect_error(api, "invalid_params", "boolean", operation="union", a="a", b="ghost")
+    expect_error(api, "invalid_params", "boolean", operation="xor", a="a", b="b")
+
+    api.call("new_document")
+    api.call("add_primitive", type="box", size=[1, 1, 1], name="a")
+    api.call("add_primitive", type="box", size=[1, 1, 1], name="far", position=[10, 0, 0])
+    expect_error(api, "failed", "boolean", operation="intersection", a="a", b="far")
+
+
+GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids}
 
 
 # ------------------------------------------------------------------- driver
