@@ -452,6 +452,20 @@ public:
     // Restyles the material of one submesh. Other submeshes that share that
     // material slot are given their own copy first, so only this one changes.
     bool styleSubmesh(u32 index, const PartStyle& style);
+    // Vertex colour painting. Colours are LINEAR RGBA (MeshPaint); `opacity` blends
+    // the colour into what is there. Each returns how many vertices changed and
+    // is one undo step. paintSelection() widens the selection to coincident
+    // vertices like every other edit and fails (returns 0, `error` set) when
+    // nothing is selected. paintSphere() is a soft round brush, optionally
+    // limited to one part (`part` < 0 = the whole mesh).
+    u32 paintSelection(const glm::vec4& color, f32 opacity, std::string* error = nullptr);
+    u32 paintPart(u32 part, const glm::vec4& color, f32 opacity);
+    u32 paintAll(const glm::vec4& color, f32 opacity);
+    u32 paintSphere(const glm::vec3& center, f32 radius, f32 hardness, const glm::vec4& color, f32 opacity, s32 part);
+    // Clears the selection's, one part's (`part` >= 0) or everything's colours.
+    bool clearVertexColors(s32 part, bool selectionOnly, std::string* error = nullptr);
+    bool hasVertexColors() const;
+
     // Puts an image file on one of a part's material slots (SlotAlbedo,
     // SlotNormal, SlotSurface, SlotEmissive); an empty path clears the slot.
     // The part gets a private material first, like styleSubmesh().
@@ -531,6 +545,7 @@ public:
         MiniRenderMode shading = MiniRenderMode::Textured;
         bool wireframeOverlay = false;
         bool colorBySubmesh = false;
+        bool vertexColors = true;
         bool grid = true;
     };
     bool captureViewport(const CaptureParams& params, std::vector<u8>& rgba);
@@ -570,6 +585,16 @@ private:
     bool createPrimitive(bool replace);
 
     void drawTransformMenu();
+    void drawPaintMenu();
+    bool hasAnySelection()
+    {
+        return mSelection.selectedVertexCount() > 0 || mSelection.selectedFaceCount() > 0 ||
+               mSelection.selectedEdgeCount() > 0;
+    }
+    glm::vec3 mPaintColor = glm::vec3(0.85f, 0.2f, 0.15f); // sRGB, as the picker shows it
+    f32 mPaintOpacity = 1.0f;
+    f32 mPaintRadius = 0.5f;
+    f32 mPaintHardness = 0.5f;
     void drawMeshMenu();
     void drawToolPopups();
     void drawSaveInfoPopup();

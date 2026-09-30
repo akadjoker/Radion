@@ -105,6 +105,7 @@ bool BlenderSettings::load(const std::string& path)
         readFloat(*viewport, "submeshHighlightAlpha", mViewport.submeshHighlightAlpha);
         readVec3(*viewport, "boxSelectColor", mViewport.boxSelectColor);
         readBool(*viewport, "colorBySubmesh", mViewport.colorBySubmesh);
+        readBool(*viewport, "showVertexColors", mViewport.showVertexColors);
         readFloat(*viewport, "debugVectorLength", mViewport.debugVectorLength);
         readVec3(*viewport, "normalVectorColor", mViewport.normalVectorColor);
         readVec3(*viewport, "tangentVectorColor", mViewport.tangentVectorColor);
@@ -196,6 +197,7 @@ bool BlenderSettings::save(const std::string& path)
     viewport["boxSelectColor"] = {mViewport.boxSelectColor.x, mViewport.boxSelectColor.y,
                                   mViewport.boxSelectColor.z};
     viewport["colorBySubmesh"] = mViewport.colorBySubmesh;
+    viewport["showVertexColors"] = mViewport.showVertexColors;
     viewport["debugVectorLength"] = mViewport.debugVectorLength;
     viewport["normalVectorColor"] = {mViewport.normalVectorColor.x, mViewport.normalVectorColor.y,
                                      mViewport.normalVectorColor.z};

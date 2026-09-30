@@ -11,6 +11,7 @@
 #include "Log.h"
 #include "MaterialManager.h"
 #include "mesh/MeshEdit.h"
+#include "mesh/MeshPaint.h"
 #include "GltfExporter.h"
 #include "ObjExporter.h"
 #include "panels/ConsolePanel.h"
@@ -1897,6 +1898,11 @@ void BlenderApplication::drawMainMenuBar()
         drawTransformMenu();
         ImGui::EndMenu();
     }
+    if (ImGui::BeginMenu("Paint"))
+    {
+        drawPaintMenu();
+        ImGui::EndMenu();
+    }
     if (ImGui::BeginMenu("Mesh"))
     {
         drawMeshMenu();
@@ -3455,6 +3461,101 @@ bool BlenderApplication::duplicateSubmesh(u32 index, const glm::mat4& placement,
     return appendPart(std::move(copy), placement, keep, "duplicate", false, newIndex);
 }
 
+u32 BlenderApplication::paintSelection(const glm::vec4& color, f32 opacity, std::string* error)
+{
+    if (!mMeshData)
+        return 0;
+    const std::vector<u32> vertices = editVertices();
+    if (vertices.empty())
+    {
+        if (error)
+            *error = "nothing is selected - select vertices, faces or edges, or paint a part or a sphere";
+        return 0;
+    }
+    recordUndo();
+    const u32 changed = MeshPaint::paintVertices(*mMeshData, vertices, color, opacity);
+    mSettings.viewport().showVertexColors = true;
+    applyMeshEdit();
+    return changed;
+}
+
+u32 BlenderApplication::paintPart(u32 part, const glm::vec4& color, f32 opacity)
+{
+    if (!mMeshData || part >= mMeshData->submeshes.size())
+        return 0;
+    recordUndo();
+    const u32 changed = MeshPaint::paintVertices(*mMeshData, submeshVertices(part), color, opacity);
+    mSettings.viewport().showVertexColors = true;
+    applyMeshEdit();
+    return changed;
+}
+
+u32 BlenderApplication::paintAll(const glm::vec4& color, f32 opacity)
+{
+    if (!mMeshData)
+        return 0;
+    std::vector<u32> vertices(mMeshData->positions.size());
+    for (u32 i = 0; i < static_cast<u32>(vertices.size()); ++i)
+        vertices[i] = i;
+    recordUndo();
+    const u32 changed = MeshPaint::paintVertices(*mMeshData, vertices, color, opacity);
+    mSettings.viewport().showVertexColors = true;
+    applyMeshEdit();
+    return changed;
+}
+
+u32 BlenderApplication::paintSphere(const glm::vec3& center, f32 radius, f32 hardness, const glm::vec4& color,
+                                    f32 opacity, s32 part)
+{
+    if (!mMeshData)
+        return 0;
+    std::vector<u32> subset;
+    if (part >= 0)
+    {
+        if (static_cast<usize>(part) >= mMeshData->submeshes.size())
+            return 0;
+        subset = submeshVertices(static_cast<u32>(part));
+    }
+    recordUndo();
+    const u32 changed =
+        MeshPaint::paintSphere(*mMeshData, part >= 0 ? &subset : nullptr, center, radius, hardness, color, opacity);
+    mSettings.viewport().showVertexColors = true;
+    applyMeshEdit();
+    return changed;
+}
+
+bool BlenderApplication::clearVertexColors(s32 part, bool selectionOnly, std::string* error)
+{
+    if (!mMeshData)
+        return false;
+    std::vector<u32> vertices;
+    if (selectionOnly)
+    {
+        vertices = editVertices();
+        if (vertices.empty())
+        {
+            if (error)
+                *error = "nothing is selected";
+            return false;
+        }
+    }
+    else if (part >= 0)
+    {
+        if (static_cast<usize>(part) >= mMeshData->submeshes.size())
+            return false;
+        vertices = submeshVertices(static_cast<u32>(part));
+    }
+    recordUndo();
+    MeshPaint::clear(*mMeshData, selectionOnly || part >= 0 ? &vertices : nullptr);
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::hasVertexColors() const
+{
+    return mMeshData && MeshPaint::hasColors(*mMeshData);
+}
+
 // A part is styled on its own: when its material slot is shared with another
 // part (or missing) it is given a private copy first.
 void BlenderApplication::ownMaterial(u32 index)
@@ -3567,6 +3668,37 @@ bool BlenderApplication::styleSubmesh(u32 index, const PartStyle& style)
 
     applyMeshEdit();
     return true;
+}
+
+void BlenderApplication::drawPaintMenu()
+{
+    ImGui::BeginDisabled(!mMeshData);
+
+    ImGui::ColorEdit3("Color", &mPaintColor.x);
+    ImGui::SetNextItemWidth(150.0f);
+    ImGui::SliderFloat("Opacity", &mPaintOpacity, 0.0f, 1.0f);
+    ImGui::Separator();
+
+    const glm::vec4 color(MeshPaint::toLinear(mPaintColor), 1.0f);
+    if (ImGui::MenuItem("Paint Selection", nullptr, false, hasAnySelection()))
+        paintSelection(color, mPaintOpacity);
+    const bool hasPart = mSelectedSubmesh >= 0;
+    if (ImGui::MenuItem("Paint Selected Part", nullptr, false, hasPart))
+        paintPart(static_cast<u32>(mSelectedSubmesh), color, mPaintOpacity);
+    if (ImGui::MenuItem("Paint Everything"))
+        paintAll(color, mPaintOpacity);
+    ImGui::Separator();
+
+    if (ImGui::MenuItem("Clear Selection's Colors", nullptr, false, hasAnySelection()))
+        clearVertexColors(-1, true);
+    if (ImGui::MenuItem("Clear All Vertex Colors", nullptr, false, hasVertexColors()))
+        clearVertexColors(-1, false);
+    ImGui::Separator();
+
+    ImGui::Checkbox("Show Vertex Colors", &mSettings.viewport().showVertexColors);
+    ImGui::TextDisabled("Colors multiply the material and export as COLOR_0.");
+
+    ImGui::EndDisabled();
 }
 
 void BlenderApplication::drawTransformMenu()

@@ -467,6 +467,7 @@ Json statusJson(BlenderApplication& app)
                    {"selection", selectionJson(app)}};
 
     status["hiddenTriangles"] = app.hiddenFaceCount();
+    status["hasVertexColors"] = app.hasVertexColors();
     status["symmetry"] = app.symmetryAxis() < 0
                              ? Json(nullptr)
                              : Json({{"axis", std::string(1, "xyz"[app.symmetryAxis()])},
@@ -717,6 +718,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                                      {"textured", "solid", "wireframe"})},
             {"wireframe_overlay", boolSchema("Draw the triangle edges over the shading.")},
             {"color_by_part", boolSchema("Give each part its own flat tint to tell them apart.")},
+            {"vertex_colors", boolSchema("Show painted vertex colours (default true).")},
             {"grid", boolSchema("Draw the ground grid (default true).")}};
         add("screenshot",
             "Renders the model offscreen and returns a PNG image. The way to SEE what has been "
@@ -743,6 +745,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                                                         : MiniRenderMode::Textured;
                 params.wireframeOverlay = args.boolean("wireframe_overlay", false);
                 params.colorBySubmesh = args.boolean("color_by_part", false);
+                params.vertexColors = args.boolean("vertex_colors", true);
                 params.grid = args.boolean("grid", true);
                 params.frame = args.boolean("frame", true);
 
@@ -1963,6 +1966,93 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 failed(why.empty() ? "the boolean failed" : why);
             return partAdded(*editor, part);
         });
+
+    {
+        static const std::vector<std::string> kPaintTargets = {"selection", "part", "all", "sphere"};
+        Json properties = {
+            {"color", {{"description", "sRGB colour: \"#rrggbb\" or [r,g,b] with 0..1."},
+                       {"oneOf", Json::array({{{"type", "string"}},
+                                              {{"type", "array"}, {"items", {{"type", "number"}}}}})}}},
+            {"opacity", numberSchema("How much of the colour to blend in, 0..1 (default 1).")},
+            {"target", choiceSchema("What to paint: 'selection' (the selected vertices/faces/edges), "
+                                    "'part' (every vertex of a part), 'all', or 'sphere' (a round soft brush). "
+                                    "Default 'selection'.",
+                                    kPaintTargets)},
+            {"part", partRefSchema()},
+            {"center", vec3Schema("Brush centre for target 'sphere', in model space.")},
+            {"radius", numberSchema("Brush radius for target 'sphere'.")},
+            {"hardness", numberSchema("0..1: how far out the brush is at full strength before it fades (default 0.5).")}};
+        add("paint_vertices",
+            "Paints per-vertex colour. The colour multiplies the part's material colour/texture in the "
+            "viewport, screenshots and the exported glTF (COLOR_0), so paint on a white material to see "
+            "it exactly. Vertices are shared between triangles of a smooth surface, so painting a region "
+            "gives smooth gradients; parts with hard edges (a box) have separate vertices per face - "
+            "'sphere' and 'selection' reach all of them that stand at the same point. Use 'sphere' with "
+            "'part' to paint spots, stripes of wear or shading on one part.",
+            objectSchema(properties, {"color"}), false,
+            [editor](const CommandArgs& args)
+            {
+                requireMesh(*editor);
+                glm::vec4 color(1.0f);
+                if (!readColor(args, color))
+                    invalid("argument 'color' is required");
+                const f32 opacity = static_cast<f32>(args.number("opacity", 1.0, 0.0, 1.0));
+                const std::string target = args.choice("target", kPaintTargets, "selection");
+                s32 part = -1;
+                if (args.has("part"))
+                    part = static_cast<s32>(resolvePart(*editor, args));
+                u32 painted = 0;
+                std::string why;
+                if (target == "sphere")
+                {
+                    if (!args.has("center") || !args.has("radius"))
+                        invalid("target 'sphere' needs 'center' and 'radius'");
+                    painted = editor->paintSphere(vec3Arg(args, "center", glm::vec3(0.0f)),
+                                                  static_cast<f32>(args.number("radius", 1.0, 1e-4, kMaxCoordinate)),
+                                                  static_cast<f32>(args.number("hardness", 0.5, 0.0, 1.0)), color, opacity,
+                                                  part);
+                }
+                else if (target == "part")
+                {
+                    if (part < 0)
+                        invalid("target 'part' needs 'part'");
+                    painted = editor->paintPart(static_cast<u32>(part), color, opacity);
+                }
+                else if (target == "all")
+                    painted = editor->paintAll(color, opacity);
+                else
+                {
+                    painted = editor->paintSelection(color, opacity, &why);
+                    if (!why.empty())
+                        failed(why);
+                }
+                return result({{"painted", painted}});
+            });
+
+        add("clear_vertex_colors",
+            "Removes painted vertex colours: from the selection ('selection'), one part ('part') or "
+            "everything (default). The exported file then carries no COLOR_0.",
+            objectSchema({{"target", choiceSchema("What to clear (default 'all').", {"selection", "part", "all"})},
+                          {"part", partRefSchema()}}),
+            false,
+            [editor](const CommandArgs& args)
+            {
+                requireMesh(*editor);
+                const std::string target = args.choice("target", {"selection", "part", "all"}, "all");
+                std::string why;
+                if (target == "part")
+                {
+                    if (!args.has("part"))
+                        invalid("target 'part' needs 'part'");
+                    editor->clearVertexColors(static_cast<s32>(resolvePart(*editor, args)), false, &why);
+                }
+                else
+                    editor->clearVertexColors(-1, target == "selection", &why);
+                if (!why.empty())
+                    failed(why);
+                return result({{"hasVertexColors", editor->hasVertexColors()}});
+            });
+    }
 
     add("fill_holes",
         "Closes open borders with triangles. Selected edges (mode 'edge') pick the borders; with "

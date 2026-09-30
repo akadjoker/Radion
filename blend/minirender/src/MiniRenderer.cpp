@@ -23,6 +23,7 @@ layout(location = 3) in vec4 aTangent;
 layout(location = 4) in vec4 aJoints;
 layout(location = 5) in vec4 aWeights;
 layout(location = 6) in float aSelected;
+layout(location = 7) in vec4 aColor;
 
 uniform mat4 uModel;
 uniform mat4 uView;
@@ -37,6 +38,7 @@ out VS_OUT {
     vec2 texCoord;
     mat3 TBN;
     flat float selected;
+    vec4 color;
 } vs_out;
 
 void main()
@@ -62,6 +64,7 @@ void main()
     vec3 B = cross(N, T) * aTangent.w;
     vs_out.TBN = mat3(T, B, N);
     vs_out.selected = aSelected;
+    vs_out.color = aColor;
 
     gl_Position = uProjection * uView * vec4(vs_out.positionWS, 1.0);
 }
@@ -77,6 +80,7 @@ in VS_OUT {
     vec2 texCoord;
     mat3 TBN;
     flat float selected;
+    vec4 color;
 } fs_in;
 
 out vec4 outColor;
@@ -84,6 +88,7 @@ out vec4 outColor;
 uniform int uDebugView; // 0 = off, 1 = normals, 2 = tangents, 3 = uvs
 uniform bool uFacetedShading;
 uniform bool uUnlit;
+uniform bool uVertexColors; // multiply the surface by the mesh's per-vertex colour (linear)
 
 layout(binding = 0) uniform sampler2D uAlbedoMap;
 layout(binding = 1) uniform sampler2D uNormalMap;
@@ -168,22 +173,23 @@ void main()
         return;
     }
 
+    vec3 tint = uVertexColors ? uTint * fs_in.color.rgb : uTint;
     vec3 color;
 
     if (uUnlit)
     {
-        color = uTint;
+        color = tint;
     }
     else if (uShadingMode == 0)
     {
         // Solid preview: face/vertex normal lit with N.L only, no texture
         // fetches and no BRDF - the cheap path multi-viewport playback wants.
         float NdotL = max(dot(shadingNormal, normalize(-uLightDirection)), 0.0);
-        color = uTint * (uAmbientColor * uAmbientIntensity + NdotL * uLightIntensity);
+        color = tint * (uAmbientColor * uAmbientIntensity + NdotL * uLightIntensity);
     }
     else
     {
-        vec3 albedo = pow(texture(uAlbedoMap, fs_in.texCoord).rgb, vec3(2.2)) * uTint;
+        vec3 albedo = pow(texture(uAlbedoMap, fs_in.texCoord).rgb, vec3(2.2)) * tint;
         float roughness = clamp(texture(uRoughnessMap, fs_in.texCoord).r * uSurfaceFactor.x, 0.05, 1.0);
         float metallic = texture(uMetallicMap, fs_in.texCoord).r * uSurfaceFactor.y;
 
@@ -226,6 +232,7 @@ struct MiniVertex
     glm::vec4 tangent;
     glm::vec4 joints;
     glm::vec4 weights;
+    glm::vec4 color;
 };
 
 glm::vec3 colorForSubmesh(u32 index)
@@ -463,6 +470,17 @@ void MiniRenderer::uploadMesh(const MeshData& mesh)
         vertices[v].uv = v < mesh.uvs.size() ? mesh.uvs[v] : glm::vec2(0.0f);
         vertices[v].tangent = v < mesh.tangents.size() ? mesh.tangents[v] : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
 
+        if (v < mesh.colors.size())
+        {
+            const u32 packed = mesh.colors[v];
+            vertices[v].color = glm::vec4(static_cast<f32>(packed & 0xFF), static_cast<f32>((packed >> 8) & 0xFF),
+                                          static_cast<f32>((packed >> 16) & 0xFF),
+                                          static_cast<f32>((packed >> 24) & 0xFF)) /
+                                255.0f;
+        }
+        else
+            vertices[v].color = glm::vec4(1.0f);
+
         if (v < mesh.skin.size())
         {
             const MeshSkinVertex& skin = mesh.skin[v];
@@ -496,6 +514,8 @@ void MiniRenderer::uploadMesh(const MeshData& mesh)
     glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(MiniVertex), (void*)offsetof(MiniVertex, joints));
     glEnableVertexAttribArray(5);
     glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(MiniVertex), (void*)offsetof(MiniVertex, weights));
+    glEnableVertexAttribArray(7);
+    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(MiniVertex), (void*)offsetof(MiniVertex, color));
 
     // A stream of its own, so selecting a vertex re-uploads one byte per
     // vertex instead of the whole interleaved geometry. Sized and zeroed with
@@ -665,6 +685,7 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
     glUniform1i(glGetUniformLocation(mShaderProgram, "uDebugView"), static_cast<int>(params.debugView));
     glUniform1i(glGetUniformLocation(mShaderProgram, "uFacetedShading"), params.facetedShading ? 1 : 0);
     glUniform1i(glGetUniformLocation(mShaderProgram, "uUnlit"), params.unlit ? 1 : 0);
+    glUniform1i(glGetUniformLocation(mShaderProgram, "uVertexColors"), params.vertexColors ? 1 : 0);
 
     if (shadingMode == 1)
         bindMaterialTextures(materialForSubmesh(*mesh, 0), mWhiteTexture, mFlatNormalTexture);

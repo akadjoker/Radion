@@ -276,6 +276,20 @@ target_include_directories(radion_mesh_boolean_tests PRIVATE
 add_test(NAME mesh_boolean COMMAND radion_mesh_boolean_tests)
 set_tests_properties(mesh_boolean PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
+add_executable(radion_mesh_paint_tests
+    MeshPaintTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshPaint.cpp
+)
+target_precompile_headers(radion_mesh_paint_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_mesh_paint_tests PRIVATE radion_geometry)
+target_include_directories(radion_mesh_paint_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME mesh_paint COMMAND radion_mesh_paint_tests)
+set_tests_properties(mesh_paint PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_file_pack_tests FilePackTests.cpp)
 target_precompile_headers(radion_file_pack_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"

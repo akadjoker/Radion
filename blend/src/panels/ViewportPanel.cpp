@@ -336,6 +336,19 @@ void ViewportPanel::drawToolbar()
     }
 
     ImGui::SameLine();
+    {
+        const bool wasShown = viewportSettings.showVertexColors;
+        if (wasShown)
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+        if (ImGui::Button(ICON_MDI_BRUSH))
+            viewportSettings.showVertexColors = !viewportSettings.showVertexColors;
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Show Painted Vertex Colors");
+        if (wasShown)
+            ImGui::PopStyleColor();
+    }
+
+    ImGui::SameLine();
     ImGui::Dummy(ImVec2(10.0f, 0.0f));
     ImGui::SameLine();
 
@@ -604,6 +617,7 @@ void ViewportPanel::drawViewportWindow(usize index, const char* name, ViewMode m
         params.colorBySubmesh = app().settings().viewport().colorBySubmesh;
         params.debugView = mDebugView;
         params.unlit = mUnlit;
+        params.vertexColors = app().settings().viewport().showVertexColors;
         if (app().hasSkeleton() && !app().bonePalette().empty())
         {
             params.bonePalette = app().bonePalette().data();

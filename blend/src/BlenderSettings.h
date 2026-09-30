@@ -31,6 +31,9 @@ public:
         f32 submeshHighlightAlpha = 0.35f;
         glm::vec3 boxSelectColor = glm::vec3(1.0f, 0.65f, 0.0f);
         bool colorBySubmesh = false;
+        // Multiply the surface by the mesh's painted vertex colours - what the
+        // exported .glb will look like in a viewer that honours COLOR_0.
+        bool showVertexColors = true;
 
         // Normals/Tangents debug view: line length drawn from each vertex,
         // and the two colors - the shader's own color-coded surface is hard

@@ -66,6 +66,9 @@ struct MiniDrawParams
     // tint colorBySubmesh already multiplies it by), the "flat color, no
     // shadow" solid look.
     bool unlit = false;
+    // Multiplies the surface by MeshData::colors (linear, as glTF's COLOR_0), so
+    // painted vertex colours show. A mesh without colours is unaffected.
+    bool vertexColors = false;
     // Extra GL_POINTS pass over the mesh, drawn straight from the static
     // vertex buffer - one draw call, nothing uploaded per frame. Which points
     // come out selected is whatever setVertexSelection() last stored.

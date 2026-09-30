@@ -426,7 +426,45 @@ def group_textures(api):
     shutil.rmtree(folder, ignore_errors=True)
 
 
-GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids, "textures": group_textures}
+def group_paint(api):
+    import tempfile
+    glb = os.path.join(tempfile.mkdtemp(prefix="radion_selftest_"), "paint.glb")
+    api.call("new_document")
+    api.call("add_primitive", type="sphere", size=[2, 2, 2], name="ball", color="#ffffff")
+    check(status(api)["hasVertexColors"] is False, "a new mesh has no vertex colours")
+
+    r = api.call("paint_vertices", target="sphere", center=[0, 1, 0], radius=0.8, hardness=1.0, color="#ff0000", part="ball")
+    check(r["painted"] > 0, f"the brush reached some vertices: {r}")
+    check(status(api)["hasVertexColors"] is True, "vertex colours exist now")
+    doc_glb = api.call("export_gltf", path=glb)
+    doc = read_glb_json(glb)
+    prim = doc["meshes"][0]["primitives"][0]
+    check("COLOR_0" in prim["attributes"], "the glb carries COLOR_0")
+
+    api.call("undo")
+    check(status(api)["hasVertexColors"] is False, "undo removes the paint")
+
+    api.call("select", mode="vertex", action="set", box={"min": [-2, 0.5, -2], "max": [2, 2, 2]})
+    r = api.call("paint_vertices", color=[0, 0, 1], opacity=0.5)
+    check(r["painted"] > 0, f"the selection was painted: {r}")
+    r = api.call("clear_vertex_colors", target="selection")
+    check(r["hasVertexColors"] is False, "clearing the same selection leaves nothing painted")
+
+    api.call("paint_vertices", target="part", part="ball", color="#00ff00")
+    api.call("paint_vertices", target="all", color="#0000ff", opacity=0.25)
+    check(status(api)["hasVertexColors"] is True, "painted")
+    r = api.call("clear_vertex_colors")
+    check(r["hasVertexColors"] is False, "clear all")
+
+    api.call("select", action="clear")
+    expect_error(api, "failed", "paint_vertices", color="#ff0000")
+    expect_error(api, "invalid_params", "paint_vertices", target="sphere", color="#ff0000")
+    expect_error(api, "invalid_params", "paint_vertices", target="part", color="#ff0000")
+    expect_error(api, "invalid_params", "paint_vertices", target="all")
+    expect_error(api, "invalid_params", "paint_vertices", target="blob", color="#ff0000")
+
+
+GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids, "textures": group_textures, "paint": group_paint}
 
 
 # ------------------------------------------------------------------- driver

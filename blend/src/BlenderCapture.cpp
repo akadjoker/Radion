@@ -118,6 +118,7 @@ bool BlenderApplication::captureViewport(const CaptureParams& params, std::vecto
         MiniDrawParams draw;
         draw.mode = params.shading;
         draw.colorBySubmesh = params.colorBySubmesh;
+        draw.vertexColors = params.vertexColors;
         draw.showWireframeOverlay = params.wireframeOverlay;
         if (mHasSkeleton && !mBonePalette.empty())
         {
