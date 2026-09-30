@@ -190,6 +190,32 @@ target_include_directories(radion_blender_selection_tests PRIVATE
 add_test(NAME blender_selection COMMAND radion_blender_selection_tests)
 set_tests_properties(blender_selection PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
+# The blender's HTTP API core has no GL or engine dependency, so it is tested
+# on its own; only the commands that drive the editor need the application.
+if(RADION_BUILD_BLENDER)
+    add_executable(radion_blender_api_tests BlenderApiTests.cpp)
+    target_precompile_headers(radion_blender_api_tests PRIVATE
+        "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+    )
+    target_link_libraries(radion_blender_api_tests PRIVATE radion_blender_api radion_core)
+    add_test(NAME blender_api COMMAND radion_blender_api_tests)
+    set_tests_properties(blender_api PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+endif()
+
+add_executable(radion_procedural_shapes_tests
+    ProceduralShapesTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/ProceduralShapes.cpp
+)
+target_precompile_headers(radion_procedural_shapes_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_procedural_shapes_tests PRIVATE radion_render)
+target_include_directories(radion_procedural_shapes_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME procedural_shapes COMMAND radion_procedural_shapes_tests)
+set_tests_properties(procedural_shapes PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_file_pack_tests FilePackTests.cpp)
 target_precompile_headers(radion_file_pack_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"

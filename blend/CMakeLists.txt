@@ -3,6 +3,26 @@ project(radion_blender)
 
 add_subdirectory(minirender)
 
+# Local HTTP/JSON API. No GL or engine dependency, so the tests link it alone.
+find_package(Threads REQUIRED)
+add_library(radion_blender_api STATIC
+    src/api/ApiServer.cpp
+    src/api/ApiServer.h
+    src/api/CommandRegistry.cpp
+    src/api/CommandRegistry.h
+    src/api/MainThreadQueue.cpp
+    src/api/MainThreadQueue.h
+)
+target_include_directories(radion_blender_api PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/vendor
+)
+target_link_libraries(radion_blender_api PUBLIC
+    Threads::Threads
+    $<$<PLATFORM_ID:Windows>:ws2_32>
+)
+set_target_properties(radion_blender_api PROPERTIES CXX_STANDARD 17)
+
 # ImAnim (animation widgets)
 set(IMANIM_SOURCES
     vendor/ImAnim/im_anim.cpp
@@ -14,6 +34,15 @@ set(BLENDER_SOURCES
     src/main.cpp
     src/BlenderApplication.cpp
     src/BlenderApplication.h
+    src/BlenderCapture.cpp
+    src/ProceduralShapes.cpp
+    src/ProceduralShapes.h
+    src/api/BlenderApiHost.cpp
+    src/api/BlenderApiHost.h
+    src/api/BlenderCommands.cpp
+    src/api/BlenderCommands.h
+    src/ViewportCamera.cpp
+    src/ViewportCamera.h
     src/BlenderPanel.h
     src/BlenderTheme.h
     src/BlenderSelection.cpp
@@ -53,7 +82,7 @@ add_executable(radion_blender ${BLENDER_SOURCES})
 
 # Link against Radion engine (pulls render/gpu/scene/core transitively,
 # same as radion_editor does) and the standalone MiniRenderer lib
-target_link_libraries(radion_blender PRIVATE radion_engine radion_minirender radion_geometry)
+target_link_libraries(radion_blender PRIVATE radion_engine radion_minirender radion_geometry radion_blender_api)
 
 target_compile_definitions(radion_blender PRIVATE
     RADION_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets"
