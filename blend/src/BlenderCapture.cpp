@@ -59,7 +59,7 @@ struct CaptureTarget
 // width when the image is narrower than it is tall).
 f32 framingDistance(CameraView view, f32 radius, f32 aspect)
 {
-    constexpr f32 kMargin = 1.15f;
+    constexpr f32 kMargin = 1.05f;
     if (view == CameraView::Perspective)
     {
         const f32 halfFov = glm::radians(60.0f) * 0.5f;

@@ -125,8 +125,10 @@ curl -s -X POST localhost:7420/api/commands/add_primitive \
   -d '{"type":"sphere","name":"corpo","color":"#c0392b","scale":[1,1,2.2]}'
 ```
 
-`blend/examples/game_shapes.py` constrói os modelos de um jogo (helicóptero do jogador, helicóptero
-inimigo, caça e foguetão) e guarda cada um em `.glb` + `.rmesh` + screenshot.
+`blend/examples/game_shapes.py` constrói os modelos voadores de um jogo (helicóptero do jogador,
+helicóptero inimigo, caça e foguetão) e `blend/examples/game_ground.py` os de terra (camião de
+mísseis, radar, barraca de lona e barracão de chapa); cada um é guardado em `.glb` + `.rmesh` +
+screenshot. Os modelos voadores ficam centrados na origem, os de terra assentam em y = 0.
 
 `blend/examples/blender_api_client.py` é um cliente mínimo (só biblioteca padrão) e
 `blend/examples/helicopter.py` constrói um helicóptero completo e guarda screenshots:

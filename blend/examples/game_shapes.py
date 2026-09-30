@@ -25,31 +25,39 @@ def normal(a, b, c):
     return (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
 
 
+def orient(triangle, vertices, outward):
+    """Counter-clockwise seen from outside: flips `triangle` when it faces `inward`."""
+    a, b, c = (vertices[i] for i in triangle)
+    n = normal(a, b, c)
+    if sum(n[i] * outward[i] for i in range(3)) < 0:
+        return [triangle[0], triangle[2], triangle[1]]
+    return list(triangle)
+
+
+def convex_solid(api, name, vertices, faces, **style):
+    """A closed convex solid from polygon faces (lists of vertex indices, any
+    winding). Each face is fanned into triangles and turned to face away from the
+    middle of the solid, so the faces need not be listed carefully."""
+    centre = [sum(v[i] for v in vertices) / len(vertices) for i in range(3)]
+    triangles = []
+    for face in faces:
+        for k in range(1, len(face) - 1):
+            tri = (face[0], face[k], face[k + 1])
+            mid = [sum(vertices[i][axis] for i in tri) / 3 for axis in range(3)]
+            triangles.append(orient(tri, vertices, [mid[i] - centre[i] for i in range(3)]))
+    return api.call("add_mesh", name=name, positions=vertices, triangles=triangles, **style)
+
+
 def prism(api, name, outline, half_thickness_root, half_thickness_tip, **style):
     """A flat swept slab: `outline` is four (x, z) corners, the first two at the
     root and the last two at the tip. Used for wings and stabilisers."""
     vertices = []
-    for index, (x, z) in enumerate(outline):
-        t = half_thickness_root if index < 2 else half_thickness_tip
-        vertices.append([x, t, z])
-    for index, (x, z) in enumerate(outline):
-        t = half_thickness_root if index < 2 else half_thickness_tip
-        vertices.append([x, -t, z])
-    centre = [sum(v[i] for v in vertices) / 8 for i in range(3)]
-
-    quads = [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]
-    triangles = []
-    for quad in quads:
-        for tri in ((quad[0], quad[1], quad[2]), (quad[0], quad[2], quad[3])):
-            a, b, c = (vertices[i] for i in tri)
-            mid = [(a[i] + b[i] + c[i]) / 3 for i in range(3)]
-            n = normal(a, b, c)
-            outward = [mid[i] - centre[i] for i in range(3)]
-            # Counter-clockwise seen from outside: flip whichever way is inward.
-            if sum(n[i] * outward[i] for i in range(3)) < 0:
-                tri = (tri[0], tri[2], tri[1])
-            triangles.append(list(tri))
-    return api.call("add_mesh", name=name, positions=vertices, triangles=triangles, **style)
+    for sign in (1, -1):
+        for index, (x, z) in enumerate(outline):
+            t = half_thickness_root if index < 2 else half_thickness_tip
+            vertices.append([x, sign * t, z])
+    faces = [(0, 1, 2, 3), (4, 5, 6, 7), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)]
+    return convex_solid(api, name, vertices, faces, **style)
 
 
 def helicopter(api, body, trim, glass, weapons=False):
@@ -167,9 +175,11 @@ def jet(api):
         api.call("duplicate_part", part=name, mirror="x", name=name.replace("_R", "_L"))
 
 
-def save(api, out, name):
+def save(api, out, name, ground=False):
+    """Writes the model and a screenshot. `ground` rests it on y = 0 (buildings,
+    vehicles); otherwise it is centred on the origin (things that fly)."""
     os.makedirs(out, exist_ok=True)
-    api.call("center_mesh")
+    api.call("center_mesh", ground=ground)
     status = api.call("get_status")
     api.call("export_gltf", path=os.path.join(out, name + ".glb"))
     api.call("save_mesh", path=os.path.join(out, name + ".rmesh"))
