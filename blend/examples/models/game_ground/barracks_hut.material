@@ -1,0 +1,323 @@
+material "roof"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.205079, 0.254152, 0.144128, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0.2, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "wall_front"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.258183, 0.296138, 0.184475, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.9, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "wall_rear"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.258183, 0.296138, 0.184475, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.9, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "slab"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.323143, 0.323143, 0.296138, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.95, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "door"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0231534, 0.028426, 0.017642, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.9, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "step"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.323143, 0.323143, 0.296138, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.95, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "window-1"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.274677, 0.527115, 0.686685, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.1, 0.2, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "window1"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.274677, 0.527115, 0.686685, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.1, 0.2, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "chimney"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0423114, 0.0423114, 0.0423114, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.7, 0.5, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "chimney_cap"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0231534, 0.0231534, 0.0231534, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.7, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "rib0"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.132868, 0.168269, 0.102242, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "rib1"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.132868, 0.168269, 0.102242, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "rib2"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.132868, 0.168269, 0.102242, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "rib3"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.132868, 0.168269, 0.102242, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "rib4"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.132868, 0.168269, 0.102242, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "rib5"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.132868, 0.168269, 0.102242, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "rib6"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.132868, 0.168269, 0.102242, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
