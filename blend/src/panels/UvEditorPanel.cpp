@@ -21,14 +21,14 @@ constexpr u32 kVertexColor = IM_COL32(230, 230, 230, 255);
 constexpr u32 kSelectedColor = IM_COL32(255, 90, 40, 255);
 constexpr u32 kPinnedColor = IM_COL32(70, 160, 255, 255);
 
-ImVec2 toImVec(const glm::vec2& v)
+ImVec2 toImVec(const Math::vec2& v)
 {
     return ImVec2(v.x, v.y);
 }
 
-glm::vec2 toGlm(const ImVec2& v)
+Math::vec2 toMath(const ImVec2& v)
 {
-    return glm::vec2(v.x, v.y);
+    return Math::vec2(v.x, v.y);
 }
 } // namespace
 
@@ -66,7 +66,7 @@ void UvEditorPanel::frameView(const ImVec2& canvasSize)
     // The 0..1 square, with a little air round it.
     const f32 side = std::max(std::min(canvasSize.x, canvasSize.y) - 24.0f, 32.0f);
     mZoom = side;
-    mPan = glm::vec2((canvasSize.x - side) * 0.5f, (canvasSize.y - side) * 0.5f);
+    mPan = Math::vec2((canvasSize.x - side) * 0.5f, (canvasSize.y - side) * 0.5f);
 }
 
 void UvEditorPanel::onImGui()
@@ -90,7 +90,7 @@ void UvEditorPanel::onImGui()
         if (ImGui::Button("Box Map Everything"))
         {
             u32 added = 0;
-            app().boxMapUvs(BlenderApplication::UvTarget::All, -1, mBoxTile, glm::vec2(0.0f), &added, nullptr);
+            app().boxMapUvs(BlenderApplication::UvTarget::All, -1, mBoxTile, Math::vec2(0.0f), &added, nullptr);
         }
         ImGui::End();
         return;
@@ -128,7 +128,7 @@ void UvEditorPanel::drawToolbar(const std::vector<u32>& shown)
     auto pivotOf = [&](const std::vector<u32>& vertices)
     {
         const MeshUv::Rect rect = MeshUv::bounds(*mesh, vertices);
-        return rect.valid ? rect.center() : glm::vec2(0.5f);
+        return rect.valid ? rect.center() : Math::vec2(0.5f);
     };
 
     if (ImGui::Button("All"))
@@ -171,14 +171,14 @@ void UvEditorPanel::drawToolbar(const std::vector<u32>& shown)
     if (ImGui::Button("Flip U"))
     {
         MeshUv::Transform change;
-        change.scale = glm::vec2(-1.0f, 1.0f);
+        change.scale = Math::vec2(-1.0f, 1.0f);
         app().transformUvs(target, pivotOf(target), change);
     }
     ImGui::SameLine();
     if (ImGui::Button("Flip V"))
     {
         MeshUv::Transform change;
-        change.scale = glm::vec2(1.0f, -1.0f);
+        change.scale = Math::vec2(1.0f, -1.0f);
         app().transformUvs(target, pivotOf(target), change);
     }
     ImGui::SameLine();
@@ -188,7 +188,7 @@ void UvEditorPanel::drawToolbar(const std::vector<u32>& shown)
     if (ImGui::Button("Scale"))
     {
         MeshUv::Transform change;
-        change.scale = glm::vec2(mScaleStep);
+        change.scale = Math::vec2(mScaleStep);
         app().transformUvs(target, pivotOf(target), change);
     }
     ImGui::SameLine();
@@ -205,9 +205,9 @@ void UvEditorPanel::drawToolbar(const std::vector<u32>& shown)
         const s32 part = app().selectedSubmesh() >= 0 ? app().selectedSubmesh() : (mesh->submeshes.size() == 1 ? 0 : -1);
         u32 added = 0;
         if (part >= 0)
-            app().boxMapUvs(BlenderApplication::UvTarget::Part, part, mBoxTile, glm::vec2(0.0f), &added, nullptr);
+            app().boxMapUvs(BlenderApplication::UvTarget::Part, part, mBoxTile, Math::vec2(0.0f), &added, nullptr);
         else
-            app().boxMapUvs(BlenderApplication::UvTarget::All, -1, mBoxTile, glm::vec2(0.0f), &added, nullptr);
+            app().boxMapUvs(BlenderApplication::UvTarget::All, -1, mBoxTile, Math::vec2(0.0f), &added, nullptr);
     }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Project the selected part (or everything) from the six box sides. Splits shared vertices.");
@@ -251,9 +251,9 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
     draw->PushClipRect(origin, ImVec2(origin.x + available.x, origin.y + available.y), true);
     draw->AddRectFilled(origin, ImVec2(origin.x + available.x, origin.y + available.y), IM_COL32(32, 32, 32, 255));
 
-    const glm::vec2 corner = toGlm(origin) + mPan;
-    auto toScreen = [&](const glm::vec2& uv) { return corner + uv * mZoom; };
-    auto toUv = [&](const glm::vec2& screen) { return (screen - corner) / mZoom; };
+    const Math::vec2 corner = toMath(origin) + mPan;
+    auto toScreen = [&](const Math::vec2& uv) { return corner + uv * mZoom; };
+    auto toUv = [&](const Math::vec2& screen) { return (screen - corner) / mZoom; };
 
     // The albedo map of the shown part, when it has one.
     bool drewTexture = false;
@@ -270,7 +270,7 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
                 {
                     const ImTextureID id = static_cast<ImTextureID>(
                         static_cast<uintptr_t>(GPU::getSingleton().nativeTextureId(texture)));
-                    draw->AddImage(id, toImVec(toScreen(glm::vec2(0, 0))), toImVec(toScreen(glm::vec2(1, 1))),
+                    draw->AddImage(id, toImVec(toScreen(Math::vec2(0, 0))), toImVec(toScreen(Math::vec2(1, 1))),
                                    ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f));
                     drewTexture = true;
                 }
@@ -278,11 +278,11 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
         }
     }
     if (!drewTexture)
-        draw->AddRectFilled(toImVec(toScreen(glm::vec2(0, 0))), toImVec(toScreen(glm::vec2(1, 1))), IM_COL32(54, 54, 54, 255));
+        draw->AddRectFilled(toImVec(toScreen(Math::vec2(0, 0))), toImVec(toScreen(Math::vec2(1, 1))), IM_COL32(54, 54, 54, 255));
     if (!drewTexture && mShowTexture && mesh->submeshes.size() > 1 && app().selectedSubmesh() < 0)
         draw->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(170, 170, 170, 255),
                       "Select a part to see its texture");
-    draw->AddRect(toImVec(toScreen(glm::vec2(0, 0))), toImVec(toScreen(glm::vec2(1, 1))), IM_COL32(150, 150, 150, 255));
+    draw->AddRect(toImVec(toScreen(Math::vec2(0, 0))), toImVec(toScreen(Math::vec2(1, 1))), IM_COL32(150, 150, 150, 255));
 
     // Tenth-of-a-unit grid, only while it is not a blur.
     if (mZoom > 120.0f)
@@ -290,15 +290,15 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
         for (int i = 1; i < 10; ++i)
         {
             const f32 t = static_cast<f32>(i) / 10.0f;
-            draw->AddLine(toImVec(toScreen(glm::vec2(t, 0))), toImVec(toScreen(glm::vec2(t, 1))), IM_COL32(255, 255, 255, 18));
-            draw->AddLine(toImVec(toScreen(glm::vec2(0, t))), toImVec(toScreen(glm::vec2(1, t))), IM_COL32(255, 255, 255, 18));
+            draw->AddLine(toImVec(toScreen(Math::vec2(t, 0))), toImVec(toScreen(Math::vec2(t, 1))), IM_COL32(255, 255, 255, 18));
+            draw->AddLine(toImVec(toScreen(Math::vec2(0, t))), toImVec(toScreen(Math::vec2(1, t))), IM_COL32(255, 255, 255, 18));
         }
     }
 
     // Triangle edges.
     for (const u32 triangle : triangles)
     {
-        glm::vec2 p[3];
+        Math::vec2 p[3];
         for (u32 corner3 = 0; corner3 < 3; ++corner3)
             p[corner3] = toScreen(mesh->uvs[mesh->indices[static_cast<usize>(triangle) * 3 + corner3]]);
         for (u32 edge = 0; edge < 3; ++edge)
@@ -309,7 +309,7 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
     const std::vector<u8>* pinned = app().uvPinned();
     for (const u32 vertex : shown)
     {
-        const glm::vec2 at = toScreen(mesh->uvs[vertex]);
+        const Math::vec2 at = toScreen(mesh->uvs[vertex]);
         const bool isPinned = pinned && (*pinned)[vertex];
         const bool isSelected = mSelected[vertex] != 0;
         const f32 half = isSelected ? 3.5f : 2.5f;
@@ -321,14 +321,14 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
 
     // ---------------------------------------------------------- interaction
     const ImGuiIO& io = ImGui::GetIO();
-    const glm::vec2 mouse = toGlm(io.MousePos);
+    const Math::vec2 mouse = toMath(io.MousePos);
 
     if (hovered && io.MouseWheel != 0.0f)
     {
         // Zoom about the mouse: the UV point under it stays under it.
-        const glm::vec2 before = toUv(mouse);
-        mZoom = glm::clamp(mZoom * std::pow(1.15f, io.MouseWheel), 8.0f, 20000.0f);
-        mPan = mouse - toGlm(origin) - before * mZoom;
+        const Math::vec2 before = toUv(mouse);
+        mZoom = Math::clamp(mZoom * std::pow(1.15f, io.MouseWheel), 8.0f, 20000.0f);
+        mPan = mouse - toMath(origin) - before * mZoom;
     }
 
     auto nearestVertex = [&]() -> s32
@@ -337,7 +337,7 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
         f32 bestDistance = kPickRadius;
         for (const u32 vertex : shown)
         {
-            const f32 distance = glm::length(toScreen(mesh->uvs[vertex]) - mouse);
+            const f32 distance = Math::length(toScreen(mesh->uvs[vertex]) - mouse);
             if (distance < bestDistance)
             {
                 bestDistance = distance;
@@ -391,7 +391,7 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
     {
         if (ImGui::IsMouseDown(ImGuiMouseButton_Middle) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
         {
-            mPan += toGlm(io.MouseDelta);
+            mPan += toMath(io.MouseDelta);
         }
         else
             mDrag = Drag::None;
@@ -400,15 +400,15 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
     {
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
-            glm::vec2 delta = (mouse - mDragStart) / mZoom;
+            Math::vec2 delta = (mouse - mDragStart) / mZoom;
             if (mSnap && !mMoveOrigin.empty())
             {
                 // Snap where the first vertex would land, and move the rest by the same amount.
-                const glm::vec2 landing = mMoveOrigin.front().second + delta;
-                const glm::vec2 snapped = glm::round(landing / mSnapStep) * mSnapStep;
+                const Math::vec2 landing = mMoveOrigin.front().second + delta;
+                const Math::vec2 snapped = Math::round(landing / mSnapStep) * mSnapStep;
                 delta = snapped - mMoveOrigin.front().second;
             }
-            if (glm::length(delta) > 0.0f && !mMoveOrigin.empty())
+            if (Math::length(delta) > 0.0f && !mMoveOrigin.empty())
             {
                 if (!mMoveRecorded)
                 {
@@ -431,11 +431,11 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
         draw->AddRectFilled(a, b, IM_COL32(255, 165, 0, 30));
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
-            const glm::vec2 low = glm::min(mDragStart, mouse);
-            const glm::vec2 high = glm::max(mDragStart, mouse);
+            const Math::vec2 low = Math::min(mDragStart, mouse);
+            const Math::vec2 high = Math::max(mDragStart, mouse);
             for (const u32 vertex : shown)
             {
-                const glm::vec2 at = toScreen(mesh->uvs[vertex]);
+                const Math::vec2 at = toScreen(mesh->uvs[vertex]);
                 if (at.x >= low.x && at.x <= high.x && at.y >= low.y && at.y <= high.y)
                     mSelected[vertex] = 1;
             }

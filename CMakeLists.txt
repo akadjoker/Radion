@@ -54,6 +54,7 @@ option(RADION_ENABLE_SANITIZERS "Enable sanitizers in Debug builds" ON)
 option(RADION_STATIC_MINGW_RUNTIME "Link the MinGW GCC runtimes into Radion executables" ON)
 option(RADION_BUILD_EDITOR "Build the Radion editor" ON)
 option(RADION_BUILD_RUNNER "Build the standalone Radion game runner" ON)
+option(RADION_BUILD_BLENDER "Build the Radion Blender tool" ON)
 option(RADION_BUILD_VOXEL_DEMO "Build the voxel terrain demo" ON)
 option(RADION_BUILD_BISTRO_DEMO "Build the large scene demo" ON)
  
@@ -70,6 +71,7 @@ find_package(OpenGL REQUIRED)
 # dependencies, and Mathc is a small self-contained implementation.
 add_library(radion_math STATIC vendor/mathc/mathc.cpp)
 target_include_directories(radion_math PUBLIC ${PROJECT_SOURCE_DIR}/vendor/mathc)
+
 target_compile_features(radion_math PUBLIC cxx_std_17)
 
 if(WIN32 AND BUILD_SHARED_LIBS)
@@ -115,6 +117,10 @@ endif()
 
 if(RADION_BUILD_RUNNER)
     add_subdirectory(runner)
+endif()
+
+if(RADION_BUILD_BLENDER)
+    add_subdirectory(blend)
 endif()
 
 if(RADION_BUILD_VOXEL_DEMO)

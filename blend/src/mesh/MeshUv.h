@@ -19,15 +19,15 @@ namespace Radion::MeshUv
 
 struct Rect
 {
-    glm::vec2 min = glm::vec2(0.0f);
-    glm::vec2 max = glm::vec2(0.0f);
+    Math::vec2 min = Math::vec2(0.0f);
+    Math::vec2 max = Math::vec2(0.0f);
     bool valid = false;
 
-    glm::vec2 center() const
+    Math::vec2 center() const
     {
         return (min + max) * 0.5f;
     }
-    glm::vec2 size() const
+    Math::vec2 size() const
     {
         return max - min;
     }
@@ -52,17 +52,17 @@ Rect bounds(const MeshData& mesh, const std::vector<u32>& vertices);
 
 struct Transform
 {
-    glm::vec2 translate = glm::vec2(0.0f);
+    Math::vec2 translate = Math::vec2(0.0f);
     // Counter-clockwise as drawn in the UV layout (u right, v DOWN: UV (0,0) is the top
     // left of the texture, as in glTF and the engine's own loaders).
     f32 rotateDegrees = 0.0f;
-    glm::vec2 scale = glm::vec2(1.0f); // negative flips
+    Math::vec2 scale = Math::vec2(1.0f); // negative flips
 };
 
 // Scales and rotates about `pivot`, then translates. Returns how many vertices
 // moved (pinned ones do not).
 u32 transform(MeshData& mesh, const std::vector<u32>& vertices, const std::vector<u8>* pinned,
-              const glm::vec2& pivot, const Transform& change);
+              const Math::vec2& pivot, const Transform& change);
 
 // Moves and scales the vertices' bounds into the 0..1 square, leaving `margin`
 // (a fraction of the square) free all round. With `keepAspect` the layout keeps
@@ -76,7 +76,7 @@ u32 fit(MeshData& mesh, const std::vector<u32>& vertices, const std::vector<u8>*
 // triangles outside the list - is duplicated so each keeps its own UV. The new
 // vertices are appended; `touched` gets every vertex the listed triangles use
 // afterwards. Returns how many vertices were added.
-u32 boxMap(MeshData& mesh, const std::vector<u32>& triangles, f32 tile, const glm::vec2& offset,
+u32 boxMap(MeshData& mesh, const std::vector<u32>& triangles, f32 tile, const Math::vec2& offset,
            std::vector<u32>* touched = nullptr);
 
 // The UV layout of `triangles` as an RGBA image `size` x `size`: edges in a

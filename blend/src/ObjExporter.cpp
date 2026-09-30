@@ -24,20 +24,20 @@ bool ObjExporter::save(const MeshData& mesh, const std::string& path)
     std::ostringstream obj;
     obj << "mtllib " << mtlName << "\n";
 
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::vec3& position : mesh.positions)
         obj << "v " << position.x << " " << position.y << " " << position.z << "\n";
 
     const bool hasUVs = mesh.uvs.size() == mesh.positions.size();
     if (hasUVs)
     {
-        for (const glm::vec2& uv : mesh.uvs)
+        for (const Math::vec2& uv : mesh.uvs)
             obj << "vt " << uv.x << " " << uv.y << "\n";
     }
 
     const bool hasNormals = mesh.normals.size() == mesh.positions.size();
     if (hasNormals)
     {
-        for (const glm::vec3& normal : mesh.normals)
+        for (const Math::vec3& normal : mesh.normals)
             obj << "vn " << normal.x << " " << normal.y << " " << normal.z << "\n";
     }
 
@@ -113,10 +113,10 @@ bool ObjExporter::save(const MeshData& mesh, const std::string& path)
             const std::string materialName =
                 material.name.empty() ? "material" + std::to_string(i) : material.name;
             mtl << "newmtl " << materialName << "\n";
-            mtl << "Kd " << material.params.baseColor.r << " " << material.params.baseColor.g
-                << " " << material.params.baseColor.b << "\n";
-            if (material.params.baseColor.a < 1.0f)
-                mtl << "d " << material.params.baseColor.a << "\n";
+            mtl << "Kd " << material.params.baseColor.x << " " << material.params.baseColor.y
+                << " " << material.params.baseColor.z << "\n";
+            if (material.params.baseColor.w < 1.0f)
+                mtl << "d " << material.params.baseColor.w << "\n";
             const std::string& albedoFile = material.textures[SlotAlbedo].file;
             if (!albedoFile.empty())
                 mtl << "map_Kd " << albedoFile << "\n";

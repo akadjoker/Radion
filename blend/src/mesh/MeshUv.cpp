@@ -37,7 +37,7 @@ bool isPinned(const std::vector<u8>* pinned, u32 vertex)
 void ensureUvs(MeshData& mesh)
 {
     if (mesh.uvs.size() != mesh.positions.size())
-        mesh.uvs.resize(mesh.positions.size(), glm::vec2(0.0f));
+        mesh.uvs.resize(mesh.positions.size(), Math::vec2(0.0f));
 }
 
 std::vector<u32> verticesOfTriangles(const MeshData& mesh, const std::vector<u32>& triangles)
@@ -125,7 +125,7 @@ Rect bounds(const MeshData& mesh, const std::vector<u32>& vertices)
     {
         if (vertex >= mesh.uvs.size())
             continue;
-        const glm::vec2& uv = mesh.uvs[vertex];
+        const Math::vec2& uv = mesh.uvs[vertex];
         if (!rect.valid)
         {
             rect.min = rect.max = uv;
@@ -133,21 +133,21 @@ Rect bounds(const MeshData& mesh, const std::vector<u32>& vertices)
         }
         else
         {
-            rect.min = glm::min(rect.min, uv);
-            rect.max = glm::max(rect.max, uv);
+            rect.min = Math::min(rect.min, uv);
+            rect.max = Math::max(rect.max, uv);
         }
     }
     return rect;
 }
 
-u32 transform(MeshData& mesh, const std::vector<u32>& vertices, const std::vector<u8>* pinned, const glm::vec2& pivot,
+u32 transform(MeshData& mesh, const std::vector<u32>& vertices, const std::vector<u8>* pinned, const Math::vec2& pivot,
               const Transform& change)
 {
     ensureUvs(mesh);
     // v runs DOWN the image (the engine, like glTF, puts UV (0,0) at the top left
     // of a texture), so a turn that looks counter-clockwise on screen is a
     // clockwise one in (u, v) coordinates.
-    const f32 radians = -glm::radians(change.rotateDegrees);
+    const f32 radians = -Math::radians(change.rotateDegrees);
     const f32 c = std::cos(radians);
     const f32 s = std::sin(radians);
     u32 moved = 0;
@@ -155,8 +155,8 @@ u32 transform(MeshData& mesh, const std::vector<u32>& vertices, const std::vecto
     {
         if (vertex >= mesh.uvs.size() || isPinned(pinned, vertex))
             continue;
-        glm::vec2 offset = (mesh.uvs[vertex] - pivot) * change.scale;
-        offset = glm::vec2(offset.x * c - offset.y * s, offset.x * s + offset.y * c);
+        Math::vec2 offset = (mesh.uvs[vertex] - pivot) * change.scale;
+        offset = Math::vec2(offset.x * c - offset.y * s, offset.x * s + offset.y * c);
         mesh.uvs[vertex] = pivot + offset + change.translate;
         ++moved;
     }
@@ -169,12 +169,12 @@ u32 fit(MeshData& mesh, const std::vector<u32>& vertices, const std::vector<u8>*
     const Rect rect = bounds(mesh, vertices);
     if (!rect.valid)
         return 0;
-    margin = glm::clamp(margin, 0.0f, 0.45f);
+    margin = Math::clamp(margin, 0.0f, 0.45f);
     const f32 room = 1.0f - 2.0f * margin;
-    const glm::vec2 size = glm::max(rect.size(), glm::vec2(1e-8f));
-    glm::vec2 scale = glm::vec2(room) / size;
+    const Math::vec2 size = Math::max(rect.size(), Math::vec2(1e-8f));
+    Math::vec2 scale = Math::vec2(room) / size;
     if (keepAspect)
-        scale = glm::vec2(std::min(scale.x, scale.y));
+        scale = Math::vec2(std::min(scale.x, scale.y));
 
     // A rectangle of zero width or height has nothing to stretch.
     if (rect.size().x < 1e-8f)
@@ -182,19 +182,19 @@ u32 fit(MeshData& mesh, const std::vector<u32>& vertices, const std::vector<u8>*
     if (rect.size().y < 1e-8f)
         scale.y = keepAspect ? scale.y : 1.0f;
 
-    const glm::vec2 centre = rect.center();
+    const Math::vec2 centre = rect.center();
     u32 moved = 0;
     for (const u32 vertex : vertices)
     {
         if (vertex >= mesh.uvs.size() || isPinned(pinned, vertex))
             continue;
-        mesh.uvs[vertex] = (mesh.uvs[vertex] - centre) * scale + glm::vec2(0.5f);
+        mesh.uvs[vertex] = (mesh.uvs[vertex] - centre) * scale + Math::vec2(0.5f);
         ++moved;
     }
     return moved;
 }
 
-u32 boxMap(MeshData& mesh, const std::vector<u32>& triangles, f32 tile, const glm::vec2& offset,
+u32 boxMap(MeshData& mesh, const std::vector<u32>& triangles, f32 tile, const Math::vec2& offset,
            std::vector<u32>* touched)
 {
     ensureUvs(mesh);
@@ -236,11 +236,11 @@ u32 boxMap(MeshData& mesh, const std::vector<u32>& triangles, f32 tile, const gl
         if (corner3[0] >= originalVertices || corner3[1] >= originalVertices || corner3[2] >= originalVertices)
             continue;
 
-        const glm::vec3& p0 = mesh.positions[corner3[0]];
-        const glm::vec3 normal = glm::cross(mesh.positions[corner3[1]] - p0, mesh.positions[corner3[2]] - p0);
-        const glm::vec3 magnitude = glm::abs(normal);
+        const Math::vec3& p0 = mesh.positions[corner3[0]];
+        const Math::vec3 normal = Math::cross(mesh.positions[corner3[1]] - p0, mesh.positions[corner3[2]] - p0);
+        const Math::vec3 magnitude = Math::abs(normal);
         const u32 axis = magnitude.x >= magnitude.y && magnitude.x >= magnitude.z ? 0u : magnitude.y >= magnitude.z ? 1u : 2u;
-        const bool positive = normal[static_cast<glm::length_t>(axis)] > 0.0f;
+        const bool positive = normal[static_cast<int>(axis)] > 0.0f;
         const u32 plane = axis * 2 + (positive ? 1u : 0u);
 
         for (u32 corner = 0; corner < 3; ++corner)
@@ -264,14 +264,14 @@ u32 boxMap(MeshData& mesh, const std::vector<u32>& triangles, f32 tile, const gl
             }
             mesh.indices[static_cast<usize>(triangle) * 3 + corner] = vertex;
 
-            const glm::vec3& p = mesh.positions[original];
-            glm::vec2 uv;
+            const Math::vec3& p = mesh.positions[original];
+            Math::vec2 uv;
             if (axis == 0)
-                uv = glm::vec2(positive ? -p.z : p.z, p.y);
+                uv = Math::vec2(positive ? -p.z : p.z, p.y);
             else if (axis == 1)
-                uv = glm::vec2(p.x, positive ? -p.z : p.z);
+                uv = Math::vec2(p.x, positive ? -p.z : p.z);
             else
-                uv = glm::vec2(positive ? p.x : -p.x, p.y);
+                uv = Math::vec2(positive ? p.x : -p.x, p.y);
             mesh.uvs[vertex] = uv * tile + offset;
         }
     }
@@ -329,26 +329,26 @@ std::vector<u8> renderLayout(const MeshData& mesh, const std::vector<u32>& trian
         pixel[1] = g;
         pixel[2] = b;
     };
-    auto line = [&](glm::vec2 a, glm::vec2 b, u8 r, u8 g, u8 bl)
+    auto line = [&](Math::vec2 a, Math::vec2 b, u8 r, u8 g, u8 bl)
     {
         const f32 steps = std::max(std::abs(b.x - a.x), std::abs(b.y - a.y));
         const s32 count = static_cast<s32>(std::ceil(steps));
         for (s32 i = 0; i <= count; ++i)
         {
             const f32 t = count == 0 ? 0.0f : static_cast<f32>(i) / static_cast<f32>(count);
-            const glm::vec2 p = glm::mix(a, b, t);
+            const Math::vec2 p = Math::mix(a, b, t);
             plot(static_cast<s32>(std::lround(p.x)), static_cast<s32>(std::lround(p.y)), r, g, bl);
         }
     };
     // UV (0,0) is the top left of the square, as in a texture file: v runs down.
-    auto toPixel = [&](const glm::vec2& uv)
+    auto toPixel = [&](const Math::vec2& uv)
     {
-        return glm::vec2(uv.x * static_cast<f32>(size - 1), uv.y * static_cast<f32>(size - 1));
+        return Math::vec2(uv.x * static_cast<f32>(size - 1), uv.y * static_cast<f32>(size - 1));
     };
 
     // The 0..1 frame.
-    const glm::vec2 corner00 = toPixel(glm::vec2(0, 0)), corner10 = toPixel(glm::vec2(1, 0));
-    const glm::vec2 corner11 = toPixel(glm::vec2(1, 1)), corner01 = toPixel(glm::vec2(0, 1));
+    const Math::vec2 corner00 = toPixel(Math::vec2(0, 0)), corner10 = toPixel(Math::vec2(1, 0));
+    const Math::vec2 corner11 = toPixel(Math::vec2(1, 1)), corner01 = toPixel(Math::vec2(0, 1));
     line(corner00, corner10, 120, 120, 120);
     line(corner10, corner11, 120, 120, 120);
     line(corner11, corner01, 120, 120, 120);
@@ -358,7 +358,7 @@ std::vector<u8> renderLayout(const MeshData& mesh, const std::vector<u32>& trian
     {
         if (!triangleValid(mesh, triangle))
             continue;
-        glm::vec2 p[3];
+        Math::vec2 p[3];
         bool ok = true;
         for (u32 corner = 0; corner < 3; ++corner)
         {

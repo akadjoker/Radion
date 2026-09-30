@@ -4,7 +4,7 @@
 #include "../BlenderPanel.h"
 #include "Types.h"
 
-#include <glm/vec2.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -25,8 +25,8 @@ private:
     // Held between frames so the amounts can be dialled in before anything
     // touches the mesh: every apply is a fresh edit on top of the last, and
     // an undo step of its own.
-    glm::vec2 mUVScale = glm::vec2(1.0f);
-    glm::vec2 mUVOffset = glm::vec2(0.0f);
+    Math::vec2 mUVScale = Math::vec2(1.0f);
+    Math::vec2 mUVOffset = Math::vec2(0.0f);
     f32 mUVRotation = 0.0f;
 };
 

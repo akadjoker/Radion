@@ -23,7 +23,7 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-glm::vec3 centerOf(const MeshData& mesh)
+Math::vec3 centerOf(const MeshData& mesh)
 {
     return mesh.bounds.center();
 }
@@ -38,7 +38,7 @@ void checkOutwardFacing(const MeshData& mesh, int line)
     check(mesh.normals.size() == mesh.positions.size(), "normals per vertex", line);
     check(mesh.uvs.size() == mesh.positions.size(), "uvs per vertex", line);
 
-    const glm::vec3 center = centerOf(mesh);
+    const Math::vec3 center = centerOf(mesh);
     u32 inward = 0;
     u32 degenerate = 0;
     u32 outOfRange = 0;
@@ -52,15 +52,15 @@ void checkOutwardFacing(const MeshData& mesh, int line)
             ++outOfRange;
             continue;
         }
-        const glm::vec3 normal = glm::cross(mesh.positions[b] - mesh.positions[a],
+        const Math::vec3 normal = Math::cross(mesh.positions[b] - mesh.positions[a],
                                             mesh.positions[c] - mesh.positions[a]);
-        if (glm::length(normal) < 1.0e-9f)
+        if (Math::length(normal) < 1.0e-9f)
         {
             ++degenerate;
             continue;
         }
-        const glm::vec3 centroid = (mesh.positions[a] + mesh.positions[b] + mesh.positions[c]) / 3.0f;
-        if (glm::dot(normal, centroid - center) <= 0.0f)
+        const Math::vec3 centroid = (mesh.positions[a] + mesh.positions[b] + mesh.positions[c]) / 3.0f;
+        if (Math::dot(normal, centroid - center) <= 0.0f)
             ++inward;
     }
     check(outOfRange == 0, "no index out of range", line);
@@ -71,9 +71,9 @@ void checkOutwardFacing(const MeshData& mesh, int line)
     u32 badNormals = 0;
     for (usize i = 0; i < mesh.positions.size(); ++i)
     {
-        if (std::abs(glm::length(mesh.normals[i]) - 1.0f) > 1.0e-3f)
+        if (std::abs(Math::length(mesh.normals[i]) - 1.0f) > 1.0e-3f)
             ++badNormals;
-        else if (glm::dot(mesh.normals[i], mesh.positions[i] - center) < -1.0e-4f)
+        else if (Math::dot(mesh.normals[i], mesh.positions[i] - center) < -1.0e-4f)
             ++badNormals;
     }
     check(badNormals == 0, "vertex normals are unit and outward", line);
@@ -89,7 +89,7 @@ void testLatheSphere()
     for (int i = 0; i <= 8; ++i)
     {
         const f32 angle = 3.14159265f * static_cast<f32>(i) / 8.0f;
-        params.profile.push_back(glm::vec2(std::sin(angle), -std::cos(angle)));
+        params.profile.push_back(Math::vec2(std::sin(angle), -std::cos(angle)));
     }
 
     MeshData mesh;
@@ -112,7 +112,7 @@ void testLatheDescendingProfileStillFacesOutward()
     for (int i = 8; i >= 0; --i)
     {
         const f32 angle = 3.14159265f * static_cast<f32>(i) / 8.0f;
-        params.profile.push_back(glm::vec2(std::sin(angle), -std::cos(angle)));
+        params.profile.push_back(Math::vec2(std::sin(angle), -std::cos(angle)));
     }
 
     MeshData mesh;
@@ -124,7 +124,7 @@ void testLatheCylinderCaps()
 {
     LatheParams params;
     params.slices = 10;
-    params.profile = {glm::vec2(1.0f, 0.0f), glm::vec2(1.0f, 2.0f)};
+    params.profile = {Math::vec2(1.0f, 0.0f), Math::vec2(1.0f, 2.0f)};
 
     MeshData capped;
     CHECK(buildLathe(params, capped));
@@ -146,21 +146,21 @@ void testLatheRejectsBadInput()
     std::string error;
 
     LatheParams tooShort;
-    tooShort.profile = {glm::vec2(1.0f, 0.0f)};
+    tooShort.profile = {Math::vec2(1.0f, 0.0f)};
     CHECK(!buildLathe(tooShort, mesh, &error));
     CHECK(!error.empty());
 
     LatheParams negative;
-    negative.profile = {glm::vec2(-1.0f, 0.0f), glm::vec2(1.0f, 1.0f)};
+    negative.profile = {Math::vec2(-1.0f, 0.0f), Math::vec2(1.0f, 1.0f)};
     CHECK(!buildLathe(negative, mesh));
 
     LatheParams flat;
     flat.slices = 2;
-    flat.profile = {glm::vec2(1.0f, 0.0f), glm::vec2(1.0f, 1.0f)};
+    flat.profile = {Math::vec2(1.0f, 0.0f), Math::vec2(1.0f, 1.0f)};
     CHECK(!buildLathe(flat, mesh));
 
     LatheParams notANumber;
-    notANumber.profile = {glm::vec2(1.0f, 0.0f), glm::vec2(1.0f, NAN)};
+    notANumber.profile = {Math::vec2(1.0f, 0.0f), Math::vec2(1.0f, NAN)};
     CHECK(!buildLathe(notANumber, mesh));
 }
 
@@ -210,7 +210,7 @@ void testLoftOffsetsAndCaps()
     end.at = 4.0f;
     end.width = 0.5f;
     end.height = 0.5f;
-    end.offset = glm::vec2(0.0f, 1.0f);
+    end.offset = Math::vec2(0.0f, 1.0f);
     params.sections = {start, end};
 
     MeshData mesh;
@@ -221,7 +221,7 @@ void testLoftOffsetsAndCaps()
 
     // The far end sits around y = 1.
     f32 lowestAtEnd = 1.0e9f;
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::vec3& position : mesh.positions)
         if (std::abs(position.z - 4.0f) < 1.0e-4f)
             lowestAtEnd = std::min(lowestAtEnd, position.y);
     CHECK(std::abs(lowestAtEnd - 0.75f) < 1.0e-3f);
@@ -244,7 +244,7 @@ void testLoftSuperellipseIsBoxier()
     auto farthestCorner = [](const MeshData& mesh)
     {
         f32 best = 0.0f;
-        for (const glm::vec3& position : mesh.positions)
+        for (const Math::vec3& position : mesh.positions)
             best = std::max(best, std::min(std::abs(position.x), std::abs(position.y)));
         return best;
     };
@@ -285,10 +285,10 @@ f32 signedVolume(const MeshData& mesh)
     f32 volume = 0.0f;
     for (usize f = 0; f + 2 < mesh.indices.size(); f += 3)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f + 2]];
-        volume += glm::dot(a, glm::cross(b, c)) / 6.0f;
+        const Math::vec3& a = mesh.positions[mesh.indices[f]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f + 2]];
+        volume += Math::dot(a, Math::cross(b, c)) / 6.0f;
     }
     return volume;
 }
@@ -326,12 +326,12 @@ void checkSolid(const MeshData& mesh, f32 volume, f32 tolerance, int line)
     u32 badNormals = 0;
     for (usize f = 0; f + 2 < mesh.indices.size(); f += 3)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f + 2]];
-        const glm::vec3 geometric = glm::normalize(glm::cross(b - a, c - a));
+        const Math::vec3& a = mesh.positions[mesh.indices[f]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f + 2]];
+        const Math::vec3 geometric = Math::normalize(Math::cross(b - a, c - a));
         for (usize k = 0; k < 3; ++k)
-            if (glm::dot(mesh.normals[mesh.indices[f + k]], geometric) < 0.99f)
+            if (Math::dot(mesh.normals[mesh.indices[f + k]], geometric) < 0.99f)
                 ++badNormals;
     }
     check(badNormals == 0, "flat normals agree with their triangle", line);
@@ -397,12 +397,12 @@ void testDisc()
     f32 area = 0.0f;
     for (usize f = 0; f + 2 < mesh.indices.size(); f += 3)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f + 2]];
-        const glm::vec3 n = glm::cross(b - a, c - a);
+        const Math::vec3& a = mesh.positions[mesh.indices[f]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f + 2]];
+        const Math::vec3 n = Math::cross(b - a, c - a);
         CHECK(n.y > 0.0f); // faces up
-        area += 0.5f * glm::length(n);
+        area += 0.5f * Math::length(n);
     }
     CHECK(std::abs(area - polygonArea(16, 2.0f)) < 1.0e-3f);
     DiscParams bad;
@@ -426,7 +426,7 @@ void testStairs()
     CHECK(std::abs(mesh.bounds.min.y + 0.5f) < 1.0e-5f && std::abs(mesh.bounds.max.y - 0.5f) < 1.0e-5f);
     CHECK(std::abs(mesh.bounds.min.z + 0.75f) < 1.0e-5f && std::abs(mesh.bounds.max.z - 0.75f) < 1.0e-5f);
     // The top is at the +Z end: that is where the stairs go up to.
-    for (const glm::vec3& p : mesh.positions)
+    for (const Math::vec3& p : mesh.positions)
         if (p.y > 0.49f)
             CHECK(p.z > 0.4f);
 

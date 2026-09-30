@@ -172,10 +172,10 @@ Json materialJson(const Material& material, usize index, TextureTable& textures)
     Json json;
     json["name"] = material.name.empty() ? "material" + std::to_string(index) : material.name;
     json["pbrMetallicRoughness"] = {
-        {"baseColorFactor", {material.params.baseColor.r, material.params.baseColor.g,
-                             material.params.baseColor.b, material.params.baseColor.a}},
-        {"metallicFactor", glm::clamp(material.params.surface.y, 0.0f, 1.0f)},
-        {"roughnessFactor", glm::clamp(material.params.surface.x, 0.0f, 1.0f)}};
+        {"baseColorFactor", {material.params.baseColor.x, material.params.baseColor.y,
+                             material.params.baseColor.z, material.params.baseColor.w}},
+        {"metallicFactor", Math::clamp(material.params.surface.y, 0.0f, 1.0f)},
+        {"roughnessFactor", Math::clamp(material.params.surface.x, 0.0f, 1.0f)}};
     const int albedo = textures.textureFor(material.textures[SlotAlbedo].file);
     if (albedo >= 0)
         json["pbrMetallicRoughness"]["baseColorTexture"] = {{"index", albedo}};
@@ -195,12 +195,12 @@ Json materialJson(const Material& material, usize index, TextureTable& textures)
     }
     if (material.flags & MaterialTwoSided)
         json["doubleSided"] = true;
-    if (material.params.baseColor.a < 1.0f || material.blend != BlendMode::Opaque)
+    if (material.params.baseColor.w < 1.0f || material.blend != BlendMode::Opaque)
         json["alphaMode"] = "BLEND";
-    if (material.params.emissive.r > 0.0f || material.params.emissive.g > 0.0f ||
-        material.params.emissive.b > 0.0f)
-        json["emissiveFactor"] = {material.params.emissive.r, material.params.emissive.g,
-                                  material.params.emissive.b};
+    if (material.params.emissive.x > 0.0f || material.params.emissive.y > 0.0f ||
+        material.params.emissive.z > 0.0f)
+        json["emissiveFactor"] = {material.params.emissive.x, material.params.emissive.y,
+                                  material.params.emissive.z};
     return json;
 }
 } // namespace
@@ -240,15 +240,15 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
     std::vector<unsigned char> bin;
 
     // Positions need their extent declared.
-    glm::vec3 low(3.402823466e+38f);
-    glm::vec3 high(-3.402823466e+38f);
-    for (const glm::vec3& position : mesh.positions)
+    Math::vec3 low(3.402823466e+38f);
+    Math::vec3 high(-3.402823466e+38f);
+    for (const Math::vec3& position : mesh.positions)
     {
-        low = glm::min(low, position);
-        high = glm::max(high, position);
+        low = Math::min(low, position);
+        high = Math::max(high, position);
     }
     const int positionView = addView(views, bin, mesh.positions.data(),
-                                     vertexCount * sizeof(glm::vec3), kArrayBuffer);
+                                     vertexCount * sizeof(Math::vec3), kArrayBuffer);
     const int positionAccessor = addAccessor(accessors, positionView, 0, kFloat, vertexCount, "VEC3");
     accessors[positionAccessor]["min"] = {low.x, low.y, low.z};
     accessors[positionAccessor]["max"] = {high.x, high.y, high.z};
@@ -256,7 +256,7 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
     int normalAccessor = -1;
     if (mesh.normals.size() == vertexCount)
     {
-        const int view = addView(views, bin, mesh.normals.data(), vertexCount * sizeof(glm::vec3),
+        const int view = addView(views, bin, mesh.normals.data(), vertexCount * sizeof(Math::vec3),
                                  kArrayBuffer);
         normalAccessor = addAccessor(accessors, view, 0, kFloat, vertexCount, "VEC3");
     }
@@ -264,7 +264,7 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
     int uvAccessor = -1;
     if (mesh.uvs.size() == vertexCount)
     {
-        const int view = addView(views, bin, mesh.uvs.data(), vertexCount * sizeof(glm::vec2),
+        const int view = addView(views, bin, mesh.uvs.data(), vertexCount * sizeof(Math::vec2),
                                  kArrayBuffer);
         uvAccessor = addAccessor(accessors, view, 0, kFloat, vertexCount, "VEC2");
     }

@@ -4,7 +4,7 @@
 #include "../BlenderPanel.h"
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <vector>
 
 struct ImVec2;
@@ -43,13 +43,13 @@ private:
     void frameView(const ImVec2& canvasSize);
 
     std::vector<u8> mSelected; // per vertex
-    glm::vec2 mPan = glm::vec2(0.0f); // screen offset of UV (0,0) from the canvas corner
+    Math::vec2 mPan = Math::vec2(0.0f); // screen offset of UV (0,0) from the canvas corner
     f32 mZoom = 256.0f;               // pixels per UV unit
     bool mFrameRequested = true;
 
     Drag mDrag = Drag::None;
-    glm::vec2 mDragStart = glm::vec2(0.0f);          // screen, at the press
-    std::vector<std::pair<u32, glm::vec2>> mMoveOrigin; // selected vertices and their UV at the press
+    Math::vec2 mDragStart = Math::vec2(0.0f);          // screen, at the press
+    std::vector<std::pair<u32, Math::vec2>> mMoveOrigin; // selected vertices and their UV at the press
     bool mMoveRecorded = false;
 
     bool mSnap = false;

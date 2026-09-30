@@ -26,7 +26,7 @@ void check(bool condition, const char* expression, int line)
 MeshData splitCube()
 {
     MeshData mesh;
-    const glm::vec3 corner[8] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
+    const Math::vec3 corner[8] = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
                                  {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
     const u32 faces[6][4] = {{0, 3, 2, 1}, {4, 5, 6, 7}, {0, 1, 5, 4},
                              {3, 7, 6, 2}, {0, 4, 7, 3}, {1, 2, 6, 5}};
@@ -46,7 +46,7 @@ MeshData grid(u32 n)
     MeshData mesh;
     for (u32 z = 0; z <= n; ++z)
         for (u32 x = 0; x <= n; ++x)
-            mesh.positions.push_back(glm::vec3(static_cast<f32>(x), 0, static_cast<f32>(z)));
+            mesh.positions.push_back(Math::vec3(static_cast<f32>(x), 0, static_cast<f32>(z)));
     const u32 row = n + 1;
     for (u32 z = 0; z < n; ++z)
     {

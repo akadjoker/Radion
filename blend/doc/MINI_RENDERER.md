@@ -42,8 +42,8 @@ Cada keyframe da animação blender armazena uma pose de vertices:
 
 ```cpp
 struct MorphTarget {
-    std::vector<glm::vec3> positions;   // deformação offset
-    std::vector<glm::vec3> normals;     // normais deformadas
+    std::vector<Math::vec3> positions;   // deformação offset
+    std::vector<Math::vec3> normals;     // normais deformadas
     float weight = 1.0f;                // blend entre targets
 };
 
@@ -51,7 +51,7 @@ struct MorphTarget {
 void applyAnimationFrame(MeshData& mesh, const AnimationFrame& frame) {
     // Interpolar entre keyframes da timeline
     for (u32 v = 0; v < mesh.positions.size(); ++v) {
-        glm::vec3 deformPos = sampleKeyframe(...);          // animada
+        Math::vec3 deformPos = sampleKeyframe(...);          // animada
         mesh.positions[v] += deformPos;                     // aplicar offset
     }
     
@@ -68,7 +68,7 @@ Se o mesh tem armature:
 
 ```cpp
 struct Bone {
-    glm::mat4 transform;
+    Math::mat4 transform;
     u32 parentIndex;
     std::string name;
 };
@@ -85,13 +85,13 @@ Ou CPU-side para performance (morph + skinning):
 
 ```cpp
 for (u32 v = 0; v < mesh.positions.size(); ++v) {
-    glm::vec3 pos = mesh.positions[v];
+    Math::vec3 pos = mesh.positions[v];
     
     // 1. Apply morph
     pos += morphOffsets[v];
     
     // 2. Apply skinning
-    glm::vec3 skinned = glm::vec3(0);
+    Math::vec3 skinned = Math::vec3(0);
     for (int i = 0; i < 4; ++i) {
         skinned += mesh.bones[boneIndices[v*4+i]].matrix * pos * weights[v*4+i];
     }

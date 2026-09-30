@@ -36,18 +36,18 @@ MeshData twoParts()
     MeshData mesh;
     mesh.positions = {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
                       {2, 0, 0}, {3, 0, 0}, {3, 1, 0}, {2, 1, 0}};
-    mesh.normals.assign(8, glm::vec3(0, 0, 1));
+    mesh.normals.assign(8, Math::vec3(0, 0, 1));
     mesh.uvs = {{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0}, {1, 0}, {1, 1}, {0, 1}};
     mesh.indices = {0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7};
 
     Material red;
     red.name = "red";
-    red.params.baseColor = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    red.params.baseColor = Math::vec4(1.0f, 0.0f, 0.0f, 1.0f);
     red.params.surface.x = 0.25f;
     red.params.surface.y = 0.75f;
     Material glass;
     glass.name = "glass";
-    glass.params.baseColor = glm::vec4(0.5f, 0.7f, 0.9f, 0.4f);
+    glass.params.baseColor = Math::vec4(0.5f, 0.7f, 0.9f, 0.4f);
     glass.flags |= MaterialTwoSided;
     // A third material no submesh uses must not reach the file.
     Material unused;

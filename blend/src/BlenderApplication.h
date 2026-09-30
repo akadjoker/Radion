@@ -15,7 +15,7 @@
 #include "ViewportCamera.h"
 #include "Types.h"
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -79,14 +79,14 @@ public:
 
     // Reworks the UVs of the selected faces, or of the whole mesh when
     // nothing is selected. One undo step per call.
-    void applyFaceUVTransform(const glm::vec2& scale, f32 rotationDegrees,
-                              const glm::vec2& offset);
+    void applyFaceUVTransform(const Math::vec2& scale, f32 rotationDegrees,
+                              const Math::vec2& offset);
 
     // -- gizmo drag
     //
     // Where the gizmo sits: the median of the selected vertices, or of the
     // whole mesh when nothing is selected. Origin for an empty mesh.
-    glm::vec3 transformPivot();
+    Math::vec3 transformPivot();
     // Takes the undo snapshot and remembers the geometry as it stands, so
     // every frame of the drag transforms the original rather than the last
     // frame's result - compounding a few hundred matrices visibly drifts.
@@ -94,7 +94,7 @@ public:
     bool beginGizmoDrag();
     // `worldDelta` maps a vertex's position at the start of the drag to where
     // it belongs now; it carries its own pivot.
-    void updateGizmoDrag(const glm::mat4& worldDelta);
+    void updateGizmoDrag(const Math::mat4& worldDelta);
     void endGizmoDrag();
     bool gizmoDragging() const
     {
@@ -156,11 +156,11 @@ public:
     {
         return mSkeleton;
     }
-    const std::vector<glm::mat4>& globalPose() const
+    const std::vector<Math::mat4>& globalPose() const
     {
         return mGlobalPose;
     }
-    const std::vector<glm::mat4>& bonePalette() const
+    const std::vector<Math::mat4>& bonePalette() const
     {
         return mBonePalette;
     }
@@ -205,11 +205,11 @@ public:
     }
 
     // 3D cursor position for operations
-    glm::vec3 cursor3D() const
+    Math::vec3 cursor3D() const
     {
         return mCursor3D;
     }
-    void setCursor3D(const glm::vec3& pos)
+    void setCursor3D(const Math::vec3& pos)
     {
         mCursor3D = pos;
     }
@@ -296,7 +296,7 @@ public:
     u32 collapseSelectedEdges(f32 t, std::string* error = nullptr);
     // Cuts the mesh along the plane dot(normal, p) = offset and selects the new
     // line of edges (edge mode).
-    bool knifeCut(const glm::vec3& normal, f32 offset, std::string* error = nullptr);
+    bool knifeCut(const Math::vec3& normal, f32 offset, std::string* error = nullptr);
     // Adds `cuts` edge loops across the ring of quads through the first selected
     // edge, and selects them.
     bool loopCutSelected(u32 cuts, std::string* error = nullptr);
@@ -344,7 +344,7 @@ public:
     std::vector<u32> symmetryPartners(const std::vector<u32>& vertices) const;
     // Applies `world` (a transform in world space) to `vertices`, and its mirror
     // image to their partners when symmetry is on. An empty list is the whole mesh.
-    void transformVerticesWorld(const glm::mat4& world, const std::vector<u32>& vertices);
+    void transformVerticesWorld(const Math::mat4& world, const std::vector<u32>& vertices);
 
     // -- Hide
     //
@@ -408,7 +408,7 @@ public:
     struct PrimitiveParams
     {
         PrimitiveType type = PrimitiveType::Box;
-        glm::vec3 size = glm::vec3(1.0f);
+        Math::vec3 size = Math::vec3(1.0f);
         f32 radius = 0.5f;
         f32 minorRadius = 0.2f;
         f32 height = 1.0f;
@@ -427,7 +427,7 @@ public:
     {
         std::string name;
         bool hasColor = false;
-        glm::vec4 color = glm::vec4(1.0f);
+        Math::vec4 color = Math::vec4(1.0f);
         bool hasRoughness = false;
         f32 roughness = 0.5f;
         bool hasMetallic = false;
@@ -439,21 +439,21 @@ public:
     // Builds a primitive, places it with `placement` and adds it as its own
     // submesh (or starts a new mesh with it when `replace` or the mesh is
     // empty). `submeshOut` receives the new submesh's index.
-    bool createPrimitive(const PrimitiveParams& params, const glm::mat4& placement,
+    bool createPrimitive(const PrimitiveParams& params, const Math::mat4& placement,
                          const PartStyle& style, bool replace, s32* submeshOut = nullptr);
     // The same for geometry that did not come from a primitive - a part built
     // vertex by vertex. Takes the part by value: it is placed and styled in
     // place before it is merged.
     // `undoStep` false leaves the undo snapshot to the caller (an operation that
     // also removes parts takes one for both).
-    bool appendPart(MeshData part, const glm::mat4& placement, const PartStyle& style,
+    bool appendPart(MeshData part, const Math::mat4& placement, const PartStyle& style,
                     const char* sourceName, bool replace, s32* submeshOut = nullptr, bool undoStep = true);
 
     // Moves/rotates/scales one submesh's vertices. `matrix` acts about `pivot`.
     // A mirroring matrix turns the submesh's winding back the right way out.
-    bool transformSubmesh(u32 index, const glm::mat4& matrix, const glm::vec3& pivot);
+    bool transformSubmesh(u32 index, const Math::mat4& matrix, const Math::vec3& pivot);
     // Copies a submesh (and its material) with `placement` applied to the copy.
-    bool duplicateSubmesh(u32 index, const glm::mat4& placement, s32* newIndex = nullptr);
+    bool duplicateSubmesh(u32 index, const Math::mat4& placement, s32* newIndex = nullptr);
     // Restyles the material of one submesh. Other submeshes that share that
     // material slot are given their own copy first, so only this one changes.
     // `undoStep` false when the caller has already recorded the step this restyle belongs to.
@@ -464,10 +464,10 @@ public:
     // vertices like every other edit and fails (returns 0, `error` set) when
     // nothing is selected. paintSphere() is a soft round brush, optionally
     // limited to one part (`part` < 0 = the whole mesh).
-    u32 paintSelection(const glm::vec4& color, f32 opacity, std::string* error = nullptr);
-    u32 paintPart(u32 part, const glm::vec4& color, f32 opacity);
-    u32 paintAll(const glm::vec4& color, f32 opacity);
-    u32 paintSphere(const glm::vec3& center, f32 radius, f32 hardness, const glm::vec4& color, f32 opacity, s32 part);
+    u32 paintSelection(const Math::vec4& color, f32 opacity, std::string* error = nullptr);
+    u32 paintPart(u32 part, const Math::vec4& color, f32 opacity);
+    u32 paintAll(const Math::vec4& color, f32 opacity);
+    u32 paintSphere(const Math::vec3& center, f32 radius, f32 hardness, const Math::vec4& color, f32 opacity, s32 part);
     // Clears the selection's, one part's (`part` >= 0) or everything's colours.
     bool clearVertexColors(s32 part, bool selectionOnly, std::string* error = nullptr);
     bool hasVertexColors() const;
@@ -486,12 +486,12 @@ public:
     // Triangles the selection stands for: its faces, or every triangle using a selected vertex.
     std::vector<u32> selectedTriangles();
     // Moves/rotates/scales UVs about `pivot`; pinned vertices stay. Returns how many moved.
-    u32 transformUvs(const std::vector<u32>& vertices, const glm::vec2& pivot, const MeshUv::Transform& change);
+    u32 transformUvs(const std::vector<u32>& vertices, const Math::vec2& pivot, const MeshUv::Transform& change);
     u32 fitUvs(const std::vector<u32>& vertices, bool keepAspect, f32 margin);
     // Fits every part into its own 0..1 square - what per-part textures need after one shared unwrap.
     u32 fitUvsPerPart(bool keepAspect, f32 margin);
     // Box projection of a target's triangles; returns vertices added by splitting.
-    bool boxMapUvs(UvTarget target, s32 part, f32 tile, const glm::vec2& offset, u32* added, std::string* error);
+    bool boxMapUvs(UvTarget target, s32 part, f32 tile, const Math::vec2& offset, u32* added, std::string* error);
     // Pins: transform/fit skip pinned vertices. Forgotten when the vertex count changes.
     void setUvPinned(const std::vector<u32>& vertices, bool pinned);
     void clearUvPins();
@@ -507,7 +507,7 @@ public:
 
     // Bakes `matrix` into the selected vertices, or the whole mesh when
     // nothing is selected, around their own median point.
-    void applyTransform(const glm::mat4& matrix, const char* verb);
+    void applyTransform(const Math::mat4& matrix, const char* verb);
     bool extrudeFaces(f32 distance);
     void deleteSelectedVertices();
     void deleteSelectedFaces();
@@ -624,7 +624,7 @@ private:
         return mSelection.selectedVertexCount() > 0 || mSelection.selectedFaceCount() > 0 ||
                mSelection.selectedEdgeCount() > 0;
     }
-    glm::vec3 mPaintColor = glm::vec3(0.85f, 0.2f, 0.15f); // sRGB, as the picker shows it
+    Math::vec3 mPaintColor = Math::vec3(0.85f, 0.2f, 0.15f); // sRGB, as the picker shows it
     f32 mPaintOpacity = 1.0f;
     f32 mPaintRadius = 0.5f;
     f32 mPaintHardness = 0.5f;
@@ -709,8 +709,8 @@ private:
     std::vector<AnimationClip> mAnimationClips;
     s32 mActiveClip = -1;
     std::vector<LocalPose> mLocalPose;
-    std::vector<glm::mat4> mGlobalPose;
-    std::vector<glm::mat4> mBonePalette;
+    std::vector<Math::mat4> mGlobalPose;
+    std::vector<Math::mat4> mBonePalette;
 
     // State
     bool mDirty = false;
@@ -720,7 +720,7 @@ private:
     bool mSaveInfoRequested = false;
     bool mNewConfirmRequested = false;
     bool mPreferencesRequested = false;
-    glm::vec3 mCursor3D = glm::vec3(0.0f);
+    Math::vec3 mCursor3D = Math::vec3(0.0f);
     s32 mSelectedSubmesh = -1;
     std::vector<bool> mSubmeshVisible;
     std::string mSettingsPath;
@@ -751,7 +751,7 @@ private:
     f32 mSmoothingStrength = 0.5f;
     f32 mExtrudeDistance = 0.5f;
     PrimitiveType mPrimitiveType = PrimitiveType::Box;
-    glm::vec3 mPrimitiveSize = glm::vec3(1.0f);
+    Math::vec3 mPrimitiveSize = Math::vec3(1.0f);
     f32 mPrimitiveRadius = 0.5f;
     f32 mPrimitiveMinorRadius = 0.2f;
     f32 mPrimitiveHeight = 1.0f;
@@ -788,9 +788,9 @@ private:
     // by the drag and would be dead weight to copy every time.
     bool mGizmoDragging = false;
     std::vector<u32> mGizmoIndices;
-    std::vector<glm::vec3> mGizmoPositions;
-    std::vector<glm::vec3> mGizmoNormals;
-    std::vector<glm::vec4> mGizmoTangents;
+    std::vector<Math::vec3> mGizmoPositions;
+    std::vector<Math::vec3> mGizmoNormals;
+    std::vector<Math::vec4> mGizmoTangents;
     std::vector<u32> mGizmoWinding;
 
     bool mSmoothNormals = true;

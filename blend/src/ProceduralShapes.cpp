@@ -24,8 +24,8 @@ bool fail(std::string* error, const std::string& message)
 // seam has its own vertex), described by where each of its points sits.
 struct Surface
 {
-    std::vector<glm::vec3> positions;
-    std::vector<glm::vec2> uvs;
+    std::vector<Math::vec3> positions;
+    std::vector<Math::vec2> uvs;
     std::vector<u32> indices;
     // A ring whose points all coincide: the surface comes to a point there.
     std::vector<bool> pinched;
@@ -86,21 +86,21 @@ void stitchRings(Surface& surface, bool flip)
 void addCap(Surface& surface, MeshData& out, u32 ring, bool facesBackward, bool flip)
 {
     const u32 centerIndex = static_cast<u32>(out.positions.size());
-    glm::vec3 center(0.0f);
+    Math::vec3 center(0.0f);
     for (u32 column = 0; column < surface.columns; ++column)
         center += surface.positions[surface.vertex(ring, column)];
     center /= static_cast<f32>(surface.columns);
 
     out.positions.push_back(center);
-    out.uvs.push_back(glm::vec2(0.5f, 0.5f));
+    out.uvs.push_back(Math::vec2(0.5f, 0.5f));
 
     const u32 firstRim = static_cast<u32>(out.positions.size());
     for (u32 column = 0; column < surface.columns; ++column)
     {
-        const glm::vec3 position = surface.positions[surface.vertex(ring, column)];
+        const Math::vec3 position = surface.positions[surface.vertex(ring, column)];
         out.positions.push_back(position);
-        const glm::vec3 fromCenter = position - center;
-        out.uvs.push_back(glm::vec2(0.5f + 0.5f * fromCenter.x, 0.5f + 0.5f * fromCenter.z));
+        const Math::vec3 fromCenter = position - center;
+        out.uvs.push_back(Math::vec2(0.5f + 0.5f * fromCenter.x, 0.5f + 0.5f * fromCenter.z));
     }
 
     for (u32 column = 0; column < surface.columns; ++column)
@@ -119,7 +119,7 @@ void addCap(Surface& surface, MeshData& out, u32 ring, bool facesBackward, bool 
 // merged afterwards or a shading crack would follow the seam.
 void computeNormals(const Surface& surface, MeshData& out)
 {
-    out.normals.assign(out.positions.size(), glm::vec3(0.0f));
+    out.normals.assign(out.positions.size(), Math::vec3(0.0f));
     for (usize i = 0; i + 2 < out.indices.size(); i += 3)
     {
         const u32 i0 = out.indices[i];
@@ -127,7 +127,7 @@ void computeNormals(const Surface& surface, MeshData& out)
         const u32 i2 = out.indices[i + 2];
         // Not normalised: the cross product's length is twice the area, which
         // is exactly the weight a smooth normal wants.
-        const glm::vec3 faceNormal = glm::cross(out.positions[i1] - out.positions[i0],
+        const Math::vec3 faceNormal = Math::cross(out.positions[i1] - out.positions[i0],
                                                 out.positions[i2] - out.positions[i0]);
         out.normals[i0] += faceNormal;
         out.normals[i1] += faceNormal;
@@ -138,7 +138,7 @@ void computeNormals(const Surface& surface, MeshData& out)
     {
         if (surface.pinched[ring])
         {
-            glm::vec3 sum(0.0f);
+            Math::vec3 sum(0.0f);
             for (u32 column = 0; column <= surface.columns; ++column)
                 sum += out.normals[surface.vertex(ring, column)];
             for (u32 column = 0; column <= surface.columns; ++column)
@@ -148,16 +148,16 @@ void computeNormals(const Surface& surface, MeshData& out)
         {
             const u32 first = surface.vertex(ring, 0);
             const u32 last = surface.vertex(ring, surface.columns);
-            const glm::vec3 seam = out.normals[first] + out.normals[last];
+            const Math::vec3 seam = out.normals[first] + out.normals[last];
             out.normals[first] = seam;
             out.normals[last] = seam;
         }
     }
 
-    for (glm::vec3& normal : out.normals)
+    for (Math::vec3& normal : out.normals)
     {
-        const f32 length = glm::length(normal);
-        normal = length > 1.0e-12f ? normal / length : glm::vec3(0.0f, 1.0f, 0.0f);
+        const f32 length = Math::length(normal);
+        normal = length > 1.0e-12f ? normal / length : Math::vec3(0.0f, 1.0f, 0.0f);
     }
 }
 
@@ -187,7 +187,7 @@ void finish(Surface& surface, MeshData& out, bool capStart, bool capEnd, bool fl
     out.submeshes.assign(1, submesh);
     out.materials.assign(1, Material());
     out.bounds = AABB();
-    for (const glm::vec3& position : out.positions)
+    for (const Math::vec3& position : out.positions)
         out.bounds.expand(position);
     out.submeshes[0].bounds = out.bounds;
 }
@@ -202,7 +202,7 @@ bool Radion::buildLathe(const LatheParams& params, MeshData& out, std::string* e
     if (static_cast<usize>(params.slices + 1) * params.profile.size() > kMaxVertices)
         return fail(error, "the lathe would have too many vertices");
 
-    for (const glm::vec2& point : params.profile)
+    for (const Math::vec2& point : params.profile)
     {
         if (!std::isfinite(point.x) || !std::isfinite(point.y))
             return fail(error, "profile points must be finite numbers");
@@ -220,12 +220,12 @@ bool Radion::buildLathe(const LatheParams& params, MeshData& out, std::string* e
     // textured as if it were as short as a stubby one.
     std::vector<f32> along(params.profile.size(), 0.0f);
     for (usize i = 1; i < params.profile.size(); ++i)
-        along[i] = along[i - 1] + glm::length(params.profile[i] - params.profile[i - 1]);
+        along[i] = along[i - 1] + Math::length(params.profile[i] - params.profile[i - 1]);
     const f32 total = along.back() > 0.0f ? along.back() : 1.0f;
 
     for (u32 ring = 0; ring < surface.rings; ++ring)
     {
-        glm::vec2 point = params.profile[ring];
+        Math::vec2 point = params.profile[ring];
         point.x = std::max(point.x, 0.0f);
         surface.pinched.push_back(point.x <= kPinchEpsilon);
         for (u32 column = 0; column <= surface.columns; ++column)
@@ -233,8 +233,8 @@ bool Radion::buildLathe(const LatheParams& params, MeshData& out, std::string* e
             const f32 u = static_cast<f32>(column) / static_cast<f32>(surface.columns);
             const f32 angle = u * 2.0f * kPi;
             surface.positions.push_back(
-                glm::vec3(point.x * std::cos(angle), point.y, point.x * std::sin(angle)));
-            surface.uvs.push_back(glm::vec2(u, along[ring] / total));
+                Math::vec3(point.x * std::cos(angle), point.y, point.x * std::sin(angle)));
+            surface.uvs.push_back(Math::vec2(u, along[ring] / total));
         }
     }
 
@@ -300,12 +300,12 @@ bool Radion::buildLoft(const LoftParams& params, MeshData& out, std::string* err
             const f32 x = (c < 0.0f ? -1.0f : 1.0f) * std::pow(std::abs(c), power);
             const f32 y = (s < 0.0f ? -1.0f : 1.0f) * std::pow(std::abs(s), power);
 
-            glm::vec3 position(0.0f);
+            Math::vec3 position(0.0f);
             position[params.axis] = section.at;
             position[firstAxis] = section.offset.x + 0.5f * section.width * x;
             position[secondAxis] = section.offset.y + 0.5f * section.height * y;
             surface.positions.push_back(position);
-            surface.uvs.push_back(glm::vec2(u, v));
+            surface.uvs.push_back(Math::vec2(u, v));
         }
     }
 
@@ -331,18 +331,18 @@ void finishSingleSubmesh(MeshData& out)
     out.submeshes.assign(1, submesh);
     out.materials.assign(1, Material());
     out.bounds = AABB();
-    for (const glm::vec3& position : out.positions)
+    for (const Math::vec3& position : out.positions)
         out.bounds.expand(position);
     out.submeshes[0].bounds = out.bounds;
 }
 
 // Appends a flat quad a, b, c, d (counter-clockwise seen from outside) with its own vertices.
-void addFlatQuad(MeshData& out, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d,
-                 const glm::vec2& uvA, const glm::vec2& uvB, const glm::vec2& uvC, const glm::vec2& uvD)
+void addFlatQuad(MeshData& out, const Math::vec3& a, const Math::vec3& b, const Math::vec3& c, const Math::vec3& d,
+                 const Math::vec2& uvA, const Math::vec2& uvB, const Math::vec2& uvC, const Math::vec2& uvD)
 {
-    const glm::vec3 normal = glm::normalize(glm::cross(b - a, c - a));
+    const Math::vec3 normal = Math::normalize(Math::cross(b - a, c - a));
     const u32 base = static_cast<u32>(out.positions.size());
-    for (const glm::vec3& p : {a, b, c, d})
+    for (const Math::vec3& p : {a, b, c, d})
     {
         out.positions.push_back(p);
         out.normals.push_back(normal);
@@ -361,17 +361,17 @@ bool Radion::buildExtrusion(const ExtrusionParams& params, MeshData& out, std::s
         return fail(error, "an outline may have at most 512 points");
     if (!(params.depth > 0.0f) || !std::isfinite(params.depth))
         return fail(error, "the depth must be greater than zero");
-    for (const glm::vec2& p : params.profile)
+    for (const Math::vec2& p : params.profile)
         if (!std::isfinite(p.x) || !std::isfinite(p.y))
             return fail(error, "outline points must be finite numbers");
 
     // Counter-clockwise, whichever way it came in.
-    std::vector<glm::vec2> profile = params.profile;
+    std::vector<Math::vec2> profile = params.profile;
     f64 area = 0.0;
     for (usize i = 0; i < n; ++i)
     {
-        const glm::vec2& a = profile[i];
-        const glm::vec2& b = profile[(i + 1) % n];
+        const Math::vec2& a = profile[i];
+        const Math::vec2& b = profile[(i + 1) % n];
         area += static_cast<f64>(a.x) * b.y - static_cast<f64>(b.x) * a.y;
     }
     if (std::abs(area) < 1.0e-12)
@@ -384,34 +384,34 @@ bool Radion::buildExtrusion(const ExtrusionParams& params, MeshData& out, std::s
 
     f32 perimeter = 0.0f;
     for (usize i = 0; i < n; ++i)
-        perimeter += glm::distance(profile[i], profile[(i + 1) % n]);
+        perimeter += Math::distance(profile[i], profile[(i + 1) % n]);
     f32 walked = 0.0f;
     for (usize i = 0; i < n; ++i)
     {
-        const glm::vec2& p = profile[i];
-        const glm::vec2& q = profile[(i + 1) % n];
-        const f32 length = glm::distance(p, q);
+        const Math::vec2& p = profile[i];
+        const Math::vec2& q = profile[(i + 1) % n];
+        const f32 length = Math::distance(p, q);
         if (length < 1.0e-9f)
             continue;
         const f32 u0 = walked / perimeter;
         const f32 u1 = (walked + length) / perimeter;
         walked += length;
-        addFlatQuad(mesh, glm::vec3(p, -half), glm::vec3(q, -half), glm::vec3(q, half), glm::vec3(p, half),
-                    glm::vec2(u0, 0.0f), glm::vec2(u1, 0.0f), glm::vec2(u1, 1.0f), glm::vec2(u0, 1.0f));
+        addFlatQuad(mesh, Math::vec3(p, -half), Math::vec3(q, -half), Math::vec3(q, half), Math::vec3(p, half),
+                    Math::vec2(u0, 0.0f), Math::vec2(u1, 0.0f), Math::vec2(u1, 1.0f), Math::vec2(u0, 1.0f));
     }
 
     // The two ends: the outline triangulated, facing out along +Z and -Z.
-    std::vector<glm::vec3> ring(n);
+    std::vector<Math::vec3> ring(n);
     for (usize i = 0; i < n; ++i)
-        ring[i] = glm::vec3(profile[i], 0.0f);
+        ring[i] = Math::vec3(profile[i], 0.0f);
     const auto triangles = MeshEdit::triangulatePolygon(ring);
     for (const f32 z : {half, -half})
     {
         const u32 base = static_cast<u32>(mesh.positions.size());
         for (usize i = 0; i < n; ++i)
         {
-            mesh.positions.push_back(glm::vec3(profile[i], z));
-            mesh.normals.push_back(glm::vec3(0.0f, 0.0f, z > 0.0f ? 1.0f : -1.0f));
+            mesh.positions.push_back(Math::vec3(profile[i], z));
+            mesh.normals.push_back(Math::vec3(0.0f, 0.0f, z > 0.0f ? 1.0f : -1.0f));
             mesh.uvs.push_back(profile[i]);
         }
         for (const auto& tri : triangles)
@@ -436,16 +436,16 @@ bool Radion::buildDisc(const DiscParams& params, MeshData& out, std::string* err
         return fail(error, "slices must be between 3 and 256");
 
     MeshData mesh;
-    mesh.positions.push_back(glm::vec3(0.0f));
-    mesh.normals.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
-    mesh.uvs.push_back(glm::vec2(0.5f));
+    mesh.positions.push_back(Math::vec3(0.0f));
+    mesh.normals.push_back(Math::vec3(0.0f, 1.0f, 0.0f));
+    mesh.uvs.push_back(Math::vec2(0.5f));
     for (u32 i = 0; i < params.slices; ++i)
     {
         const f32 angle = 2.0f * kPi * static_cast<f32>(i) / static_cast<f32>(params.slices);
-        const glm::vec3 p(params.radius * std::cos(angle), 0.0f, params.radius * std::sin(angle));
+        const Math::vec3 p(params.radius * std::cos(angle), 0.0f, params.radius * std::sin(angle));
         mesh.positions.push_back(p);
-        mesh.normals.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
-        mesh.uvs.push_back(glm::vec2(0.5f + 0.5f * std::cos(angle), 0.5f + 0.5f * std::sin(angle)));
+        mesh.normals.push_back(Math::vec3(0.0f, 1.0f, 0.0f));
+        mesh.uvs.push_back(Math::vec2(0.5f + 0.5f * std::cos(angle), 0.5f + 0.5f * std::sin(angle)));
     }
     // Angle runs +X toward +Z, clockwise seen from above; up-facing needs the reverse.
     for (u32 i = 0; i < params.slices; ++i)
@@ -470,7 +470,7 @@ bool Radion::buildTube(const TubeParams& params, MeshData& out, std::string* err
     // with vertices of its own so the edges stay sharp.
     MeshData mesh;
     const f32 half = params.height * 0.5f;
-    auto ring = [&](f32 radius, f32 y, f32 angle) { return glm::vec3(radius * std::cos(angle), y, radius * std::sin(angle)); };
+    auto ring = [&](f32 radius, f32 y, f32 angle) { return Math::vec3(radius * std::cos(angle), y, radius * std::sin(angle)); };
     for (u32 i = 0; i < params.slices; ++i)
     {
         const f32 a0 = 2.0f * kPi * static_cast<f32>(i) / static_cast<f32>(params.slices);
@@ -513,17 +513,17 @@ bool Radion::buildPrism(const PrismParams& params, MeshData& out, std::string* e
     for (u32 i = 0; i < params.sides; ++i)
     {
         const f32 angle = 2.0f * kPi * static_cast<f32>(i) / static_cast<f32>(params.sides);
-        extrusion.profile.push_back(glm::vec2(params.radius * std::cos(angle), params.radius * std::sin(angle)));
+        extrusion.profile.push_back(Math::vec2(params.radius * std::cos(angle), params.radius * std::sin(angle)));
     }
     MeshData mesh;
     if (!buildExtrusion(extrusion, mesh, error))
         return false;
 
     // Rotate -90 degrees about X: (x, y, z) -> (x, z, -y). A rotation keeps the winding.
-    for (glm::vec3& p : mesh.positions)
-        p = glm::vec3(p.x, p.z, -p.y);
-    for (glm::vec3& n : mesh.normals)
-        n = glm::vec3(n.x, n.z, -n.y);
+    for (Math::vec3& p : mesh.positions)
+        p = Math::vec3(p.x, p.z, -p.y);
+    for (Math::vec3& n : mesh.normals)
+        n = Math::vec3(n.x, n.z, -n.y);
     finishSingleSubmesh(mesh);
     out = std::move(mesh);
     return true;
@@ -557,14 +557,14 @@ bool Radion::buildStairs(const StairsParams& params, MeshData& out, std::string*
 
     // Centre the box, then turn the run onto +Z and the width onto X: a rotation
     // of -90 degrees about Y takes (x, y, z) to (-z, y, x).
-    const glm::vec3 centre(run * n * 0.5f, rise * n * 0.5f, 0.0f);
-    for (glm::vec3& p : mesh.positions)
+    const Math::vec3 centre(run * n * 0.5f, rise * n * 0.5f, 0.0f);
+    for (Math::vec3& p : mesh.positions)
     {
         p -= centre;
-        p = glm::vec3(-p.z, p.y, p.x);
+        p = Math::vec3(-p.z, p.y, p.x);
     }
-    for (glm::vec3& normal : mesh.normals)
-        normal = glm::vec3(-normal.z, normal.y, normal.x);
+    for (Math::vec3& normal : mesh.normals)
+        normal = Math::vec3(-normal.z, normal.y, normal.x);
     finishSingleSubmesh(mesh);
     out = std::move(mesh);
     return true;
@@ -616,8 +616,8 @@ bool Radion::buildArch(const ArchParams& params, MeshData& out, std::string* err
         return false;
 
     // Centre the bounding box on the origin.
-    const glm::vec3 centre(0.0f, params.height * 0.5f, 0.0f);
-    for (glm::vec3& p : mesh.positions)
+    const Math::vec3 centre(0.0f, params.height * 0.5f, 0.0f);
+    for (Math::vec3& p : mesh.positions)
         p -= centre;
     finishSingleSubmesh(mesh);
     out = std::move(mesh);

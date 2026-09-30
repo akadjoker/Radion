@@ -30,7 +30,7 @@ struct CellHash
     }
 };
 
-CellKey cellOf(const glm::vec3& position, f32 size)
+CellKey cellOf(const Math::vec3& position, f32 size)
 {
     return {static_cast<s64>(std::floor(position.x / size)),
             static_cast<s64>(std::floor(position.y / size)),
@@ -66,7 +66,7 @@ void MeshTopology::build(const MeshData& mesh, f32 epsilon)
     cells.reserve(vertexCount);
     for (u32 i = 0; i < vertexCount; ++i)
     {
-        const glm::vec3& p = mesh.positions[i];
+        const Math::vec3& p = mesh.positions[i];
         const CellKey home = cellOf(p, cell);
         u32 match = i;
         for (s64 dx = -1; dx <= 1 && match == i; ++dx)
@@ -80,7 +80,7 @@ void MeshTopology::build(const MeshData& mesh, f32 epsilon)
                         continue;
                     for (const u32 candidate : found->second)
                     {
-                        if (glm::distance(mesh.positions[candidate], p) <= cell)
+                        if (Math::distance(mesh.positions[candidate], p) <= cell)
                         {
                             match = candidate;
                             break;

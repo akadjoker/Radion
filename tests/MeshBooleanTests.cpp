@@ -22,11 +22,11 @@ void check(bool condition, const char* expression, int line)
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
 // A closed unit-cube-shaped box from `low` to `high`, wound outward.
-MeshData box(const glm::vec3& low, const glm::vec3& high)
+MeshData box(const Math::vec3& low, const Math::vec3& high)
 {
     MeshData mesh;
     for (int i = 0; i < 8; ++i)
-        mesh.positions.push_back(glm::vec3((i & 1) ? high.x : low.x, (i & 2) ? high.y : low.y, (i & 4) ? high.z : low.z));
+        mesh.positions.push_back(Math::vec3((i & 1) ? high.x : low.x, (i & 2) ? high.y : low.y, (i & 4) ? high.z : low.z));
     // Corner index bits: x = 1, y = 2, z = 4. Faces as outward quads.
     const u32 faces[6][4] = {{0, 2, 3, 1}, {4, 5, 7, 6}, {0, 1, 5, 4}, {2, 6, 7, 3}, {0, 4, 6, 2}, {1, 3, 7, 5}};
     for (const auto& q : faces)
@@ -40,10 +40,10 @@ f32 signedVolume(const MeshData& mesh)
     f32 volume = 0.0f;
     for (usize f = 0; f + 2 < mesh.indices.size(); f += 3)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f + 2]];
-        volume += glm::dot(a, glm::cross(b, c)) / 6.0f;
+        const Math::vec3& a = mesh.positions[mesh.indices[f]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f + 2]];
+        volume += Math::dot(a, Math::cross(b, c)) / 6.0f;
     }
     return volume;
 }
@@ -51,7 +51,7 @@ f32 signedVolume(const MeshData& mesh)
 void testBoxesHaveTheVolumeWeExpect()
 {
     // The fixture itself: a unit cube is 1, and faces out.
-    CHECK(std::abs(signedVolume(box(glm::vec3(0.0f), glm::vec3(1.0f))) - 1.0f) < 1.0e-5f);
+    CHECK(std::abs(signedVolume(box(Math::vec3(0.0f), Math::vec3(1.0f))) - 1.0f) < 1.0e-5f);
 }
 
 void testUnionDifferenceIntersection()
@@ -59,8 +59,8 @@ void testUnionDifferenceIntersection()
     // A unit cube and a slab 2 wide in y and z that overlaps its right half (no
     // coplanar faces, which the field cannot tell apart). Union 1 + 4 - 0.5;
     // the cube with the slab cut out 0.5; what they share 0.5.
-    const MeshData a = box(glm::vec3(0.0f), glm::vec3(1.0f));
-    const MeshData b = box(glm::vec3(0.5f, -0.5f, -0.5f), glm::vec3(1.5f, 1.5f, 1.5f));
+    const MeshData a = box(Math::vec3(0.0f), Math::vec3(1.0f));
+    const MeshData b = box(Math::vec3(0.5f, -0.5f, -0.5f), Math::vec3(1.5f, 1.5f, 1.5f));
 
     struct Case
     {
@@ -82,16 +82,16 @@ void testUnionDifferenceIntersection()
 
 void testBoundsOfTheResult()
 {
-    const MeshData a = box(glm::vec3(0.0f), glm::vec3(1.0f));
-    const MeshData b = box(glm::vec3(0.5f, -0.5f, -0.5f), glm::vec3(1.5f, 1.5f, 1.5f));
+    const MeshData a = box(Math::vec3(0.0f), Math::vec3(1.0f));
+    const MeshData b = box(Math::vec3(0.5f, -0.5f, -0.5f), Math::vec3(1.5f, 1.5f, 1.5f));
     MeshData united;
     CHECK(MeshEdit::booleanMeshes(a, b, MeshEdit::BooleanOp::Union, 48, united));
-    glm::vec3 low(1e9f);
-    glm::vec3 high(-1e9f);
-    for (const glm::vec3& p : united.positions)
+    Math::vec3 low(1e9f);
+    Math::vec3 high(-1e9f);
+    for (const Math::vec3& p : united.positions)
     {
-        low = glm::min(low, p);
-        high = glm::max(high, p);
+        low = Math::min(low, p);
+        high = Math::max(high, p);
     }
     // Within a cell of the true box (x 0..1.5, y and z -0.5..1.5).
     const f32 cell = 2.0f / 48.0f;
@@ -102,33 +102,33 @@ void testBoundsOfTheResult()
     MeshData cut;
     CHECK(MeshEdit::booleanMeshes(a, b, MeshEdit::BooleanOp::Difference, 48, cut));
     f32 maxX = -1e9f;
-    for (const glm::vec3& p : cut.positions)
+    for (const Math::vec3& p : cut.positions)
         maxX = std::max(maxX, p.x);
     CHECK(maxX < 0.5f + cell * 1.5f);
 }
 
 void testNormalsAndWindingFaceOutward()
 {
-    const MeshData a = box(glm::vec3(0.0f), glm::vec3(1.0f));
-    const MeshData b = box(glm::vec3(0.5f, -0.5f, -0.5f), glm::vec3(1.5f, 1.5f, 1.5f));
+    const MeshData a = box(Math::vec3(0.0f), Math::vec3(1.0f));
+    const MeshData b = box(Math::vec3(0.5f, -0.5f, -0.5f), Math::vec3(1.5f, 1.5f, 1.5f));
     MeshData result;
     CHECK(MeshEdit::booleanMeshes(a, b, MeshEdit::BooleanOp::Intersection, 48, result));
     // The intersection is the box x 0.5..1, y 0..1, z 0..1: every vertex normal
     // points away from its centre (0.75, 0.5, 0.5), and so does every triangle.
-    const glm::vec3 centre(0.75f, 0.5f, 0.5f);
+    const Math::vec3 centre(0.75f, 0.5f, 0.5f);
     CHECK(result.normals.size() == result.positions.size());
     u32 wrongNormals = 0;
     for (usize i = 0; i < result.positions.size(); ++i)
-        if (glm::dot(result.normals[i], result.positions[i] - centre) <= 0.0f)
+        if (Math::dot(result.normals[i], result.positions[i] - centre) <= 0.0f)
             ++wrongNormals;
     CHECK(wrongNormals == 0);
     u32 inward = 0;
     for (usize f = 0; f + 2 < result.indices.size(); f += 3)
     {
-        const glm::vec3& p0 = result.positions[result.indices[f]];
-        const glm::vec3& p1 = result.positions[result.indices[f + 1]];
-        const glm::vec3& p2 = result.positions[result.indices[f + 2]];
-        if (glm::dot(glm::cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3.0f - centre) <= 0.0f)
+        const Math::vec3& p0 = result.positions[result.indices[f]];
+        const Math::vec3& p1 = result.positions[result.indices[f + 1]];
+        const Math::vec3& p2 = result.positions[result.indices[f + 2]];
+        if (Math::dot(Math::cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3.0f - centre) <= 0.0f)
             ++inward;
     }
     CHECK(inward == 0);
@@ -136,8 +136,8 @@ void testNormalsAndWindingFaceOutward()
 
 void testRefusals()
 {
-    const MeshData a = box(glm::vec3(0.0f), glm::vec3(1.0f));
-    const MeshData far = box(glm::vec3(5.0f), glm::vec3(6.0f));
+    const MeshData a = box(Math::vec3(0.0f), Math::vec3(1.0f));
+    const MeshData far = box(Math::vec3(5.0f), Math::vec3(6.0f));
     MeshData out;
     std::string error;
     // Disjoint: nothing is shared.

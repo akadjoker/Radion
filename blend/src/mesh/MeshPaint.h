@@ -17,20 +17,20 @@ namespace Radion::MeshPaint
 // Colours here are LINEAR, as glTF defines COLOR_0; callers that take sRGB from
 // a user convert first (toLinear).
 
-glm::vec3 toLinear(const glm::vec3& srgb);
-glm::vec4 unpack(u32 packed);
-u32 pack(const glm::vec4& color);
+Math::vec3 toLinear(const Math::vec3& srgb);
+Math::vec4 unpack(u32 packed);
+u32 pack(const Math::vec4& color);
 
 // Blends `color` into each listed vertex by `opacity` (0..1). Vertex ids out of
 // range are ignored. Creates the colour array (white) when there is none.
 // Returns how many vertices changed.
-u32 paintVertices(MeshData& mesh, const std::vector<u32>& vertices, const glm::vec4& color, f32 opacity);
+u32 paintVertices(MeshData& mesh, const std::vector<u32>& vertices, const Math::vec4& color, f32 opacity);
 
 // Soft round brush: every vertex within `radius` of `center` (restricted to
 // `subset` when it is given) is painted with weight opacity * falloff, where the
 // weight is full out to `hardness` * radius and eases to zero at the radius.
-u32 paintSphere(MeshData& mesh, const std::vector<u32>* subset, const glm::vec3& center, f32 radius, f32 hardness,
-                const glm::vec4& color, f32 opacity);
+u32 paintSphere(MeshData& mesh, const std::vector<u32>* subset, const Math::vec3& center, f32 radius, f32 hardness,
+                const Math::vec4& color, f32 opacity);
 
 // Back to "no vertex colours" for the listed vertices (white), or for the whole
 // mesh when `vertices` is null - in which case the array is dropped entirely so

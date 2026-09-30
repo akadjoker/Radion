@@ -23,30 +23,30 @@ f32 channelToLinear(f32 value)
 }
 } // namespace
 
-glm::vec3 toLinear(const glm::vec3& srgb)
+Math::vec3 toLinear(const Math::vec3& srgb)
 {
-    return glm::vec3(channelToLinear(srgb.r), channelToLinear(srgb.g), channelToLinear(srgb.b));
+    return Math::vec3(channelToLinear(srgb.x), channelToLinear(srgb.y), channelToLinear(srgb.z));
 }
 
-glm::vec4 unpack(u32 packed)
+Math::vec4 unpack(u32 packed)
 {
-    return glm::vec4(static_cast<f32>(packed & 0xFF), static_cast<f32>((packed >> 8) & 0xFF),
+    return Math::vec4(static_cast<f32>(packed & 0xFF), static_cast<f32>((packed >> 8) & 0xFF),
                      static_cast<f32>((packed >> 16) & 0xFF), static_cast<f32>((packed >> 24) & 0xFF)) /
            255.0f;
 }
 
-u32 pack(const glm::vec4& color)
+u32 pack(const Math::vec4& color)
 {
-    const glm::vec4 clamped = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
+    const Math::vec4 clamped = Math::clamp(color, Math::vec4(0.0f), Math::vec4(1.0f));
     u32 packed = 0;
     for (int channel = 0; channel < 4; ++channel)
         packed |= static_cast<u32>(std::lround(clamped[channel] * 255.0f)) << (8 * channel);
     return packed;
 }
 
-u32 paintVertices(MeshData& mesh, const std::vector<u32>& vertices, const glm::vec4& color, f32 opacity)
+u32 paintVertices(MeshData& mesh, const std::vector<u32>& vertices, const Math::vec4& color, f32 opacity)
 {
-    opacity = glm::clamp(opacity, 0.0f, 1.0f);
+    opacity = Math::clamp(opacity, 0.0f, 1.0f);
     ensureColors(mesh);
     u32 changed = 0;
     for (const u32 vertex : vertices)
@@ -54,19 +54,19 @@ u32 paintVertices(MeshData& mesh, const std::vector<u32>& vertices, const glm::v
         if (vertex >= mesh.colors.size())
             continue;
         const u32 before = mesh.colors[vertex];
-        mesh.colors[vertex] = pack(glm::mix(unpack(before), color, opacity));
+        mesh.colors[vertex] = pack(Math::mix(unpack(before), color, opacity));
         if (mesh.colors[vertex] != before)
             ++changed;
     }
     return changed;
 }
 
-u32 paintSphere(MeshData& mesh, const std::vector<u32>* subset, const glm::vec3& center, f32 radius, f32 hardness,
-                const glm::vec4& color, f32 opacity)
+u32 paintSphere(MeshData& mesh, const std::vector<u32>* subset, const Math::vec3& center, f32 radius, f32 hardness,
+                const Math::vec4& color, f32 opacity)
 {
     if (radius <= 0.0f)
         return 0;
-    hardness = glm::clamp(hardness, 0.0f, 1.0f);
+    hardness = Math::clamp(hardness, 0.0f, 1.0f);
     ensureColors(mesh);
 
     u32 changed = 0;
@@ -74,7 +74,7 @@ u32 paintSphere(MeshData& mesh, const std::vector<u32>* subset, const glm::vec3&
     {
         if (vertex >= mesh.positions.size())
             return;
-        const f32 distance = glm::length(mesh.positions[vertex] - center) / radius;
+        const f32 distance = Math::length(mesh.positions[vertex] - center) / radius;
         if (distance >= 1.0f)
             return;
         // Flat out to `hardness`, smoothstep to nothing at the rim.
@@ -85,7 +85,7 @@ u32 paintSphere(MeshData& mesh, const std::vector<u32>* subset, const glm::vec3&
             falloff = 1.0f - t * t * (3.0f - 2.0f * t);
         }
         const u32 before = mesh.colors[vertex];
-        mesh.colors[vertex] = pack(glm::mix(unpack(before), color, glm::clamp(opacity, 0.0f, 1.0f) * falloff));
+        mesh.colors[vertex] = pack(Math::mix(unpack(before), color, Math::clamp(opacity, 0.0f, 1.0f) * falloff));
         if (mesh.colors[vertex] != before)
             ++changed;
     };

@@ -3,7 +3,7 @@
 #include "Mesh.h"
 
 #include <glad.h>
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 
 using namespace Radion;
 
@@ -62,10 +62,10 @@ f32 framingDistance(CameraView view, f32 radius, f32 aspect)
     constexpr f32 kMargin = 1.05f;
     if (view == CameraView::Perspective)
     {
-        const f32 halfFov = glm::radians(60.0f) * 0.5f;
+        const f32 halfFov = Math::radians(60.0f) * 0.5f;
         // The narrower axis decides: a tall image has a smaller horizontal fov.
-        const f32 halfAxis = aspect >= 1.0f ? halfFov : glm::atan(glm::tan(halfFov) * aspect);
-        return radius / glm::sin(halfAxis) * kMargin;
+        const f32 halfAxis = aspect >= 1.0f ? halfFov : Math::atan(Math::tan(halfFov) * aspect);
+        return radius / Math::sin(halfAxis) * kMargin;
     }
     return 2.0f * radius * kMargin * (aspect >= 1.0f ? 1.0f : 1.0f / aspect);
 }
@@ -88,17 +88,17 @@ bool BlenderApplication::captureViewport(const CaptureParams& params, std::vecto
         // The farthest vertex, not the box's corner: a long thin model (a
         // helicopter's rotor span against its height) would otherwise be framed
         // for a sphere far bigger than anything in it.
-        const glm::vec3 center = mMeshData->bounds.center();
+        const Math::vec3 center = mMeshData->bounds.center();
         f32 farthest = 0.0f;
-        for (const glm::vec3& position : mMeshData->positions)
-            farthest = glm::max(farthest, glm::distance(position, center));
+        for (const Math::vec3& position : mMeshData->positions)
+            farthest = Math::max(farthest, Math::distance(position, center));
         camera.target = center;
-        camera.distance = framingDistance(params.view, glm::max(farthest, 0.01f), aspect);
+        camera.distance = framingDistance(params.view, Math::max(farthest, 0.01f), aspect);
     }
 
-    glm::mat4 view(1.0f);
-    glm::mat4 projection(1.0f);
-    glm::vec3 cameraPos(0.0f);
+    Math::mat4 view(1.0f);
+    Math::mat4 projection(1.0f);
+    Math::vec3 cameraPos(0.0f);
     computeCameraMatrices(camera, params.view, aspect, view, projection, cameraPos);
 
     CaptureTarget target;
@@ -111,8 +111,8 @@ bool BlenderApplication::captureViewport(const CaptureParams& params, std::vecto
     if (ready)
     {
         glViewport(0, 0, params.width, params.height);
-        const glm::vec3& background = mSettings.viewport().backgroundColor;
-        glClearColor(background.r, background.g, background.b, 1.0f);
+        const Math::vec3& background = mSettings.viewport().backgroundColor;
+        glClearColor(background.x, background.y, background.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         MiniDrawParams draw;

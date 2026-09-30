@@ -23,9 +23,9 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-bool near(const glm::vec2& a, const glm::vec2& b, f32 tolerance = 1e-4f)
+bool near(const Math::vec2& a, const Math::vec2& b, f32 tolerance = 1e-4f)
 {
-    return glm::length(a - b) <= tolerance;
+    return Math::length(a - b) <= tolerance;
 }
 
 // Two quads in UV space that share no vertex: two islands of two triangles.
@@ -43,12 +43,12 @@ MeshData twoIslands()
 MeshData cube()
 {
     MeshData mesh;
-    const glm::vec3 normals[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-    for (const glm::vec3& n : normals)
+    const Math::vec3 normals[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    for (const Math::vec3& n : normals)
     {
-        glm::vec3 u = std::fabs(n.y) > 0.5f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
-        glm::vec3 v = glm::cross(n, u);
-        u = glm::cross(v, n);
+        Math::vec3 u = std::fabs(n.y) > 0.5f ? Math::vec3(1, 0, 0) : Math::vec3(0, 1, 0);
+        Math::vec3 v = Math::cross(n, u);
+        u = Math::cross(v, n);
         const u32 base = static_cast<u32>(mesh.positions.size());
         for (int i = 0; i < 4; ++i)
         {
@@ -62,12 +62,12 @@ MeshData cube()
     // Wind every face so the geometric normal agrees with the stored one.
     for (usize t = 0; t < mesh.indices.size() / 3; ++t)
     {
-        const glm::vec3 g = glm::cross(mesh.positions[mesh.indices[t * 3 + 1]] - mesh.positions[mesh.indices[t * 3]],
+        const Math::vec3 g = Math::cross(mesh.positions[mesh.indices[t * 3 + 1]] - mesh.positions[mesh.indices[t * 3]],
                                        mesh.positions[mesh.indices[t * 3 + 2]] - mesh.positions[mesh.indices[t * 3]]);
-        if (glm::dot(g, mesh.normals[mesh.indices[t * 3]]) < 0.0f)
+        if (Math::dot(g, mesh.normals[mesh.indices[t * 3]]) < 0.0f)
             std::swap(mesh.indices[t * 3 + 1], mesh.indices[t * 3 + 2]);
     }
-    mesh.uvs.assign(mesh.positions.size(), glm::vec2(0.0f));
+    mesh.uvs.assign(mesh.positions.size(), Math::vec2(0.0f));
     return mesh;
 }
 
@@ -135,12 +135,12 @@ void testFit()
 
     // A wide layout keeps its aspect and is centred when asked.
     MeshData wide;
-    wide.positions.assign(2, glm::vec3(0));
+    wide.positions.assign(2, Math::vec3(0));
     wide.uvs = {{0, 0}, {2, 1}};
     MeshUv::fit(wide, {0, 1}, nullptr, true, 0.0f);
     CHECK(near(wide.uvs[0], {0, 0.25f}) && near(wide.uvs[1], {1, 0.75f}));
     MeshData stretch;
-    stretch.positions.assign(2, glm::vec3(0));
+    stretch.positions.assign(2, Math::vec3(0));
     stretch.uvs = {{0, 0}, {2, 1}};
     MeshUv::fit(stretch, {0, 1}, nullptr, false, 0.1f);
     CHECK(near(stretch.uvs[0], {0.1f, 0.1f}) && near(stretch.uvs[1], {0.9f, 0.9f}));
@@ -174,7 +174,7 @@ void testBoxMap()
     // different planes must be split so each plane keeps its UV.
     MeshData welded;
     welded.positions = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
-    welded.normals.assign(4, glm::vec3(0, 0, 1));
+    welded.normals.assign(4, Math::vec3(0, 0, 1));
     welded.indices = {0, 1, 2, 0, 3, 1, 0, 2, 3}; // faces facing z, y, x
     const u32 addedWelded = MeshUv::boxMap(welded, {0, 1, 2}, 1.0f, {0, 0}, nullptr);
     CHECK(addedWelded > 0);
@@ -189,7 +189,7 @@ void testBoxMap()
     // Triangles outside the list keep their UVs.
     MeshData partial = twoIslands();
     partial.indices[6] = 2; // triangle 2 now shares vertex 2 with triangle 0
-    const glm::vec2 before = partial.uvs[2];
+    const Math::vec2 before = partial.uvs[2];
     MeshUv::boxMap(partial, {2, 3}, 1.0f, {0, 0});
     CHECK(near(partial.uvs[2], before));
 }

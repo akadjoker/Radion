@@ -199,6 +199,136 @@ add_test(NAME mesh_transform COMMAND radion_mesh_transform_tests)
 set_tests_properties(mesh_transform PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
 
+add_executable(radion_blender_selection_tests
+    BlenderSelectionTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/BlenderSelection.cpp
+)
+target_precompile_headers(radion_blender_selection_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_blender_selection_tests PRIVATE radion_core)
+target_include_directories(radion_blender_selection_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME blender_selection COMMAND radion_blender_selection_tests)
+set_tests_properties(blender_selection PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+# The blender's HTTP API core has no GL or engine dependency, so it is tested
+# on its own; only the commands that drive the editor need the application.
+if(RADION_BUILD_BLENDER)
+    add_executable(radion_blender_api_tests BlenderApiTests.cpp)
+    target_precompile_headers(radion_blender_api_tests PRIVATE
+        "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+    )
+    target_link_libraries(radion_blender_api_tests PRIVATE radion_blender_api radion_core)
+    add_test(NAME blender_api COMMAND radion_blender_api_tests)
+    set_tests_properties(blender_api PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+endif()
+
+add_executable(radion_procedural_shapes_tests
+    ProceduralShapesTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/ProceduralShapes.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshEdit.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshTopology.cpp
+)
+target_precompile_headers(radion_procedural_shapes_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_procedural_shapes_tests PRIVATE radion_render)
+target_include_directories(radion_procedural_shapes_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME procedural_shapes COMMAND radion_procedural_shapes_tests)
+set_tests_properties(procedural_shapes PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+add_executable(radion_gltf_export_tests
+    GltfExportTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/GltfExporter.cpp
+)
+target_precompile_headers(radion_gltf_export_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_gltf_export_tests PRIVATE radion_render)
+target_include_directories(radion_gltf_export_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+    ${PROJECT_SOURCE_DIR}/runtime/render/src
+)
+add_test(NAME gltf_export COMMAND radion_gltf_export_tests)
+set_tests_properties(gltf_export PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+add_executable(radion_mesh_topology_tests
+    MeshTopologyTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshTopology.cpp
+)
+target_precompile_headers(radion_mesh_topology_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_mesh_topology_tests PRIVATE radion_render)
+target_include_directories(radion_mesh_topology_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME mesh_topology COMMAND radion_mesh_topology_tests)
+set_tests_properties(mesh_topology PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+add_executable(radion_mesh_edit_tests
+    MeshEditTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshEdit.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshTopology.cpp
+)
+target_precompile_headers(radion_mesh_edit_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_mesh_edit_tests PRIVATE radion_render)
+target_include_directories(radion_mesh_edit_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME mesh_edit COMMAND radion_mesh_edit_tests)
+set_tests_properties(mesh_edit PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+add_executable(radion_mesh_boolean_tests
+    MeshBooleanTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshBoolean.cpp
+)
+target_precompile_headers(radion_mesh_boolean_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_mesh_boolean_tests PRIVATE radion_geometry)
+target_include_directories(radion_mesh_boolean_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME mesh_boolean COMMAND radion_mesh_boolean_tests)
+set_tests_properties(mesh_boolean PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+add_executable(radion_mesh_paint_tests
+    MeshPaintTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshPaint.cpp
+)
+target_precompile_headers(radion_mesh_paint_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_mesh_paint_tests PRIVATE radion_geometry)
+target_include_directories(radion_mesh_paint_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME mesh_paint COMMAND radion_mesh_paint_tests)
+set_tests_properties(mesh_paint PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+add_executable(radion_blender_uv_edit_tests
+    BlenderUvEditTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshUv.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshEdit.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshTopology.cpp
+)
+target_precompile_headers(radion_blender_uv_edit_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_blender_uv_edit_tests PRIVATE radion_render)
+target_include_directories(radion_blender_uv_edit_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME blender_uv_edit COMMAND radion_blender_uv_edit_tests)
+set_tests_properties(blender_uv_edit PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_file_pack_tests FilePackTests.cpp)
 target_precompile_headers(radion_file_pack_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"

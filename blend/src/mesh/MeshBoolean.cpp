@@ -87,15 +87,15 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
     std::vector<u8> dropped(faceCount, 0);
     for (const std::vector<u32>& members : shells)
     {
-        glm::vec3 low(1.0e30f);
-        glm::vec3 high(-1.0e30f);
+        Math::vec3 low(1.0e30f);
+        Math::vec3 high(-1.0e30f);
         for (const u32 f : members)
             for (u32 c = 0; c < 3; ++c)
             {
-                low = glm::min(low, mesh.positions[mesh.indices[f * 3 + c]]);
-                high = glm::max(high, mesh.positions[mesh.indices[f * 3 + c]]);
+                low = Math::min(low, mesh.positions[mesh.indices[f * 3 + c]]);
+                high = Math::max(high, mesh.positions[mesh.indices[f * 3 + c]]);
             }
-        const glm::vec3 extent = high - low;
+        const Math::vec3 extent = high - low;
         if (std::max(extent.x, std::max(extent.y, extent.z)) < voxel * 4.0f)
             for (const u32 f : members)
                 dropped[f] = 1;
@@ -110,20 +110,20 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
         f32 bestArea = -1.0f;
         for (const u32 f : members)
         {
-            const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
-            const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
-            const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
-            const f32 area = glm::length(glm::cross(b - a, c - a));
+            const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
+            const Math::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+            const Math::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+            const f32 area = Math::length(Math::cross(b - a, c - a));
             if (area > bestArea)
             {
                 bestArea = area;
                 best = f;
             }
         }
-        const glm::vec3& a = mesh.positions[mesh.indices[best * 3]];
-        const glm::vec3& b = mesh.positions[mesh.indices[best * 3 + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[best * 3 + 2]];
-        const glm::vec3 normal = glm::normalize(glm::cross(b - a, c - a));
+        const Math::vec3& a = mesh.positions[mesh.indices[best * 3]];
+        const Math::vec3& b = mesh.positions[mesh.indices[best * 3 + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[best * 3 + 2]];
+        const Math::vec3 normal = Math::normalize(Math::cross(b - a, c - a));
         // Positive density is inside the solid: outward normals lead out of it.
         if (field.sampleDensity((a + b + c) / 3.0f + normal * probe) > 0.0f)
             for (const u32 f : members)
@@ -141,13 +141,13 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
         mesh.indices = std::move(kept);
     }
     const usize shadedFaceCount = mesh.indices.size() / 3;
-    std::vector<glm::vec3> faceNormal(shadedFaceCount);
+    std::vector<Math::vec3> faceNormal(shadedFaceCount);
     for (u32 f = 0; f < shadedFaceCount; ++f)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
-        faceNormal[f] = glm::cross(b - a, c - a); // area weighted
+        const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+        faceNormal[f] = Math::cross(b - a, c - a); // area weighted
     }
     std::vector<std::vector<u32>> around(mesh.positions.size());
     for (u32 f = 0; f < shadedFaceCount; ++f)
@@ -162,20 +162,20 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
     std::unordered_map<u64, u32> made; // (vertex, quantised normal) -> new vertex
     for (u32 f = 0; f < shadedFaceCount; ++f)
     {
-        const f32 length = glm::length(faceNormal[f]);
-        const glm::vec3 own = length > 1.0e-20f ? faceNormal[f] / length : glm::vec3(0.0f, 1.0f, 0.0f);
+        const f32 length = Math::length(faceNormal[f]);
+        const Math::vec3 own = length > 1.0e-20f ? faceNormal[f] / length : Math::vec3(0.0f, 1.0f, 0.0f);
         for (u32 c = 0; c < 3; ++c)
         {
             const u32 v = mesh.indices[f * 3 + c];
-            glm::vec3 sum(0.0f);
+            Math::vec3 sum(0.0f);
             for (const u32 other : around[v])
             {
-                const f32 otherLength = glm::length(faceNormal[other]);
-                if (otherLength > 1.0e-20f && glm::dot(faceNormal[other] / otherLength, own) >= kCreaseCos)
+                const f32 otherLength = Math::length(faceNormal[other]);
+                if (otherLength > 1.0e-20f && Math::dot(faceNormal[other] / otherLength, own) >= kCreaseCos)
                     sum += faceNormal[other];
             }
-            const f32 sumLength = glm::length(sum);
-            const glm::vec3 normal = sumLength > 1.0e-20f ? sum / sumLength : own;
+            const f32 sumLength = Math::length(sum);
+            const Math::vec3 normal = sumLength > 1.0e-20f ? sum / sumLength : own;
 
             const s64 qx = static_cast<s64>(std::lround(normal.x * 64.0f));
             const s64 qy = static_cast<s64>(std::lround(normal.y * 64.0f));
@@ -212,7 +212,7 @@ bool MeshEdit::booleanMeshes(const MeshData& a, const MeshData& b, BooleanOp op,
     // Room for the surface on every side, or it sits on the edge of the grid.
     AABB box = left.bounds();
     box.merge(right.bounds());
-    const glm::vec3 size = box.max - box.min;
+    const Math::vec3 size = box.max - box.min;
     const f32 longest = std::max(size.x, std::max(size.y, size.z));
     if (!(longest > 1.0e-6f))
         return fail(error, "the shapes have no extent");
@@ -220,8 +220,8 @@ bool MeshEdit::booleanMeshes(const MeshData& a, const MeshData& b, BooleanOp op,
     // The grid is shifted by an odd fraction of a cell: models are full of faces
     // on round coordinates, and a grid plane that lands exactly on one makes
     // the inside/outside test flip on the very samples the surface passes through.
-    box.min -= glm::vec3(voxel * 2.0f) + glm::vec3(voxel * 0.3711f, voxel * 0.2719f, voxel * 0.4831f);
-    box.max += glm::vec3(voxel * 2.0f);
+    box.min -= Math::vec3(voxel * 2.0f) + Math::vec3(voxel * 0.3711f, voxel * 0.2719f, voxel * 0.4831f);
+    box.max += Math::vec3(voxel * 2.0f);
 
     const Volume::UnionSource combinedUnion(left, right);
     const Volume::IntersectionSource combinedIntersection(left, right);

@@ -37,10 +37,10 @@ MeshData icosahedron()
 {
     const f32 t = (1.0f + std::sqrt(5.0f)) * 0.5f;
     MeshData mesh;
-    const glm::vec3 v[12] = {{-1, t, 0}, {1, t, 0},  {-1, -t, 0}, {1, -t, 0}, {0, -1, t}, {0, 1, t},
+    const Math::vec3 v[12] = {{-1, t, 0}, {1, t, 0},  {-1, -t, 0}, {1, -t, 0}, {0, -1, t}, {0, 1, t},
                              {0, -1, -t}, {0, 1, -t}, {t, 0, -1},  {t, 0, 1},  {-t, 0, -1}, {-t, 0, 1}};
-    for (const glm::vec3& p : v)
-        mesh.positions.push_back(glm::normalize(p));
+    for (const Math::vec3& p : v)
+        mesh.positions.push_back(Math::normalize(p));
     mesh.indices = {0, 11, 5, 0, 5, 1,  0, 1, 7,  0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8,
                     3, 9, 4,  3, 4, 2,  3, 2, 6,  3, 6, 8,  3, 8, 9,   4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7,  9, 8, 1};
     return mesh;
@@ -73,13 +73,13 @@ MeshData splitCube()
 
 void addAttributes(MeshData& mesh)
 {
-    mesh.normals.assign(mesh.positions.size(), glm::vec3(0, 1, 0));
+    mesh.normals.assign(mesh.positions.size(), Math::vec3(0, 1, 0));
     mesh.uvs.clear();
     mesh.colors.clear();
-    for (const glm::vec3& p : mesh.positions)
+    for (const Math::vec3& p : mesh.positions)
     {
-        mesh.uvs.push_back(glm::vec2(p.x, p.z));
-        mesh.colors.push_back(0xFF000000u | (static_cast<u32>(glm::clamp(p.x, 0.0f, 1.0f) * 255.0f) & 0xFF));
+        mesh.uvs.push_back(Math::vec2(p.x, p.z));
+        mesh.colors.push_back(0xFF000000u | (static_cast<u32>(Math::clamp(p.x, 0.0f, 1.0f) * 255.0f) & 0xFF));
     }
 }
 
@@ -139,14 +139,14 @@ Report analyse(const MeshData& mesh)
 }
 
 // Triangles of a convex shape face away from its centre.
-bool facesOutward(const MeshData& mesh, const glm::vec3& centre)
+bool facesOutward(const MeshData& mesh, const Math::vec3& centre)
 {
     for (usize f = 0; f < mesh.indices.size() / 3; ++f)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
-        if (glm::dot(glm::cross(b - a, c - a), (a + b + c) / 3.0f - centre) <= 0.0f)
+        const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+        if (Math::dot(Math::cross(b - a, c - a), (a + b + c) / 3.0f - centre) <= 0.0f)
             return false;
     }
     return true;
@@ -166,7 +166,7 @@ MeshTopology topologyOf(const MeshData& mesh)
     return topology;
 }
 
-u64 edgeBetween(const MeshData& mesh, const glm::vec3& a, const glm::vec3& b)
+u64 edgeBetween(const MeshData& mesh, const Math::vec3& a, const Math::vec3& b)
 {
     const MeshTopology topology = topologyOf(mesh);
     u32 ia = 0;
@@ -190,7 +190,7 @@ void testTestShapesAreSound()
         const Report r = analyse(mesh);
         CHECK(r.closed && r.consistent && r.valid);
         CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
-        CHECK(facesOutward(mesh, glm::vec3(0.0f)) || facesOutward(mesh, glm::vec3(0.5f)));
+        CHECK(facesOutward(mesh, Math::vec3(0.0f)) || facesOutward(mesh, Math::vec3(0.5f)));
     }
 }
 
@@ -206,12 +206,12 @@ void testRefineOneEdge()
     CHECK(mesh.indices.size() / 3 == 14);
     CHECK(mesh.positions.size() == 9);
     CHECK(result.midpoints.size() == 1);
-    CHECK(mesh.positions[result.midpoints[0].vertex] == glm::vec3(0.5f, 0, 0));
+    CHECK(mesh.positions[result.midpoints[0].vertex] == Math::vec3(0.5f, 0, 0));
     CHECK(result.origin.size() == 14);
 
     const Report r = analyse(mesh);
     CHECK(r.closed && r.consistent && r.valid);
-    CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.5f)));
 }
 
 void testRefineDirectionOfT()
@@ -222,7 +222,7 @@ void testRefineDirectionOfT()
     const u64 key = edgeBetween(mesh, {0, 0, 0}, {1, 0, 0}); // ids 0 and 1
     MeshEdit::RefineResult result;
     CHECK(MeshEdit::refineEdges(mesh, {{key, 0.25f}}, &result));
-    CHECK(mesh.positions[result.midpoints[0].vertex] == glm::vec3(0.25f, 0, 0));
+    CHECK(mesh.positions[result.midpoints[0].vertex] == Math::vec3(0.25f, 0, 0));
 }
 
 void testRefineTwoAndThreeEdgesOfOneTriangle()
@@ -234,7 +234,7 @@ void testRefineTwoAndThreeEdgesOfOneTriangle()
     CHECK(MeshEdit::refineEdges(mesh, {{a, 0.5f}, {b, 0.5f}}));
     Report r = analyse(mesh);
     CHECK(r.closed && r.consistent && r.valid);
-    CHECK(facesOutward(mesh, glm::vec3(0.0f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.0f)));
 
     MeshData all = octahedron();
     std::vector<MeshEdit::EdgeSplit> splits;
@@ -258,7 +258,7 @@ void testRefineKeepsAttributesInStep()
 
     const u32 m = result.midpoints[0].vertex;
     CHECK(std::abs(mesh.uvs[m].x - 0.5f) < 1.0e-5f && std::abs(mesh.uvs[m].y) < 1.0e-5f);
-    CHECK(std::abs(glm::length(mesh.normals[m]) - 1.0f) < 1.0e-4f);
+    CHECK(std::abs(Math::length(mesh.normals[m]) - 1.0f) < 1.0e-4f);
     // Half way between a colour of 0 and 255 is about 128.
     CHECK((mesh.colors[m] & 0xFF) >= 126 && (mesh.colors[m] & 0xFF) <= 129);
 }
@@ -279,8 +279,8 @@ void testSubdivideFlat()
 {
     for (MeshData mesh : {octahedron(), weldedCube(), splitCube()})
     {
-        const glm::vec3 low = [&] { glm::vec3 m(1e9f); for (auto& p : mesh.positions) m = glm::min(m, p); return m; }();
-        const glm::vec3 high = [&] { glm::vec3 m(-1e9f); for (auto& p : mesh.positions) m = glm::max(m, p); return m; }();
+        const Math::vec3 low = [&] { Math::vec3 m(1e9f); for (auto& p : mesh.positions) m = Math::min(m, p); return m; }();
+        const Math::vec3 high = [&] { Math::vec3 m(-1e9f); for (auto& p : mesh.positions) m = Math::max(m, p); return m; }();
         const usize triangles = mesh.indices.size() / 3;
 
         std::string error;
@@ -291,12 +291,12 @@ void testSubdivideFlat()
         CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
 
         // Flat subdivision does not move the surface.
-        glm::vec3 low2(1e9f);
-        glm::vec3 high2(-1e9f);
-        for (const glm::vec3& p : mesh.positions)
+        Math::vec3 low2(1e9f);
+        Math::vec3 high2(-1e9f);
+        for (const Math::vec3& p : mesh.positions)
         {
-            low2 = glm::min(low2, p);
-            high2 = glm::max(high2, p);
+            low2 = Math::min(low2, p);
+            high2 = Math::max(high2, p);
         }
         CHECK(low2 == low && high2 == high);
     }
@@ -320,7 +320,7 @@ void testSubdivideRegionStaysWatertight()
     const Report r = analyse(mesh);
     CHECK(r.closed && r.consistent && r.valid);
     CHECK(mesh.indices.size() / 3 > 12 + 3); // the face became 4; its neighbours were cut too
-    CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.5f)));
 
     // A second level on the same region, then everything else untouched.
     MeshData twice = weldedCube();
@@ -341,7 +341,7 @@ void testSubdivideSmoothRoundsTheSurface()
     CHECK(mesh.bounds.max.x < 1.0f && mesh.bounds.max.x > 0.5f);
     CHECK(std::abs(mesh.bounds.max.x + mesh.bounds.min.x) < 1.0e-5f);
     CHECK(std::abs(mesh.bounds.max.x - mesh.bounds.max.y) < 1.0e-5f);
-    CHECK(facesOutward(mesh, glm::vec3(0.0f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.0f)));
 }
 
 // The sharpest turn between two neighbouring triangles, in radians: a measure of
@@ -351,17 +351,17 @@ f32 sharpestFold(const MeshData& mesh)
     const MeshTopology topology = topologyOf(mesh);
     auto normal = [&](u32 face)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[face * 3]];
-        const glm::vec3& b = mesh.positions[mesh.indices[face * 3 + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[face * 3 + 2]];
-        return glm::normalize(glm::cross(b - a, c - a));
+        const Math::vec3& a = mesh.positions[mesh.indices[face * 3]];
+        const Math::vec3& b = mesh.positions[mesh.indices[face * 3 + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[face * 3 + 2]];
+        return Math::normalize(Math::cross(b - a, c - a));
     };
     f32 sharpest = 0.0f;
     for (const MeshTopology::Edge& edge : topology.edges())
     {
         if (edge.faces.size() != 2)
             continue;
-        sharpest = std::max(sharpest, std::acos(glm::clamp(glm::dot(normal(edge.faces[0]), normal(edge.faces[1])), -1.0f, 1.0f)));
+        sharpest = std::max(sharpest, std::acos(Math::clamp(Math::dot(normal(edge.faces[0]), normal(edge.faces[1])), -1.0f, 1.0f)));
     }
     return sharpest;
 }
@@ -379,7 +379,7 @@ void testSmoothSubdivisionConvergesOnASphere()
         before = after;
     }
     CHECK(analyse(mesh).closed);
-    CHECK(facesOutward(mesh, glm::vec3(0.0f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.0f)));
 
     // Flat subdivision adds triangles but never smooths anything.
     MeshData flat = icosahedron();
@@ -468,10 +468,10 @@ void testTurnEdge()
     // Both triangles still face +Y.
     for (usize f = 0; f < 2; ++f)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
-        CHECK(glm::cross(b - a, c - a).y > 0.0f);
+        const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+        CHECK(Math::cross(b - a, c - a).y > 0.0f);
     }
 
     // Turning it back restores the original diagonal.
@@ -527,8 +527,8 @@ void testCollapseEdge()
     // The two triangles on the edge are gone.
     CHECK(mesh.indices.size() / 3 == 10);
     // Both ends now stand at the middle of where they were.
-    CHECK(mesh.positions[0] == glm::vec3(0.5f, 0, 0));
-    CHECK(mesh.positions[1] == glm::vec3(0.5f, 0, 0));
+    CHECK(mesh.positions[0] == Math::vec3(0.5f, 0, 0));
+    CHECK(mesh.positions[1] == Math::vec3(0.5f, 0, 0));
 
     const Report r = analyse(mesh);
     CHECK(r.valid);
@@ -537,7 +537,7 @@ void testCollapseEdge()
 
     MeshData again = weldedCube();
     CHECK(MeshEdit::collapseEdge(again, key, 0.0f, &error));
-    CHECK(again.positions[1] == glm::vec3(0, 0, 0));
+    CHECK(again.positions[1] == Math::vec3(0, 0, 0));
     CHECK(!MeshEdit::collapseEdge(again, key, 1.5f, &error));
     CHECK(!MeshEdit::collapseEdge(again, MeshTopology::edgeKey(0, 50), 0.5f, &error));
 }
@@ -564,7 +564,7 @@ MeshData quadGrid(u32 nx, u32 nz)
     MeshData mesh;
     for (u32 z = 0; z <= nz; ++z)
         for (u32 x = 0; x <= nx; ++x)
-            mesh.positions.push_back(glm::vec3(static_cast<f32>(x), 0, static_cast<f32>(z)));
+            mesh.positions.push_back(Math::vec3(static_cast<f32>(x), 0, static_cast<f32>(z)));
     const u32 row = nx + 1;
     for (u32 z = 0; z < nz; ++z)
     {
@@ -587,12 +587,12 @@ MeshData band(u32 n)
     for (u32 j = 0; j < n; ++j)
     {
         const f32 angle = 6.2831853f * static_cast<f32>(j) / static_cast<f32>(n);
-        mesh.positions.push_back(glm::vec3(std::cos(angle), 0.0f, std::sin(angle)));
+        mesh.positions.push_back(Math::vec3(std::cos(angle), 0.0f, std::sin(angle)));
     }
     for (u32 j = 0; j < n; ++j)
     {
         const f32 angle = 6.2831853f * static_cast<f32>(j) / static_cast<f32>(n);
-        mesh.positions.push_back(glm::vec3(std::cos(angle), 1.0f, std::sin(angle)));
+        mesh.positions.push_back(Math::vec3(std::cos(angle), 1.0f, std::sin(angle)));
     }
     for (u32 j = 0; j < n; ++j)
     {
@@ -618,12 +618,12 @@ void testKnifeCutsACube()
     MeshData mesh = weldedCube();
     std::vector<u64> cut;
     std::string error;
-    CHECK(MeshEdit::knife(mesh, glm::vec3(1, 0, 0), 0.5f, 1.0e-5f, &cut, &error));
+    CHECK(MeshEdit::knife(mesh, Math::vec3(1, 0, 0), 0.5f, 1.0e-5f, &cut, &error));
 
     const Report r = analyse(mesh);
     CHECK(r.closed && r.consistent && r.valid);
     CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
-    CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.5f)));
 
     // The line round the cube is a loop of edges lying in the plane.
     CHECK(cut.size() >= 4);
@@ -638,7 +638,7 @@ void testKnifeCutsACube()
 
     // An oblique plane works the same way.
     MeshData oblique = weldedCube();
-    CHECK(MeshEdit::knife(oblique, glm::vec3(1, 1, 0), 1.0f, 1.0e-5f));
+    CHECK(MeshEdit::knife(oblique, Math::vec3(1, 1, 0), 1.0f, 1.0e-5f));
     const Report ro = analyse(oblique);
     CHECK(ro.closed && ro.consistent && ro.valid);
 }
@@ -647,10 +647,10 @@ void testKnifeRefusals()
 {
     std::string error;
     MeshData mesh = weldedCube();
-    CHECK(!MeshEdit::knife(mesh, glm::vec3(0, 0, 0), 0.0f, 1.0e-5f, nullptr, &error));
+    CHECK(!MeshEdit::knife(mesh, Math::vec3(0, 0, 0), 0.0f, 1.0e-5f, nullptr, &error));
     // A plane beside the cube, and one lying in a face: nothing crosses.
-    CHECK(!MeshEdit::knife(mesh, glm::vec3(1, 0, 0), 5.0f, 1.0e-5f, nullptr, &error));
-    CHECK(!MeshEdit::knife(mesh, glm::vec3(1, 0, 0), 0.0f, 1.0e-5f, nullptr, &error));
+    CHECK(!MeshEdit::knife(mesh, Math::vec3(1, 0, 0), 5.0f, 1.0e-5f, nullptr, &error));
+    CHECK(!MeshEdit::knife(mesh, Math::vec3(1, 0, 0), 0.0f, 1.0e-5f, nullptr, &error));
     CHECK(mesh.indices.size() == 36);
 }
 
@@ -682,8 +682,8 @@ void testLoopCutOnAGrid()
     // The new loop is a real line of edges: its points are joined end to end.
     for (const u64 key : created)
     {
-        const glm::vec3& a = mesh.positions[static_cast<u32>(key >> 32)];
-        const glm::vec3& b = mesh.positions[static_cast<u32>(key & 0xFFFFFFFFu)];
+        const Math::vec3& a = mesh.positions[static_cast<u32>(key >> 32)];
+        const Math::vec3& b = mesh.positions[static_cast<u32>(key & 0xFFFFFFFFu)];
         CHECK(std::abs(a.x - 1.5f) < 1.0e-4f && std::abs(b.x - 1.5f) < 1.0e-4f);
     }
 }
@@ -801,10 +801,10 @@ void testInsetAFlatRegion()
     // Everything still faces up.
     for (usize f = 0; f < mesh.indices.size() / 3; ++f)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
-        CHECK(glm::cross(b - a, c - a).y > 0.0f);
+        const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+        CHECK(Math::cross(b - a, c - a).y > 0.0f);
     }
 }
 
@@ -839,7 +839,7 @@ void testInsetOnAClosedSurface()
         CHECK(r.closed && r.consistent && r.valid);
         CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
         CHECK(mesh.indices.size() / 3 == 12 + 8);
-        CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+        CHECK(facesOutward(mesh, Math::vec3(0.5f)));
     }
 }
 
@@ -900,7 +900,7 @@ void testRemoveUnusedVertices()
     CHECK(mesh.indices.size() / 3 == triangles);
     const Report r = analyse(mesh);
     CHECK(r.closed && r.consistent && r.valid);
-    CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.5f)));
     CHECK(MeshEdit::removeUnusedVertices(mesh) == 0);
 }
 
@@ -924,12 +924,12 @@ void testBevelACubeEdge()
         CHECK(r.vertices == 10);
         CHECK(usedVertexCount(mesh) == mesh.positions.size());
         CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
-        CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+        CHECK(facesOutward(mesh, Math::vec3(0.5f)));
 
         // The corner is cut away: nothing is left at the old edge.
         for (u32 v : std::set<u32>(mesh.indices.begin(), mesh.indices.end()))
         {
-            const glm::vec3& p = mesh.positions[v];
+            const Math::vec3& p = mesh.positions[v];
             CHECK(!(std::abs(p.y) < 1.0e-6f && std::abs(p.z) < 1.0e-6f));
         }
         // The new strip's four corners sit 0.2 in from the old edge on each face.
@@ -937,7 +937,7 @@ void testBevelACubeEdge()
         u32 onFaceZ = 0;
         for (u32 v : std::set<u32>(mesh.indices.begin(), mesh.indices.end()))
         {
-            const glm::vec3& p = mesh.positions[v];
+            const Math::vec3& p = mesh.positions[v];
             if (std::abs(p.y) < 1.0e-5f && std::abs(p.z - 0.2f) < 1.0e-5f)
                 ++onFaceY;
             if (std::abs(p.z) < 1.0e-5f && std::abs(p.y - 0.2f) < 1.0e-5f)
@@ -946,7 +946,7 @@ void testBevelACubeEdge()
         CHECK(onFaceY >= 2 && onFaceZ >= 2);
         // A chamfer takes volume off: the cube's bounds are unchanged but the
         // chamfer plane now passes inside the old corner line.
-        CHECK(mesh.bounds.min == glm::vec3(0.0f) && mesh.bounds.max == glm::vec3(1.0f));
+        CHECK(mesh.bounds.min == Math::vec3(0.0f) && mesh.bounds.max == Math::vec3(1.0f));
     }
 }
 
@@ -963,7 +963,7 @@ void testBevelTwoEdgesAtOnce()
     const Report r = analyse(mesh);
     CHECK(r.closed && r.consistent && r.valid);
     CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
-    CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.5f)));
     // 12 distinct points; each strip also owns 4 vertices of its own so it shades as a face.
     CHECK(usedVertexCount(mesh) == 12 + 2 * 4);
 }
@@ -994,10 +994,10 @@ f32 triangleAreaSum(const MeshData& mesh, usize firstFace, usize lastFace)
     f32 total = 0.0f;
     for (usize f = firstFace; f < lastFace; ++f)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
-        total += 0.5f * glm::length(glm::cross(b - a, c - a));
+        const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+        total += 0.5f * Math::length(Math::cross(b - a, c - a));
     }
     return total;
 }
@@ -1015,7 +1015,7 @@ void testFillAClosedOffHole()
     const Report r = analyse(mesh);
     CHECK(r.closed && r.consistent && r.valid);
     CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
-    CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.5f)));
     CHECK(analyse(mesh).faces == 12);
 }
 
@@ -1043,10 +1043,10 @@ void testFillAConcaveHole()
     CHECK(std::abs(triangleAreaSum(mesh, before, mesh.indices.size() / 3) - 3.0f) < 1.0e-4f);
     for (usize f = before; f < mesh.indices.size() / 3; ++f)
     {
-        const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
-        const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
-        const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
-        CHECK(glm::cross(b - a, c - a).y > 0.0f);
+        const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
+        const Math::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+        const Math::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+        CHECK(Math::cross(b - a, c - a).y > 0.0f);
     }
     const MeshTopology topology = topologyOf(mesh);
     CHECK(topology.boundaryLoops(mesh).size() == 1); // only the grid's outer border remains
@@ -1070,7 +1070,7 @@ MeshData twoBands(u32 countA, u32 countB)
 {
     MeshData a = band(countA);
     MeshData b = band(countB);
-    for (glm::vec3& p : b.positions)
+    for (Math::vec3& p : b.positions)
         p.y += 2.0f;
     const u32 base = static_cast<u32>(a.positions.size());
     a.positions.insert(a.positions.end(), b.positions.begin(), b.positions.end());
@@ -1151,7 +1151,7 @@ void testMirrorHalfACube()
     CHECK(mesh.indices.size() / 3 == 20);
     CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
     CHECK(mesh.bounds.min.x == -1.0f && mesh.bounds.max.x == 1.0f);
-    CHECK(facesOutward(mesh, glm::vec3(0.0f, 0.5f, 0.5f)));
+    CHECK(facesOutward(mesh, Math::vec3(0.0f, 0.5f, 0.5f)));
 }
 
 void testMirrorWithoutWeld()
@@ -1166,7 +1166,7 @@ void testMirrorWithoutWeld()
     CHECK(r.valid && r.consistent);
     // Both copies are closed, consistent and face out from their own centres.
     MeshData lower = octahedron();
-    CHECK(facesOutward(lower, glm::vec3(0.0f)));
+    CHECK(facesOutward(lower, Math::vec3(0.0f)));
 
     // Only some faces.
     MeshData some = octahedron();

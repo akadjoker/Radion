@@ -23,7 +23,7 @@
 #include "panels/TimelinePanel.h"
 #include "panels/ViewportPanel.h"
 
-#include <glm/common.hpp>
+#include "Math.h"
 #include <set>
 #include <unordered_map>
 #include <imgui.h>
@@ -78,7 +78,7 @@ void BlenderApplication::run()
 {
     while (mEngine.update())
     {
-        const f32 deltaTime = glm::min(mEngine.getWindow().getDeltaTime(), 0.1f);
+        const f32 deltaTime = Math::min(mEngine.getWindow().getDeltaTime(), 0.1f);
         // Before anything draws: API commands change the document the rest of
         // the frame then shows.
         mApi->pump();
@@ -327,7 +327,7 @@ void BlenderApplication::setActiveAnimationClip(s32 index)
 
     mActiveClip = index;
     mCurrentFrame = 0;
-    mTotalFrames = glm::max(
+    mTotalFrames = Math::max(
         1u, static_cast<u32>(mAnimationClips[mActiveClip].duration() * kAnimationFramesPerSecond));
     updateAnimationPose();
 }
@@ -472,8 +472,8 @@ u32 BlenderApplication::snapSelectionToGrid(f32 step)
     u32 moved = 0;
     for (u32 i = 0; i < count; ++i)
     {
-        glm::vec3& p = mMeshData->positions[whole ? i : vertices[i]];
-        const glm::vec3 snapped = glm::round(p / step) * step;
+        Math::vec3& p = mMeshData->positions[whole ? i : vertices[i]];
+        const Math::vec3 snapped = Math::round(p / step) * step;
         if (snapped != p)
         {
             p = snapped;
@@ -503,7 +503,7 @@ u32 BlenderApplication::snapSelectionToVertices(f32 tolerance)
         return 0;
 
     const MeshTopology& topo = topology();
-    const std::vector<glm::vec3>& positions = mMeshData->positions;
+    const std::vector<Math::vec3>& positions = mMeshData->positions;
 
     std::vector<bool> isSelectedPoint(positions.size(), false);
     for (const u32 vertex : selected)
@@ -524,7 +524,7 @@ u32 BlenderApplication::snapSelectionToVertices(f32 tolerance)
                                       static_cast<u64>(c.z) * 83492791ull);
         }
     };
-    auto cellOf = [tolerance](const glm::vec3& p)
+    auto cellOf = [tolerance](const Math::vec3& p)
     {
         return Cell{static_cast<s64>(std::floor(p.x / tolerance)), static_cast<s64>(std::floor(p.y / tolerance)),
                     static_cast<s64>(std::floor(p.z / tolerance))};
@@ -538,18 +538,18 @@ u32 BlenderApplication::snapSelectionToVertices(f32 tolerance)
 
     // Decide every move before making any, so one point snapping cannot change
     // where the next one finds its target.
-    std::unordered_map<u32, glm::vec3> destination;
+    std::unordered_map<u32, Math::vec3> destination;
     for (const u32 vertex : selected)
     {
         const u32 point = topo.canonical(vertex);
         if (destination.count(point))
             continue;
 
-        const glm::vec3& from = positions[point];
+        const Math::vec3& from = positions[point];
         const Cell home = cellOf(from);
         f32 bestDistance = tolerance;
         bool found = false;
-        glm::vec3 best(0.0f);
+        Math::vec3 best(0.0f);
         for (s64 dx = -1; dx <= 1; ++dx)
             for (s64 dy = -1; dy <= 1; ++dy)
                 for (s64 dz = -1; dz <= 1; ++dz)
@@ -559,7 +559,7 @@ u32 BlenderApplication::snapSelectionToVertices(f32 tolerance)
                         continue;
                     for (const u32 candidate : cell->second)
                     {
-                        const f32 distance = glm::distance(positions[candidate], from);
+                        const f32 distance = Math::distance(positions[candidate], from);
                         if (distance <= bestDistance && positions[candidate] != from)
                         {
                             bestDistance = distance;
@@ -630,7 +630,7 @@ usize BlenderApplication::hiddenFaceCount() const
     return count;
 }
 
-bool BlenderApplication::knifeCut(const glm::vec3& normal, f32 offset, std::string* error)
+bool BlenderApplication::knifeCut(const Math::vec3& normal, f32 offset, std::string* error)
 {
     if (!mMeshData || mMeshData->indices.empty())
     {
@@ -1360,7 +1360,7 @@ bool BlenderApplication::booleanParts(MeshEdit::BooleanOp op, u32 partA, u32 par
 
     s32 index = -1;
     PartStyle keep;
-    if (!appendPart(std::move(combined), glm::mat4(1.0f), keep, "Boolean", false, &index, false))
+    if (!appendPart(std::move(combined), Math::mat4(1.0f), keep, "Boolean", false, &index, false))
     {
         discardUndo();
         if (error)
@@ -1424,10 +1424,10 @@ std::vector<u32> BlenderApplication::symmetryPartners(const std::vector<u32>& ve
     if (!mMeshData || mSymmetryAxis < 0 || vertices.empty())
         return partners;
 
-    const std::vector<glm::vec3>& positions = mMeshData->positions;
+    const std::vector<Math::vec3>& positions = mMeshData->positions;
     const s32 axis = mSymmetryAxis;
     constexpr f32 kTolerance = 1.0e-4f;
-    auto mirrored = [&](glm::vec3 p)
+    auto mirrored = [&](Math::vec3 p)
     {
         p[axis] = 2.0f * mSymmetryOffset - p[axis];
         return p;
@@ -1448,7 +1448,7 @@ std::vector<u32> BlenderApplication::symmetryPartners(const std::vector<u32>& ve
                                       static_cast<u64>(c.z) * 83492791ull);
         }
     };
-    auto cellOf = [](const glm::vec3& p)
+    auto cellOf = [](const Math::vec3& p)
     {
         return Cell{static_cast<s64>(std::floor(p.x / 1.0e-3f)), static_cast<s64>(std::floor(p.y / 1.0e-3f)),
                     static_cast<s64>(std::floor(p.z / 1.0e-3f))};
@@ -1472,7 +1472,7 @@ std::vector<u32> BlenderApplication::symmetryPartners(const std::vector<u32>& ve
         if (std::abs(positions[v][axis] - mSymmetryOffset) <= kTolerance)
             continue;
 
-        const glm::vec3 target = mirrored(positions[v]);
+        const Math::vec3 target = mirrored(positions[v]);
         const Cell home = cellOf(target);
         for (s64 dx = -1; dx <= 1; ++dx)
             for (s64 dy = -1; dy <= 1; ++dy)
@@ -1485,7 +1485,7 @@ std::vector<u32> BlenderApplication::symmetryPartners(const std::vector<u32>& ve
                     {
                         if (inSet[candidate] || taken[candidate])
                             continue;
-                        if (glm::distance(positions[candidate], target) <= kTolerance)
+                        if (Math::distance(positions[candidate], target) <= kTolerance)
                         {
                             taken[candidate] = true;
                             partners.push_back(candidate);
@@ -1496,25 +1496,25 @@ std::vector<u32> BlenderApplication::symmetryPartners(const std::vector<u32>& ve
     return partners;
 }
 
-void BlenderApplication::transformVerticesWorld(const glm::mat4& world, const std::vector<u32>& vertices)
+void BlenderApplication::transformVerticesWorld(const Math::mat4& world, const std::vector<u32>& vertices)
 {
     if (!mMeshData)
         return;
 
     // The partners must be found before anything moves.
     const std::vector<u32> partners = symmetryPartners(vertices);
-    Assets().transformVerticesAbout(*mMeshData, world, glm::vec3(0.0f), vertices);
+    Assets().transformVerticesAbout(*mMeshData, world, Math::vec3(0.0f), vertices);
     if (!partners.empty())
     {
-        glm::vec3 flip(1.0f);
+        Math::vec3 flip(1.0f);
         flip[mSymmetryAxis] = -1.0f;
-        glm::mat4 reflect = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f));
-        glm::vec3 shift(0.0f);
+        Math::mat4 reflect = Math::translate(Math::mat4(1.0f), Math::vec3(0.0f));
+        Math::vec3 shift(0.0f);
         shift[mSymmetryAxis] = 2.0f * mSymmetryOffset;
         // x -> 2*offset - x along the axis.
-        reflect = glm::translate(glm::mat4(1.0f), shift) * glm::scale(glm::mat4(1.0f), flip);
+        reflect = Math::translate(Math::mat4(1.0f), shift) * Math::scale(Math::mat4(1.0f), flip);
         // M * W * M, with M its own inverse: what the partner must do to mirror the move.
-        Assets().transformVerticesAbout(*mMeshData, reflect * world * reflect, glm::vec3(0.0f), partners);
+        Assets().transformVerticesAbout(*mMeshData, reflect * world * reflect, Math::vec3(0.0f), partners);
     }
 }
 
@@ -2475,8 +2475,8 @@ void BlenderApplication::drawFaceMenu()
     ImGui::EndDisabled();
 }
 
-void BlenderApplication::applyFaceUVTransform(const glm::vec2& scale, f32 rotationDegrees,
-                                              const glm::vec2& offset)
+void BlenderApplication::applyFaceUVTransform(const Math::vec2& scale, f32 rotationDegrees,
+                                              const Math::vec2& offset)
 {
     if (!mMeshData)
         return;
@@ -2598,20 +2598,20 @@ bool BlenderApplication::extrudeFaces(f32 distance)
     return true;
 }
 
-glm::vec3 BlenderApplication::transformPivot()
+Math::vec3 BlenderApplication::transformPivot()
 {
     if (!mMeshData || mMeshData->positions.empty())
-        return glm::vec3(0.0f);
+        return Math::vec3(0.0f);
 
     const std::vector<u32> selected = editVertices();
-    const std::vector<glm::vec3>& positions = mMeshData->positions;
+    const std::vector<Math::vec3>& positions = mMeshData->positions;
 
-    glm::dvec3 sum(0.0);
+    Math::dvec3 sum(0.0);
     usize counted = 0;
     if (selected.empty())
     {
         for (usize i = 0; i < positions.size(); ++i)
-            sum += glm::dvec3(positions[i]);
+            sum += Math::dvec3(positions[i]);
         counted = positions.size();
     }
     else
@@ -2621,14 +2621,14 @@ glm::vec3 BlenderApplication::transformPivot()
             const usize index = static_cast<usize>(selected[i]);
             if (index >= positions.size())
                 continue;
-            sum += glm::dvec3(positions[index]);
+            sum += Math::dvec3(positions[index]);
             ++counted;
         }
     }
 
     if (counted == 0)
-        return glm::vec3(0.0f);
-    return glm::vec3(sum / static_cast<double>(counted));
+        return Math::vec3(0.0f);
+    return Math::vec3(sum / static_cast<double>(counted));
 }
 
 bool BlenderApplication::beginGizmoDrag()
@@ -2654,7 +2654,7 @@ bool BlenderApplication::beginGizmoDrag()
     return true;
 }
 
-void BlenderApplication::updateGizmoDrag(const glm::mat4& worldDelta)
+void BlenderApplication::updateGizmoDrag(const Math::mat4& worldDelta)
 {
     if (!mGizmoDragging || !mMeshData)
         return;
@@ -2666,15 +2666,15 @@ void BlenderApplication::updateGizmoDrag(const glm::mat4& worldDelta)
 
     // The gizmo's matrix already sits at the pivot, so the delta is applied
     // in world space rather than around the median a second time.
-    Assets().transformVerticesAbout(*mMeshData, worldDelta, glm::vec3(0.0f), mGizmoIndices);
+    Assets().transformVerticesAbout(*mMeshData, worldDelta, Math::vec3(0.0f), mGizmoIndices);
     if (!mGizmoPartners.empty())
     {
-        glm::vec3 flip(1.0f);
+        Math::vec3 flip(1.0f);
         flip[mSymmetryAxis] = -1.0f;
-        glm::vec3 shift(0.0f);
+        Math::vec3 shift(0.0f);
         shift[mSymmetryAxis] = 2.0f * mSymmetryOffset;
-        const glm::mat4 reflect = glm::translate(glm::mat4(1.0f), shift) * glm::scale(glm::mat4(1.0f), flip);
-        Assets().transformVerticesAbout(*mMeshData, reflect * worldDelta * reflect, glm::vec3(0.0f), mGizmoPartners);
+        const Math::mat4 reflect = Math::translate(Math::mat4(1.0f), shift) * Math::scale(Math::mat4(1.0f), flip);
+        Assets().transformVerticesAbout(*mMeshData, reflect * worldDelta * reflect, Math::vec3(0.0f), mGizmoPartners);
     }
     applyMeshEdit(true);
 }
@@ -2700,7 +2700,7 @@ void BlenderApplication::endGizmoDrag()
     mGizmoWinding.shrink_to_fit();
 }
 
-void BlenderApplication::applyTransform(const glm::mat4& matrix, const char* verb)
+void BlenderApplication::applyTransform(const Math::mat4& matrix, const char* verb)
 {
     if (!mMeshData)
         return;
@@ -2711,11 +2711,11 @@ void BlenderApplication::applyTransform(const glm::mat4& matrix, const char* ver
     {
         // About the selection's own median, like transformVertices, but through the
         // symmetric path so the opposite side follows.
-        glm::dvec3 sum(0.0);
+        Math::dvec3 sum(0.0);
         for (const u32 v : vertices)
-            sum += glm::dvec3(mMeshData->positions[v]);
-        const glm::vec3 pivot = glm::vec3(sum / static_cast<double>(vertices.size()));
-        transformVerticesWorld(glm::translate(glm::mat4(1.0f), pivot) * matrix * glm::translate(glm::mat4(1.0f), -pivot),
+            sum += Math::dvec3(mMeshData->positions[v]);
+        const Math::vec3 pivot = Math::vec3(sum / static_cast<double>(vertices.size()));
+        transformVerticesWorld(Math::translate(Math::mat4(1.0f), pivot) * matrix * Math::translate(Math::mat4(1.0f), -pivot),
                                vertices);
     }
     else
@@ -2861,7 +2861,7 @@ bool BlenderApplication::bisectMesh(s32 axis, f32 offset, bool keepPositive)
     if (!mMeshData || mMeshData->positions.empty() || axis < 0 || axis > 2)
         return false;
 
-    glm::vec3 normal(0.0f);
+    Math::vec3 normal(0.0f);
     normal[axis] = 1.0f;
 
     MeshData cut;
@@ -2965,9 +2965,9 @@ void BlenderApplication::drawUnwrapPopup()
 bool BlenderApplication::unwrapUVs()
 {
     UnwrapParams params;
-    params.resolution = static_cast<u32>(glm::max(mUnwrapResolution, 0));
-    params.padding = static_cast<u32>(glm::max(mUnwrapPadding, 0));
-    params.texelsPerUnit = glm::max(mUnwrapTexelsPerUnit, 0.0f);
+    params.resolution = static_cast<u32>(Math::max(mUnwrapResolution, 0));
+    params.padding = static_cast<u32>(Math::max(mUnwrapPadding, 0));
+    params.texelsPerUnit = Math::max(mUnwrapTexelsPerUnit, 0.0f);
     params.target = mUnwrapTarget;
     return unwrapUVs(params);
 }
@@ -3343,7 +3343,7 @@ bool BlenderApplication::buildPrimitive(const PrimitiveParams& params, MeshData&
     return true;
 }
 
-bool BlenderApplication::createPrimitive(const PrimitiveParams& params, const glm::mat4& placement,
+bool BlenderApplication::createPrimitive(const PrimitiveParams& params, const Math::mat4& placement,
                                          const PartStyle& style, bool replace, s32* submeshOut)
 {
     MeshData built;
@@ -3353,7 +3353,7 @@ bool BlenderApplication::createPrimitive(const PrimitiveParams& params, const gl
                       submeshOut);
 }
 
-bool BlenderApplication::appendPart(MeshData part, const glm::mat4& placement,
+bool BlenderApplication::appendPart(MeshData part, const Math::mat4& placement,
                                     const PartStyle& style, const char* sourceName, bool replace,
                                     s32* submeshOut, bool undoStep)
 {
@@ -3426,7 +3426,7 @@ std::vector<u32> BlenderApplication::submeshVertices(u32 index) const
         return vertices;
 
     const SubMesh& submesh = mMeshData->submeshes[index];
-    const u64 end = glm::min<u64>(static_cast<u64>(submesh.indexOffset) + submesh.indexCount,
+    const u64 end = Math::min<u64>(static_cast<u64>(submesh.indexOffset) + submesh.indexCount,
                                   mMeshData->indices.size());
     for (u64 i = submesh.indexOffset; i < end; ++i)
         vertices.push_back(mMeshData->indices[static_cast<usize>(i)]);
@@ -3436,7 +3436,7 @@ std::vector<u32> BlenderApplication::submeshVertices(u32 index) const
     return vertices;
 }
 
-bool BlenderApplication::transformSubmesh(u32 index, const glm::mat4& matrix, const glm::vec3& pivot)
+bool BlenderApplication::transformSubmesh(u32 index, const Math::mat4& matrix, const Math::vec3& pivot)
 {
     const std::vector<u32> vertices = submeshVertices(index);
     if (vertices.empty())
@@ -3446,14 +3446,14 @@ bool BlenderApplication::transformSubmesh(u32 index, const glm::mat4& matrix, co
     Assets().transformVerticesAbout(*mMeshData, matrix, pivot, vertices);
     // transformVertices leaves winding alone (it cannot know what a part of the
     // mesh means); a mirrored part would be left inside out.
-    if (glm::determinant(glm::mat3(matrix)) < 0.0f)
+    if (Math::determinant(Math::mat3(matrix)) < 0.0f)
         Assets().flipWinding(*mMeshData, index);
     Assets().computeSubMeshBounds(*mMeshData);
     applyMeshEdit();
     return true;
 }
 
-bool BlenderApplication::duplicateSubmesh(u32 index, const glm::mat4& placement, s32* newIndex)
+bool BlenderApplication::duplicateSubmesh(u32 index, const Math::mat4& placement, s32* newIndex)
 {
     if (!mMeshData || index >= mMeshData->submeshes.size())
         return false;
@@ -3575,7 +3575,7 @@ void BlenderApplication::clearUvPins()
     mUvPinned.clear();
 }
 
-u32 BlenderApplication::transformUvs(const std::vector<u32>& vertices, const glm::vec2& pivot,
+u32 BlenderApplication::transformUvs(const std::vector<u32>& vertices, const Math::vec2& pivot,
                                      const MeshUv::Transform& change)
 {
     if (!mMeshData || vertices.empty())
@@ -3617,7 +3617,7 @@ u32 BlenderApplication::fitUvsPerPart(bool keepAspect, f32 margin)
     return moved;
 }
 
-bool BlenderApplication::boxMapUvs(UvTarget target, s32 part, f32 tile, const glm::vec2& offset, u32* added,
+bool BlenderApplication::boxMapUvs(UvTarget target, s32 part, f32 tile, const Math::vec2& offset, u32* added,
                                    std::string* error)
 {
     if (!mMeshData)
@@ -3673,7 +3673,7 @@ bool BlenderApplication::boxMapUvs(UvTarget target, s32 part, f32 tile, const gl
     return true;
 }
 
-u32 BlenderApplication::paintSelection(const glm::vec4& color, f32 opacity, std::string* error)
+u32 BlenderApplication::paintSelection(const Math::vec4& color, f32 opacity, std::string* error)
 {
     if (!mMeshData)
         return 0;
@@ -3691,7 +3691,7 @@ u32 BlenderApplication::paintSelection(const glm::vec4& color, f32 opacity, std:
     return changed;
 }
 
-u32 BlenderApplication::paintPart(u32 part, const glm::vec4& color, f32 opacity)
+u32 BlenderApplication::paintPart(u32 part, const Math::vec4& color, f32 opacity)
 {
     if (!mMeshData || part >= mMeshData->submeshes.size())
         return 0;
@@ -3702,7 +3702,7 @@ u32 BlenderApplication::paintPart(u32 part, const glm::vec4& color, f32 opacity)
     return changed;
 }
 
-u32 BlenderApplication::paintAll(const glm::vec4& color, f32 opacity)
+u32 BlenderApplication::paintAll(const Math::vec4& color, f32 opacity)
 {
     if (!mMeshData)
         return 0;
@@ -3716,7 +3716,7 @@ u32 BlenderApplication::paintAll(const glm::vec4& color, f32 opacity)
     return changed;
 }
 
-u32 BlenderApplication::paintSphere(const glm::vec3& center, f32 radius, f32 hardness, const glm::vec4& color,
+u32 BlenderApplication::paintSphere(const Math::vec3& center, f32 radius, f32 hardness, const Math::vec4& color,
                                     f32 opacity, s32 part)
 {
     if (!mMeshData)
@@ -3892,7 +3892,7 @@ void BlenderApplication::drawPaintMenu()
     ImGui::SliderFloat("Opacity", &mPaintOpacity, 0.0f, 1.0f);
     ImGui::Separator();
 
-    const glm::vec4 color(MeshPaint::toLinear(mPaintColor), 1.0f);
+    const Math::vec4 color(MeshPaint::toLinear(mPaintColor), 1.0f);
     if (ImGui::MenuItem("Paint Selection", nullptr, false, hasAnySelection()))
         paintSelection(color, mPaintOpacity);
     const bool hasPart = mSelectedSubmesh >= 0;
@@ -3931,7 +3931,7 @@ void BlenderApplication::drawTransformMenu()
     // No shortcut on these two: S and R put the interactive gizmo into scale
     // and rotate, and these apply a typed amount instead.
     if (ImGui::MenuItem("Scale"))
-        applyTransform(glm::scale(glm::mat4(1.0f), glm::vec3(mScaleFactor)), "scaled");
+        applyTransform(Math::scale(Math::mat4(1.0f), Math::vec3(mScaleFactor)), "scaled");
 
     ImGui::SetNextItemWidth(150.0f);
     ImGui::Combo("Axis", &mRotationAxis, "X\0Y\0Z\0");
@@ -3939,9 +3939,9 @@ void BlenderApplication::drawTransformMenu()
     ImGui::SliderFloat("Rotation Angle (deg)", &mRotationAngle, -180.0f, 180.0f);
     if (ImGui::MenuItem("Rotate"))
     {
-        glm::vec3 axis(0.0f);
+        Math::vec3 axis(0.0f);
         axis[mRotationAxis] = 1.0f;
-        applyTransform(glm::rotate(glm::mat4(1.0f), glm::radians(mRotationAngle), axis), "rotated");
+        applyTransform(Math::rotate(Math::mat4(1.0f), Math::radians(mRotationAngle), axis), "rotated");
     }
 
     ImGui::EndDisabled();
@@ -4020,7 +4020,7 @@ void BlenderApplication::drawMeshMenu()
     ImGui::DragFloat("##knifeOffset", &mKnifeOffset, 0.01f, -1000.0f, 1000.0f, "%.3f");
     if (ImGui::MenuItem("Knife Cut"))
     {
-        glm::vec3 normal(0.0f);
+        Math::vec3 normal(0.0f);
         normal[mKnifeAxis] = 1.0f;
         std::string why;
         if (!knifeCut(normal, mKnifeOffset, &why))
@@ -4491,7 +4491,7 @@ void BlenderApplication::drawPreferencesPopup()
     if (!apiIsRunning)
     {
         if (ImGui::Button("Start API") &&
-            startApi("127.0.0.1", glm::clamp(mApiPortField, 1, 65535), mApiTokenField))
+            startApi("127.0.0.1", Math::clamp(mApiPortField, 1, 65535), mApiTokenField))
             mSettings.api().port = apiPort();
     }
     else

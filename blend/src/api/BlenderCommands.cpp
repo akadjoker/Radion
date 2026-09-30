@@ -9,7 +9,7 @@
 #include "Pixmap.h"
 #include "ProceduralShapes.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 
 #include <cstdio>
 #include <cstring>
@@ -50,7 +50,7 @@ constexpr int kMaxCaptureSize = 1920;
 
 // ------------------------------------------------------------ JSON shapes
 
-Json vec3Json(const glm::vec3& v)
+Json vec3Json(const Math::vec3& v)
 {
     return Json::array({v.x, v.y, v.z});
 }
@@ -157,12 +157,12 @@ void requireFiniteRange(const char* name, const std::vector<double>& values, dou
     }
 }
 
-glm::vec3 toVec3(const std::vector<double>& v)
+Math::vec3 toVec3(const std::vector<double>& v)
 {
-    return glm::vec3(static_cast<f32>(v[0]), static_cast<f32>(v[1]), static_cast<f32>(v[2]));
+    return Math::vec3(static_cast<f32>(v[0]), static_cast<f32>(v[1]), static_cast<f32>(v[2]));
 }
 
-glm::vec3 vec3Arg(const CommandArgs& args, const char* name, const glm::vec3& fallback)
+Math::vec3 vec3Arg(const CommandArgs& args, const char* name, const Math::vec3& fallback)
 {
     if (!args.has(name))
         return fallback;
@@ -173,17 +173,17 @@ glm::vec3 vec3Arg(const CommandArgs& args, const char* name, const glm::vec3& fa
 
 // translate * rotateZ * rotateY * rotateX * scale: scale and rotate the part
 // about its own origin, then move it. The order the arguments are documented in.
-glm::mat4 composeTransform(const glm::vec3& position, const glm::vec3& rotationDegrees,
-                           const glm::vec3& scale)
+Math::mat4 composeTransform(const Math::vec3& position, const Math::vec3& rotationDegrees,
+                           const Math::vec3& scale)
 {
-    glm::mat4 matrix = glm::translate(glm::mat4(1.0f), position);
-    matrix = glm::rotate(matrix, glm::radians(rotationDegrees.z), glm::vec3(0.0f, 0.0f, 1.0f));
-    matrix = glm::rotate(matrix, glm::radians(rotationDegrees.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    matrix = glm::rotate(matrix, glm::radians(rotationDegrees.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    return glm::scale(matrix, scale);
+    Math::mat4 matrix = Math::translate(Math::mat4(1.0f), position);
+    matrix = Math::rotate(matrix, Math::radians(rotationDegrees.z), Math::vec3(0.0f, 0.0f, 1.0f));
+    matrix = Math::rotate(matrix, Math::radians(rotationDegrees.y), Math::vec3(0.0f, 1.0f, 0.0f));
+    matrix = Math::rotate(matrix, Math::radians(rotationDegrees.x), Math::vec3(1.0f, 0.0f, 0.0f));
+    return Math::scale(matrix, scale);
 }
 
-glm::vec3 scaleArg(const CommandArgs& args, const char* name)
+Math::vec3 scaleArg(const CommandArgs& args, const char* name)
 {
     const std::vector<double> values = args.numbersOrScalar(name, 3, {1.0, 1.0, 1.0});
     requireFiniteRange(name, values, kMaxCoordinate);
@@ -197,13 +197,13 @@ glm::vec3 scaleArg(const CommandArgs& args, const char* name)
     return toVec3(values);
 }
 
-glm::mat4 placementArg(const CommandArgs& args)
+Math::mat4 placementArg(const CommandArgs& args)
 {
-    return composeTransform(vec3Arg(args, "position", glm::vec3(0.0f)),
-                            vec3Arg(args, "rotation", glm::vec3(0.0f)), scaleArg(args, "scale"));
+    return composeTransform(vec3Arg(args, "position", Math::vec3(0.0f)),
+                            vec3Arg(args, "rotation", Math::vec3(0.0f)), scaleArg(args, "scale"));
 }
 
-bool parseHexColor(const std::string& text, glm::vec4& out)
+bool parseHexColor(const std::string& text, Math::vec4& out)
 {
     if (text.size() < 2 || text[0] != '#')
         return false;
@@ -230,7 +230,7 @@ bool parseHexColor(const std::string& text, glm::vec4& out)
         for (size_t i = 0; i + 1 < nibbles.size(); i += 2)
             channels.push_back(static_cast<f32>(nibbles[i] * 16 + nibbles[i + 1]) / 255.0f);
     }
-    out = glm::vec4(channels[0], channels[1], channels[2], channels.size() > 3 ? channels[3] : 1.0f);
+    out = Math::vec4(channels[0], channels[1], channels[2], channels.size() > 3 ? channels[3] : 1.0f);
     return true;
 }
 
@@ -243,24 +243,24 @@ f32 srgbToLinear(f32 c)
 
 f32 linearToSrgb(f32 c)
 {
-    c = glm::clamp(c, 0.0f, 1.0f);
+    c = Math::clamp(c, 0.0f, 1.0f);
     return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
 }
 
-glm::vec4 srgbToLinear(const glm::vec4& c)
+Math::vec4 srgbToLinear(const Math::vec4& c)
 {
-    return glm::vec4(srgbToLinear(c.r), srgbToLinear(c.g), srgbToLinear(c.b), c.a);
+    return Math::vec4(srgbToLinear(c.x), srgbToLinear(c.y), srgbToLinear(c.z), c.w);
 }
 
-std::string hexColor(const glm::vec4& linear)
+std::string hexColor(const Math::vec4& linear)
 {
     char buffer[16];
     auto byte = [](f32 c) { return static_cast<int>(std::lround(linearToSrgb(c) * 255.0f)); };
-    std::snprintf(buffer, sizeof(buffer), "#%02x%02x%02x", byte(linear.r), byte(linear.g), byte(linear.b));
+    std::snprintf(buffer, sizeof(buffer), "#%02x%02x%02x", byte(linear.x), byte(linear.y), byte(linear.z));
     return buffer;
 }
 
-bool readColor(const CommandArgs& args, glm::vec4& out)
+bool readColor(const CommandArgs& args, Math::vec4& out)
 {
     const Json* value = args.raw("color");
     if (!value)
@@ -276,13 +276,13 @@ bool readColor(const CommandArgs& args, glm::vec4& out)
 
     if (value->is_array() && (value->size() == 3 || value->size() == 4))
     {
-        glm::vec4 color(1.0f);
+        Math::vec4 color(1.0f);
         for (size_t i = 0; i < value->size(); ++i)
         {
             const Json& item = (*value)[i];
             if (!item.is_number() || item.get<double>() < 0.0 || item.get<double>() > 1.0)
                 invalid("argument 'color' components must be numbers from 0 to 1");
-            color[static_cast<glm::length_t>(i)] = item.get<f32>();
+            color[static_cast<int>(i)] = item.get<f32>();
         }
         out = srgbToLinear(color);
         return true;
@@ -515,13 +515,13 @@ CommandResult result(Json data)
 // What a geometry-adding command reports back: enough to place the next part
 // relative to this one without a separate query.
 // [u, v] pair; `fallback` when absent.
-glm::vec2 vec2Arg(const CommandArgs& args, const char* name, const glm::vec2& fallback)
+Math::vec2 vec2Arg(const CommandArgs& args, const char* name, const Math::vec2& fallback)
 {
     if (!args.has(name))
         return fallback;
     const std::vector<double> values = args.requireNumbers(name, 2);
     requireFiniteRange(name, values, kMaxCoordinate);
-    return glm::vec2(static_cast<f32>(values[0]), static_cast<f32>(values[1]));
+    return Math::vec2(static_cast<f32>(values[0]), static_cast<f32>(values[1]));
 }
 
 BlenderApplication::UvTarget uvTargetArg(BlenderApplication& editor, const CommandArgs& args, const char* fallback, s32& part)
@@ -706,7 +706,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                         {
                             found = remap.emplace(original, static_cast<u32>(remap.size())).first;
                             vertexIds.push_back(original);
-                            const glm::vec3& p = mesh.positions[original];
+                            const Math::vec3& p = mesh.positions[original];
                             positions.push_back(Json::array({std::round(p.x * 10000.0f) / 10000.0f,
                                                              std::round(p.y * 10000.0f) / 10000.0f,
                                                              std::round(p.z * 10000.0f) / 10000.0f}));
@@ -786,9 +786,9 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 // elevation above the horizon are the natural reading.
                 const f32 azimuth = static_cast<f32>(args.number("azimuth", 35.0, -3600.0, 3600.0));
                 const f32 elevation = static_cast<f32>(args.number("elevation", 25.0, -89.0, 89.0));
-                params.camera.yaw = -glm::radians(azimuth);
-                params.camera.pitch = -glm::radians(elevation);
-                params.camera.target = vec3Arg(args, "target", glm::vec3(0.0f));
+                params.camera.yaw = -Math::radians(azimuth);
+                params.camera.pitch = -Math::radians(elevation);
+                params.camera.target = vec3Arg(args, "target", Math::vec3(0.0f));
                 params.camera.distance =
                     static_cast<f32>(args.number("distance", 6.0, 0.05, kMaxCoordinate));
 
@@ -1052,14 +1052,14 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 // centred and some standing on y = 0; a model describing a part by its
                 // middle should not have to know which.
                 AABB box;
-                for (const glm::vec3& p : built.positions)
+                for (const Math::vec3& p : built.positions)
                     box.expand(p);
                 const bool base = args.choice("origin", {"center", "base"}, "center") == "base";
-                const glm::vec3 centre = box.center();
-                const glm::vec3 shift = base ? glm::vec3(-centre.x, -box.min.y, -centre.z) : -centre;
+                const Math::vec3 centre = box.center();
+                const Math::vec3 shift = base ? Math::vec3(-centre.x, -box.min.y, -centre.z) : -centre;
 
                 s32 submesh = -1;
-                if (!editor->appendPart(std::move(built), placementArg(args) * glm::translate(glm::mat4(1.0f), shift),
+                if (!editor->appendPart(std::move(built), placementArg(args) * Math::translate(Math::mat4(1.0f), shift),
                                         styleArg(args), type.c_str(), args.boolean("replace", false), &submesh))
                     failed("could not build the " + type);
                 return partAdded(*editor, submesh);
@@ -1106,7 +1106,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     if (std::abs(radius) > kMaxCoordinate || std::abs(y) > kMaxCoordinate)
                         invalid("profile values are out of range");
                     params.profile.push_back(
-                        glm::vec2(static_cast<f32>(radius), static_cast<f32>(y)));
+                        Math::vec2(static_cast<f32>(radius), static_cast<f32>(y)));
                 }
                 params.slices = static_cast<u32>(args.integer("slices", 24, 3, 256));
                 params.capStart = args.boolean("cap_start", true);
@@ -1181,7 +1181,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     section.width = static_cast<f32>(fields.requireNumber("width"));
                     section.height = static_cast<f32>(fields.requireNumber("height"));
                     const std::vector<double> offset = fields.numbers("offset", 2, {0.0, 0.0});
-                    section.offset = glm::vec2(static_cast<f32>(offset[0]), static_cast<f32>(offset[1]));
+                    section.offset = Math::vec2(static_cast<f32>(offset[0]), static_cast<f32>(offset[1]));
                     section.exponent = static_cast<f32>(fields.number("exponent", 2.0));
                     if (std::abs(section.at) > kMaxCoordinate || section.width > kMaxCoordinate ||
                         section.height > kMaxCoordinate || std::abs(section.offset.x) > kMaxCoordinate ||
@@ -1256,8 +1256,8 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 {
                     if (!point.is_array() || point.size() != 3)
                         invalid("every position must be [x,y,z]");
-                    glm::vec3 p;
-                    for (glm::length_t axis = 0; axis < 3; ++axis)
+                    Math::vec3 p;
+                    for (int axis = 0; axis < 3; ++axis)
                     {
                         if (!point[static_cast<size_t>(axis)].is_number())
                             invalid("position values must be numbers");
@@ -1295,12 +1295,12 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     {
                         if (!uv.is_array() || uv.size() != 2 || !uv[0].is_number() || !uv[1].is_number())
                             invalid("every uv must be [u,v]");
-                        part.uvs.push_back(glm::vec2(uv[0].get<f32>(), uv[1].get<f32>()));
+                        part.uvs.push_back(Math::vec2(uv[0].get<f32>(), uv[1].get<f32>()));
                     }
                 }
                 else
                 {
-                    part.uvs.assign(part.positions.size(), glm::vec2(0.0f));
+                    part.uvs.assign(part.positions.size(), Math::vec2(0.0f));
                 }
 
                 Assets().recalculateNormals(part, args.boolean("smooth", true));
@@ -1330,16 +1330,16 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             {
                 const u32 part = resolvePart(*editor, args);
                 const MeshData& mesh = requireMesh(*editor);
-                glm::vec3 pivot = mesh.submeshes[part].bounds.center();
+                Math::vec3 pivot = mesh.submeshes[part].bounds.center();
                 if (args.boolean("pivot_origin", false))
-                    pivot = glm::vec3(0.0f);
+                    pivot = Math::vec3(0.0f);
                 else if (args.has("pivot"))
                     pivot = vec3Arg(args, "pivot", pivot);
 
-                const glm::vec3 offset = vec3Arg(args, "position", glm::vec3(0.0f));
-                const glm::mat4 about = composeTransform(glm::vec3(0.0f), vec3Arg(args, "rotation", glm::vec3(0.0f)),
+                const Math::vec3 offset = vec3Arg(args, "position", Math::vec3(0.0f));
+                const Math::mat4 about = composeTransform(Math::vec3(0.0f), vec3Arg(args, "rotation", Math::vec3(0.0f)),
                                                          scaleArg(args, "scale"));
-                const glm::mat4 matrix = glm::translate(glm::mat4(1.0f), offset) * about;
+                const Math::mat4 matrix = Math::translate(Math::mat4(1.0f), offset) * about;
                 if (!editor->transformSubmesh(part, matrix, pivot))
                     failed("the part has no vertices to move");
                 return partAdded(*editor, static_cast<s32>(part));
@@ -1362,13 +1362,13 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             [editor](const CommandArgs& args)
             {
                 const u32 part = resolvePart(*editor, args);
-                glm::mat4 matrix = placementArg(args);
+                Math::mat4 matrix = placementArg(args);
                 const std::string mirror = args.choice("mirror", {"x", "y", "z"}, "");
                 if (!mirror.empty())
                 {
-                    glm::vec3 flip(1.0f);
+                    Math::vec3 flip(1.0f);
                     flip[mirror == "x" ? 0 : mirror == "y" ? 1 : 2] = -1.0f;
-                    matrix = matrix * glm::scale(glm::mat4(1.0f), flip);
+                    matrix = matrix * Math::scale(Math::mat4(1.0f), flip);
                 }
 
                 s32 copy = -1;
@@ -1627,18 +1627,18 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                         const CommandArgs boxArgs(*boxJson);
                         if (!boxArgs.has("min") || !boxArgs.has("max"))
                             invalid("'box' needs both min and max");
-                        const glm::vec3 low = vec3Arg(boxArgs, "min", glm::vec3(0.0f));
-                        const glm::vec3 high = vec3Arg(boxArgs, "max", glm::vec3(0.0f));
-                        const glm::vec3 lo = glm::min(low, high);
-                        const glm::vec3 hi = glm::max(low, high);
-                        auto inside = [&](const glm::vec3& p)
-                        { return glm::all(glm::greaterThanEqual(p, lo)) && glm::all(glm::lessThanEqual(p, hi)); };
+                        const Math::vec3 low = vec3Arg(boxArgs, "min", Math::vec3(0.0f));
+                        const Math::vec3 high = vec3Arg(boxArgs, "max", Math::vec3(0.0f));
+                        const Math::vec3 lo = Math::min(low, high);
+                        const Math::vec3 hi = Math::max(low, high);
+                        auto inside = [&](const Math::vec3& p)
+                        { return Math::all(Math::greaterThanEqual(p, lo)) && Math::all(Math::lessThanEqual(p, hi)); };
 
                         if (faceMode)
                         {
                             for (u32 face = 0; face < faceCount; ++face)
                             {
-                                const glm::vec3 centre = (mesh.positions[mesh.indices[face * 3]] +
+                                const Math::vec3 centre = (mesh.positions[mesh.indices[face * 3]] +
                                                           mesh.positions[mesh.indices[face * 3 + 1]] +
                                                           mesh.positions[mesh.indices[face * 3 + 2]]) /
                                                          3.0f;
@@ -1738,26 +1738,26 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 if (vertices.empty())
                     failed("nothing is selected - use 'select' first");
 
-                glm::vec3 pivot(0.0f);
+                Math::vec3 pivot(0.0f);
                 if (args.has("pivot"))
                 {
-                    pivot = vec3Arg(args, "pivot", glm::vec3(0.0f));
+                    pivot = vec3Arg(args, "pivot", Math::vec3(0.0f));
                 }
                 else
                 {
-                    glm::dvec3 sum(0.0);
+                    Math::dvec3 sum(0.0);
                     for (const u32 index : vertices)
-                        sum += glm::dvec3(mesh.positions[index]);
-                    pivot = glm::vec3(sum / static_cast<double>(vertices.size()));
+                        sum += Math::dvec3(mesh.positions[index]);
+                    pivot = Math::vec3(sum / static_cast<double>(vertices.size()));
                 }
 
-                const glm::vec3 offset = vec3Arg(args, "position", glm::vec3(0.0f));
-                const glm::mat4 about = composeTransform(glm::vec3(0.0f), vec3Arg(args, "rotation", glm::vec3(0.0f)),
+                const Math::vec3 offset = vec3Arg(args, "position", Math::vec3(0.0f));
+                const Math::mat4 about = composeTransform(Math::vec3(0.0f), vec3Arg(args, "rotation", Math::vec3(0.0f)),
                                                          scaleArg(args, "scale"));
                 editor->recordUndo();
-                const glm::mat4 world = glm::translate(glm::mat4(1.0f), pivot) *
-                                        (glm::translate(glm::mat4(1.0f), offset) * about) *
-                                        glm::translate(glm::mat4(1.0f), -pivot);
+                const Math::mat4 world = Math::translate(Math::mat4(1.0f), pivot) *
+                                        (Math::translate(Math::mat4(1.0f), offset) * about) *
+                                        Math::translate(Math::mat4(1.0f), -pivot);
                 editor->transformVerticesWorld(world, vertices);
                 editor->applyMeshEdit();
                 return result({{"vertices", vertices.size()}, {"symmetry", editor->symmetryAxis() >= 0},
@@ -1775,14 +1775,14 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             [editor](const CommandArgs& args)
             {
                 MeshData& mesh = requireMesh(*editor);
-                const glm::vec3 pivot = vec3Arg(args, "pivot", glm::vec3(0.0f));
-                const glm::vec3 offset = vec3Arg(args, "position", glm::vec3(0.0f));
-                const glm::mat4 about = composeTransform(glm::vec3(0.0f), vec3Arg(args, "rotation", glm::vec3(0.0f)),
+                const Math::vec3 pivot = vec3Arg(args, "pivot", Math::vec3(0.0f));
+                const Math::vec3 offset = vec3Arg(args, "position", Math::vec3(0.0f));
+                const Math::mat4 about = composeTransform(Math::vec3(0.0f), vec3Arg(args, "rotation", Math::vec3(0.0f)),
                                                          scaleArg(args, "scale"));
-                const glm::mat4 matrix = glm::translate(glm::mat4(1.0f), offset) * about;
+                const Math::mat4 matrix = Math::translate(Math::mat4(1.0f), offset) * about;
                 editor->recordUndo();
                 Assets().transformVerticesAbout(mesh, matrix, pivot);
-                if (glm::determinant(glm::mat3(matrix)) < 0.0f)
+                if (Math::determinant(Math::mat3(matrix)) < 0.0f)
                     Assets().flipWinding(mesh);
                 Assets().computeSubMeshBounds(mesh);
                 editor->applyMeshEdit();
@@ -1871,10 +1871,10 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
         [editor](const CommandArgs& args)
         {
             MeshData& mesh = requireMesh(*editor);
-            glm::vec3 normal(0.0f);
+            Math::vec3 normal(0.0f);
             if (args.has("normal"))
             {
-                normal = vec3Arg(args, "normal", glm::vec3(0.0f));
+                normal = vec3Arg(args, "normal", Math::vec3(0.0f));
             }
             else
             {
@@ -2025,7 +2025,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             [editor](const CommandArgs& args)
             {
                 requireMesh(*editor);
-                glm::vec4 color(1.0f);
+                Math::vec4 color(1.0f);
                 if (!readColor(args, color))
                     invalid("argument 'color' is required");
                 const f32 opacity = static_cast<f32>(args.number("opacity", 1.0, 0.0, 1.0));
@@ -2039,7 +2039,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 {
                     if (!args.has("center") || !args.has("radius"))
                         invalid("target 'sphere' needs 'center' and 'radius'");
-                    painted = editor->paintSphere(vec3Arg(args, "center", glm::vec3(0.0f)),
+                    painted = editor->paintSphere(vec3Arg(args, "center", Math::vec3(0.0f)),
                                                   static_cast<f32>(args.number("radius", 1.0, 1e-4, kMaxCoordinate)),
                                                   static_cast<f32>(args.number("hardness", 0.5, 0.0, 1.0)), color, opacity,
                                                   part);
@@ -2458,7 +2458,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     failed(why);
 
                 MeshUv::Transform change;
-                change.translate = vec2Arg(args, "translate", glm::vec2(0.0f));
+                change.translate = vec2Arg(args, "translate", Math::vec2(0.0f));
                 change.rotateDegrees = static_cast<f32>(args.number("rotate", 0.0, -36000.0, 36000.0));
                 const std::vector<double> scale = args.numbersOrScalar("scale", 2, {1.0, 1.0});
                 requireFiniteRange("scale", scale, kMaxCoordinate);
@@ -2467,7 +2467,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     if (std::abs(value) < 1.0e-6)
                         invalid("argument 'scale' must not contain 0");
                 }
-                change.scale = glm::vec2(static_cast<f32>(scale[0]), static_cast<f32>(scale[1]));
+                change.scale = Math::vec2(static_cast<f32>(scale[0]), static_cast<f32>(scale[1]));
                 const std::string flip = args.choice("flip", {"none", "u", "v"}, "none");
                 if (flip == "u")
                     change.scale.x = -change.scale.x;
@@ -2476,7 +2476,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
 
                 const MeshData& mesh = *editor->currentMeshData();
                 MeshUv::Rect rect = MeshUv::bounds(mesh, vertices);
-                const glm::vec2 pivot = vec2Arg(args, "pivot", rect.valid ? rect.center() : glm::vec2(0.5f));
+                const Math::vec2 pivot = vec2Arg(args, "pivot", rect.valid ? rect.center() : Math::vec2(0.5f));
                 const u32 moved = editor->transformUvs(vertices, pivot, change);
                 if (moved == 0)
                     failed("every vertex in the target is pinned");
@@ -2540,7 +2540,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 const f32 tile = static_cast<f32>(args.number("tile", 1.0, 0.001, 1000.0));
                 u32 added = 0;
                 std::string why;
-                if (!editor->boxMapUvs(target, part, tile, vec2Arg(args, "offset", glm::vec2(0.0f)), &added, &why))
+                if (!editor->boxMapUvs(target, part, tile, vec2Arg(args, "offset", Math::vec2(0.0f)), &added, &why))
                     failed(why);
                 return result({{"verticesAdded", added}, {"vertices", editor->currentMeshData()->positions.size()}});
             });

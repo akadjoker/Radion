@@ -4,8 +4,7 @@
 #include "Mesh.h"
 #include "Types.h"
 
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <string>
 #include <vector>
 
@@ -22,7 +21,7 @@ namespace Radion
 // `capEnd` close an open end with a flat disc.
 struct LatheParams
 {
-    std::vector<glm::vec2> profile;
+    std::vector<Math::vec2> profile;
     u32 slices = 24;
     bool capStart = true;
     bool capEnd = true;
@@ -38,7 +37,7 @@ struct LoftSection
     f32 at = 0.0f;
     f32 width = 1.0f;
     f32 height = 1.0f;
-    glm::vec2 offset = glm::vec2(0.0f);
+    Math::vec2 offset = Math::vec2(0.0f);
     // 2 is an ellipse; larger values square it off toward a rounded box.
     f32 exponent = 2.0f;
 };
@@ -59,7 +58,7 @@ struct LoftParams
 // winding is accepted. Flat-shaded.
 struct ExtrusionParams
 {
-    std::vector<glm::vec2> profile;
+    std::vector<Math::vec2> profile;
     f32 depth = 1.0f;
 };
 

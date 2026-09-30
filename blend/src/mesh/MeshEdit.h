@@ -102,7 +102,7 @@ bool collapseEdge(MeshData& mesh, u64 edgeKey, f32 t, std::string* error = nullp
 // line between them. Vertices within `epsilon` of the plane count as on it and
 // are not cut. `cutEdges`, when given, receives the edges that now lie in the
 // plane.
-bool knife(MeshData& mesh, const glm::vec3& normal, f32 offset, f32 epsilon, std::vector<u64>* cutEdges = nullptr,
+bool knife(MeshData& mesh, const Math::vec3& normal, f32 offset, f32 epsilon, std::vector<u64>* cutEdges = nullptr,
            std::string* error = nullptr);
 
 // Adds `cuts` evenly spaced edge loops across the ring of quads that contains
@@ -132,7 +132,7 @@ bool bevel(MeshData& mesh, const std::vector<u64>& edges, f32 width, std::string
 // the plane it lies nearest to. `points` are in order; the triples returned index
 // them and are wound the same way as the points are - counter-clockwise seen from
 // the side the outline turns counter-clockwise towards.
-std::vector<std::array<u32, 3>> triangulatePolygon(const std::vector<glm::vec3>& points);
+std::vector<std::array<u32, 3>> triangulatePolygon(const std::vector<Math::vec3>& points);
 
 // Closes open borders with triangles. `edges` picks the borders to close (every
 // border that has one of those edges); empty means every border. A border

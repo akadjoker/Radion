@@ -86,7 +86,7 @@ std::vector<u32> writeFaces(MeshData& mesh, const Faces& faces)
 
     // Bounds follow the geometry: the whole mesh's and each submesh's own.
     mesh.bounds = AABB();
-    for (const glm::vec3& p : mesh.positions)
+    for (const Math::vec3& p : mesh.positions)
         mesh.bounds.expand(p);
     for (SubMesh& submesh : mesh.submeshes)
     {
@@ -103,15 +103,15 @@ template <typename T> bool aligned(const std::vector<T>& values, usize vertexCou
     return values.size() == vertexCount;
 }
 
-u32 packColor(const glm::vec4& c)
+u32 packColor(const Math::vec4& c)
 {
-    auto byte = [](f32 v) { return static_cast<u32>(glm::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
-    return byte(c.r) | (byte(c.g) << 8) | (byte(c.b) << 16) | (byte(c.a) << 24);
+    auto byte = [](f32 v) { return static_cast<u32>(Math::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
+    return byte(c.x) | (byte(c.y) << 8) | (byte(c.z) << 16) | (byte(c.w) << 24);
 }
 
-glm::vec4 unpackColor(u32 c)
+Math::vec4 unpackColor(u32 c)
 {
-    return glm::vec4(static_cast<f32>(c & 0xFF), static_cast<f32>((c >> 8) & 0xFF),
+    return Math::vec4(static_cast<f32>(c & 0xFF), static_cast<f32>((c >> 8) & 0xFF),
                      static_cast<f32>((c >> 16) & 0xFF), static_cast<f32>((c >> 24) & 0xFF)) /
            255.0f;
 }
@@ -123,27 +123,27 @@ u32 lerpVertex(MeshData& mesh, u32 a, u32 b, f32 t)
     const usize n = mesh.positions.size();
     const u32 index = static_cast<u32>(n);
 
-    const glm::vec3 position = glm::mix(mesh.positions[a], mesh.positions[b], t);
+    const Math::vec3 position = Math::mix(mesh.positions[a], mesh.positions[b], t);
     if (aligned(mesh.normals, n))
     {
-        const glm::vec3 normal = glm::mix(mesh.normals[a], mesh.normals[b], t);
-        const f32 length = glm::length(normal);
+        const Math::vec3 normal = Math::mix(mesh.normals[a], mesh.normals[b], t);
+        const f32 length = Math::length(normal);
         mesh.normals.push_back(length > 1.0e-8f ? normal / length : mesh.normals[a]);
     }
     if (aligned(mesh.tangents, n))
     {
-        const glm::vec3 tangent = glm::mix(glm::vec3(mesh.tangents[a]), glm::vec3(mesh.tangents[b]), t);
-        const f32 length = glm::length(tangent);
+        const Math::vec3 tangent = Math::mix(Math::vec3(mesh.tangents[a]), Math::vec3(mesh.tangents[b]), t);
+        const f32 length = Math::length(tangent);
         // Handedness is a sign, not something to blend.
-        mesh.tangents.push_back(glm::vec4(length > 1.0e-8f ? tangent / length : glm::vec3(mesh.tangents[a]),
+        mesh.tangents.push_back(Math::vec4(length > 1.0e-8f ? tangent / length : Math::vec3(mesh.tangents[a]),
                                           mesh.tangents[a].w));
     }
     if (aligned(mesh.uvs, n))
-        mesh.uvs.push_back(glm::mix(mesh.uvs[a], mesh.uvs[b], t));
+        mesh.uvs.push_back(Math::mix(mesh.uvs[a], mesh.uvs[b], t));
     if (aligned(mesh.uvs2, n))
-        mesh.uvs2.push_back(glm::mix(mesh.uvs2[a], mesh.uvs2[b], t));
+        mesh.uvs2.push_back(Math::mix(mesh.uvs2[a], mesh.uvs2[b], t));
     if (aligned(mesh.colors, n))
-        mesh.colors.push_back(packColor(glm::mix(unpackColor(mesh.colors[a]), unpackColor(mesh.colors[b]), t)));
+        mesh.colors.push_back(packColor(Math::mix(unpackColor(mesh.colors[a]), unpackColor(mesh.colors[b]), t)));
     if (aligned(mesh.skin, n))
         mesh.skin.push_back(t < 0.5f ? mesh.skin[a] : mesh.skin[b]);
     mesh.positions.push_back(position);
@@ -286,7 +286,7 @@ bool MeshEdit::refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits,
         auto emitQuad = [&](u32 a, u32 b, u32 c, u32 d)
         {
             // The shorter diagonal keeps the triangles from being slivers.
-            if (glm::distance(mesh.positions[a], mesh.positions[c]) <= glm::distance(mesh.positions[b], mesh.positions[d]))
+            if (Math::distance(mesh.positions[a], mesh.positions[c]) <= Math::distance(mesh.positions[b], mesh.positions[d]))
             {
                 emit(quad.faceA, a, b, c);
                 emit(quad.faceA, a, c, d);
@@ -342,8 +342,8 @@ bool MeshEdit::refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits,
             const u32 mB = midpoint(s, p);
             emit(f, mA, s, mB);
             // The quad p, q, mA, mB: split along its shorter diagonal.
-            const f32 dPA = glm::distance(mesh.positions[p], mesh.positions[mA]);
-            const f32 dQB = glm::distance(mesh.positions[q], mesh.positions[mB]);
+            const f32 dPA = Math::distance(mesh.positions[p], mesh.positions[mA]);
+            const f32 dQB = Math::distance(mesh.positions[q], mesh.positions[mB]);
             if (dPA <= dQB)
             {
                 emit(f, p, q, mA);
@@ -388,8 +388,8 @@ namespace
 // region stays attached to what it was attached to instead of pulling away.
 struct LoopPositions
 {
-    std::unordered_map<u32, glm::vec3> vertex; // canonical id -> new position
-    std::unordered_map<u64, glm::vec3> edge;   // canonical edge key -> new point
+    std::unordered_map<u32, Math::vec3> vertex; // canonical id -> new position
+    std::unordered_map<u64, Math::vec3> edge;   // canonical edge key -> new point
 };
 
 LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
@@ -404,7 +404,7 @@ LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
     };
     // The canonical id of a vertex is the index of its first occurrence, so its
     // position is that vertex's.
-    auto at = [&](u32 canonical) -> const glm::vec3& { return mesh.positions[canonical]; };
+    auto at = [&](u32 canonical) -> const Math::vec3& { return mesh.positions[canonical]; };
 
     std::unordered_map<u32, std::vector<u32>> incident;
     for (u32 e = 0; e < edges.size(); ++e)
@@ -425,7 +425,7 @@ LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
             continue;
         }
         // The vertex each of the two triangles has beyond the edge.
-        glm::vec3 beyond(0.0f);
+        Math::vec3 beyond(0.0f);
         for (const u32 face : edge.faces)
         {
             for (u32 c = 0; c < 3; ++c)
@@ -456,7 +456,7 @@ LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
             continue;
 
         std::vector<u32> borderNeighbours;
-        glm::vec3 neighbourSum(0.0f);
+        Math::vec3 neighbourSum(0.0f);
         bool allInterior = true;
         for (const u32 e : list->second)
         {
@@ -470,7 +470,7 @@ LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
             }
         }
 
-        const glm::vec3& self = at(v);
+        const Math::vec3& self = at(v);
         if (allInterior && list->second.size() >= 3)
         {
             const f32 n = static_cast<f32>(list->second.size());
@@ -565,7 +565,7 @@ bool MeshEdit::subdivide(MeshData& mesh, const std::vector<u32>& selected, u32 l
 
     // Loop moved vertices after the bounds were last taken.
     work.bounds = AABB();
-    for (const glm::vec3& p : work.positions)
+    for (const Math::vec3& p : work.positions)
         work.bounds.expand(p);
     for (SubMesh& submesh : work.submeshes)
     {
@@ -627,21 +627,21 @@ bool MeshEdit::turnEdge(MeshData& mesh, u64 edgeKey, std::string* error)
     if (a1 != a2 || b1 != b2)
         return fail(error, "the edge is a seam (its triangles do not share vertices); turning it would tear the UVs");
 
-    const glm::vec3& pa = mesh.positions[a1];
-    const glm::vec3& pb = mesh.positions[b1];
-    const glm::vec3& pc = mesh.positions[c1];
-    const glm::vec3& pd = mesh.positions[d2];
+    const Math::vec3& pa = mesh.positions[a1];
+    const Math::vec3& pb = mesh.positions[b1];
+    const Math::vec3& pc = mesh.positions[c1];
+    const Math::vec3& pd = mesh.positions[d2];
     if (topology.canonical(c1) == topology.canonical(d2))
         return fail(error, "both triangles have the same third corner");
 
     // The flip is only valid when the quad is convex: each new triangle has to
     // face the way the old pair did.
-    const glm::vec3 old1 = glm::cross(pb - pa, pc - pa);
-    const glm::vec3 old2 = glm::cross(pa - pb, pd - pb);
-    const glm::vec3 reference = old1 + old2;
-    const glm::vec3 new1 = glm::cross(pa - pc, pd - pc); // (c, a, d)
-    const glm::vec3 new2 = glm::cross(pb - pd, pc - pd); // (d, b, c)
-    if (glm::dot(new1, reference) <= 1.0e-12f || glm::dot(new2, reference) <= 1.0e-12f)
+    const Math::vec3 old1 = Math::cross(pb - pa, pc - pa);
+    const Math::vec3 old2 = Math::cross(pa - pb, pd - pb);
+    const Math::vec3 reference = old1 + old2;
+    const Math::vec3 new1 = Math::cross(pa - pc, pd - pc); // (c, a, d)
+    const Math::vec3 new2 = Math::cross(pb - pd, pc - pd); // (d, b, c)
+    if (Math::dot(new1, reference) <= 1.0e-12f || Math::dot(new2, reference) <= 1.0e-12f)
         return fail(error, "the quad is not convex, so turning the edge would fold the surface");
 
     faces.tri[f1] = {c1, a1, d2};
@@ -667,7 +667,7 @@ bool MeshEdit::collapseEdge(MeshData& mesh, u64 edgeKey, f32 t, std::string* err
     if (gone.size() >= faces.tri.size())
         return fail(error, "collapsing this edge would remove every triangle");
 
-    const glm::vec3 target = glm::mix(mesh.positions[edge.a], mesh.positions[edge.b], t);
+    const Math::vec3 target = Math::mix(mesh.positions[edge.a], mesh.positions[edge.b], t);
     for (u32 v = 0; v < mesh.positions.size(); ++v)
     {
         const u32 canonical = topology.canonical(v);
@@ -689,21 +689,21 @@ bool MeshEdit::collapseEdge(MeshData& mesh, u64 edgeKey, f32 t, std::string* err
 
 // ---------------------------------------------------------------------- knife
 
-bool MeshEdit::knife(MeshData& mesh, const glm::vec3& normal, f32 offset, f32 epsilon, std::vector<u64>* cutEdges,
+bool MeshEdit::knife(MeshData& mesh, const Math::vec3& normal, f32 offset, f32 epsilon, std::vector<u64>* cutEdges,
                      std::string* error)
 {
-    const f32 length = glm::length(normal);
+    const f32 length = Math::length(normal);
     if (!(length > 1.0e-8f))
         return fail(error, "the plane normal must not be zero");
     if (mesh.positions.empty() || mesh.indices.size() < 3)
         return fail(error, "the mesh is empty");
-    const glm::vec3 n = normal / length;
+    const Math::vec3 n = normal / length;
     const f32 planeOffset = offset / length;
     const f32 eps = std::max(epsilon, 0.0f);
 
     MeshTopology topology;
     topology.build(mesh);
-    auto distance = [&](u32 canonical) { return glm::dot(n, mesh.positions[canonical]) - planeOffset; };
+    auto distance = [&](u32 canonical) { return Math::dot(n, mesh.positions[canonical]) - planeOffset; };
 
     std::vector<EdgeSplit> splits;
     for (const MeshTopology::Edge& edge : topology.edges())
@@ -729,8 +729,8 @@ bool MeshEdit::knife(MeshData& mesh, const glm::vec3& normal, f32 offset, f32 ep
         cutEdges->clear();
         for (const MeshTopology::Edge& edge : after.edges())
         {
-            if (std::abs(glm::dot(n, mesh.positions[edge.a]) - planeOffset) <= std::max(eps, 1.0e-4f) &&
-                std::abs(glm::dot(n, mesh.positions[edge.b]) - planeOffset) <= std::max(eps, 1.0e-4f))
+            if (std::abs(Math::dot(n, mesh.positions[edge.a]) - planeOffset) <= std::max(eps, 1.0e-4f) &&
+                std::abs(Math::dot(n, mesh.positions[edge.b]) - planeOffset) <= std::max(eps, 1.0e-4f))
                 cutEdges->push_back(MeshTopology::edgeKey(edge.a, edge.b));
         }
     }
@@ -817,12 +817,12 @@ bool quadAcross(const MeshData& mesh, const MeshTopology& topology, const Faces&
             corner = {ip, iq, iu, iw}; // (p, q, u, w): opposite side u-w, oriented w -> u
         else
             corner = {ip, iq, iw, iu}; // (p, q, w, u): opposite side w-u, oriented u -> w
-        const glm::vec3 along = glm::normalize(mesh.positions[corner[1]] - mesh.positions[corner[0]]);
-        const glm::vec3 far = mesh.positions[corner[2]] - mesh.positions[corner[3]]; // r - s
-        const f32 farLength = glm::length(far);
+        const Math::vec3 along = Math::normalize(mesh.positions[corner[1]] - mesh.positions[corner[0]]);
+        const Math::vec3 far = mesh.positions[corner[2]] - mesh.positions[corner[3]]; // r - s
+        const f32 farLength = Math::length(far);
         if (!(farLength > 1.0e-8f))
             continue;
-        const f32 parallel = glm::dot(along, far / farLength);
+        const f32 parallel = Math::dot(along, far / farLength);
         if (parallel < 0.5f)
             continue;
 
@@ -830,9 +830,9 @@ bool quadAcross(const MeshData& mesh, const MeshTopology& topology, const Faces&
         // parallel sides alone do not say which side is the diagonal. Quads are
         // written as two consecutive triangles, and their diagonal is nearly
         // always the longest side of either; those two hints settle it.
-        const f32 diagonalLength = glm::distance(mesh.positions[from], mesh.positions[to]);
-        const f32 otherA = glm::distance(mesh.positions[ip], mesh.positions[iq]);
-        const f32 otherB = glm::distance(mesh.positions[which == 0 ? iq : ip], mesh.positions[iu]);
+        const f32 diagonalLength = Math::distance(mesh.positions[from], mesh.positions[to]);
+        const f32 otherA = Math::distance(mesh.positions[ip], mesh.positions[iq]);
+        const f32 otherB = Math::distance(mesh.positions[which == 0 ? iq : ip], mesh.positions[iu]);
         const bool consecutive = partner + 1 == source || source + 1 == partner;
         const bool longest = diagonalLength >= std::max(otherA, otherB) - 1.0e-6f;
         const f32 score = (consecutive ? 2.0f : 0.0f) + (longest ? 1.0f : 0.0f) + 0.5f * parallel;
@@ -1077,18 +1077,18 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
 
     // Per canonical vertex: the triangles of the region around it, for the
     // direction it moves in and the normal it is pushed along.
-    std::unordered_map<u32, glm::vec3> normalSum;
-    std::unordered_map<u32, glm::vec3> centroidSum;
+    std::unordered_map<u32, Math::vec3> normalSum;
+    std::unordered_map<u32, Math::vec3> centroidSum;
     std::unordered_map<u32, u32> touching;
     for (u32 f = 0; f < faceCount; ++f)
     {
         if (!inRegion[f])
             continue;
-        const glm::vec3& a = mesh.positions[faces.tri[f][0]];
-        const glm::vec3& b = mesh.positions[faces.tri[f][1]];
-        const glm::vec3& c = mesh.positions[faces.tri[f][2]];
-        const glm::vec3 n = glm::cross(b - a, c - a); // area weighted
-        const glm::vec3 centroid = (a + b + c) / 3.0f;
+        const Math::vec3& a = mesh.positions[faces.tri[f][0]];
+        const Math::vec3& b = mesh.positions[faces.tri[f][1]];
+        const Math::vec3& c = mesh.positions[faces.tri[f][2]];
+        const Math::vec3 n = Math::cross(b - a, c - a); // area weighted
+        const Math::vec3 centroid = (a + b + c) / 3.0f;
         for (u32 corner = 0; corner < 3; ++corner)
         {
             const u32 canonical = topology.canonical(faces.tri[f][corner]);
@@ -1097,55 +1097,55 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
             ++touching[canonical];
         }
     }
-    auto unit = [](const glm::vec3& v, const glm::vec3& fallback)
+    auto unit = [](const Math::vec3& v, const Math::vec3& fallback)
     {
-        const f32 length = glm::length(v);
+        const f32 length = Math::length(v);
         return length > 1.0e-10f ? v / length : fallback;
     };
 
     // Where each border vertex goes: inward across the surface by `thickness`
     // (measured to the border's sides, not along the corner's diagonal), then
     // along the surface normal by `depth`.
-    std::unordered_map<u32, glm::vec3> innerPosition;
+    std::unordered_map<u32, Math::vec3> innerPosition;
     for (const auto& entry : borderNeighbours)
     {
         const u32 c = entry.first;
-        const glm::vec3& p = mesh.positions[c];
-        const glm::vec3 normal = unit(normalSum[c], glm::vec3(0, 1, 0));
-        const glm::vec3 towardRegion = unit(centroidSum[c] / static_cast<f32>(touching[c]) - p, normal);
+        const Math::vec3& p = mesh.positions[c];
+        const Math::vec3 normal = unit(normalSum[c], Math::vec3(0, 1, 0));
+        const Math::vec3 towardRegion = unit(centroidSum[c] / static_cast<f32>(touching[c]) - p, normal);
 
-        glm::vec3 direction = towardRegion;
+        Math::vec3 direction = towardRegion;
         f32 length = thickness;
         if (entry.second.size() == 2)
         {
-            const glm::vec3 e1 = unit(mesh.positions[entry.second[0]] - p, glm::vec3(1, 0, 0));
-            const glm::vec3 e2 = unit(mesh.positions[entry.second[1]] - p, glm::vec3(1, 0, 0));
-            const glm::vec3 bisector = e1 + e2;
-            if (glm::length(bisector) < 1.0e-4f)
+            const Math::vec3 e1 = unit(mesh.positions[entry.second[0]] - p, Math::vec3(1, 0, 0));
+            const Math::vec3 e2 = unit(mesh.positions[entry.second[1]] - p, Math::vec3(1, 0, 0));
+            const Math::vec3 bisector = e1 + e2;
+            if (Math::length(bisector) < 1.0e-4f)
             {
                 // A straight border: straight in, across the surface.
-                direction = unit(glm::cross(normal, e1), towardRegion);
+                direction = unit(Math::cross(normal, e1), towardRegion);
             }
             else
             {
-                direction = glm::normalize(bisector);
+                direction = Math::normalize(bisector);
             }
-            if (glm::dot(direction, towardRegion) < 0.0f)
+            if (Math::dot(direction, towardRegion) < 0.0f)
                 direction = -direction;
-            const f32 sinHalf = std::sqrt(std::max(0.0f, (1.0f - glm::dot(e1, e2)) * 0.5f));
+            const f32 sinHalf = std::sqrt(std::max(0.0f, (1.0f - Math::dot(e1, e2)) * 0.5f));
             length = thickness / std::max(sinHalf, 0.3f);
         }
         innerPosition[c] = p + direction * length + normal * depth;
     }
 
     // Interior vertices of the region only follow the depth.
-    std::unordered_map<u32, glm::vec3> shifted;
+    std::unordered_map<u32, Math::vec3> shifted;
     if (depth != 0.0f)
     {
         for (const auto& entry : touching)
         {
             if (!borderNeighbours.count(entry.first))
-                shifted[entry.first] = mesh.positions[entry.first] + unit(normalSum[entry.first], glm::vec3(0, 1, 0)) * depth;
+                shifted[entry.first] = mesh.positions[entry.first] + unit(normalSum[entry.first], Math::vec3(0, 1, 0)) * depth;
         }
     }
 
@@ -1295,14 +1295,14 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
         if (!ends.insert(bevel.a).second || !ends.insert(bevel.b).second)
             return fail(error, "two of the edges share a vertex; bevel them one after another");
 
-        const glm::vec3& pa = mesh.positions[bevel.a];
-        const glm::vec3& pb = mesh.positions[bevel.b];
-        const glm::vec3 along = pb - pa;
-        const f32 edgeLength = glm::length(along);
+        const Math::vec3& pa = mesh.positions[bevel.a];
+        const Math::vec3& pb = mesh.positions[bevel.b];
+        const Math::vec3 along = pb - pa;
+        const f32 edgeLength = Math::length(along);
         if (!(edgeLength > 1.0e-8f))
             return fail(error, "an edge has no length");
-        bevel.height1 = glm::length(glm::cross(along, mesh.positions[bevel.iC1] - pa)) / edgeLength;
-        bevel.height2 = glm::length(glm::cross(along, mesh.positions[bevel.iD2] - pa)) / edgeLength;
+        bevel.height1 = Math::length(Math::cross(along, mesh.positions[bevel.iC1] - pa)) / edgeLength;
+        bevel.height2 = Math::length(Math::cross(along, mesh.positions[bevel.iD2] - pa)) / edgeLength;
         if (!(bevel.height1 > 1.0e-8f) || !(bevel.height2 > 1.0e-8f))
             return fail(error, "a triangle next to an edge is flat against it");
         if (width >= 0.9f * std::min(bevel.height1, bevel.height2))
@@ -1470,18 +1470,18 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
         }
 
         // The new face: a strip from the line on one side to the line on the other.
-        const glm::vec3 n1 = glm::cross(mesh.positions[bv.iB1] - mesh.positions[bv.iA1],
+        const Math::vec3 n1 = Math::cross(mesh.positions[bv.iB1] - mesh.positions[bv.iA1],
                                         mesh.positions[bv.iC1] - mesh.positions[bv.iA1]);
-        const glm::vec3 n2 = glm::cross(mesh.positions[bv.iA2] - mesh.positions[bv.iB2],
+        const Math::vec3 n2 = Math::cross(mesh.positions[bv.iA2] - mesh.positions[bv.iB2],
                                         mesh.positions[bv.iD2] - mesh.positions[bv.iB2]);
-        const glm::vec3 outward = n1 + n2;
+        const Math::vec3 outward = n1 + n2;
         // The strip gets vertices of its own so it shades as a crisp face instead
         // of blending into the faces it joins.
         std::array<u32, 4> quad = {lerpVertex(work, a1, a1, 0.0f), lerpVertex(work, b1, b1, 0.0f),
                                    lerpVertex(work, b2, b2, 0.0f), lerpVertex(work, a2, a2, 0.0f)};
-        const glm::vec3 q = glm::cross(work.positions[quad[1]] - work.positions[quad[0]],
+        const Math::vec3 q = Math::cross(work.positions[quad[1]] - work.positions[quad[0]],
                                        work.positions[quad[2]] - work.positions[quad[0]]);
-        if (glm::dot(q, outward) < 0.0f)
+        if (Math::dot(q, outward) < 0.0f)
             quad = {quad[0], quad[3], quad[2], quad[1]};
         extraTris.push_back({quad[0], quad[1], quad[2]});
         extraTris.push_back({quad[0], quad[2], quad[3]});
@@ -1652,7 +1652,7 @@ bool MeshEdit::fillHoles(MeshData& mesh, const std::vector<u64>& edges, u32 maxE
         // The new face walks each border edge the opposite way to the triangle
         // that has it: the border reversed.
         const usize n = border.canonical.size();
-        std::vector<glm::vec3> points(n);
+        std::vector<Math::vec3> points(n);
         std::vector<u32> indexOf(n);
         for (usize i = 0; i < n; ++i)
         {
@@ -1733,8 +1733,8 @@ bool MeshEdit::bridge(MeshData& mesh, const std::vector<u64>& edges, std::string
         for (usize i = 0; i < n1; ++i)
         {
             const usize j = (shift + (i * n2) / n1) % n2;
-            const glm::vec3 d = mesh.positions[first.canonical[i]] - mesh.positions[b[j]];
-            cost += glm::dot(d, d);
+            const Math::vec3 d = mesh.positions[first.canonical[i]] - mesh.positions[b[j]];
+            cost += Math::dot(d, d);
         }
         if (cost < bestCost)
         {
@@ -1885,7 +1885,7 @@ bool MeshEdit::mergeSubmeshes(MeshData& mesh, const std::vector<u32>& submeshes,
 
 // ---------------------------------------------------------------- polygons
 
-std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<glm::vec3>& points)
+std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<Math::vec3>& points)
 {
     const usize n = points.size();
     std::vector<std::array<u32, 3>> out;
@@ -1893,36 +1893,36 @@ std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<g
         return out;
 
     // The plane the outline lies nearest to: Newell's normal.
-    glm::vec3 normal(0.0f);
+    Math::vec3 normal(0.0f);
     for (usize i = 0; i < n; ++i)
     {
-        const glm::vec3& a = points[i];
-        const glm::vec3& b = points[(i + 1) % n];
+        const Math::vec3& a = points[i];
+        const Math::vec3& b = points[(i + 1) % n];
         normal.x += (a.y - b.y) * (a.z + b.z);
         normal.y += (a.z - b.z) * (a.x + b.x);
         normal.z += (a.x - b.x) * (a.y + b.y);
     }
-    if (glm::length(normal) < 1.0e-12f)
+    if (Math::length(normal) < 1.0e-12f)
     {
         // Degenerate outline: a fan is as good as anything.
         for (u32 i = 1; i + 1 < n; ++i)
             out.push_back({0, i, i + 1});
         return out;
     }
-    normal = glm::normalize(normal);
+    normal = Math::normalize(normal);
 
     // Project onto the two axes that best keep the shape.
-    glm::vec3 u = glm::normalize(std::abs(normal.x) < 0.9f ? glm::cross(normal, glm::vec3(1, 0, 0))
-                                                          : glm::cross(normal, glm::vec3(0, 1, 0)));
-    const glm::vec3 v = glm::cross(normal, u);
-    std::vector<glm::vec2> flat(n);
+    Math::vec3 u = Math::normalize(std::abs(normal.x) < 0.9f ? Math::cross(normal, Math::vec3(1, 0, 0))
+                                                          : Math::cross(normal, Math::vec3(0, 1, 0)));
+    const Math::vec3 v = Math::cross(normal, u);
+    std::vector<Math::vec2> flat(n);
     for (usize i = 0; i < n; ++i)
-        flat[i] = glm::vec2(glm::dot(points[i], u), glm::dot(points[i], v));
+        flat[i] = Math::vec2(Math::dot(points[i], u), Math::dot(points[i], v));
 
     // With Newell's normal the outline runs counter-clockwise in (u, v).
-    auto cross2 = [](const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+    auto cross2 = [](const Math::vec2& a, const Math::vec2& b, const Math::vec2& c)
     { return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x); };
-    auto inside = [&](const glm::vec2& p, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+    auto inside = [&](const Math::vec2& p, const Math::vec2& a, const Math::vec2& b, const Math::vec2& c)
     {
         const f32 d1 = cross2(a, b, p);
         const f32 d2 = cross2(b, c, p);
