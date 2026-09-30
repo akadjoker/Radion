@@ -87,3 +87,5 @@ make radion_blender
 ---
 
 **Status**: Estrutura base pronta. Aguardando implementação do Mini Renderer.
+
+**Chat com LLM**: `client/` (Python + Qt) — ver `client/README.md`.
