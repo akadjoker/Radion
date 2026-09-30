@@ -181,7 +181,73 @@ def group_subdivide(api):
     expect_error(api, "failed", "turn_edge")
 
 
-GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide}
+def vertical_edge_of_cylinder(api):
+    """An edge of the cylinder's side that runs from the bottom ring to the top ring."""
+    data = api.call("get_mesh_data", max_vertices=2000)
+    pos, ids = data["positions"], data["vertexIds"]
+    for tri in data["triangles"]:
+        for i in range(3):
+            u, v = tri[i], tri[(i + 1) % 3]
+            pu, pv = pos[u], pos[v]
+            if (approx(pu[0], pv[0], 1e-6) and approx(pu[2], pv[2], 1e-6) and approx(abs(pu[1] - pv[1]), 2.0, 1e-6)
+                    and approx(pu[0] ** 2 + pu[2] ** 2, 1.0, 1e-4)):
+                return [ids[u], ids[v]]
+    raise AssertionError("no vertical side edge found")
+
+
+def group_cuts(api):
+    # Knife: the cut line becomes the selection.
+    fresh_box(api)
+    r = api.call("knife", axis="x", offset=0.5)
+    check(r["triangles"] > 12, "the knife splits triangles")
+    check(r["selection"]["mode"] == "edge" and r["selection"]["edgeCount"] >= 4, "the cut line is selected")
+    check(approx(r["selection"]["edgeBounds"]["min"][0], 0.5) and approx(r["selection"]["edgeBounds"]["max"][0], 0.5),
+          "the selected edges lie in the plane")
+    expect_error(api, "failed", "knife", axis="x", offset=10)
+    expect_error(api, "invalid_params", "knife")
+
+    # Loop cut: a ring round a cylinder, by one vertical edge.
+    api.call("new_document")
+    api.call("add_primitive", type="cylinder", radius=1, height=2, slices=12)
+    edge = vertical_edge_of_cylinder(api)
+    r = api.call("loop_cut", edge=edge, cuts=2)
+    check(r["triangles"] - r["trianglesBefore"] == 48, f"two rings of 12 quads add 2 x 24 triangles, got {r}")
+    check(r["selection"]["edgeCount"] == 24, f"the new loops are selected: {r['selection']['edgeCount']}")
+    data = api.call("get_mesh_data", max_vertices=2000)
+    heights = sorted(set(round(p[1], 3) for p in data["positions"]))
+    low = heights[0]
+    check(len(heights) == 4 and all(approx(h - low, e, 1e-3) for h, e in zip(heights, [0.0, 2 / 3, 4 / 3, 2.0])),
+          f"the rings divide the height in thirds, got {heights}")
+    api.call("select", action="clear")
+    expect_error(api, "failed", "loop_cut")
+
+    # Bevel one vertical edge of a box, picked by where it is.
+    fresh_box(api)
+    s = api.call("select", mode="edge", action="set", box={"min": [0.9, -1.1, 0.9], "max": [1.1, 1.1, 1.1]})
+    check(s["edgeCount"] == 1, f"one vertical edge in the box, got {s['edgeCount']}")
+    api.call("bevel", width=0.3)
+    data = api.call("get_mesh_data", max_vertices=2000)
+    check(not any(approx(p[0], 1.0) and approx(p[2], 1.0) for p in data["positions"]),
+          "no vertex is left on the old edge")
+    check(any(approx(p[0], 0.7) and approx(p[2], 1.0) for p in data["positions"]), "the strip starts 0.3 in on one face")
+    check(any(approx(p[0], 1.0) and approx(p[2], 0.7) for p in data["positions"]), "and 0.3 in on the other")
+    fresh_box(api)
+    api.call("select", mode="edge", action="set", box={"min": [0.9, -1.1, 0.9], "max": [1.1, 1.1, 1.1]})
+    expect_error(api, "failed", "bevel", width=5)
+
+    # Inset a face, then raise it with extrude.
+    fresh_box(api)
+    api.call("select", mode="face", action="set", box={"min": [-1.1, 0.9, -1.1], "max": [1.1, 1.1, 1.1]})
+    r = api.call("inset", thickness=0.3, depth=0.2)
+    check(r["triangles"] == 12 + 8, f"inset adds a ring of 8 triangles, got {r['triangles']}")
+    check(r["selection"]["mode"] == "face" and r["selection"]["faceCount"] == 2, "the inner face is selected")
+    r = api.call("extrude", distance=0.5)
+    check(r["triangles"] > 20, "extrude continues from the inner face")
+    api.call("select", action="clear")
+    expect_error(api, "failed", "inset", thickness=0.1)
+
+
+GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts}
 
 
 # ------------------------------------------------------------------- driver

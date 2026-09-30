@@ -607,7 +607,8 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                             integerSchema("Most vertices to return (default 500, at most 2000).")}};
         add("get_mesh_data",
             "Raw geometry of one part (or the whole mesh when 'part' is omitted): vertex positions "
-            "and triangles as vertex-index triples. For checking shapes; large meshes are cut off.",
+            "and triangles as index triples into that list; 'vertexIds' gives each entry's editor "
+            "vertex index. For checking shapes; large meshes are cut off.",
             objectSchema(properties), true,
             [editor](const CommandArgs& args)
             {
@@ -634,6 +635,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 // a part of a big mesh comes out as a small self-contained list.
                 std::unordered_map<u32, u32> remap;
                 Json positions = Json::array();
+                Json vertexIds = Json::array();
                 Json triangles = Json::array();
                 bool truncated = false;
                 for (usize i = 0; i + 2 < indices.size(); i += 3)
@@ -655,6 +657,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                         if (found == remap.end())
                         {
                             found = remap.emplace(original, static_cast<u32>(remap.size())).first;
+                            vertexIds.push_back(original);
                             const glm::vec3& p = mesh.positions[original];
                             positions.push_back(Json::array({std::round(p.x * 10000.0f) / 10000.0f,
                                                              std::round(p.y * 10000.0f) / 10000.0f,
@@ -669,6 +672,10 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                                {"triangleCount", triangles.size()},
                                {"truncated", truncated},
                                {"positions", positions},
+                               // Triangles index `positions`; this says which editor vertex
+                               // each entry is, for commands that take vertex indices
+                               // (select, loop_cut, ...).
+                               {"vertexIds", vertexIds},
                                {"triangles", triangles}});
             });
     }
@@ -1662,6 +1669,112 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             if (collapsed == 0)
                 failed(why.empty() ? "nothing was collapsed" : why);
             return result({{"collapsed", collapsed}, {"triangles", mesh.indices.size() / 3}});
+        });
+
+    add("knife",
+        "Cuts the mesh along a plane, keeping all the geometry (unlike 'bisect'): every triangle the "
+        "plane crosses is split along it, leaving a line of new edges that becomes the selection "
+        "(edge mode). Follow with extrude, inset, bevel or a transform on that line. Give 'axis' "
+        "and 'offset' for a plane perpendicular to x, y or z, or a free 'normal'.",
+        objectSchema({{"axis", choiceSchema("Plane perpendicular to this axis.", {"x", "y", "z"})},
+                      {"normal", vec3Schema("Free plane normal, instead of 'axis'.")},
+                      {"offset", numberSchema("Plane position: the plane is dot(normal, p) = offset. Default 0.")}}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            glm::vec3 normal(0.0f);
+            if (args.has("normal"))
+            {
+                normal = vec3Arg(args, "normal", glm::vec3(0.0f));
+            }
+            else
+            {
+                const std::string axis = args.requireChoice("axis", {"x", "y", "z"});
+                normal[axis == "x" ? 0 : axis == "y" ? 1 : 2] = 1.0f;
+            }
+            const f32 offset = static_cast<f32>(args.number("offset", 0.0, -kMaxCoordinate, kMaxCoordinate));
+            std::string why;
+            if (!editor->knifeCut(normal, offset, &why))
+                failed(why.empty() ? "the knife did not cut anything" : why);
+            return result({{"triangles", mesh.indices.size() / 3}, {"selection", selectionJson(*editor)}});
+        });
+
+    add("loop_cut",
+        "Adds edge loops around a ring of quads: select ONE edge (mode 'edge') that runs across the "
+        "strip to be cut - e.g. a vertical edge of a cylinder to cut a horizontal ring round it - and "
+        "call this. The ring is followed through pairs of triangles that form quads until it closes "
+        "or ends. The new loops become the selection.",
+        objectSchema({{"cuts", integerSchema("Number of loops, 1-32 (default 1), evenly spaced.")},
+                      {"edge", {{"type", "array"}, {"items", {{"type", "integer"}}}, {"minItems", 2}, {"maxItems", 2},
+                                {"description", "Optional [vertexA, vertexB] of the edge; default the selected edge."}}}}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const u32 cuts = static_cast<u32>(args.integer("cuts", 1, 1, 32));
+            if (args.has("edge"))
+            {
+                const std::vector<unsigned> pair = args.indices("edge", 2);
+                if (pair.size() != 2 || pair[0] >= mesh.positions.size() || pair[1] >= mesh.positions.size())
+                    invalid("argument 'edge' must be two valid vertex indices");
+                const MeshTopology& topology = editor->topology();
+                const u32 a = topology.canonical(pair[0]);
+                const u32 b = topology.canonical(pair[1]);
+                if (topology.findEdge(a, b) < 0)
+                    invalid("those two vertices are not joined by an edge");
+                editor->selection().clearAll();
+                editor->selection().setMode(BlenderSelection::SelectionMode::Edge);
+                editor->selection().selectEdge(MeshTopology::edgeKey(a, b));
+            }
+            const usize before = mesh.indices.size() / 3;
+            std::string why;
+            if (!editor->loopCutSelected(cuts, &why))
+                failed(why.empty() ? "no loop was cut" : why);
+            return result({{"trianglesBefore", before}, {"triangles", mesh.indices.size() / 3},
+                           {"selection", selectionJson(*editor)}});
+        });
+
+    add("inset",
+        "Insets the selected faces as one region: the region shrinks away from its border by "
+        "'thickness' (measured across the surface), leaving a ring of triangles; 'depth' then raises "
+        "(+) or sinks (-) the inner region along its normal. Panels, windows, buttons. The shrunken "
+        "region becomes the selection, so it can be inset or extruded again.",
+        objectSchema({{"thickness", numberSchema("How far the border moves in, in world units.")},
+                      {"depth", numberSchema("Move of the inner region along its normal. Default 0.")}},
+                     {"thickness"}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const f32 thickness = static_cast<f32>(args.requireNumber("thickness"));
+            const f32 depth = static_cast<f32>(args.number("depth", 0.0, -kMaxCoordinate, kMaxCoordinate));
+            if (thickness < 0.0f || thickness > kMaxCoordinate)
+                invalid("argument 'thickness' must be zero or more");
+            std::string why;
+            if (!editor->insetSelection(thickness, depth, &why))
+                failed(why.empty() ? "nothing was inset" : why);
+            return result({{"triangles", mesh.indices.size() / 3}, {"selection", selectionJson(*editor)}});
+        });
+
+    add("bevel",
+        "Chamfers the selected edges (mode 'edge'): each becomes a flat strip 'width' wide on both "
+        "sides. The edges must have triangles on both sides and must not share a vertex - bevel "
+        "edges that meet one after another. Refused when the width is larger than the faces next to "
+        "an edge allow.",
+        objectSchema({{"width", numberSchema("Distance from the old edge to each side of the new strip.")}},
+                     {"width"}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const f32 width = static_cast<f32>(args.requireNumber("width"));
+            if (!(width > 0.0f) || width > kMaxCoordinate)
+                invalid("argument 'width' must be greater than zero");
+            std::string why;
+            if (!editor->bevelSelectedEdges(width, &why))
+                failed(why.empty() ? "nothing was bevelled" : why);
+            return result({{"triangles", mesh.indices.size() / 3}, {"vertices", mesh.positions.size()}});
         });
 
     add("snap_to_grid",

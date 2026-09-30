@@ -287,6 +287,15 @@ public:
     u32 turnSelectedEdges(std::string* error = nullptr);
     u32 splitSelectedEdges(f32 t, std::string* error = nullptr);
     u32 collapseSelectedEdges(f32 t, std::string* error = nullptr);
+    // Cuts the mesh along the plane dot(normal, p) = offset and selects the new
+    // line of edges (edge mode).
+    bool knifeCut(const glm::vec3& normal, f32 offset, std::string* error = nullptr);
+    // Adds `cuts` edge loops across the ring of quads through the first selected
+    // edge, and selects them.
+    bool loopCutSelected(u32 cuts, std::string* error = nullptr);
+    // Insets the selected faces as one region and selects the shrunken region.
+    bool insetSelection(f32 thickness, f32 depth, std::string* error = nullptr);
+    bool bevelSelectedEdges(f32 width, std::string* error = nullptr);
 
     // -- Hide
     //
@@ -612,6 +621,12 @@ private:
     std::vector<MeshData> mRedoStates;
 
     s32 mSubdivideLevels = 1;
+    s32 mLoopCuts = 1;
+    f32 mBevelWidth = 0.1f;
+    f32 mInsetThickness = 0.1f;
+    f32 mInsetDepth = 0.0f;
+    s32 mKnifeAxis = 1;
+    f32 mKnifeOffset = 0.0f;
     f32 mWeldDistance = 0.001f;
     f32 mSnapTolerance = 0.05f;
     f32 mSmoothingStrength = 0.5f;

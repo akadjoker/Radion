@@ -121,7 +121,8 @@ bool BlenderApplication::startApi(const std::string& host, int port, const std::
         return false;
     }
     mApiError.clear();
-    mSettings.api().port = mApi->port();
+    // Not written to the settings here: a port given on the command line is for
+    // this run only. The Preferences' Start button is what saves one.
     mApiPortField = mApi->port();
     return true;
 }
@@ -622,6 +623,131 @@ usize BlenderApplication::hiddenFaceCount() const
             count += hidden ? 1 : 0;
     }
     return count;
+}
+
+bool BlenderApplication::knifeCut(const glm::vec3& normal, f32 offset, std::string* error)
+{
+    if (!mMeshData || mMeshData->indices.empty())
+    {
+        if (error)
+            *error = "the document has no mesh";
+        return false;
+    }
+
+    recordUndo();
+    std::vector<u64> cutEdges;
+    std::string why;
+    if (!MeshEdit::knife(*mMeshData, normal, offset, 1.0e-5f, &cutEdges, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    mSelection.clearAll();
+    mSelection.setMode(BlenderSelection::SelectionMode::Edge);
+    mSelection.setEdges(cutEdges);
+    Log::info("BlenderApplication: knife cut along a plane (%zu edges on the line)", cutEdges.size());
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::loopCutSelected(u32 cuts, std::string* error)
+{
+    if (!mMeshData || mSelection.selectedEdgeCount() == 0)
+    {
+        if (error)
+            *error = "no edge is selected";
+        return false;
+    }
+
+    recordUndo();
+    std::vector<u64> created;
+    std::string why;
+    if (!MeshEdit::loopCut(*mMeshData, mSelection.selectedEdges().front(), cuts, &created, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    mSelection.clearAll();
+    mSelection.setMode(BlenderSelection::SelectionMode::Edge);
+    mSelection.setEdges(created);
+    Log::info("BlenderApplication: loop cut x%u (%zu new edges)", cuts, created.size());
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::insetSelection(f32 thickness, f32 depth, std::string* error)
+{
+    if (!mMeshData || mMeshData->indices.empty())
+    {
+        if (error)
+            *error = "the document has no mesh";
+        return false;
+    }
+
+    const std::vector<u32> faces = selectionFaces(false);
+    if (faces.empty())
+    {
+        if (error)
+            *error = "the selection does not contain a whole face";
+        return false;
+    }
+
+    recordUndo();
+    std::vector<u32> inner;
+    std::string why;
+    if (!MeshEdit::inset(*mMeshData, faces, thickness, depth, &inner, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    // A raised or sunken region has walls that need normals of their own.
+    if (depth != 0.0f && !mMeshData->normals.empty())
+        Assets().recalculateNormals(*mMeshData, mSmoothNormals, mAngleWeightedNormals);
+
+    mSelection.clearAll();
+    mSelection.setMode(BlenderSelection::SelectionMode::Face);
+    for (const u32 face : inner)
+        mSelection.selectFace(face);
+    Log::info("BlenderApplication: inset %zu faces (thickness %.3f, depth %.3f)", faces.size(), thickness, depth);
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::bevelSelectedEdges(f32 width, std::string* error)
+{
+    if (!mMeshData || mSelection.selectedEdgeCount() == 0)
+    {
+        if (error)
+            *error = "no edges are selected";
+        return false;
+    }
+
+    recordUndo();
+    std::string why;
+    if (!MeshEdit::bevel(*mMeshData, mSelection.selectedEdges(), width, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    if (!mMeshData->normals.empty())
+        Assets().recalculateNormals(*mMeshData, mSmoothNormals, mAngleWeightedNormals);
+    const usize edges = mSelection.selectedEdgeCount();
+    mSelection.clearAll();
+    Log::info("BlenderApplication: bevelled %zu edges (width %.3f)", edges, width);
+    applyMeshEdit();
+    return true;
 }
 
 std::vector<u32> BlenderApplication::selectionFaces(bool partial)
@@ -1907,6 +2033,22 @@ void BlenderApplication::drawEdgeMenu()
     report();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetTooltip("Adds a vertex in the middle of each selected edge.");
+    ImGui::Separator();
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::SliderInt("Loops", &mLoopCuts, 1, 8);
+    if (ImGui::MenuItem("Loop Cut", nullptr, false, anyEdge))
+        loopCutSelected(static_cast<u32>(mLoopCuts), &why);
+    report();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Cuts the ring of quads through the first selected edge.");
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::DragFloat("Bevel Width", &mBevelWidth, 0.005f, 0.001f, 10.0f, "%.3f");
+    if (ImGui::MenuItem("Bevel", nullptr, false, anyEdge))
+        bevelSelectedEdges(mBevelWidth, &why);
+    report();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Chamfers the selected edges. Edges may not share a vertex.");
+    ImGui::Separator();
     if (ImGui::MenuItem("Collapse Edge", nullptr, false, anyEdge))
         collapseSelectedEdges(0.5f, &why);
     report();
@@ -1927,6 +2069,24 @@ void BlenderApplication::drawFaceMenu()
     if (ImGui::MenuItem("Extrude", "E"))
         extrudeFaces(mExtrudeDistance);
     ImGui::EndDisabled();
+
+    ImGui::Separator();
+    ImGui::SetNextItemWidth(150.0f);
+    ImGui::DragFloat("Inset Thickness", &mInsetThickness, 0.005f, 0.0f, 10.0f, "%.3f");
+    ImGui::SetNextItemWidth(150.0f);
+    ImGui::DragFloat("Inset Depth", &mInsetDepth, 0.005f, -10.0f, 10.0f, "%.3f");
+    ImGui::BeginDisabled(!mMeshData || mSelection.selectedFaceCount() == 0);
+    if (ImGui::MenuItem("Inset"))
+    {
+        std::string why;
+        if (!insetSelection(mInsetThickness, mInsetDepth, &why))
+            Log::warning("BlenderApplication: %s", why.c_str());
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Shrinks the selected faces away from their border, leaving a ring of "
+                          "triangles; Depth then raises or sinks the inner part.");
+    ImGui::Separator();
 
     ImGui::BeginDisabled(!mMeshData);
     if (ImGui::MenuItem("Flip Normals"))
@@ -3071,6 +3231,23 @@ void BlenderApplication::drawMeshMenu()
         ImGui::SetTooltip("Cuts by a plane and keeps one side, splitting the triangles that "
                           "cross it. Keeps the UVs, unlike a CSG cut.");
 
+    ImGui::SetNextItemWidth(90.0f);
+    ImGui::Combo("##knifeAxis", &mKnifeAxis, "X\0Y\0Z\0");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(90.0f);
+    ImGui::DragFloat("##knifeOffset", &mKnifeOffset, 0.01f, -1000.0f, 1000.0f, "%.3f");
+    if (ImGui::MenuItem("Knife Cut"))
+    {
+        glm::vec3 normal(0.0f);
+        normal[mKnifeAxis] = 1.0f;
+        std::string why;
+        if (!knifeCut(normal, mKnifeOffset, &why))
+            Log::warning("BlenderApplication: %s", why.c_str());
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Cuts every triangle the plane crosses and keeps all the geometry, "
+                          "unlike Bisect. The new line of edges is selected.");
+
     if (ImGui::MenuItem("Convex Hull"))
         makeConvexHull();
     if (ImGui::IsItemHovered())
@@ -3501,8 +3678,9 @@ void BlenderApplication::drawPreferencesPopup()
                           "Not saved - set RADION_BLENDER_API_TOKEN or --api-token to have it at startup.");
     if (!apiIsRunning)
     {
-        if (ImGui::Button("Start API"))
-            startApi("127.0.0.1", glm::clamp(mApiPortField, 1, 65535), mApiTokenField);
+        if (ImGui::Button("Start API") &&
+            startApi("127.0.0.1", glm::clamp(mApiPortField, 1, 65535), mApiTokenField))
+            mSettings.api().port = apiPort();
     }
     else
     {

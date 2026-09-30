@@ -35,6 +35,17 @@ struct EdgeSplit
     f32 t = 0.5f;
 };
 
+// Two triangles that make a quad, cut across by a line joining the middle of two
+// opposite sides. `corner` lists the quad's vertices in order p, q, r, s (so the
+// sides p-q and r-s are the ones cut, and the new edge runs between their
+// midpoints) and both sides must be among the edges being cut.
+struct QuadCut
+{
+    u32 faceA = 0;
+    u32 faceB = 0;
+    std::array<u32, 4> corner = {0, 0, 0, 0};
+};
+
 struct RefineResult
 {
     // A vertex created on an edge, with the canonical edge it lies on.
@@ -46,6 +57,15 @@ struct RefineResult
     std::vector<Midpoint> midpoints;
     // For each triangle of the result, the triangle of the input it came from.
     std::vector<u32> origin;
+    // The vertex made on the side between two vertices (by vertex index, in
+    // either order), for callers that need the one a particular triangle uses.
+    std::unordered_map<u64, u32> byVertexPair;
+    static u64 pairKey(u32 a, u32 b)
+    {
+        if (a > b)
+            std::swap(a, b);
+        return (static_cast<u64>(a) << 32) | b;
+    }
 };
 
 // Cuts the given edges, splitting every triangle that has one. A triangle with
@@ -55,6 +75,10 @@ struct RefineResult
 // and kept apart where they do not (a UV or normal seam stays a seam).
 bool refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits, RefineResult* result = nullptr,
                  std::string* error = nullptr);
+// The same, with some pairs of triangles cut as quads: the line between the two
+// cut sides becomes a real edge instead of the diagonal they were made of.
+bool refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits, const std::vector<QuadCut>& quads,
+                 RefineResult* result = nullptr, std::string* error = nullptr);
 
 // Subdivides `faces` (every triangle when empty), `levels` times. Flat, each
 // triangle becomes four with the new vertices on the old edges; `smooth` moves
@@ -72,6 +96,41 @@ bool turnEdge(MeshData& mesh, u64 edgeKey, std::string* error = nullptr);
 // Pulls the two ends of an edge together at `t` along it and removes the
 // triangles that collapse. The vertices stay separate but coincide.
 bool collapseEdge(MeshData& mesh, u64 edgeKey, f32 t, std::string* error = nullptr);
+
+// Cuts the mesh with the plane `dot(normal, p) == offset`: every edge that
+// crosses it gets a vertex where it does, and the triangles are split along the
+// line between them. Vertices within `epsilon` of the plane count as on it and
+// are not cut. `cutEdges`, when given, receives the edges that now lie in the
+// plane.
+bool knife(MeshData& mesh, const glm::vec3& normal, f32 offset, f32 epsilon, std::vector<u64>* cutEdges = nullptr,
+           std::string* error = nullptr);
+
+// Adds `cuts` evenly spaced edge loops across the ring of quads that contains
+// `edgeKey`. A ring is followed through pairs of triangles that make a quad,
+// both ways, until it closes on itself or reaches something that is not a quad -
+// a triangle, a border - where the last triangle is just split. `newEdges`, when
+// given, receives the edges that make up the new loops.
+bool loopCut(MeshData& mesh, u64 edgeKey, u32 cuts, std::vector<u64>* newEdges = nullptr,
+             std::string* error = nullptr);
+
+// Insets `faces` (as one region): the region shrinks away from its border by
+// `thickness`, measured across the surface, leaving a ring of triangles between
+// the old border and the new; `depth` then moves the inner region along its
+// normal (negative sinks it). `innerFaces` receives the triangles of the
+// shrunken region, so it can be inset or extruded again.
+bool inset(MeshData& mesh, const std::vector<u32>& faces, f32 thickness, f32 depth,
+           std::vector<u32>* innerFaces = nullptr, std::string* error = nullptr);
+
+// Chamfers edges: each becomes a flat strip `width` wide on either side of where
+// it was, and the two vertices at its ends are replaced by the ends of the strip.
+// Every edge needs exactly two triangles, and no two of the edges may share a
+// vertex (bevel those one after another). The old vertices are dropped from the
+// mesh, so vertex numbers change.
+bool bevel(MeshData& mesh, const std::vector<u64>& edges, f32 width, std::string* error = nullptr);
+
+// Drops the vertices no triangle uses, renumbering the rest (the order is kept).
+// Returns how many went.
+u32 removeUnusedVertices(MeshData& mesh);
 
 // Largest triangle count an edit here will produce.
 constexpr usize kMaxTriangles = 4000000;
