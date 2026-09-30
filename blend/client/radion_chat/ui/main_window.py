@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
         worker.text_delta.connect(self.chat.append_assistant)
         worker.tool_call.connect(self.chat.add_tool_call)
         worker.tool_result.connect(self._on_tool_result)
-        worker.error.connect(lambda message: self.chat.add_notice(message, error=True))
+        worker.error.connect(self._on_worker_error)
         worker.finished.connect(self._on_finished)
         worker.undone.connect(self._on_undone)
         worker.confirm_requested.connect(self._on_confirm_requested)
@@ -250,6 +250,9 @@ class MainWindow(QMainWindow):
             if profile and not profile.vision and not self._vision_warned:
                 self._vision_warned = True
                 self.chat.add_notice(VISION_OFF_NOTICE)
+
+    def _on_worker_error(self, message):
+        self.chat.add_notice(message, error=True)
 
     def _on_finished(self, reason, undoable_steps):
         self._undoable = undoable_steps

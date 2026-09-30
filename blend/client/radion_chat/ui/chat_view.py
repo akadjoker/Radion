@@ -2,7 +2,7 @@
 
 import json
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QScrollArea,
                                QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
@@ -69,7 +69,8 @@ class ToolEntry(QFrame):
 
     def finish(self, summary, is_error, text):
         self.is_error = is_error
-        self.status.setText(("error: " if is_error else "") + summary)
+        # Compact JSON has no spaces: a zero-width space after commas lets the label wrap.
+        self.status.setText(("error: " if is_error else "") + summary.replace(",", ",\u200b"))
         if is_error:
             self.status.setStyleSheet(f"color: {ERROR_COLOUR};")
         self.details.setPlainText(f"Arguments:\n{_pretty(self._arguments)}\n\nResult:\n{text}")
@@ -85,12 +86,22 @@ def _pretty(arguments):
     return json.dumps(arguments, indent=2)
 
 
+class _Transcript(QWidget):
+    """The scrolled content. Its own minimum size hint is 0: a layout of word-wrapped labels
+    reports the height it would need at the *narrowest* width, which left a tall blank area
+    under the last message. The scroll area then sizes it with height-for-width instead."""
+
+    def minimumSizeHint(self):
+        return QSize(0, 0)
+
+
 class ChatView(QScrollArea):
     def __init__(self):
         super().__init__()
         self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QFrame.Shape.NoFrame)
-        body = QWidget()
+        body = _Transcript()
         self._layout = QVBoxLayout(body)
         self._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.setWidget(body)

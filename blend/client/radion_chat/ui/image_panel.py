@@ -2,7 +2,7 @@
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QScrollArea, QSizePolicy,
+from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QSizePolicy,
                                QToolButton, QVBoxLayout, QWidget)
 
 MAX_HISTORY = 8

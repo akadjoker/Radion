@@ -127,6 +127,15 @@ def test_api_error_shows_up_in_the_tool_entry(make_window, llm_server):
     assert entry.is_error and "invalid_params" in entry.status.text()
 
 
+def test_llm_failure_is_shown_as_an_error_notice(make_window):
+    window = make_window()  # the fake LLM has no script left: it answers HTTP 500
+    send(window, "hi")
+    assert idle(window)
+    notice = window.chat.items[-1]
+    assert "500" in notice.text() and "d9534f" in notice.styleSheet()
+    assert notice.thread() is window.thread()  # built on the GUI thread
+
+
 def test_undo_this_request(make_window, api_server, llm_server):
     llm_server.script += [call_reply([("add_primitive", {"type": "box", "name": "a"}),
                                       ("add_primitive", {"type": "box", "name": "b"})]), text_reply("ok")]
