@@ -28,14 +28,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include "Math.h"
-#include "Math.h"
-#include "Math.h"
 #include <limits>
-#ifndef GLM_ENABLE_EXPERIMENTAL
-#define GLM_ENABLE_EXPERIMENTAL
-#endif
-#include "Math.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

@@ -4,8 +4,6 @@
 #include "Component.h"
 #include "Math.h"
 
-#include "Math.h"
-#include "Math.h"
 #include <vector>
 
 namespace Radion

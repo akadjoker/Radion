@@ -30,9 +30,6 @@
 #include <ImGuizmo.h>
 #include <limits>
 #include "Math.h"
-#include "Math.h"
-#define GLM_ENABLE_EXPERIMENTAL
-#include "Math.h"
 #include <imgui.h>
 
 namespace Radion

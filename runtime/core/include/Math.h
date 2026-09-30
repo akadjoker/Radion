@@ -5,7 +5,7 @@
 #include <ostream>
 
 // The library declares its types in ::Math, which is also the name of the
-// engine's own GLM-shaped layer (Radion::Math) below - with `using namespace
+// engine's own math layer (Radion::Math) below - with `using namespace
 // Radion` in scope every `Math::` would be ambiguous. The library is therefore
 // compiled and included as ::Mathc (radion_math is built with Math=Mathc too).
 #define Math Mathc
@@ -19,8 +19,8 @@
 namespace Radion
 {
 
-// GLM-shaped surface over Mathc types, so call sites read like the math they
-// express (vec3, mat4, quat, ...) regardless of the underlying library.
+// Shader-style surface (vec3, mat4, quat, dot, mix, ...) over Mathc types, so
+// call sites read like the math they express regardless of the underlying library.
 namespace Math
 {
 using vec2 = ::Mathc::Vec2;
@@ -32,8 +32,8 @@ using mat4 = ::Mathc::Mat4;
 struct quat : ::Mathc::Quaternion
 {
     quat() : ::Mathc::Quaternion(::Mathc::Quaternion::Identity()) {}
-    // GLM orders quaternion constructor arguments as w, x, y, z; Mathc stores
-    // and constructs them as x, y, z, w.
+    // The scalar part comes first here (w, x, y, z); Mathc stores and constructs
+    // quaternions as x, y, z, w.
     quat(float w, float x, float y, float z) : ::Mathc::Quaternion(x, y, z, w) {}
     quat(float w, const vec3& xyz) : ::Mathc::Quaternion(xyz.x, xyz.y, xyz.z, w) {}
     quat(const vec3& eulerRadians)

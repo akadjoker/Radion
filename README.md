@@ -27,7 +27,7 @@ GL ES support — deliberately.
   hierarchy, inspector, assets, animation, lightmaps, mesh tools, volume
   editing, profiler, and more.
 - The Blender-style mesh editor (`radion_blender`) lives on the `blender` branch
-  (it still uses GLM; it is no longer part of this tree).
+  (it is no longer part of this tree).
 - **Physics** — rigid-body dynamics, joints, vehicles, soft bodies, character
   controllers, and convex-hull collision.
 - **AI** — navigation meshes (Recast), pathfinding, steering behaviors, state
@@ -99,8 +99,8 @@ runtime/
 runner/          standalone game runner (radion_runner)
 tests/           unit tests (CTest)
 tools/           packer, mesh exporter, lightmap baker
-vendor/          glad, glm, ImGui, meshoptimizer, miniz, nlohmann/json,
-                 recastnavigation, stb, xatlas, zen
+vendor/          glad, mathc, containers, ImGui, meshoptimizer, miniz,
+                 nlohmann/json, recastnavigation, stb, xatlas, zen
 ```
 
 ## Requirements

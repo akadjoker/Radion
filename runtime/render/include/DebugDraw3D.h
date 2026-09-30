@@ -5,7 +5,6 @@
 #include "Math.h"
 #include "Mesh.h"
 
-#include "Math.h"
 #include <vector>
 
 namespace Radion

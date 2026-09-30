@@ -8,11 +8,6 @@
 #include <cstring>
 #include "Math.h"
 
-#ifndef GLM_ENABLE_EXPERIMENTAL
-#define GLM_ENABLE_EXPERIMENTAL
-#endif
-#include "Math.h"
-#include "Math.h"
 
 namespace Radion::Physics
 {

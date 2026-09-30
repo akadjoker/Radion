@@ -11,7 +11,6 @@
 #include <array>
 #include <deque>
 #include "Math.h"
-#include "Math.h"
 #include <vector>
 
 namespace Radion

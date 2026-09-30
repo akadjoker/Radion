@@ -7,7 +7,6 @@
 #include "RenderTechnique.h"
 
 #include "Math.h"
-#include "Math.h"
 
 namespace Radion
 {

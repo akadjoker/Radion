@@ -4,7 +4,6 @@
 
 #include "GameObject.h"
 
-#define GLM_ENABLE_EXPERIMENTAL
 #include "Math.h"
 
 namespace Radion

@@ -9,8 +9,6 @@
 #include <cstring>
 #include <limits>
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include "Math.h"
 #include "Math.h"
 
 namespace Radion

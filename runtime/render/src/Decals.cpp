@@ -7,7 +7,6 @@
 #include "Pixmap.h"
 
 #include "Math.h"
-#define GLM_ENABLE_EXPERIMENTAL
 #include <cmath>
 #include <cstring>
 #include "Math.h" // Math::rotation(from, to)

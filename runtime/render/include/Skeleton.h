@@ -5,7 +5,6 @@
 #include "Types.h"
 
 #include "Math.h"
-#include "Math.h"
 #include <string>
 #include <vector>
 
