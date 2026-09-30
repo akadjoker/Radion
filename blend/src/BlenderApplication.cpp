@@ -10,6 +10,7 @@
 #include "MeshClipper.h"
 #include "Log.h"
 #include "MaterialManager.h"
+#include "mesh/MeshEdit.h"
 #include "GltfExporter.h"
 #include "ObjExporter.h"
 #include "panels/ConsolePanel.h"
@@ -621,6 +622,226 @@ usize BlenderApplication::hiddenFaceCount() const
             count += hidden ? 1 : 0;
     }
     return count;
+}
+
+std::vector<u32> BlenderApplication::selectionFaces(bool partial)
+{
+    std::vector<u32> faces;
+    if (!mMeshData || mMeshData->indices.empty())
+        return faces;
+
+    const usize faceCount = mMeshData->indices.size() / 3;
+    const MeshTopology& topo = topology();
+
+    std::vector<u8> chosen(faceCount, 0);
+    for (const u32 face : mSelection.selectedFaces())
+        if (face < faceCount)
+            chosen[face] = 1;
+
+    if (mSelection.selectedVertexCount() > 0)
+    {
+        std::vector<bool> point(mMeshData->positions.size(), false);
+        for (const u32 vertex : mSelection.selectedVertices())
+            if (vertex < point.size())
+                point[topo.canonical(vertex)] = true;
+        for (u32 face = 0; face < faceCount; ++face)
+        {
+            u32 selectedCorners = 0;
+            for (u32 corner = 0; corner < 3; ++corner)
+            {
+                const u32 index = mMeshData->indices[face * 3 + corner];
+                if (index < point.size() && point[topo.canonical(index)])
+                    ++selectedCorners;
+            }
+            if (partial ? selectedCorners > 0 : selectedCorners == 3)
+                chosen[face] = 1;
+        }
+    }
+
+    if (mSelection.selectedEdgeCount() > 0)
+    {
+        if (partial)
+        {
+            for (const u64 key : mSelection.selectedEdges())
+            {
+                const s32 edge = topo.findEdge(static_cast<u32>(key >> 32), static_cast<u32>(key & 0xFFFFFFFFu));
+                if (edge < 0)
+                    continue;
+                for (const u32 face : topo.edges()[static_cast<usize>(edge)].faces)
+                    chosen[face] = 1;
+            }
+        }
+        else
+        {
+            for (u32 face = 0; face < faceCount; ++face)
+            {
+                bool all = true;
+                for (const s32 edge : topo.faceEdges(face))
+                {
+                    all = all && edge >= 0 &&
+                          mSelection.isEdgeSelected(MeshTopology::edgeKey(topo.edges()[static_cast<usize>(edge)].a,
+                                                                          topo.edges()[static_cast<usize>(edge)].b));
+                }
+                if (all)
+                    chosen[face] = 1;
+            }
+        }
+    }
+
+    for (u32 face = 0; face < faceCount; ++face)
+        if (chosen[face] && !isFaceHidden(face))
+            faces.push_back(face);
+    return faces;
+}
+
+bool BlenderApplication::subdivideSelection(u32 levels, bool smooth, std::string* error)
+{
+    if (!mMeshData || mMeshData->indices.empty())
+    {
+        if (error)
+            *error = "the document has no mesh";
+        return false;
+    }
+
+    const bool anySelected = mSelection.selectedVertexCount() > 0 || mSelection.selectedFaceCount() > 0 ||
+                             mSelection.selectedEdgeCount() > 0;
+    std::vector<u32> faces;
+    if (anySelected)
+    {
+        faces = selectionFaces(false);
+        if (faces.empty())
+        {
+            if (error)
+                *error = "the selection does not contain a whole face";
+            return false;
+        }
+    }
+    else if (mHasHidden)
+    {
+        // Everything that is showing.
+        for (u32 face = 0; face < mMeshData->indices.size() / 3; ++face)
+            if (!isFaceHidden(face))
+                faces.push_back(face);
+    }
+
+    recordUndo();
+    std::string why;
+    if (!MeshEdit::subdivide(*mMeshData, faces, levels, smooth, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    if (!mMeshData->normals.empty())
+        Assets().recalculateNormals(*mMeshData, mSmoothNormals, mAngleWeightedNormals);
+    mSelection.clearAll();
+    Log::info("BlenderApplication: subdivided %s%zu faces x%u (%zu triangles now)", smooth ? "smooth " : "",
+              faces.empty() ? mMeshData->indices.size() / 3 : faces.size(), levels, mMeshData->indices.size() / 3);
+    applyMeshEdit();
+    return true;
+}
+
+u32 BlenderApplication::turnSelectedEdges(std::string* error)
+{
+    if (!mMeshData || mSelection.selectedEdgeCount() == 0)
+    {
+        if (error)
+            *error = "no edges are selected";
+        return 0;
+    }
+
+    recordUndo();
+    u32 turned = 0;
+    std::string lastError;
+    for (const u64 key : mSelection.selectedEdges())
+    {
+        std::string why;
+        if (MeshEdit::turnEdge(*mMeshData, key, &why))
+            ++turned;
+        else
+            lastError = why;
+    }
+
+    if (turned == 0)
+    {
+        discardUndo();
+        if (error)
+            *error = lastError;
+        return 0;
+    }
+    // The turned edges no longer exist under those names.
+    mSelection.clearAll();
+    applyMeshEdit();
+    return turned;
+}
+
+u32 BlenderApplication::splitSelectedEdges(f32 t, std::string* error)
+{
+    if (!mMeshData || mSelection.selectedEdgeCount() == 0)
+    {
+        if (error)
+            *error = "no edges are selected";
+        return 0;
+    }
+
+    std::vector<MeshEdit::EdgeSplit> splits;
+    for (const u64 key : mSelection.selectedEdges())
+        splits.push_back({key, t});
+
+    recordUndo();
+    MeshEdit::RefineResult result;
+    std::string why;
+    if (!MeshEdit::refineEdges(*mMeshData, splits, &result, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return 0;
+    }
+
+    // The new vertices sit on the old edges: select them, so the cut can be moved
+    // or extruded straight away.
+    mSelection.clearAll();
+    mSelection.setMode(BlenderSelection::SelectionMode::Vertex);
+    for (const MeshEdit::RefineResult::Midpoint& m : result.midpoints)
+        mSelection.selectVertex(m.vertex);
+    applyMeshEdit();
+    return static_cast<u32>(splits.size());
+}
+
+u32 BlenderApplication::collapseSelectedEdges(f32 t, std::string* error)
+{
+    if (!mMeshData || mSelection.selectedEdgeCount() == 0)
+    {
+        if (error)
+            *error = "no edges are selected";
+        return 0;
+    }
+
+    recordUndo();
+    u32 collapsed = 0;
+    std::string lastError;
+    for (const u64 key : mSelection.selectedEdges())
+    {
+        std::string why;
+        if (MeshEdit::collapseEdge(*mMeshData, key, t, &why))
+            ++collapsed;
+        else
+            lastError = why; // an earlier collapse may have taken this edge with it
+    }
+
+    if (collapsed == 0)
+    {
+        discardUndo();
+        if (error)
+            *error = lastError;
+        return 0;
+    }
+    mSelection.clearAll();
+    applyMeshEdit();
+    return collapsed;
 }
 
 bool BlenderApplication::hideSelected()
@@ -1667,7 +1888,32 @@ void BlenderApplication::drawVertexMenu()
 
 void BlenderApplication::drawEdgeMenu()
 {
-    if (ImGui::MenuItem("Delete Selected", "X", false, mSelection.selectedEdgeCount() > 0))
+    const bool anyEdge = mSelection.selectedEdgeCount() > 0;
+    std::string why;
+    // A failed edit says why in the console, once.
+    auto report = [&why]()
+    {
+        if (!why.empty())
+            Log::warning("BlenderApplication: %s", why.c_str());
+        why.clear();
+    };
+    if (ImGui::MenuItem("Turn Edge", nullptr, false, anyEdge))
+        turnSelectedEdges(&why);
+    report();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Flips the diagonal between two triangles.");
+    if (ImGui::MenuItem("Split Edge", nullptr, false, anyEdge))
+        splitSelectedEdges(0.5f, &why);
+    report();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Adds a vertex in the middle of each selected edge.");
+    if (ImGui::MenuItem("Collapse Edge", nullptr, false, anyEdge))
+        collapseSelectedEdges(0.5f, &why);
+    report();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Merges the ends of each selected edge at its middle.");
+    ImGui::Separator();
+    if (ImGui::MenuItem("Delete Selected", "X", false, anyEdge))
         deleteSelectedEdges();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetTooltip("Removes the selected edges and the triangles on either side of them.");
@@ -2851,6 +3097,22 @@ void BlenderApplication::drawMeshMenu()
             assets.makeSphericalUV(*mMeshData, mUvResolutionU, mUvResolutionV);
         applyMeshEdit();
     }
+
+    ImGui::Separator();
+    ImGui::TextDisabled("Subdivide");
+    ImGui::SetNextItemWidth(150.0f);
+    ImGui::SliderInt("Levels", &mSubdivideLevels, 1, 4);
+    std::string subdivideError;
+    if (ImGui::MenuItem("Subdivide"))
+        subdivideSelection(static_cast<u32>(mSubdivideLevels), false, &subdivideError);
+    if (!subdivideError.empty())
+        Log::warning("BlenderApplication: %s", subdivideError.c_str());
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Splits each selected triangle into four (the whole mesh when nothing is selected).");
+    if (ImGui::MenuItem("Subdivide Smooth"))
+        subdivideSelection(static_cast<u32>(mSubdivideLevels), true, &subdivideError);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Loop subdivision: rounds the surface as it adds triangles.");
 
     ImGui::Separator();
     ImGui::TextDisabled("Submesh Structure");

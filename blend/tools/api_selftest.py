@@ -132,7 +132,56 @@ def group_snap(api):
     expect_error(api, "invalid_params", "snap_to_grid", step=0)
 
 
-GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap}
+def group_subdivide(api):
+    fresh_box(api)
+    api.call("select", action="clear")
+    r = api.call("subdivide")
+    check(r["triangles"] == 48, f"flat subdivide: 12 -> 48 triangles, got {r['triangles']}")
+    check(approx(r["bounds"]["size"][0], 2.0), "flat subdivide does not move the surface")
+
+    fresh_box(api)
+    r = api.call("subdivide", smooth=True, levels=2)
+    check(r["triangles"] == 192, f"two smooth levels: 12 x 16 = 192, got {r['triangles']}")
+    check(r["bounds"]["size"][0] < 2.0, "smooth subdivision pulls a cube's corners in")
+
+    # One face only: its neighbours are cut just enough to stay watertight.
+    fresh_box(api)
+    api.call("select", mode="face", action="set", box={"min": [-1.1, 0.9, -1.1], "max": [1.1, 1.1, 1.1]})
+    r = api.call("subdivide")
+    check(12 < r["triangles"] < 48, f"partial subdivide adds some triangles, got {r['triangles']}")
+    api.call("select", mode="edge", action="all")
+    before = status(api)["triangles"]
+    # Every edge still has two triangles (closed surface): collapsing/turning is what
+    # tells us; here just make sure undo round-trips.
+    api.call("undo")
+    check(status(api)["triangles"] == 12, "undo restores the cube")
+    expect_error(api, "invalid_params", "subdivide", levels=9)
+
+    # Turn the one diagonal of a two-triangle plane; the border edges refuse.
+    api.call("new_document")
+    api.call("add_primitive", type="plane", size=[2, 1, 2], segments_x=1, segments_z=1)
+    api.call("select", mode="edge", action="all")
+    r = api.call("turn_edge")
+    check(r["turned"] == 1, f"only the diagonal can turn, got {r['turned']}")
+
+    # Split: new vertices appear and become the selection.
+    fresh_box(api)
+    api.call("select", mode="edge", action="set", edges=[[0, 1]])
+    r = api.call("split_edge", t=0.5)
+    check(r["split"] == 1 and r["triangles"] == 14, f"splitting an edge cuts its two triangles: {r}")
+    check(r["selection"]["vertexCount"] >= 1, "the new vertices are selected")
+    expect_error(api, "invalid_params", "split_edge", t=1.5)
+
+    # Collapse removes the triangles on the edge.
+    fresh_box(api)
+    api.call("select", mode="edge", action="set", edges=[[0, 1]])
+    r = api.call("collapse_edge")
+    check(r["triangles"] == 10, f"collapse removes two triangles, got {r['triangles']}")
+    api.call("select", action="clear")
+    expect_error(api, "failed", "turn_edge")
+
+
+GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide}
 
 
 # ------------------------------------------------------------------- driver

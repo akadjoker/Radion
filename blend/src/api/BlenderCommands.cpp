@@ -1595,6 +1595,75 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             });
     }
 
+    add("subdivide",
+        "Subdivides the selected faces (every face when nothing is selected) 'levels' times. Flat "
+        "splits each triangle into four without moving anything; 'smooth' uses Loop subdivision and "
+        "rounds the surface - the way to turn a rough low-poly shape into a smooth one. Triangles "
+        "next to the selection are cut just enough to stay watertight. Careful: triangle count "
+        "grows 4x per level.",
+        objectSchema({{"levels", integerSchema("1-4 (default 1).")},
+                      {"smooth", boolSchema("Loop smoothing (default false = flat).")}}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const u32 levels = static_cast<u32>(args.integer("levels", 1, 1, 4));
+            const usize before = mesh.indices.size() / 3;
+            std::string why;
+            if (!editor->subdivideSelection(levels, args.boolean("smooth", false), &why))
+                failed(why.empty() ? "nothing was subdivided" : why);
+            return result({{"trianglesBefore", before}, {"triangles", mesh.indices.size() / 3},
+                           {"bounds", boundsJson(mesh.bounds)}});
+        });
+
+    add("turn_edge",
+        "Flips the diagonal shared by two triangles (selected edges, mode 'edge'). Refused for an "
+        "edge on a border, a seam, or where the two triangles form a concave quad.",
+        objectSchema(Json::object()), false,
+        [editor](const CommandArgs&)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            std::string why;
+            const u32 turned = editor->turnSelectedEdges(&why);
+            if (turned == 0)
+                failed(why.empty() ? "no edge could be turned" : why);
+            return result({{"turned", turned}, {"triangles", mesh.indices.size() / 3}});
+        });
+
+    add("split_edge",
+        "Adds a vertex on each selected edge at 't' (0-1 from its lower-numbered end) and splits the "
+        "triangles on it. The new vertices become the selection (vertex mode), ready to move or "
+        "extrude.",
+        objectSchema({{"t", numberSchema("Position along the edge, strictly between 0 and 1. Default 0.5.")}}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const f32 t = static_cast<f32>(args.number("t", 0.5, 0.001, 0.999));
+            std::string why;
+            const u32 split = editor->splitSelectedEdges(t, &why);
+            if (split == 0)
+                failed(why.empty() ? "nothing was split" : why);
+            return result({{"split", split}, {"triangles", mesh.indices.size() / 3},
+                           {"selection", selectionJson(*editor)}});
+        });
+
+    add("collapse_edge",
+        "Merges the two ends of each selected edge at 't' along it and removes the triangles that "
+        "collapse. Simplifies geometry by hand.",
+        objectSchema({{"t", numberSchema("Where the ends meet, 0-1 from the lower-numbered end. Default 0.5.")}}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const f32 t = static_cast<f32>(args.number("t", 0.5, 0.0, 1.0));
+            std::string why;
+            const u32 collapsed = editor->collapseSelectedEdges(t, &why);
+            if (collapsed == 0)
+                failed(why.empty() ? "nothing was collapsed" : why);
+            return result({{"collapsed", collapsed}, {"triangles", mesh.indices.size() / 3}});
+        });
+
     add("snap_to_grid",
         "Rounds the positions of the selected vertices (or of the whole mesh when nothing is "
         "selected) to multiples of 'step'. Cleans up hand-placed coordinates and makes parts line up.",

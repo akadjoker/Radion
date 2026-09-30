@@ -274,6 +274,20 @@ public:
         return mGizmoIndices;
     }
 
+    // -- Topology edits (see mesh/MeshEdit.h). Each is one undo step, acts on the
+    // current selection and returns false with `error` set when it cannot.
+    //
+    // The triangles the selection stands for: with `partial` any triangle that
+    // has a selected corner or edge, otherwise only those entirely selected.
+    // Face mode gives the selected faces either way.
+    std::vector<u32> selectionFaces(bool partial);
+    // Subdivides the selected faces - every face when nothing is selected.
+    bool subdivideSelection(u32 levels, bool smooth, std::string* error = nullptr);
+    // One selected edge at a time; returns how many were changed.
+    u32 turnSelectedEdges(std::string* error = nullptr);
+    u32 splitSelectedEdges(f32 t, std::string* error = nullptr);
+    u32 collapseSelectedEdges(f32 t, std::string* error = nullptr);
+
     // -- Hide
     //
     // Hiding works on triangles: the selected faces, or every triangle that uses a
@@ -597,6 +611,7 @@ private:
     std::vector<MeshData> mUndoStates;
     std::vector<MeshData> mRedoStates;
 
+    s32 mSubdivideLevels = 1;
     f32 mWeldDistance = 0.001f;
     f32 mSnapTolerance = 0.05f;
     f32 mSmoothingStrength = 0.5f;
