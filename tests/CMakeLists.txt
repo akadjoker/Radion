@@ -216,6 +216,21 @@ target_include_directories(radion_procedural_shapes_tests PRIVATE
 add_test(NAME procedural_shapes COMMAND radion_procedural_shapes_tests)
 set_tests_properties(procedural_shapes PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
+add_executable(radion_gltf_export_tests
+    GltfExportTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/GltfExporter.cpp
+)
+target_precompile_headers(radion_gltf_export_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_gltf_export_tests PRIVATE radion_render)
+target_include_directories(radion_gltf_export_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+    ${PROJECT_SOURCE_DIR}/runtime/render/src
+)
+add_test(NAME gltf_export COMMAND radion_gltf_export_tests)
+set_tests_properties(gltf_export PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_file_pack_tests FilePackTests.cpp)
 target_precompile_headers(radion_file_pack_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"

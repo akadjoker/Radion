@@ -802,6 +802,23 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             return result({{"exported", path}});
         });
 
+    add("export_gltf",
+        "Exports the document as a binary glTF 2.0 file (.glb): one mesh with a primitive and a "
+        "PBR material (colour, roughness, metalness) per part. Static geometry only. This is the "
+        "format to hand a model to a game or another tool.",
+        objectSchema({{"path", stringSchema("Where to write the file, e.g. /home/me/helicopter.glb.")}},
+                     {"path"}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            const std::string path = args.requireString("path");
+            requireMesh(*editor);
+            std::string why;
+            if (!editor->exportGltf(path, &why))
+                failed("could not export '" + path + "': " + why);
+            return result({{"exported", path}});
+        });
+
     {
         Json properties = {{"steps", integerSchema("How many steps to go back (default 1).")}};
         add("undo", "Undoes the last edit(s).", objectSchema(properties), false,

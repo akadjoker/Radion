@@ -66,7 +66,8 @@ make radion_blender
 ## API para scripts e LLM
 
 `radion_blender --api` liga uma API HTTP local (porta 7420) com ~40 comandos para
-criar e editar meshes e tirar screenshots — ver [doc/API.md](doc/API.md).
+criar e editar meshes, tirar screenshots e exportar para glTF (`.glb`), OBJ ou `.rmesh` —
+ver [doc/API.md](doc/API.md). File > Export também tem "glTF Binary (.glb)".
 
 ## Integração com Radion
 

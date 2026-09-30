@@ -35,6 +35,8 @@ set(BLENDER_SOURCES
     src/BlenderApplication.cpp
     src/BlenderApplication.h
     src/BlenderCapture.cpp
+    src/GltfExporter.cpp
+    src/GltfExporter.h
     src/ProceduralShapes.cpp
     src/ProceduralShapes.h
     src/api/BlenderApiHost.cpp

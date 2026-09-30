@@ -90,7 +90,9 @@ painéis, e cada comando é um passo de undo.
 | `get_selection` | modo, contagens, bounds e primeiros índices |
 
 ### Documento
-`new_document`, `load_mesh`, `append_mesh`, `save_mesh` (formato `.rmesh`), `export_obj`, `undo`, `redo`
+`new_document`, `load_mesh`, `append_mesh`, `save_mesh` (formato `.rmesh`), `export_obj`,
+`export_gltf` (`.glb`: uma primitiva e um material PBR por parte; só geometria estática — sem
+texturas, esqueleto nem animação), `undo`, `redo`
 
 ### Construir (cada um acrescenta uma parte)
 | Comando | Para quê |
@@ -122,6 +124,9 @@ painéis, e cada comando é um passo de undo.
 curl -s -X POST localhost:7420/api/commands/add_primitive \
   -d '{"type":"sphere","name":"corpo","color":"#c0392b","scale":[1,1,2.2]}'
 ```
+
+`blend/examples/game_shapes.py` constrói os modelos de um jogo (helicóptero do jogador, helicóptero
+inimigo, caça e foguetão) e guarda cada um em `.glb` + `.rmesh` + screenshot.
 
 `blend/examples/blender_api_client.py` é um cliente mínimo (só biblioteca padrão) e
 `blend/examples/helicopter.py` constrói um helicóptero completo e guarda screenshots:

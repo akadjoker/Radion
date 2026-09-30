@@ -207,6 +207,9 @@ public:
     // Save/Export
     bool saveAs(const std::string& path);
     bool exportObj(const std::string& path);
+    // Binary glTF 2.0 (.glb), one primitive and PBR material per submesh. Static
+    // geometry only; see GltfExporter.
+    bool exportGltf(const std::string& path, std::string* error = nullptr);
 
     s32 selectedSubmesh() const
     {
@@ -442,6 +445,7 @@ private:
         FileDialogImportMesh,
         FileDialogSaveMesh,
         FileDialogExportObj,
+        FileDialogExportGltf,
         FileDialogAppendAnimation,
         // Picks the heightmap a Hills plane is shaped by, without loading
         // anything: the path goes back into the primitive popup.

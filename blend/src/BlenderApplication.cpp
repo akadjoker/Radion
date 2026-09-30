@@ -10,6 +10,7 @@
 #include "MeshClipper.h"
 #include "Log.h"
 #include "MaterialManager.h"
+#include "GltfExporter.h"
 #include "ObjExporter.h"
 #include "panels/ConsolePanel.h"
 #include "panels/HierarchyPanel.h"
@@ -625,6 +626,31 @@ bool BlenderApplication::exportObj(const std::string& path)
     return true;
 }
 
+bool BlenderApplication::exportGltf(const std::string& path, std::string* error)
+{
+    if (!mMeshData || mMeshData->positions.empty())
+    {
+        if (error)
+            *error = "the document has no mesh";
+        return false;
+    }
+
+    std::string why;
+    if (!GltfExporter::save(*mMeshData, path, &why))
+    {
+        Log::error("BlenderApplication: failed to export glTF '%s': %s", path.c_str(), why.c_str());
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    if (mHasSkeleton)
+        Log::warning("BlenderApplication: glTF export is static geometry - the skeleton and "
+                     "animations were not written");
+    Log::info("BlenderApplication: exported glTF '%s'", path.c_str());
+    return true;
+}
+
 void BlenderApplication::buildPanels()
 {
     mPanels.push_back(new ViewportPanel(*this));
@@ -737,6 +763,8 @@ void BlenderApplication::drawMainMenuBar()
         {
             if (ImGui::MenuItem("Wavefront OBJ..."))
                 openFileDialog(ImGuiFileDialog::Mode::SaveFile, FileDialogExportObj);
+            if (ImGui::MenuItem("glTF Binary (.glb)..."))
+                openFileDialog(ImGuiFileDialog::Mode::SaveFile, FileDialogExportGltf);
             ImGui::EndMenu();
         }
         ImGui::Separator();
@@ -2445,6 +2473,8 @@ void BlenderApplication::openFileDialog(ImGuiFileDialog::Mode mode, FileDialogAc
         initialName = "mesh.rmesh";
     else if (action == FileDialogExportObj)
         initialName = "mesh.obj";
+    else if (action == FileDialogExportGltf)
+        initialName = "mesh.glb";
 
     mFileDialog.Open(mode,
                      lastDirectory.empty() ? std::filesystem::current_path()
@@ -2475,6 +2505,8 @@ void BlenderApplication::drawFileDialog()
         saveAs(result.path.string());
     else if (action == FileDialogExportObj)
         exportObj(result.path.string());
+    else if (action == FileDialogExportGltf)
+        exportGltf(result.path.string());
     else if (action == FileDialogAppendAnimation)
         appendAnimation(result.path.string());
     else if (action == FileDialogHeightmap)
