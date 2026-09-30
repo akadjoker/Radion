@@ -214,7 +214,8 @@ public:
     bool exportObj(const std::string& path);
     // Binary glTF 2.0 (.glb), one primitive and PBR material per submesh. Static
     // geometry only; see GltfExporter.
-    bool exportGltf(const std::string& path, std::string* error = nullptr);
+    bool exportGltf(const std::string& path, std::string* error = nullptr,
+                    std::vector<std::string>* warnings = nullptr);
 
     s32 selectedSubmesh() const
     {
@@ -451,6 +452,10 @@ public:
     // Restyles the material of one submesh. Other submeshes that share that
     // material slot are given their own copy first, so only this one changes.
     bool styleSubmesh(u32 index, const PartStyle& style);
+    // Puts an image file on one of a part's material slots (SlotAlbedo,
+    // SlotNormal, SlotSurface, SlotEmissive); an empty path clears the slot.
+    // The part gets a private material first, like styleSubmesh().
+    bool setPartTexture(u32 index, u32 slot, const std::string& path, std::string* error = nullptr);
     // The vertices a submesh's triangles reference, ascending.
     std::vector<u32> submeshVertices(u32 index) const;
 
@@ -621,6 +626,8 @@ private:
     // Forgets the hidden set when the triangle count no longer matches it.
     void validateHidden();
     // Drops one part's triangles and its entry, with no undo snapshot and no refresh.
+    // Gives the part its own material slot if it shares one (or has none).
+    void ownMaterial(u32 index);
     void removeSubmeshData(u32 index);
 
     // Timeline

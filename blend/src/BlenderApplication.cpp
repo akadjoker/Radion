@@ -1683,7 +1683,8 @@ bool BlenderApplication::exportObj(const std::string& path)
     return true;
 }
 
-bool BlenderApplication::exportGltf(const std::string& path, std::string* error)
+bool BlenderApplication::exportGltf(const std::string& path, std::string* error,
+                                    std::vector<std::string>* warnings)
 {
     if (!mMeshData || mMeshData->positions.empty())
     {
@@ -1693,7 +1694,9 @@ bool BlenderApplication::exportGltf(const std::string& path, std::string* error)
     }
 
     std::string why;
-    if (!GltfExporter::save(*mMeshData, path, &why))
+    std::vector<std::string> localWarnings;
+    std::vector<std::string>& notes = warnings ? *warnings : localWarnings;
+    if (!GltfExporter::save(*mMeshData, path, &why, &notes))
     {
         Log::error("BlenderApplication: failed to export glTF '%s': %s", path.c_str(), why.c_str());
         if (error)
@@ -1701,6 +1704,8 @@ bool BlenderApplication::exportGltf(const std::string& path, std::string* error)
         return false;
     }
 
+    for (const std::string& note : notes)
+        Log::warning("BlenderApplication: glTF export: %s", note.c_str());
     if (mHasSkeleton)
         Log::warning("BlenderApplication: glTF export is static geometry - the skeleton and "
                      "animations were not written");
@@ -3450,13 +3455,10 @@ bool BlenderApplication::duplicateSubmesh(u32 index, const glm::mat4& placement,
     return appendPart(std::move(copy), placement, keep, "duplicate", false, newIndex);
 }
 
-bool BlenderApplication::styleSubmesh(u32 index, const PartStyle& style)
+// A part is styled on its own: when its material slot is shared with another
+// part (or missing) it is given a private copy first.
+void BlenderApplication::ownMaterial(u32 index)
 {
-    if (!mMeshData || index >= mMeshData->submeshes.size())
-        return false;
-
-    recordUndo();
-
     SubMesh& submesh = mMeshData->submeshes[index];
 
     // Restyling a material that other submeshes use would repaint them too; a
@@ -3491,6 +3493,66 @@ bool BlenderApplication::styleSubmesh(u32 index, const PartStyle& style)
         duplicatePath(mMeshData->materialHeightFiles);
         submesh.materialSlot = static_cast<u32>(slot);
     }
+}
+
+bool BlenderApplication::setPartTexture(u32 index, u32 slot, const std::string& path, std::string* error)
+{
+    auto fail = [error](const std::string& message)
+    {
+        if (error)
+            *error = message;
+        return false;
+    };
+    if (!mMeshData || index >= mMeshData->submeshes.size())
+        return fail("no such part");
+    if (slot != SlotAlbedo && slot != SlotNormal && slot != SlotSurface && slot != SlotEmissive)
+        return fail("unsupported texture slot");
+    if (!path.empty() && !FileSystem::getSingleton().exists(path))
+        return fail("image file not found: " + path);
+
+    recordUndo();
+    ownMaterial(index);
+    Material& material = mMeshData->materials[mMeshData->submeshes[index].materialSlot];
+    const usize materialIndex = mMeshData->submeshes[index].materialSlot;
+
+    // The import-time path arrays would put an old file back on the next load.
+    std::vector<std::string>* importPaths = slot == SlotAlbedo    ? &mMeshData->materialTextureFiles
+                                            : slot == SlotNormal  ? &mMeshData->materialNormalFiles
+                                            : slot == SlotSurface ? &mMeshData->materialSurfaceFiles
+                                                                  : &mMeshData->materialEmissiveFiles;
+    if (materialIndex < importPaths->size())
+        (*importPaths)[materialIndex].clear();
+
+    if (path.empty())
+        material.textures[slot] = MaterialTexture();
+    else
+    {
+        MaterialTexture& texture = material.textures[slot];
+        texture.texture = Assets().loadTexture(path, Material::colorSpaceFor(static_cast<MaterialSlot>(slot)));
+        SamplerDesc sampler;
+        sampler.filter = Filter::Anisotropic;
+        sampler.wrapU = Wrap::Repeat;
+        sampler.wrapV = Wrap::Repeat;
+        sampler.wrapW = Wrap::Repeat;
+        sampler.anisotropy = 8.0f;
+        texture.sampler = Assets().getSampler(sampler);
+        texture.source = TextureSource::Static;
+        texture.file = path;
+    }
+    material.paramsDirty = true;
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::styleSubmesh(u32 index, const PartStyle& style)
+{
+    if (!mMeshData || index >= mMeshData->submeshes.size())
+        return false;
+
+    recordUndo();
+
+    SubMesh& submesh = mMeshData->submeshes[index];
+    ownMaterial(index);
 
     Material& material = mMeshData->materials[submesh.materialSlot];
     if (!style.name.empty())

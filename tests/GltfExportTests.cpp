@@ -6,7 +6,11 @@
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
 
+#include "FileSystem.h"
+
+#include <cmath>
 #include <cstdio>
+#include <fstream>
 
 using namespace Radion;
 
@@ -200,6 +204,81 @@ void testTrailingIndicesAreDropped()
     }
 }
 
+// A valid 1x1 PNG (an opaque red pixel).
+const unsigned char kPng[] = {
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49,
+    0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0,
+    0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82};
+
+std::string writeTempFile(const char* name, const unsigned char* bytes, size_t size)
+{
+    const std::string path = std::string("/tmp/") + name;
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    file.write(reinterpret_cast<const char*>(bytes), static_cast<std::streamsize>(size));
+    return path;
+}
+
+void testTexturesAndVertexColors()
+{
+    const std::string png = writeTempFile("radion_gltf_test.png", kPng, sizeof(kPng));
+    const unsigned char notAnImage[] = {'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd'};
+    const std::string junk = writeTempFile("radion_gltf_test.bin", notAnImage, sizeof(notAnImage));
+
+    MeshData mesh = twoParts();
+    // Both parts point at the same image: it must be embedded once.
+    for (usize i = 0; i < 2; ++i)
+        mesh.materials[i].textures[SlotAlbedo].file = png;
+    mesh.materials[0].textures[SlotNormal].file = png;
+    mesh.materials[1].textures[SlotEmissive].file = junk;
+    mesh.materials[1].textures[SlotSurface].file = "/tmp/radion_no_such_texture.png";
+    mesh.colors.assign(8, 0xFF0000FFu); // bytes r=255 g=0 b=0 a=255
+    mesh.colors[3] = 0x80402010u;
+
+    std::vector<unsigned char> glb;
+    std::vector<std::string> warnings;
+    std::string error;
+    CHECK(GltfExporter::build(mesh, "tex", glb, &error, &warnings));
+    CHECK(warnings.size() == 2);
+
+    cgltf_data* data = parse(glb);
+    CHECK(data != nullptr);
+    if (!data)
+        return;
+    CHECK(data->images_count == 1);
+    CHECK(data->textures_count == 1);
+    CHECK(data->images_count == 1 && std::string(data->images[0].mime_type) == "image/png");
+    CHECK(data->images_count == 1 && data->images[0].buffer_view != nullptr &&
+          data->images[0].buffer_view->size == sizeof(kPng));
+
+    const cgltf_primitive& a = data->meshes[0].primitives[0];
+    const cgltf_primitive& b = data->meshes[0].primitives[1];
+    CHECK(a.material->pbr_metallic_roughness.base_color_texture.texture != nullptr);
+    CHECK(a.material->normal_texture.texture != nullptr);
+    CHECK(b.material->pbr_metallic_roughness.base_color_texture.texture ==
+          a.material->pbr_metallic_roughness.base_color_texture.texture);
+    // The unreadable and the non-image files left the material without those maps.
+    CHECK(b.material->emissive_texture.texture == nullptr);
+    CHECK(b.material->pbr_metallic_roughness.metallic_roughness_texture.texture == nullptr);
+
+    const cgltf_accessor* color = nullptr;
+    for (cgltf_size i = 0; i < a.attributes_count; ++i)
+    {
+        if (a.attributes[i].type == cgltf_attribute_type_color)
+            color = a.attributes[i].data;
+    }
+    CHECK(color && color->count == 8 && color->normalized);
+    float rgba[4] = {0, 0, 0, 0};
+    CHECK(color && cgltf_accessor_read_float(color, 0, rgba, 4));
+    CHECK(rgba[0] == 1.0f && rgba[1] == 0.0f && rgba[2] == 0.0f && rgba[3] == 1.0f);
+    CHECK(color && cgltf_accessor_read_float(color, 3, rgba, 4));
+    CHECK(std::fabs(rgba[0] - 16.0f / 255.0f) < 1e-4f && std::fabs(rgba[3] - 128.0f / 255.0f) < 1e-4f);
+    cgltf_free(data);
+
+    std::remove(png.c_str());
+    std::remove(junk.c_str());
+}
+
 } // namespace
 
 int main()
@@ -208,6 +287,7 @@ int main()
     testNoSubmeshesIsOnePrimitive();
     testRejectsBadMeshes();
     testTrailingIndicesAreDropped();
+    testTexturesAndVertexColors();
 
     if (gFailures)
         std::fprintf(stderr, "%d gltf export test(s) failed\n", gFailures);

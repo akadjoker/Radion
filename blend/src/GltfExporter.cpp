@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <fstream>
+#include <map>
 
 using namespace Radion;
 
@@ -18,6 +19,7 @@ using Json = nlohmann::json;
 // glTF constants.
 constexpr int kFloat = 5126;
 constexpr int kUnsignedInt = 5125;
+constexpr int kUnsignedByte = 5121;
 constexpr int kArrayBuffer = 34962;
 constexpr int kElementArrayBuffer = 34963;
 constexpr u32 kGlbMagic = 0x46546C67; // "glTF"
@@ -77,7 +79,95 @@ int addAccessor(Json& accessors, int view, usize byteOffset, int componentType, 
     return static_cast<int>(accessors.size()) - 1;
 }
 
-Json materialJson(const Material& material, usize index)
+// Hands out glTF texture indices for image files: an image that two materials
+// share is embedded once. Anything it cannot embed becomes a warning and the
+// material keeps only its factors.
+class TextureTable
+{
+public:
+    TextureTable(Json& views, std::vector<unsigned char>& bin, std::vector<std::string>* warnings) :
+        mViews(views),
+        mBin(bin),
+        mWarnings(warnings)
+    {
+    }
+
+    // -1 when there is no usable image for `file`.
+    int textureFor(const std::string& file)
+    {
+        if (file.empty())
+            return -1;
+        const auto known = mTextureOfFile.find(file);
+        if (known != mTextureOfFile.end())
+            return known->second;
+
+        int texture = -1;
+        const ByteArray bytes = FileSystem::getSingleton().readBinary(file);
+        const char* mime = bytes.empty() ? nullptr : mimeOf(bytes);
+        if (bytes.empty())
+            warn("texture '" + file + "' could not be read; left out of the file");
+        else if (!mime)
+            warn("texture '" + file + "' is not PNG or JPEG; left out of the file");
+        else
+        {
+            const int view = addView(mViews, mBin, bytes.data(), bytes.size(), 0);
+            mImages.push_back({{"name", FileSystem::baseName(file)}, {"mimeType", mime}, {"bufferView", view}});
+            if (mSamplers.empty())
+            {
+                // Repeat/linear: what the editor's own sampler does with a freshly assigned map.
+                mSamplers.push_back({{"magFilter", 9729}, {"minFilter", 9987}, {"wrapS", 10497}, {"wrapT", 10497}});
+            }
+            mTextures.push_back({{"sampler", 0}, {"source", static_cast<int>(mImages.size()) - 1}});
+            texture = static_cast<int>(mTextures.size()) - 1;
+        }
+        mTextureOfFile[file] = texture;
+        return texture;
+    }
+
+    bool empty() const
+    {
+        return mTextures.empty();
+    }
+    const Json& images() const
+    {
+        return mImages;
+    }
+    const Json& textures() const
+    {
+        return mTextures;
+    }
+    const Json& samplers() const
+    {
+        return mSamplers;
+    }
+
+private:
+    static const char* mimeOf(const ByteArray& bytes)
+    {
+        const unsigned char* d = bytes.data();
+        if (bytes.size() >= 8 && d[0] == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G')
+            return "image/png";
+        if (bytes.size() >= 3 && d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF)
+            return "image/jpeg";
+        return nullptr;
+    }
+
+    void warn(const std::string& message)
+    {
+        if (mWarnings)
+            mWarnings->push_back(message);
+    }
+
+    Json& mViews;
+    std::vector<unsigned char>& mBin;
+    std::vector<std::string>* mWarnings;
+    Json mImages = Json::array();
+    Json mTextures = Json::array();
+    Json mSamplers = Json::array();
+    std::map<std::string, int> mTextureOfFile;
+};
+
+Json materialJson(const Material& material, usize index, TextureTable& textures)
 {
     Json json;
     json["name"] = material.name.empty() ? "material" + std::to_string(index) : material.name;
@@ -86,6 +176,23 @@ Json materialJson(const Material& material, usize index)
                              material.params.baseColor.b, material.params.baseColor.a}},
         {"metallicFactor", glm::clamp(material.params.surface.y, 0.0f, 1.0f)},
         {"roughnessFactor", glm::clamp(material.params.surface.x, 0.0f, 1.0f)}};
+    const int albedo = textures.textureFor(material.textures[SlotAlbedo].file);
+    if (albedo >= 0)
+        json["pbrMetallicRoughness"]["baseColorTexture"] = {{"index", albedo}};
+    const int surface = textures.textureFor(material.textures[SlotSurface].file);
+    if (surface >= 0)
+        json["pbrMetallicRoughness"]["metallicRoughnessTexture"] = {{"index", surface}};
+    const int normal = textures.textureFor(material.textures[SlotNormal].file);
+    if (normal >= 0)
+        json["normalTexture"] = {{"index", normal}};
+    const int emissive = textures.textureFor(material.textures[SlotEmissive].file);
+    if (emissive >= 0)
+    {
+        json["emissiveTexture"] = {{"index", emissive}};
+        // glTF multiplies the map by the factor, and the factor defaults to black.
+        if (!json.contains("emissiveFactor"))
+            json["emissiveFactor"] = {1.0, 1.0, 1.0};
+    }
     if (material.flags & MaterialTwoSided)
         json["doubleSided"] = true;
     if (material.params.baseColor.a < 1.0f || material.blend != BlendMode::Opaque)
@@ -99,7 +206,8 @@ Json materialJson(const Material& material, usize index)
 } // namespace
 
 bool GltfExporter::build(const MeshData& mesh, const std::string& name,
-                         std::vector<unsigned char>& glb, std::string* error)
+                         std::vector<unsigned char>& glb, std::string* error,
+                         std::vector<std::string>* warnings)
 {
     const usize vertexCount = mesh.positions.size();
     if (vertexCount == 0 || mesh.indices.size() < 3)
@@ -161,12 +269,22 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
         uvAccessor = addAccessor(accessors, view, 0, kFloat, vertexCount, "VEC2");
     }
 
+    int colorAccessor = -1;
+    if (mesh.colors.size() == vertexCount)
+    {
+        // MeshAttribs::color is four bytes r,g,b,a in memory: exactly COLOR_0 as normalised bytes.
+        const int view = addView(views, bin, mesh.colors.data(), vertexCount * sizeof(u32), kArrayBuffer);
+        colorAccessor = addAccessor(accessors, view, 0, kUnsignedByte, vertexCount, "VEC4");
+        accessors[colorAccessor]["normalized"] = true;
+    }
+
     const int indexView = addView(views, bin, mesh.indices.data(), mesh.indices.size() * sizeof(u32),
                                   kElementArrayBuffer);
 
     // Only the materials some submesh uses, renumbered, so the file carries no
     // dead entries.
     Json materials = Json::array();
+    TextureTable textureTable(views, bin, warnings);
     std::vector<int> materialOf(mesh.materials.size(), -1);
 
     Json primitives = Json::array();
@@ -180,6 +298,8 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
             attributes["NORMAL"] = normalAccessor;
         if (uvAccessor >= 0)
             attributes["TEXCOORD_0"] = uvAccessor;
+        if (colorAccessor >= 0)
+            attributes["COLOR_0"] = colorAccessor;
 
         Json primitive = {
             {"attributes", attributes},
@@ -195,7 +315,7 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
             {
                 slot = static_cast<int>(materials.size());
                 materials.push_back(materialJson(mesh.materials[submesh.materialSlot],
-                                                 submesh.materialSlot));
+                                                 submesh.materialSlot, textureTable));
             }
             primitive["material"] = slot;
         }
@@ -217,6 +337,12 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
                  {"buffers", Json::array({{{"byteLength", bin.size()}}})}};
     if (!materials.empty())
         root["materials"] = materials;
+    if (!textureTable.empty())
+    {
+        root["images"] = textureTable.images();
+        root["textures"] = textureTable.textures();
+        root["samplers"] = textureTable.samplers();
+    }
 
     std::string jsonText = root.dump(-1, ' ', false, Json::error_handler_t::replace);
     while (jsonText.size() % 4 != 0)
@@ -236,10 +362,11 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
     return true;
 }
 
-bool GltfExporter::save(const MeshData& mesh, const std::string& path, std::string* error)
+bool GltfExporter::save(const MeshData& mesh, const std::string& path, std::string* error,
+                        std::vector<std::string>* warnings)
 {
     std::vector<unsigned char> glb;
-    if (!build(mesh, FileSystem::baseName(path), glb, error))
+    if (!build(mesh, FileSystem::baseName(path), glb, error, warnings))
         return false;
 
     std::ofstream file(path, std::ios::binary | std::ios::trunc);

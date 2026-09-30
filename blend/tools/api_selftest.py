@@ -360,7 +360,73 @@ def group_solids(api):
     expect_error(api, "failed", "boolean", operation="intersection", a="a", b="far")
 
 
-GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids}
+def write_checker_png(path, size=8):
+    import struct
+    import zlib
+    rows = b""
+    for y in range(size):
+        row = b"\x00"
+        for x in range(size):
+            row += b"\xff\x40\x40" if (x + y) % 2 == 0 else b"\x40\x40\xff"
+        rows += row
+
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    with open(path, "wb") as file:
+        file.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+                   + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+def read_glb_json(path):
+    import json
+    import struct
+    with open(path, "rb") as file:
+        data = file.read()
+    magic, version, total = struct.unpack_from("<III", data, 0)
+    check(magic == 0x46546C67 and version == 2 and total == len(data), "a valid glb header")
+    length, kind = struct.unpack_from("<II", data, 12)
+    return json.loads(data[20:20 + length])
+
+
+def group_textures(api):
+    import tempfile
+    folder = tempfile.mkdtemp(prefix="radion_selftest_")
+    png = os.path.join(folder, "checker.png")
+    glb = os.path.join(folder, "out.glb")
+    write_checker_png(png)
+
+    api.call("new_document")
+    api.call("add_primitive", type="box", size=[2, 2, 2], name="crate", color="#c0392b")
+    api.call("add_primitive", type="box", size=[1, 1, 1], name="plain", position=[3, 0, 0])
+    api.call("unwrap_uv")
+    r = api.call("set_texture", part="crate", slot="albedo", file=png)
+    check(r["textures"]["albedo"] == png, f"the texture is reported: {r}")
+    check("textures" not in status(api)["parts"][1], "the other part is untouched")
+    api.call("screenshot", width=64, height=64)
+
+    r = api.call("export_gltf", path=glb)
+    check("warnings" not in r, f"no export warnings: {r}")
+    doc = read_glb_json(glb)
+    check(len(doc.get("images", [])) == 1 and doc["images"][0]["mimeType"] == "image/png", "the image is embedded once")
+    with_texture = [m for m in doc["materials"] if "baseColorTexture" in m["pbrMetallicRoughness"]]
+    check(len(with_texture) == 1 and with_texture[0]["name"] == "crate", "only the crate material has a map")
+
+    api.call("clear_texture", part="crate")
+    check("textures" not in status(api)["parts"][0], "the texture is gone")
+    api.call("undo")
+    check(status(api)["parts"][0]["textures"]["albedo"] == png, "undo brings it back")
+
+    expect_error(api, "failed", "set_texture", part="crate", file=os.path.join(folder, "missing.png"))
+    expect_error(api, "invalid_params", "set_texture", part="crate", slot="height", file=png)
+    expect_error(api, "invalid_params", "set_texture", part="ghost", file=png)
+
+    import shutil
+    shutil.rmtree(folder, ignore_errors=True)
+
+
+GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids, "textures": group_textures}
 
 
 # ------------------------------------------------------------------- driver

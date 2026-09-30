@@ -375,6 +375,17 @@ Json partJson(BlenderApplication& app, const MeshData& mesh, u32 index)
         part["color"] = hexColor(material.params.baseColor);
         part["roughness"] = material.params.surface.x;
         part["metallic"] = material.params.surface.y;
+
+        Json textures = Json::object();
+        static const std::pair<const char*, u32> kSlots[] = {
+            {"albedo", SlotAlbedo}, {"normal", SlotNormal}, {"surface", SlotSurface}, {"emissive", SlotEmissive}};
+        for (const auto& slot : kSlots)
+        {
+            if (!material.textures[slot.second].file.empty())
+                textures[slot.first] = material.textures[slot.second].file;
+        }
+        if (!textures.empty())
+            part["textures"] = textures;
     }
     return part;
 }
@@ -824,8 +835,10 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
 
     add("export_gltf",
         "Exports the document as a binary glTF 2.0 file (.glb): one mesh with a primitive and a "
-        "PBR material (colour, roughness, metalness) per part. Static geometry only. This is the "
-        "format to hand a model to a game or another tool.",
+        "PBR material (colour, roughness, metalness) per part. Texture files assigned with "
+        "'set_texture' (PNG or JPEG) are embedded, and vertex colours are written as COLOR_0. "
+        "Static geometry only. This is the format to hand a model to a game or another tool. "
+        "Textures that could not be embedded are listed in 'warnings'.",
         objectSchema({{"path", stringSchema("Where to write the file, e.g. /home/me/helicopter.glb.")}},
                      {"path"}),
         false,
@@ -834,9 +847,13 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             const std::string path = args.requireString("path");
             requireMesh(*editor);
             std::string why;
-            if (!editor->exportGltf(path, &why))
+            std::vector<std::string> warnings;
+            if (!editor->exportGltf(path, &why, &warnings))
                 failed("could not export '" + path + "': " + why);
-            return result({{"exported", path}});
+            Json out = {{"exported", path}};
+            if (!warnings.empty())
+                out["warnings"] = warnings;
+            return result(out);
         });
 
     {
@@ -1344,6 +1361,48 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     invalid("give at least one of name, color, roughness, metallic");
                 if (!editor->styleSubmesh(part, style))
                     failed("could not restyle the part");
+                return partAdded(*editor, static_cast<s32>(part));
+            });
+    }
+
+    {
+        const std::vector<std::string> slots = {"albedo", "normal", "surface", "emissive"};
+        auto slotOf = [](const std::string& name) -> u32
+        {
+            return name == "albedo" ? SlotAlbedo : name == "normal" ? SlotNormal : name == "surface" ? SlotSurface : SlotEmissive;
+        };
+
+        add("set_texture",
+            "Puts an image file on a part's material: 'albedo' (colour map, sRGB), 'normal', 'surface' "
+            "(glTF metallic-roughness: green = roughness, blue = metal) or 'emissive'. The part is "
+            "mapped by its UVs (see generate_uv / unwrap_uv / transform_uv), so a part with bad UVs "
+            "shows the image smeared. PNG or JPEG files are embedded by export_gltf. The path must "
+            "exist on the machine the editor runs on.",
+            objectSchema({{"part", partRefSchema()},
+                          {"slot", choiceSchema("Which map.", slots)},
+                          {"file", stringSchema("Path of the image file.")}},
+                         {"part", "file"}),
+            false,
+            [editor, slots, slotOf](const CommandArgs& args)
+            {
+                const u32 part = resolvePart(*editor, args);
+                const std::string slot = args.choice("slot", slots, "albedo");
+                const std::string file = args.requireString("file");
+                std::string why;
+                if (!editor->setPartTexture(part, slotOf(slot), file, &why))
+                    failed(why);
+                return partAdded(*editor, static_cast<s32>(part));
+            });
+
+        add("clear_texture", "Removes the image from one slot of a part's material (default: albedo).",
+            objectSchema({{"part", partRefSchema()}, {"slot", choiceSchema("Which map.", slots)}}, {"part"}), false,
+            [editor, slots, slotOf](const CommandArgs& args)
+            {
+                const u32 part = resolvePart(*editor, args);
+                const std::string slot = args.choice("slot", slots, "albedo");
+                std::string why;
+                if (!editor->setPartTexture(part, slotOf(slot), std::string(), &why))
+                    failed(why);
                 return partAdded(*editor, static_cast<s32>(part));
             });
     }
