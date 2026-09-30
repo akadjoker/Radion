@@ -4,6 +4,7 @@
 #include "AssetManager.h"
 #include "BlenderApplication.h"
 #include "FileSystem.h"
+#include "mesh/MeshTopology.h"
 #include "Pixmap.h"
 #include "ProceduralShapes.h"
 
@@ -385,7 +386,8 @@ Json selectionJson(BlenderApplication& app)
                           : selection.mode() == BlenderSelection::SelectionMode::Edge ? "edge"
                                                                                       : "vertex"},
                  {"vertexCount", selection.selectedVertexCount()},
-                 {"faceCount", selection.selectedFaceCount()}};
+                 {"faceCount", selection.selectedFaceCount()},
+                 {"edgeCount", selection.selectedEdgeCount()}};
 
     const MeshData* mesh = app.currentMeshData();
     if (mesh && selection.selectedVertexCount() > 0)
@@ -418,6 +420,26 @@ Json selectionJson(BlenderApplication& app)
         }
         json["faces"] = listed;
     }
+    if (selection.selectedEdgeCount() > 0)
+    {
+        // [a, b] vertex pairs - the same form `select` takes.
+        Json listed = Json::array();
+        AABB box;
+        for (const u64 key : selection.selectedEdges())
+        {
+            const u32 a = static_cast<u32>(key >> 32);
+            const u32 b = static_cast<u32>(key & 0xFFFFFFFFu);
+            if (mesh && a < mesh->positions.size() && b < mesh->positions.size())
+            {
+                box.expand(mesh->positions[a]);
+                box.expand(mesh->positions[b]);
+            }
+            if (listed.size() < kMaxListedIndices)
+                listed.push_back(Json::array({a, b}));
+        }
+        json["edges"] = listed;
+        json["edgeBounds"] = boundsJson(box);
+    }
     return json;
 }
 
@@ -432,6 +454,8 @@ Json statusJson(BlenderApplication& app)
                    {"canRedo", app.canRedo()},
                    {"lastFile", app.settings().general().lastOpenedMesh},
                    {"selection", selectionJson(app)}};
+
+    status["hiddenTriangles"] = app.hiddenFaceCount();
 
     if (hasMesh)
     {
@@ -480,26 +504,11 @@ CommandResult partAdded(BlenderApplication& app, s32 submesh)
     return result(std::move(data));
 }
 
-// Vertices to edit for the current selection: the selected ones, plus the
-// corners of any selected faces.
+// Vertices to edit for the current selection (see BlenderApplication::editVertices).
 std::vector<u32> selectedVertexSet(BlenderApplication& app)
 {
-    const MeshData& mesh = requireMesh(app);
-    BlenderSelection& selection = app.selection();
-
-    std::vector<u32> vertices = selection.selectedVertices();
-    for (const u32 face : selection.selectedFaces())
-    {
-        for (u32 corner = 0; corner < 3; ++corner)
-        {
-            const usize at = static_cast<usize>(face) * 3 + corner;
-            if (at < mesh.indices.size())
-                vertices.push_back(mesh.indices[at]);
-        }
-    }
-    std::sort(vertices.begin(), vertices.end());
-    vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
-    return vertices;
+    requireMesh(app);
+    return app.editVertices();
 }
 
 // ----------------------------------------------------------------- base64
@@ -1284,22 +1293,31 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
         Json box = objectSchema({{"min", vec3Schema("Lower corner.")}, {"max", vec3Schema("Upper corner.")}},
                                 {"min", "max"});
         box["description"] = "Axis-aligned region in world space. Selects vertices inside it (vertex "
-                             "mode) or faces whose centre is inside it (face mode).";
+                             "mode), faces whose centre is inside it (face mode) or edges with both "
+                             "ends inside it (edge mode).";
         Json properties = {
             {"mode", choiceSchema("Element type to select. Keeps the current mode when omitted.",
-                                  {"vertex", "face"})},
+                                  {"vertex", "edge", "face"})},
             {"action", choiceSchema("set (default) replaces the selection; add / remove change it; "
                                     "clear, all, invert, grow, shrink and linked operate on what "
                                     "is selected.",
                                     {"set", "add", "remove", "clear", "all", "invert", "grow",
                                      "shrink", "linked"})},
             {"vertices", {{"type", "array"}, {"items", {{"type", "integer"}}}, {"description", "Vertex indices."}}},
+            {"edges", {{"type", "array"},
+                       {"items", {{"type", "array"},
+                                  {"items", {{"type", "integer"}}},
+                                  {"minItems", 2},
+                                  {"maxItems", 2}}},
+                       {"description", "Edges as [vertexA, vertexB] pairs; the two vertices must be "
+                                       "joined by an edge (vertices standing at the same point count "
+                                       "as one)."}}},
             {"faces", {{"type", "array"}, {"items", {{"type", "integer"}}}, {"description", "Face (triangle) indices."}}},
             {"part", partRefSchema()},
             {"box", box}};
         add("select",
-            "Selects vertices or faces so the edit commands (transform_selection, extrude, "
-            "delete_selection, weld, smooth) know what to act on. Pick by index, by part, or by "
+            "Selects vertices, edges or faces so the edit commands (transform_selection, extrude, "
+            "delete_selection, weld, smooth, ...) know what to act on. Pick by index, by part, or by "
             "a world-space box. Returns the resulting selection.",
             objectSchema(properties), false,
             [editor](const CommandArgs& args)
@@ -1307,9 +1325,11 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 MeshData& mesh = requireMesh(*editor);
                 BlenderSelection& selection = editor->selection();
 
-                const std::string mode = args.choice("mode", {"vertex", "face"}, "");
+                const std::string mode = args.choice("mode", {"vertex", "edge", "face"}, "");
                 if (mode == "vertex")
                     selection.setMode(BlenderSelection::SelectionMode::Vertex);
+                else if (mode == "edge")
+                    selection.setMode(BlenderSelection::SelectionMode::Edge);
                 else if (mode == "face")
                     selection.setMode(BlenderSelection::SelectionMode::Face);
 
@@ -1332,31 +1352,80 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     editor->selectLinked();
                 else
                 {
-                    const bool faceMode = selection.mode() == BlenderSelection::SelectionMode::Face;
+                    const auto elementMode = selection.mode();
+                    const bool faceMode = elementMode == BlenderSelection::SelectionMode::Face;
+                    const bool edgeMode = elementMode == BlenderSelection::SelectionMode::Edge;
+                    const char* modeName = faceMode ? "face" : edgeMode ? "edge" : "vertex";
+                    const char* key = faceMode ? "faces" : edgeMode ? "edges" : "vertices";
                     const u32 vertexCount = static_cast<u32>(mesh.positions.size());
                     const u32 faceCount = static_cast<u32>(mesh.indices.size() / 3);
+                    const MeshTopology& topology = editor->topology();
 
+                    // What was asked for, as indices (vertex/face) or edge keys.
                     std::vector<u32> picked;
-                    if (args.has("vertices") || args.has("faces"))
+                    std::vector<u64> pickedEdges;
+
+                    if (args.has("vertices") || args.has("faces") || args.has("edges"))
                     {
-                        const char* key = faceMode ? "faces" : "vertices";
                         if (!args.has(key))
-                            invalid(std::string("the selection mode is ") + (faceMode ? "face" : "vertex") +
-                                    ", so give '" + key + "'");
-                        picked = args.indices(key, kMaxSelectionIndices);
-                        const u32 limit = faceMode ? faceCount : vertexCount;
-                        for (const u32 index : picked)
-                            if (index >= limit)
-                                invalid(std::string("index ") + std::to_string(index) + " is out of " +
-                                        "range (0.." + std::to_string(limit - 1) + ")");
+                            invalid(std::string("the selection mode is ") + modeName + ", so give '" +
+                                    key + "'");
+                        if (edgeMode)
+                        {
+                            const Json* pairs = args.raw("edges");
+                            if (!pairs->is_array() || pairs->size() > kMaxSelectionIndices)
+                                invalid("argument 'edges' must be an array of [a, b] pairs");
+                            for (const Json& pair : *pairs)
+                            {
+                                if (!pair.is_array() || pair.size() != 2 || !pair[0].is_number_integer() ||
+                                    !pair[1].is_number_integer())
+                                    invalid("every edge must be [vertexA, vertexB]");
+                                const long long a = pair[0].get<long long>();
+                                const long long b = pair[1].get<long long>();
+                                if (a < 0 || b < 0 || a >= vertexCount || b >= vertexCount)
+                                    invalid("edge vertex index out of range (0.." +
+                                            std::to_string(vertexCount - 1) + ")");
+                                const u32 ca = topology.canonical(static_cast<u32>(a));
+                                const u32 cb = topology.canonical(static_cast<u32>(b));
+                                if (topology.findEdge(ca, cb) < 0)
+                                    invalid("vertices " + std::to_string(a) + " and " + std::to_string(b) +
+                                            " are not joined by an edge");
+                                pickedEdges.push_back(MeshTopology::edgeKey(ca, cb));
+                            }
+                        }
+                        else
+                        {
+                            picked = args.indices(key, kMaxSelectionIndices);
+                            const u32 limit = faceMode ? faceCount : vertexCount;
+                            for (const u32 index : picked)
+                                if (index >= limit)
+                                    invalid(std::string("index ") + std::to_string(index) + " is out of " +
+                                            "range (0.." + std::to_string(limit - 1) + ")");
+                        }
                     }
                     else if (args.has("part"))
                     {
                         const u32 part = resolvePart(*editor, args);
+                        std::vector<u32> faces;
+                        Assets().submeshFaces(mesh, part, faces);
                         if (faceMode)
-                            Assets().submeshFaces(mesh, part, picked);
+                        {
+                            picked = faces;
+                        }
+                        else if (edgeMode)
+                        {
+                            // Edges of the part's own triangles.
+                            for (const u32 face : faces)
+                                for (const s32 edge : topology.faceEdges(face))
+                                    if (edge >= 0)
+                                        pickedEdges.push_back(MeshTopology::edgeKey(
+                                            topology.edges()[static_cast<usize>(edge)].a,
+                                            topology.edges()[static_cast<usize>(edge)].b));
+                        }
                         else
+                        {
                             picked = editor->submeshVertices(part);
+                        }
                     }
                     else if (args.has("box"))
                     {
@@ -1364,10 +1433,10 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                         if (!boxJson || !boxJson->is_object())
                             invalid("argument 'box' must be an object with min and max");
                         const CommandArgs boxArgs(*boxJson);
-                        const glm::vec3 low = vec3Arg(boxArgs, "min", glm::vec3(0.0f));
-                        const glm::vec3 high = vec3Arg(boxArgs, "max", glm::vec3(0.0f));
                         if (!boxArgs.has("min") || !boxArgs.has("max"))
                             invalid("'box' needs both min and max");
+                        const glm::vec3 low = vec3Arg(boxArgs, "min", glm::vec3(0.0f));
+                        const glm::vec3 high = vec3Arg(boxArgs, "max", glm::vec3(0.0f));
                         const glm::vec3 lo = glm::min(low, high);
                         const glm::vec3 hi = glm::max(low, high);
                         auto inside = [&](const glm::vec3& p)
@@ -1385,6 +1454,12 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                                     picked.push_back(face);
                             }
                         }
+                        else if (edgeMode)
+                        {
+                            for (const MeshTopology::Edge& edge : topology.edges())
+                                if (inside(mesh.positions[edge.a]) && inside(mesh.positions[edge.b]))
+                                    pickedEdges.push_back(MeshTopology::edgeKey(edge.a, edge.b));
+                        }
                         else
                         {
                             for (u32 vertex = 0; vertex < vertexCount; ++vertex)
@@ -1394,7 +1469,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     }
                     else
                     {
-                        invalid("give one of vertices, faces, part or box (or a different action)");
+                        invalid("give one of vertices, edges, faces, part or box (or a different action)");
                     }
 
                     if (action == "set")
@@ -1406,11 +1481,45 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                         else
                             faceMode ? selection.selectFace(index) : selection.selectVertex(index);
                     }
+                    for (const u64 edgeKey : pickedEdges)
+                    {
+                        if (action == "remove")
+                            selection.deselectEdge(edgeKey);
+                        else
+                            selection.selectEdge(edgeKey);
+                    }
                     editor->dropHiddenFromSelection();
                 }
                 return result(selectionJson(*editor));
             });
     }
+
+    add("hide",
+        "Hides the selection (or everything that is not selected) in the viewport and screenshots. "
+        "Hidden triangles cannot be selected and are left alone by edits, which makes it easy to "
+        "work on one area of a busy model. An edit that adds or removes triangles shows everything "
+        "again. Vertices and edges hide every triangle that uses them.",
+        objectSchema({{"what", choiceSchema("'selected' (default) or 'unselected'.", {"selected", "unselected"})}}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            requireMesh(*editor);
+            const bool selected = args.choice("what", {"selected", "unselected"}, "selected") == "selected";
+            const bool changed = selected ? editor->hideSelected() : editor->hideUnselected();
+            if (!changed)
+                failed(selected ? "nothing is selected to hide" : "nothing to hide - everything is selected or already hidden");
+            return result({{"hiddenTriangles", editor->hiddenFaceCount()},
+                           {"triangles", editor->currentMeshData()->indices.size() / 3}});
+        });
+
+    add("unhide", "Shows every hidden triangle again.", objectSchema(Json::object()), false,
+        [editor](const CommandArgs&)
+        {
+            requireMesh(*editor);
+            const usize was = editor->hiddenFaceCount();
+            editor->unhideAll();
+            return result({{"revealedTriangles", was}});
+        });
 
     add("get_selection",
         "What is selected now: mode, counts, the bounds of the selected vertices and the first "
@@ -1512,8 +1621,11 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
         {
             MeshData& mesh = requireMesh(*editor);
             BlenderSelection& selection = editor->selection();
-            const bool faceMode = selection.mode() == BlenderSelection::SelectionMode::Face;
-            if ((faceMode ? selection.selectedFaceCount() : selection.selectedVertexCount()) == 0)
+            const auto mode = selection.mode();
+            const u32 selected = mode == BlenderSelection::SelectionMode::Face   ? selection.selectedFaceCount()
+                                 : mode == BlenderSelection::SelectionMode::Edge ? selection.selectedEdgeCount()
+                                                                                 : selection.selectedVertexCount();
+            if (selected == 0)
                 failed("nothing is selected - use 'select' first");
             editor->deleteSelected();
             return result({{"vertices", mesh.positions.size()}, {"triangles", mesh.indices.size() / 3}});

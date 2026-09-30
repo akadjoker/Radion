@@ -163,6 +163,7 @@ private:
     std::vector<u8> mVertexSelectionFlags;
     u64 mUploadedSelectionRevision = 0;
     u64 mUploadedMeshRevision = 0;
+    u64 mUploadedHiddenRevision = ~u64(0);
     const MeshData* mUploadedSelectionMesh = nullptr;
     MiniRenderMode mShadingMode = MiniRenderMode::Solid;
     MiniDebugView mDebugView = MiniDebugView::None;

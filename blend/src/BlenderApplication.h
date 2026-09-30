@@ -9,6 +9,7 @@
 #include "Log.h"
 #include "MiniBatch.h"
 #include "MiniRenderer.h"
+#include "mesh/MeshTopology.h"
 #include "ViewportCamera.h"
 #include "Types.h"
 
@@ -80,7 +81,7 @@ public:
     //
     // Where the gizmo sits: the median of the selected vertices, or of the
     // whole mesh when nothing is selected. Origin for an empty mesh.
-    glm::vec3 transformPivot() const;
+    glm::vec3 transformPivot();
     // Takes the undo snapshot and remembers the geometry as it stands, so
     // every frame of the drag transforms the original rather than the last
     // frame's result - compounding a few hundred matrices visibly drifts.
@@ -239,6 +240,52 @@ public:
     void buildSelectableMask(std::vector<bool>& faceSelectable,
                              std::vector<bool>& vertexSelectable);
 
+    // Connectivity of the mesh as it is now, rebuilt lazily when the mesh has
+    // changed since the last call. See MeshTopology for what "vertex" means there.
+    const MeshTopology& topology();
+    // Bumped by every change to the mesh; lets a cache know it is stale.
+    u64 meshRevision() const
+    {
+        return mMeshRevision;
+    }
+    // The vertices an edit acts on: the selected vertices, the corners of the
+    // selected faces and the ends of the selected edges, each widened to every
+    // vertex standing at the same point so a move never tears a seam open. Empty
+    // when nothing is selected.
+    std::vector<u32> editVertices();
+    // Every edge of the mesh as selection keys, for Select All in edge mode.
+    std::vector<u64> allEdgeKeys();
+
+    // -- Hide
+    //
+    // Hiding works on triangles: the selected faces, or every triangle that uses a
+    // selected vertex or edge. A vertex or edge is hidden when everything that
+    // uses it is. Hidden triangles are not drawn, cannot be selected, and stay
+    // put when the mesh is edited - but an edit that adds or removes triangles
+    // shows everything again, since the hidden set would no longer mean the same
+    // triangles.
+    bool hideSelected();
+    // Hides everything that is not entirely selected.
+    bool hideUnselected();
+    void unhideAll();
+    bool hasHidden() const
+    {
+        return mHasHidden;
+    }
+    usize hiddenFaceCount() const;
+    bool isFaceHidden(u32 face) const
+    {
+        return mHasHidden && face < mHiddenFaces.size() && mHiddenFaces[face] != 0;
+    }
+    // Bumped whenever the hidden set changes.
+    u64 hiddenRevision() const
+    {
+        return mHiddenRevision;
+    }
+    // One byte per vertex, 1 where every triangle that uses it is hidden. Empty
+    // when nothing is hidden.
+    const std::vector<u8>& hiddenVertexFlags();
+
     // -- Modelling operations
     //
     // Everything below is what the menus call and what the HTTP API calls:
@@ -325,6 +372,7 @@ public:
     bool extrudeFaces(f32 distance);
     void deleteSelectedVertices();
     void deleteSelectedFaces();
+    void deleteSelectedEdges();
     void deleteSelected();
     void selectAllElements();
     void invertElementSelection();
@@ -473,6 +521,17 @@ private:
     // Current mesh
     MeshHandle mCurrentMesh;
     MeshData* mMeshData = nullptr;
+    MeshTopology mTopology;
+    u64 mMeshRevision = 1;
+    u64 mTopologyRevision = 0;
+    std::vector<u8> mHiddenFaces;
+    std::vector<u8> mHiddenVertices;
+    bool mHasHidden = false;
+    u64 mHiddenRevision = 0;
+    u64 mHiddenVerticesRevision = ~u64(0);
+    void setHiddenFaces(std::vector<u8>&& faces);
+    // Forgets the hidden set when the triangle count no longer matches it.
+    void validateHidden();
 
     // Timeline
     u32 mCurrentFrame = 0;

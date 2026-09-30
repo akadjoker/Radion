@@ -137,6 +137,12 @@ public:
     // viewport has BlenderSelection::revision() to tell.
     void setVertexSelection(const u8* selected, u32 count);
 
+    // Triangles to leave out of every draw, one byte per triangle, nonzero =
+    // hidden. Nothing is uploaded: the draw skips those index ranges. Ignored
+    // unless it has exactly one entry per triangle of the mesh being drawn.
+    // nullptr (or a count of 0) shows everything.
+    void setHiddenFaces(const u8* faceHidden, u32 faceCount);
+
     // Bumped every time the mesh is uploaded, which is also every time the
     // selection buffer is recreated and zeroed. A caller that caches what it
     // last sent has to watch this as well as its own state: editing a mesh
@@ -167,6 +173,8 @@ private:
     u32 mIndexCount = 0;
     u32 mVertexCount = 0;
     const MeshData* mUploadedMesh = nullptr;
+    std::vector<u8> mHiddenFaces;
+    bool mHasHiddenFaces = false;
 
     u32 mWhiteTexture = 0;
     u32 mFlatNormalTexture = 0;
@@ -175,6 +183,9 @@ private:
     bool createDefaultTextures();
     void destroyBuffers();
     void uploadMesh(const MeshData& mesh);
+    // glDrawElements over [indexOffset, indexOffset + indexCount), skipping the
+    // hidden triangles inside it.
+    void drawTriangleRange(u32 indexOffset, u32 indexCount);
 };
 
 } // namespace Radion

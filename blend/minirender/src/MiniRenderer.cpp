@@ -143,6 +143,9 @@ void main()
 {
     if (uPointPass)
     {
+        // 2 marks a hidden vertex: it is still in the buffer, it just is not drawn.
+        if (fs_in.selected > 1.5)
+            discard;
         outColor = vec4(fs_in.selected > 0.5 ? uSelectedPointColor : uPointColor, 1.0);
         return;
     }
@@ -513,6 +516,69 @@ void MiniRenderer::uploadMesh(const MeshData& mesh)
     ++mUploadRevision;
 }
 
+void MiniRenderer::setHiddenFaces(const u8* faceHidden, u32 faceCount)
+{
+    mHiddenFaces.clear();
+    mHasHiddenFaces = false;
+    if (!faceHidden || faceCount == 0)
+        return;
+
+    mHiddenFaces.assign(faceHidden, faceHidden + faceCount);
+    for (const u8 hidden : mHiddenFaces)
+    {
+        if (hidden)
+        {
+            mHasHiddenFaces = true;
+            break;
+        }
+    }
+}
+
+void MiniRenderer::drawTriangleRange(u32 indexOffset, u32 indexCount)
+{
+    const u32 firstFace = indexOffset / 3;
+    const u32 faceCount = indexCount / 3;
+    // A mask made for some other mesh is worse than none: ignore it rather than
+    // hide the wrong triangles.
+    const bool masked = mHasHiddenFaces && mHiddenFaces.size() == mIndexCount / 3;
+    if (!masked)
+    {
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT,
+                       reinterpret_cast<const void*>(static_cast<uintptr_t>(indexOffset) * sizeof(u32)));
+        return;
+    }
+
+    // One draw per run of visible triangles.
+    std::vector<GLsizei> counts;
+    std::vector<const void*> offsets;
+    u32 runStart = 0;
+    u32 runLength = 0;
+    auto flush = [&]()
+    {
+        if (runLength == 0)
+            return;
+        counts.push_back(static_cast<GLsizei>(runLength * 3));
+        offsets.push_back(reinterpret_cast<const void*>(static_cast<uintptr_t>(runStart) * 3 * sizeof(u32)));
+        runLength = 0;
+    };
+    for (u32 face = firstFace; face < firstFace + faceCount; ++face)
+    {
+        if (mHiddenFaces[face])
+        {
+            flush();
+            continue;
+        }
+        if (runLength == 0)
+            runStart = face;
+        ++runLength;
+    }
+    flush();
+
+    if (!counts.empty())
+        glMultiDrawElements(GL_TRIANGLES, counts.data(), GL_UNSIGNED_INT, offsets.data(),
+                            static_cast<GLsizei>(counts.size()));
+}
+
 void MiniRenderer::setVertexSelection(const u8* selected, u32 count)
 {
     if (!mSelectionVBO || !selected || count == 0)
@@ -654,14 +720,12 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
                 glUniform2fv(surfaceLocation, 1, glm::value_ptr(surfaceFactor(material)));
             }
             glUniform3fv(tintLocation, 1, glm::value_ptr(tint));
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(submesh.indexCount), GL_UNSIGNED_INT,
-                          reinterpret_cast<const void*>(static_cast<uintptr_t>(submesh.indexOffset) *
-                                                        sizeof(u32)));
+            drawTriangleRange(submesh.indexOffset, submesh.indexCount);
         }
     }
     else
     {
-        glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, nullptr);
+        drawTriangleRange(0, mIndexCount);
     }
 
     // Overlay passes: same shader/program, drawn as flat-tinted debug marks
@@ -679,7 +743,7 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glEnable(GL_POLYGON_OFFSET_LINE);
         glPolygonOffset(-1.0f, -1.0f);
-        glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, nullptr);
+        drawTriangleRange(0, mIndexCount);
         glDisable(GL_POLYGON_OFFSET_LINE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }

@@ -197,10 +197,52 @@ const std::vector<u32>& BlenderSelection::selectedFaces() const
     return mFaceList;
 }
 
+void BlenderSelection::selectEdge(u64 key)
+{
+    if (mEdges.insert(key).second)
+        ++mRevision;
+}
+
+void BlenderSelection::deselectEdge(u64 key)
+{
+    if (mEdges.erase(key))
+        ++mRevision;
+}
+
+void BlenderSelection::toggleEdge(u64 key)
+{
+    if (isEdgeSelected(key))
+        deselectEdge(key);
+    else
+        selectEdge(key);
+}
+
+bool BlenderSelection::isEdgeSelected(u64 key) const
+{
+    return mEdges.count(key) != 0;
+}
+
+const std::vector<u64>& BlenderSelection::selectedEdges() const
+{
+    if (mEdgeListRevision != mRevision)
+    {
+        mEdgeList.assign(mEdges.begin(), mEdges.end());
+        mEdgeListRevision = mRevision;
+    }
+    return mEdgeList;
+}
+
+void BlenderSelection::setEdges(const std::vector<u64>& keys)
+{
+    mEdges = std::set<u64>(keys.begin(), keys.end());
+    ++mRevision;
+}
+
 void BlenderSelection::clearAll()
 {
     mVertexBits.clear();
     mFaceBits.clear();
+    mEdges.clear();
     mVertexCount = 0;
     mFaceCount = 0;
     ++mRevision;

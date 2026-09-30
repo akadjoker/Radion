@@ -231,6 +231,20 @@ target_include_directories(radion_gltf_export_tests PRIVATE
 add_test(NAME gltf_export COMMAND radion_gltf_export_tests)
 set_tests_properties(gltf_export PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
+add_executable(radion_mesh_topology_tests
+    MeshTopologyTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshTopology.cpp
+)
+target_precompile_headers(radion_mesh_topology_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_mesh_topology_tests PRIVATE radion_render)
+target_include_directories(radion_mesh_topology_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME mesh_topology COMMAND radion_mesh_topology_tests)
+set_tests_properties(mesh_topology PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_file_pack_tests FilePackTests.cpp)
 target_precompile_headers(radion_file_pack_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"

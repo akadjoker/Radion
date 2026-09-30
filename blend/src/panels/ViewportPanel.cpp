@@ -14,6 +14,20 @@
 
 using namespace Radion;
 
+namespace
+{
+// Distance from `point` to the segment a-b, all in screen space.
+f32 distanceToSegment(const glm::vec2& point, const glm::vec2& a, const glm::vec2& b)
+{
+    const glm::vec2 ab = b - a;
+    const f32 lengthSquared = glm::dot(ab, ab);
+    if (lengthSquared <= 1.0e-6f)
+        return glm::length(point - a);
+    const f32 t = glm::clamp(glm::dot(point - a, ab) / lengthSquared, 0.0f, 1.0f);
+    return glm::length(point - (a + ab * t));
+}
+} // namespace
+
 ViewportPanel::ViewportPanel(BlenderApplication& app)
     : BlenderPanel("Viewport", app)
 {
@@ -768,13 +782,22 @@ void ViewportPanel::uploadVertexSelection(const MeshData& mesh, const BlenderSel
     MiniRenderer& renderer = app().renderer();
     if (&mesh == mUploadedSelectionMesh && selection.revision() == mUploadedSelectionRevision &&
         renderer.meshUploadRevision() == mUploadedMeshRevision &&
-        mVertexSelectionFlags.size() == vertexCount)
+        app().hiddenRevision() == mUploadedHiddenRevision && mVertexSelectionFlags.size() == vertexCount)
         return;
 
     mVertexSelectionFlags.resize(vertexCount);
     selection.fillVertexFlags(mVertexSelectionFlags.data(), vertexCount);
+    // 2 tells the point pass to skip the vertex: it is hidden.
+    const std::vector<u8>& hidden = app().hiddenVertexFlags();
+    if (hidden.size() == vertexCount)
+    {
+        for (u32 i = 0; i < vertexCount; ++i)
+            if (hidden[i])
+                mVertexSelectionFlags[i] = 2;
+    }
     renderer.setVertexSelection(mVertexSelectionFlags.data(), vertexCount);
 
+    mUploadedHiddenRevision = app().hiddenRevision();
     mUploadedSelectionRevision = selection.revision();
     mUploadedMeshRevision = renderer.meshUploadRevision();
     mUploadedSelectionMesh = &mesh;
@@ -791,9 +814,10 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& 
 
     const bool drawVertexFace = selection.mode() == BlenderSelection::SelectionMode::Vertex ||
                                 selection.mode() == BlenderSelection::SelectionMode::Face;
+    const bool drawEdges = selection.mode() == BlenderSelection::SelectionMode::Edge;
     const bool drawSubmesh =
         selectedSubmesh >= 0 && static_cast<usize>(selectedSubmesh) < mesh->submeshes.size();
-    if (!drawVertexFace && !drawSubmesh)
+    if (!drawVertexFace && !drawEdges && !drawSubmesh)
         return;
 
     MiniBatch& batch = app().batch();
@@ -846,6 +870,32 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& 
             batch.line(p0, p1, edgeHighlight);
             batch.line(p1, p2, edgeHighlight);
             batch.line(p2, p0, edgeHighlight);
+        }
+    }
+
+    if (drawEdges)
+    {
+        // Every edge of the model, faintly, so there is something to aim at, and
+        // the selected ones over them in the selection colour.
+        constexpr usize kMaxDrawnEdges = 400000;
+        const MeshTopology& topology = app().topology();
+        const glm::vec4 plain(0.72f, 0.74f, 0.78f, 1.0f);
+        const glm::vec4 chosen(viewportSettings.selectedVertexColor, 1.0f);
+        const bool drawAll = topology.edges().size() <= kMaxDrawnEdges;
+        for (const MeshTopology::Edge& edge : topology.edges())
+        {
+            if (app().hasHidden())
+            {
+                bool shown = false;
+                for (const u32 face : edge.faces)
+                    shown = shown || !app().isFaceHidden(face);
+                if (!shown)
+                    continue;
+            }
+            const bool picked = selection.isEdgeSelected(MeshTopology::edgeKey(edge.a, edge.b));
+            if (!picked && !drawAll)
+                continue;
+            batch.line(mesh->positions[edge.a], mesh->positions[edge.b], picked ? chosen : plain);
         }
     }
 
@@ -1019,8 +1069,6 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
         return;
 
     BlenderSelection& selection = app().selection();
-    if (selection.mode() == BlenderSelection::SelectionMode::Edge)
-        return;
 
     ImGuiIO& io = ImGui::GetIO();
     const bool hovered = ImGui::IsWindowHovered();
@@ -1085,6 +1133,77 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
         const glm::vec2 readMax =
             isBox ? rectMax - imageMin : current - imageMin + glm::vec2(kPickRadius);
         readDepthRect(target, readMin, readMax, depthRect);
+    }
+
+    if (selection.mode() == BlenderSelection::SelectionMode::Edge)
+    {
+        const MeshTopology& topology = app().topology();
+        constexpr f32 kEdgePickRadius = 8.0f;
+
+        u64 bestKey = 0;
+        f32 bestDistance = 1e9f;
+        glm::vec3 bestMiddle(0.0f);
+        glm::vec2 bestMiddleScreen(0.0f);
+        bool found = false;
+
+        for (const MeshTopology::Edge& edge : topology.edges())
+        {
+            // Reachable when at least one triangle on it is (a hidden part's
+            // edges stay out of the way, like its faces and vertices).
+            bool selectable = false;
+            for (const u32 face : edge.faces)
+            {
+                if (face < faceSelectable.size() && faceSelectable[face])
+                {
+                    selectable = true;
+                    break;
+                }
+            }
+            if (!selectable)
+                continue;
+
+            const glm::vec3& pa = mesh->positions[edge.a];
+            const glm::vec3& pb = mesh->positions[edge.b];
+            bool frontA = false;
+            bool frontB = false;
+            const glm::vec2 sa = projectToScreen(pa, viewProjection, imageMin, imageSize, frontA);
+            const glm::vec2 sb = projectToScreen(pb, viewProjection, imageMin, imageSize, frontB);
+            if (!frontA || !frontB)
+                continue;
+
+            const glm::vec3 middle = (pa + pb) * 0.5f;
+            const glm::vec2 middleScreen = (sa + sb) * 0.5f;
+
+            if (isBox)
+            {
+                const bool insideA = sa.x >= rectMin.x && sa.x <= rectMax.x && sa.y >= rectMin.y && sa.y <= rectMax.y;
+                const bool insideB = sb.x >= rectMin.x && sb.x <= rectMax.x && sb.y >= rectMin.y && sb.y <= rectMax.y;
+                if (insideA && insideB &&
+                    (!mSelectVisibleOnly ||
+                     isScreenPointVisible(depthRect, middleScreen - imageMin, middle,
+                                          inverseViewProjection, cameraPos, target)))
+                    selection.selectEdge(MeshTopology::edgeKey(edge.a, edge.b));
+            }
+            else
+            {
+                const f32 distance = distanceToSegment(current, sa, sb);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    bestKey = MeshTopology::edgeKey(edge.a, edge.b);
+                    bestMiddle = middle;
+                    bestMiddleScreen = middleScreen;
+                    found = true;
+                }
+            }
+        }
+
+        if (!isBox && found && bestDistance <= kEdgePickRadius &&
+            (!mSelectVisibleOnly ||
+             isScreenPointVisible(depthRect, bestMiddleScreen - imageMin, bestMiddle,
+                                  inverseViewProjection, cameraPos, target)))
+            selection.selectEdge(bestKey);
+        return;
     }
 
     if (selection.mode() == BlenderSelection::SelectionMode::Vertex)

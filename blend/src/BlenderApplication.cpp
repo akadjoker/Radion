@@ -21,6 +21,8 @@
 #include "panels/ViewportPanel.h"
 
 #include <glm/common.hpp>
+#include <set>
+#include <unordered_map>
 #include <imgui.h>
 #include <imgui_stdlib.h>
 #include <imgui_internal.h> // DockBuilder* - building the first-run default layout
@@ -167,6 +169,8 @@ bool BlenderApplication::loadMesh(const std::string& path)
     mSubmeshVisible.clear();
     mDirty = false;
     mRenderer.invalidate();
+    ++mMeshRevision;
+    unhideAll();
 
     mSkeleton = Skeleton();
     mHasSkeleton = false;
@@ -354,6 +358,8 @@ bool BlenderApplication::applyMeshEdit()
         return false;
 
     mRenderer.invalidate();
+    ++mMeshRevision;
+    validateHidden();
     markDirty();
     return true;
 }
@@ -443,6 +449,241 @@ void BlenderApplication::deleteSelectedFaces()
     applyMeshEdit();
 }
 
+void BlenderApplication::setHiddenFaces(std::vector<u8>&& faces)
+{
+    bool any = false;
+    for (const u8 hidden : faces)
+    {
+        if (hidden)
+        {
+            any = true;
+            break;
+        }
+    }
+
+    mHasHidden = any;
+    mHiddenFaces = any ? std::move(faces) : std::vector<u8>();
+    ++mHiddenRevision;
+    if (mHasHidden)
+        mRenderer.setHiddenFaces(mHiddenFaces.data(), static_cast<u32>(mHiddenFaces.size()));
+    else
+        mRenderer.setHiddenFaces(nullptr, 0);
+}
+
+void BlenderApplication::validateHidden()
+{
+    if (mHasHidden && mMeshData && mHiddenFaces.size() != mMeshData->indices.size() / 3)
+    {
+        Log::info("BlenderApplication: the edit changed the triangles, showing everything again");
+        setHiddenFaces({});
+    }
+}
+
+usize BlenderApplication::hiddenFaceCount() const
+{
+    usize count = 0;
+    if (mHasHidden)
+    {
+        for (const u8 hidden : mHiddenFaces)
+            count += hidden ? 1 : 0;
+    }
+    return count;
+}
+
+bool BlenderApplication::hideSelected()
+{
+    if (!mMeshData || mMeshData->indices.empty())
+        return false;
+
+    const usize faceCount = mMeshData->indices.size() / 3;
+    const MeshTopology& topo = topology();
+
+    std::vector<u8> hidden = mHasHidden && mHiddenFaces.size() == faceCount ? mHiddenFaces
+                                                                           : std::vector<u8>(faceCount, 0);
+    bool changed = false;
+    auto hide = [&](u32 face)
+    {
+        if (face < faceCount && !hidden[face])
+        {
+            hidden[face] = 1;
+            changed = true;
+        }
+    };
+
+    for (const u32 face : mSelection.selectedFaces())
+        hide(face);
+
+    // Vertices and edges hide every triangle that uses them: a triangle cannot
+    // stay behind with a corner missing.
+    if (mSelection.selectedVertexCount() > 0 || mSelection.selectedEdgeCount() > 0)
+    {
+        std::vector<bool> point(mMeshData->positions.size(), false);
+        for (const u32 vertex : mSelection.selectedVertices())
+            if (vertex < point.size())
+                point[topo.canonical(vertex)] = true;
+        for (u32 face = 0; face < faceCount; ++face)
+        {
+            for (u32 corner = 0; corner < 3; ++corner)
+            {
+                const u32 index = mMeshData->indices[face * 3 + corner];
+                if (index < point.size() && point[topo.canonical(index)])
+                {
+                    hide(face);
+                    break;
+                }
+            }
+        }
+        for (const u64 key : mSelection.selectedEdges())
+        {
+            const s32 edge = topo.findEdge(static_cast<u32>(key >> 32), static_cast<u32>(key & 0xFFFFFFFFu));
+            if (edge < 0)
+                continue;
+            for (const u32 face : topo.edges()[static_cast<usize>(edge)].faces)
+                hide(face);
+        }
+    }
+
+    if (!changed)
+        return false;
+    mSelection.clearAll();
+    setHiddenFaces(std::move(hidden));
+    return true;
+}
+
+bool BlenderApplication::hideUnselected()
+{
+    if (!mMeshData || mMeshData->indices.empty())
+        return false;
+
+    const usize faceCount = mMeshData->indices.size() / 3;
+    const MeshTopology& topo = topology();
+
+    // Which triangles count as selected depends on what is being selected: a
+    // face itself; a triangle whose three corners are; a triangle whose three
+    // edges are.
+    std::vector<u8> keep(faceCount, 0);
+    switch (mSelection.mode())
+    {
+    case BlenderSelection::SelectionMode::Face:
+        for (const u32 face : mSelection.selectedFaces())
+            if (face < faceCount)
+                keep[face] = 1;
+        break;
+    case BlenderSelection::SelectionMode::Vertex:
+    {
+        std::vector<bool> point(mMeshData->positions.size(), false);
+        for (const u32 vertex : mSelection.selectedVertices())
+            if (vertex < point.size())
+                point[topo.canonical(vertex)] = true;
+        for (u32 face = 0; face < faceCount; ++face)
+        {
+            bool all = true;
+            for (u32 corner = 0; corner < 3; ++corner)
+            {
+                const u32 index = mMeshData->indices[face * 3 + corner];
+                all = all && index < point.size() && point[topo.canonical(index)];
+            }
+            keep[face] = all ? 1 : 0;
+        }
+        break;
+    }
+    case BlenderSelection::SelectionMode::Edge:
+        for (u32 face = 0; face < faceCount; ++face)
+        {
+            bool all = true;
+            for (const s32 edge : topo.faceEdges(face))
+            {
+                all = all && edge >= 0 &&
+                      mSelection.isEdgeSelected(MeshTopology::edgeKey(topo.edges()[static_cast<usize>(edge)].a,
+                                                                      topo.edges()[static_cast<usize>(edge)].b));
+            }
+            keep[face] = all ? 1 : 0;
+        }
+        break;
+    }
+
+    std::vector<u8> hidden(faceCount, 0);
+    bool changed = false;
+    for (u32 face = 0; face < faceCount; ++face)
+    {
+        const bool alreadyHidden = isFaceHidden(face);
+        hidden[face] = (!keep[face] || alreadyHidden) ? 1 : 0;
+        changed = changed || (hidden[face] && !alreadyHidden);
+    }
+    if (!changed)
+        return false;
+    mSelection.clearAll();
+    setHiddenFaces(std::move(hidden));
+    return true;
+}
+
+void BlenderApplication::unhideAll()
+{
+    if (mHasHidden || !mHiddenFaces.empty())
+        setHiddenFaces({});
+}
+
+const std::vector<u8>& BlenderApplication::hiddenVertexFlags()
+{
+    if (mHiddenVerticesRevision == mHiddenRevision && mHiddenVertices.size() == (mMeshData ? mMeshData->positions.size() : 0))
+        return mHiddenVertices;
+
+    mHiddenVertices.clear();
+    mHiddenVerticesRevision = mHiddenRevision;
+    if (!mHasHidden || !mMeshData || mHiddenFaces.size() != mMeshData->indices.size() / 3)
+        return mHiddenVertices;
+
+    // Hidden when it has triangles and every one of them is hidden.
+    const usize vertexCount = mMeshData->positions.size();
+    std::vector<u8> used(vertexCount, 0);
+    std::vector<u8> shown(vertexCount, 0);
+    for (usize face = 0; face < mHiddenFaces.size(); ++face)
+    {
+        for (u32 corner = 0; corner < 3; ++corner)
+        {
+            const u32 index = mMeshData->indices[face * 3 + corner];
+            if (index >= vertexCount)
+                continue;
+            used[index] = 1;
+            if (!mHiddenFaces[face])
+                shown[index] = 1;
+        }
+    }
+    mHiddenVertices.assign(vertexCount, 0);
+    for (usize v = 0; v < vertexCount; ++v)
+        mHiddenVertices[v] = (used[v] && !shown[v]) ? 1 : 0;
+    return mHiddenVertices;
+}
+
+void BlenderApplication::deleteSelectedEdges()
+{
+    if (!mMeshData || mSelection.selectedEdgeCount() == 0)
+        return;
+
+    // An edge cannot be removed and leave the triangles on either side of it, so
+    // deleting one takes them with it - Blender's "Edges" delete does the same.
+    const MeshTopology& topo = topology();
+    std::set<u32> faces;
+    for (const u64 key : mSelection.selectedEdges())
+    {
+        const s32 edge = topo.findEdge(static_cast<u32>(key >> 32), static_cast<u32>(key & 0xFFFFFFFFu));
+        if (edge < 0)
+            continue;
+        for (const u32 face : topo.edges()[static_cast<usize>(edge)].faces)
+            faces.insert(face);
+    }
+    if (faces.empty())
+        return;
+
+    const usize edgeCount = mSelection.selectedEdgeCount();
+    recordUndo();
+    Assets().deleteFaces(*mMeshData, std::vector<u32>(faces.begin(), faces.end()));
+    mSelection.clearAll();
+    mSelectedSubmesh = -1;
+    Log::info("BlenderApplication: deleted %zu edges (%zu faces)", edgeCount, faces.size());
+    applyMeshEdit();
+}
+
 void BlenderApplication::groupSelectedFacesIntoSubmesh()
 {
     if (!mMeshData || mSelection.selectedFaceCount() == 0)
@@ -517,6 +758,8 @@ void BlenderApplication::undo()
     mUndoStates.pop_back();
     trimUndoStates();
     mRenderer.invalidate();
+    ++mMeshRevision;
+    validateHidden();
     markDirty();
 }
 
@@ -528,6 +771,8 @@ void BlenderApplication::redo()
     *mMeshData = std::move(mRedoStates.back());
     mRedoStates.pop_back();
     mRenderer.invalidate();
+    ++mMeshRevision;
+    validateHidden();
     markDirty();
 }
 
@@ -875,6 +1120,14 @@ void BlenderApplication::drawSelectMenu()
         growSelection();
     if (ImGui::MenuItem("Shrink", "Ctrl+-"))
         shrinkSelection();
+    ImGui::Separator();
+    if (ImGui::MenuItem("Hide Selected", "H"))
+        hideSelected();
+    if (ImGui::MenuItem("Hide Unselected", "Shift+H"))
+        hideUnselected();
+    if (ImGui::MenuItem("Reveal Hidden", "Alt+H", false, mHasHidden))
+        unhideAll();
+    ImGui::Separator();
     if (ImGui::MenuItem("Select Linked", "L"))
         selectLinked();
     ImGui::EndDisabled();
@@ -914,6 +1167,26 @@ void BlenderApplication::growSelection()
     if (!mMeshData)
         return;
 
+    if (mSelection.mode() == BlenderSelection::SelectionMode::Edge)
+    {
+        // Every edge that touches an end of a selected one.
+        const MeshTopology& topo = topology();
+        std::set<u32> ends;
+        for (const u64 key : mSelection.selectedEdges())
+        {
+            ends.insert(static_cast<u32>(key >> 32));
+            ends.insert(static_cast<u32>(key & 0xFFFFFFFFu));
+        }
+        std::vector<u64> grown = mSelection.selectedEdges();
+        for (const MeshTopology::Edge& edge : topo.edges())
+        {
+            if (ends.count(edge.a) || ends.count(edge.b))
+                grown.push_back(MeshTopology::edgeKey(edge.a, edge.b));
+        }
+        mSelection.setEdges(grown);
+        return;
+    }
+
     std::vector<u32> grown;
     if (mSelection.mode() == BlenderSelection::SelectionMode::Face)
     {
@@ -951,6 +1224,37 @@ void BlenderApplication::selectLinked()
 {
     if (!mMeshData)
         return;
+
+    if (mSelection.mode() == BlenderSelection::SelectionMode::Edge)
+    {
+        // Flood along edges that share an end, from the selected ones.
+        const MeshTopology& topo = topology();
+        std::unordered_map<u32, std::vector<u64>> byVertex;
+        for (const MeshTopology::Edge& edge : topo.edges())
+        {
+            const u64 key = MeshTopology::edgeKey(edge.a, edge.b);
+            byVertex[edge.a].push_back(key);
+            byVertex[edge.b].push_back(key);
+        }
+
+        std::set<u64> reached(mSelection.selectedEdges().begin(), mSelection.selectedEdges().end());
+        std::vector<u64> frontier(reached.begin(), reached.end());
+        while (!frontier.empty())
+        {
+            const u64 key = frontier.back();
+            frontier.pop_back();
+            for (const u32 end : {static_cast<u32>(key >> 32), static_cast<u32>(key & 0xFFFFFFFFu)})
+            {
+                for (const u64 other : byVertex[end])
+                {
+                    if (reached.insert(other).second)
+                        frontier.push_back(other);
+                }
+            }
+        }
+        mSelection.setEdges(std::vector<u64>(reached.begin(), reached.end()));
+        return;
+    }
 
     std::vector<u32> linked;
     if (mSelection.mode() == BlenderSelection::SelectionMode::Face)
@@ -999,25 +1303,40 @@ void BlenderApplication::buildSelectableMask(std::vector<bool>& faceSelectable,
     const usize faceCount = mesh.indices.size() / 3;
     const usize vertexCount = mesh.positions.size();
 
-    // No submeshes means nothing to hide behind: the mesh is one piece.
-    const bool everythingVisible = mesh.submeshes.empty();
+    // No submeshes and nothing hidden means nothing to hide behind: the mesh is
+    // one piece.
+    const bool everythingVisible = mesh.submeshes.empty() && !mHasHidden;
     faceSelectable.assign(faceCount, everythingVisible);
     vertexSelectable.assign(vertexCount, everythingVisible);
     if (everythingVisible)
         return;
 
-    for (u32 s = 0; s < static_cast<u32>(mesh.submeshes.size()); ++s)
+    // A mesh without submeshes is one range covering every index.
+    std::vector<std::pair<u64, u64>> ranges;
+    if (mesh.submeshes.empty())
     {
-        if (!isSubmeshVisible(s))
-            continue;
+        ranges.emplace_back(0, mesh.indices.size());
+    }
+    else
+    {
+        for (u32 s = 0; s < static_cast<u32>(mesh.submeshes.size()); ++s)
+        {
+            if (!isSubmeshVisible(s))
+                continue;
+            const SubMesh& submesh = mesh.submeshes[s];
+            ranges.emplace_back(submesh.indexOffset,
+                                static_cast<u64>(submesh.indexOffset) + submesh.indexCount);
+        }
+    }
 
-        const SubMesh& submesh = mesh.submeshes[s];
-        const u64 end = static_cast<u64>(submesh.indexOffset) + submesh.indexCount;
-        for (u64 i = submesh.indexOffset; i + 2 < end && i + 2 < mesh.indices.size(); i += 3)
+    for (const auto& range : ranges)
+    {
+        for (u64 i = range.first; i + 2 < range.second && i + 2 < mesh.indices.size(); i += 3)
         {
             const usize face = static_cast<usize>(i / 3);
-            if (face < faceCount)
-                faceSelectable[face] = true;
+            if (face >= faceCount || isFaceHidden(static_cast<u32>(face)))
+                continue;
+            faceSelectable[face] = true;
 
             for (u32 corner = 0; corner < 3; ++corner)
             {
@@ -1031,7 +1350,7 @@ void BlenderApplication::buildSelectableMask(std::vector<bool>& faceSelectable,
 
 void BlenderApplication::dropHiddenFromSelection()
 {
-    if (!mMeshData || mMeshData->submeshes.empty())
+    if (!mMeshData || (mMeshData->submeshes.empty() && !mHasHidden))
         return;
 
     std::vector<bool> faceSelectable;
@@ -1047,12 +1366,38 @@ void BlenderApplication::dropHiddenFromSelection()
     for (usize i = 0; i < faces.size(); ++i)
         if (faces[i] >= faceSelectable.size() || !faceSelectable[faces[i]])
             mSelection.deselectFace(faces[i]);
+
+    // An edge stays reachable while any triangle on it does.
+    if (mSelection.selectedEdgeCount() > 0)
+    {
+        const MeshTopology& topo = topology();
+        const std::vector<u64> edges = mSelection.selectedEdges();
+        for (const u64 key : edges)
+        {
+            const s32 edge = topo.findEdge(static_cast<u32>(key >> 32), static_cast<u32>(key & 0xFFFFFFFFu));
+            bool reachable = false;
+            if (edge >= 0)
+            {
+                for (const u32 face : topo.edges()[static_cast<usize>(edge)].faces)
+                    reachable = reachable || (face < faceSelectable.size() && faceSelectable[face]);
+            }
+            if (!reachable)
+                mSelection.deselectEdge(key);
+        }
+    }
 }
 
 void BlenderApplication::selectAllElements()
 {
     if (!mMeshData)
         return;
+    if (mSelection.mode() == BlenderSelection::SelectionMode::Edge)
+    {
+        mSelection.clearAll();
+        mSelection.setEdges(allEdgeKeys());
+        dropHiddenFromSelection();
+        return;
+    }
     mSelection.selectAll(static_cast<u32>(mMeshData->positions.size()),
                          static_cast<u32>(mMeshData->indices.size() / 3));
     dropHiddenFromSelection();
@@ -1062,6 +1407,18 @@ void BlenderApplication::invertElementSelection()
 {
     if (!mMeshData)
         return;
+    if (mSelection.mode() == BlenderSelection::SelectionMode::Edge)
+    {
+        std::vector<u64> inverted;
+        for (const u64 key : allEdgeKeys())
+        {
+            if (!mSelection.isEdgeSelected(key))
+                inverted.push_back(key);
+        }
+        mSelection.setEdges(inverted);
+        dropHiddenFromSelection();
+        return;
+    }
     mSelection.invertSelection(static_cast<u32>(mMeshData->positions.size()),
                                static_cast<u32>(mMeshData->indices.size() / 3));
     dropHiddenFromSelection();
@@ -1073,6 +1430,8 @@ void BlenderApplication::deleteSelected()
         deleteSelectedVertices();
     else if (mSelection.mode() == BlenderSelection::SelectionMode::Face)
         deleteSelectedFaces();
+    else
+        deleteSelectedEdges();
 }
 
 // Keyboard is how a modelling tool is actually driven; every one of these was
@@ -1132,6 +1491,16 @@ void BlenderApplication::handleShortcuts()
     if (ImGui::IsKeyPressed(ImGuiKey_X, false) || ImGui::IsKeyPressed(ImGuiKey_Delete, false))
         deleteSelected();
 
+    if (ImGui::IsKeyPressed(ImGuiKey_H, false))
+    {
+        if (io.KeyAlt)
+            unhideAll();
+        else if (io.KeyShift)
+            hideUnselected();
+        else
+            hideSelected();
+    }
+
     if (ImGui::IsKeyPressed(ImGuiKey_E, false))
         extrudeFaces(mExtrudeDistance);
 
@@ -1153,15 +1522,10 @@ void BlenderApplication::drawVertexMenu()
 
 void BlenderApplication::drawEdgeMenu()
 {
-    // Edge mode has no selection behind it - updateSelectionInput() returns
-    // straight away for it - so there is never anything here to delete.
-    ImGui::BeginDisabled(true);
-    if (ImGui::MenuItem("Delete Selected", "X"))
-    {
-    }
-    ImGui::EndDisabled();
+    if (ImGui::MenuItem("Delete Selected", "X", false, mSelection.selectedEdgeCount() > 0))
+        deleteSelectedEdges();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Edge selection is not implemented");
+        ImGui::SetTooltip("Removes the selected edges and the triangles on either side of them.");
 }
 
 void BlenderApplication::drawFaceMenu()
@@ -1229,6 +1593,73 @@ void BlenderApplication::applyFaceUVTransform(const glm::vec2& scale, f32 rotati
     applyMeshEdit();
 }
 
+const MeshTopology& BlenderApplication::topology()
+{
+    if (mTopologyRevision != mMeshRevision)
+    {
+        if (mMeshData)
+            mTopology.build(*mMeshData);
+        else
+            mTopology = MeshTopology();
+        mTopologyRevision = mMeshRevision;
+    }
+    return mTopology;
+}
+
+std::vector<u32> BlenderApplication::editVertices()
+{
+    std::vector<u32> vertices;
+    if (!mMeshData)
+        return vertices;
+
+    const MeshTopology& topo = topology();
+    const u32 vertexCount = static_cast<u32>(mMeshData->positions.size());
+
+    std::vector<u32> seeds = mSelection.selectedVertices();
+    for (const u32 face : mSelection.selectedFaces())
+    {
+        for (u32 corner = 0; corner < 3; ++corner)
+        {
+            const usize at = static_cast<usize>(face) * 3 + corner;
+            if (at < mMeshData->indices.size())
+                seeds.push_back(mMeshData->indices[at]);
+        }
+    }
+    for (const u64 key : mSelection.selectedEdges())
+    {
+        seeds.push_back(static_cast<u32>(key >> 32));
+        seeds.push_back(static_cast<u32>(key & 0xFFFFFFFFu));
+    }
+    if (seeds.empty())
+        return vertices;
+
+    // Widen every seed to its canonical point, then collect everything standing
+    // at a selected point in one pass over the mesh.
+    std::vector<bool> selectedPoint(vertexCount, false);
+    for (const u32 seed : seeds)
+    {
+        if (seed < vertexCount)
+            selectedPoint[topo.canonical(seed)] = true;
+    }
+    for (u32 v = 0; v < vertexCount; ++v)
+    {
+        if (selectedPoint[topo.canonical(v)])
+            vertices.push_back(v);
+    }
+    return vertices;
+}
+
+std::vector<u64> BlenderApplication::allEdgeKeys()
+{
+    std::vector<u64> keys;
+    const MeshTopology& topo = topology();
+    keys.reserve(topo.edges().size());
+    for (const MeshTopology::Edge& edge : topo.edges())
+        keys.push_back(MeshTopology::edgeKey(edge.a, edge.b));
+    std::sort(keys.begin(), keys.end());
+    return keys;
+}
+
 bool BlenderApplication::extrudeFaces(f32 distance)
 {
     if (!mMeshData || mSelection.selectedFaceCount() == 0)
@@ -1258,12 +1689,12 @@ bool BlenderApplication::extrudeFaces(f32 distance)
     return true;
 }
 
-glm::vec3 BlenderApplication::transformPivot() const
+glm::vec3 BlenderApplication::transformPivot()
 {
     if (!mMeshData || mMeshData->positions.empty())
         return glm::vec3(0.0f);
 
-    const std::vector<u32>& selected = mSelection.selectedVertices();
+    const std::vector<u32> selected = editVertices();
     const std::vector<glm::vec3>& positions = mMeshData->positions;
 
     glm::dvec3 sum(0.0);
@@ -1300,7 +1731,7 @@ bool BlenderApplication::beginGizmoDrag()
 
     recordUndo();
 
-    mGizmoIndices = mSelection.selectedVertices();
+    mGizmoIndices = editVertices();
     mGizmoPositions = mMeshData->positions;
     mGizmoNormals = mMeshData->normals;
     mGizmoTangents = mMeshData->tangents;
@@ -1335,6 +1766,8 @@ void BlenderApplication::endGizmoDrag()
         return;
 
     mGizmoDragging = false;
+    // The drag moved positions a frame at a time; what stands where is settled now.
+    ++mMeshRevision;
     mGizmoIndices.clear();
     mGizmoIndices.shrink_to_fit();
     mGizmoPositions.clear();
@@ -1353,10 +1786,10 @@ void BlenderApplication::applyTransform(const glm::mat4& matrix, const char* ver
         return;
 
     recordUndo();
-    Assets().transformVertices(*mMeshData, matrix, mSelection.selectedVertices());
+    const std::vector<u32> vertices = editVertices();
+    Assets().transformVertices(*mMeshData, matrix, vertices);
     Log::info("BlenderApplication: %s %zu vertices", verb,
-              mSelection.selectedVertexCount() > 0 ? mSelection.selectedVertexCount()
-                                                   : mMeshData->positions.size());
+              vertices.empty() ? mMeshData->positions.size() : vertices.size());
     applyMeshEdit();
 }
 
@@ -1395,6 +1828,8 @@ void BlenderApplication::newDocument()
 
     mDirty = false;
     mRenderer.invalidate();
+    ++mMeshRevision;
+    unhideAll();
     Log::info("BlenderApplication: new document");
 }
 
@@ -2357,7 +2792,7 @@ void BlenderApplication::drawToolPopups()
         {
             recordUndo();
             const u32 removed = Assets().weldVertices(*mMeshData, mWeldDistance,
-                                                       mSelection.selectedVertices());
+                                                       editVertices());
             Log::info("BlenderApplication: weld removed %u vertices (distance %.4f)", removed,
                       mWeldDistance);
             mSelection.clearAll();
@@ -2373,11 +2808,8 @@ void BlenderApplication::drawToolPopups()
         if (ImGui::Button("Apply", ImVec2(-1.0f, 0.0f)))
         {
             recordUndo();
-            Assets().smoothVertices(*mMeshData, mSmoothingStrength, 1, mSelection.selectedVertices());
-            Log::info("BlenderApplication: smoothed %zu vertices (strength %.2f)",
-                      mSelection.selectedVertexCount() > 0 ? mSelection.selectedVertexCount()
-                                                            : mMeshData->positions.size(),
-                      mSmoothingStrength);
+            Assets().smoothVertices(*mMeshData, mSmoothingStrength, 1, editVertices());
+            Log::info("BlenderApplication: smoothed the selection (strength %.2f)", mSmoothingStrength);
             applyMeshEdit();
             ImGui::CloseCurrentPopup();
         }
