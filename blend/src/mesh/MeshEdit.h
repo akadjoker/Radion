@@ -128,6 +128,31 @@ bool inset(MeshData& mesh, const std::vector<u32>& faces, f32 thickness, f32 dep
 // mesh, so vertex numbers change.
 bool bevel(MeshData& mesh, const std::vector<u64>& edges, f32 width, std::string* error = nullptr);
 
+// Closes open borders with triangles. `edges` picks the borders to close (every
+// border that has one of those edges); empty means every border. A border
+// longer than `maxEdges` is left open. Concave outlines are triangulated by ear
+// clipping in the plane they lie nearest to. `filled` receives how many borders
+// were closed.
+bool fillHoles(MeshData& mesh, const std::vector<u64>& edges, u32 maxEdges, u32* filled = nullptr,
+               std::string* error = nullptr);
+
+// Joins two borders with a strip of triangles, the way a tube joins two rings.
+// `edges` picks the borders (exactly two must be chosen); empty means the mesh
+// must have exactly two. The borders may have different numbers of edges; the
+// strip starts where the two lie closest.
+bool bridge(MeshData& mesh, const std::vector<u64>& edges, std::string* error = nullptr);
+
+// Copies `faces` (every triangle when empty) mirrored across the plane where
+// coordinate `axis` (0 = x, 1 = y, 2 = z) equals `offset`, with the winding
+// turned back so the copy faces outward. With `weld` greater than zero, vertices
+// within that distance of the plane are shared by the copy instead of doubled,
+// so the two halves join without a seam.
+bool mirror(MeshData& mesh, s32 axis, f32 offset, f32 weld, const std::vector<u32>& faces,
+            std::string* error = nullptr);
+
+// Joins submeshes into one (the lowest-numbered of them; its material stays).
+bool mergeSubmeshes(MeshData& mesh, const std::vector<u32>& submeshes, std::string* error = nullptr);
+
 // Drops the vertices no triangle uses, renumbering the rest (the order is kept).
 // Returns how many went.
 u32 removeUnusedVertices(MeshData& mesh);

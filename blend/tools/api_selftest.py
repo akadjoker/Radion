@@ -247,7 +247,70 @@ def group_cuts(api):
     expect_error(api, "failed", "inset", thickness=0.1)
 
 
-GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts}
+def group_assemble(api):
+    # Fill: a box missing its top face.
+    fresh_box(api)
+    api.call("select", mode="face", action="set", box={"min": [-1.1, 0.9, -1.1], "max": [1.1, 1.1, 1.1]})
+    api.call("delete_selection")
+    check(status(api)["triangles"] == 10, "the top face (2 triangles) is gone")
+    r = api.call("fill_holes")
+    check(r["filled"] == 1 and r["triangles"] == 12, f"the hole is closed again: {r}")
+    expect_error(api, "failed", "fill_holes")  # closed now
+
+    # Bridge: two separate quads joined by a strip.
+    api.call("new_document")
+    api.call("add_primitive", type="plane", size=[2, 1, 2], segments_x=1, segments_z=1, name="lower")
+    api.call("add_primitive", type="plane", size=[2, 1, 2], segments_x=1, segments_z=1, name="upper", position=[0, 2, 0])
+    r = api.call("bridge")  # the mesh has exactly two open borders
+    check(r["trianglesAdded"] == 8 and r["triangles"] == 12, f"4 + 4 strip triangles between the planes: {r}")
+    expect_error(api, "failed", "fill_holes")  # the strip closed both borders
+    expect_error(api, "failed", "bridge")      # and there is nothing left to bridge
+
+    # Mirror: half a box, opened at the mirror plane, mirrored into a whole one.
+    api.call("new_document")
+    api.call("add_primitive", type="box", size=[1, 1, 1], position=[0.5, 0, 0])
+    api.call("select", mode="face", action="set", box={"min": [-0.1, -1, -1], "max": [0.1, 1, 1]})
+    api.call("delete_selection")
+    r = api.call("mirror", axis="x")
+    check(r["triangles"] == 20, f"10 + 10 triangles, got {r['triangles']}")
+    check(approx(r["bounds"]["min"][0], -1.0) and approx(r["bounds"]["max"][0], 1.0), "the box is now 2 wide")
+    expect_error(api, "failed", "fill_holes")  # the welded halves leave no border
+    expect_error(api, "invalid_params", "mirror", axis="w")
+
+    # Symmetry: moving vertices on one side moves the mirror ones too.
+    fresh_box(api)
+    api.call("subdivide")
+    api.call("set_symmetry", axis="x")
+    check(status(api)["symmetry"]["axis"] == "x", "symmetry is reported")
+    api.call("select", mode="vertex", action="set", box={"min": [0.4, 0.9, -1.1], "max": [1.1, 1.1, 1.1]})
+    api.call("transform_selection", position=[0, 0.5, 0])
+    data = api.call("get_mesh_data", max_vertices=2000)
+    raised = [p for p in data["positions"] if approx(p[1], 1.5)]
+    check(len(raised) > 0 and any(p[0] > 0.3 for p in raised) and any(p[0] < -0.3 for p in raised),
+          "the mirrored side rose with it")
+    api.call("set_symmetry", axis="none")
+    check(status(api)["symmetry"] is None, "symmetry off")
+
+    # Merge and separate parts.
+    api.call("new_document")
+    for index in range(3):
+        api.call("add_primitive", type="box", size=[1, 1, 1], position=[index * 2, 0, 0], name=f"box{index}")
+    r = api.call("merge_parts", parts=["box0", 2])
+    check(len(r["parts"]) == 2 and r["parts"][0]["triangles"] == 24 and r["parts"][1]["name"] == "box1",
+          f"boxes 0 and 2 are one part now: {r['parts']}")
+    expect_error(api, "invalid_params", "merge_parts", parts=["box1", "ghost"])
+
+    fresh_box(api)
+    api.call("select", mode="face", action="set", box={"min": [-1.1, 0.9, -1.1], "max": [1.1, 1.1, 1.1]})
+    r = api.call("separate_selection", name="lid", color="#00ff00")
+    parts = status(api)["parts"]
+    check(len(parts) == 2 and any(p["name"] == "lid" and p["triangles"] == 2 for p in parts),
+          f"the top face is a part of its own: {parts}")
+    api.call("select", action="clear")
+    expect_error(api, "failed", "separate_selection")
+
+
+GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble}
 
 
 # ------------------------------------------------------------------- driver

@@ -1548,3 +1548,436 @@ u32 MeshEdit::removeUnusedVertices(MeshData& mesh)
         index = remap[index];
     return static_cast<u32>(count) - kept;
 }
+
+// ------------------------------------------------------------ fill and bridge
+
+namespace
+{
+// A border as the vertex indices its own triangles use, walked the way those
+// triangles walk it, and the submesh of the first of them.
+struct Border
+{
+    std::vector<u32> canonical;
+    std::vector<u32> index;
+    u32 submesh = 0;
+};
+
+// Every closed border loop of the mesh, with real vertex indices.
+std::vector<Border> collectBorders(const MeshData& mesh, const MeshTopology& topology, const Faces& faces)
+{
+    std::vector<Border> borders;
+    for (const std::vector<u32>& loop : topology.boundaryLoops(mesh))
+    {
+        Border border;
+        border.canonical = loop;
+        bool ok = true;
+        for (usize i = 0; i < loop.size() && ok; ++i)
+        {
+            const u32 from = loop[i];
+            const u32 to = loop[(i + 1) % loop.size()];
+            const s32 edgeIndex = topology.findEdge(from, to);
+            if (edgeIndex < 0)
+            {
+                ok = false;
+                break;
+            }
+            const MeshTopology::Edge& edge = topology.edges()[static_cast<usize>(edgeIndex)];
+            const u32 face = edge.faces[0];
+            u32 found = ~0u;
+            for (u32 c = 0; c < 3; ++c)
+                if (topology.canonical(faces.tri[face][c]) == from && topology.canonical(faces.tri[face][(c + 1) % 3]) == to)
+                    found = faces.tri[face][c];
+            if (found == ~0u)
+            {
+                ok = false;
+                break;
+            }
+            border.index.push_back(found);
+            if (i == 0)
+                border.submesh = faces.submesh[face];
+        }
+        if (ok)
+            borders.push_back(std::move(border));
+    }
+    return borders;
+}
+
+bool borderHasEdge(const Border& border, u64 key)
+{
+    for (usize i = 0; i < border.canonical.size(); ++i)
+        if (MeshTopology::edgeKey(border.canonical[i], border.canonical[(i + 1) % border.canonical.size()]) == key)
+            return true;
+    return false;
+}
+
+// Triangulates a planar-ish polygon by ear clipping. `points` are in order;
+// returns index triples into `points`, counter-clockwise relative to that order.
+std::vector<std::array<u32, 3>> triangulatePolygon(const std::vector<glm::vec3>& points)
+{
+    const usize n = points.size();
+    std::vector<std::array<u32, 3>> out;
+    if (n < 3)
+        return out;
+
+    // The plane the outline lies nearest to: Newell's normal.
+    glm::vec3 normal(0.0f);
+    for (usize i = 0; i < n; ++i)
+    {
+        const glm::vec3& a = points[i];
+        const glm::vec3& b = points[(i + 1) % n];
+        normal.x += (a.y - b.y) * (a.z + b.z);
+        normal.y += (a.z - b.z) * (a.x + b.x);
+        normal.z += (a.x - b.x) * (a.y + b.y);
+    }
+    if (glm::length(normal) < 1.0e-12f)
+    {
+        // Degenerate outline: a fan is as good as anything.
+        for (u32 i = 1; i + 1 < n; ++i)
+            out.push_back({0, i, i + 1});
+        return out;
+    }
+    normal = glm::normalize(normal);
+
+    // Project onto the two axes that best keep the shape.
+    glm::vec3 u = glm::normalize(std::abs(normal.x) < 0.9f ? glm::cross(normal, glm::vec3(1, 0, 0))
+                                                          : glm::cross(normal, glm::vec3(0, 1, 0)));
+    const glm::vec3 v = glm::cross(normal, u);
+    std::vector<glm::vec2> flat(n);
+    for (usize i = 0; i < n; ++i)
+        flat[i] = glm::vec2(glm::dot(points[i], u), glm::dot(points[i], v));
+
+    // With Newell's normal the outline runs counter-clockwise in (u, v).
+    auto cross2 = [](const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+    { return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x); };
+    auto inside = [&](const glm::vec2& p, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+    {
+        const f32 d1 = cross2(a, b, p);
+        const f32 d2 = cross2(b, c, p);
+        const f32 d3 = cross2(c, a, p);
+        return d1 >= -1.0e-9f && d2 >= -1.0e-9f && d3 >= -1.0e-9f;
+    };
+
+    std::vector<u32> ring(n);
+    for (u32 i = 0; i < n; ++i)
+        ring[i] = i;
+
+    while (ring.size() > 3)
+    {
+        bool clipped = false;
+        f32 flattest = 1.0e30f;
+        usize flattestAt = 0;
+        for (usize k = 0; k < ring.size(); ++k)
+        {
+            const u32 a = ring[(k + ring.size() - 1) % ring.size()];
+            const u32 b = ring[k];
+            const u32 c = ring[(k + 1) % ring.size()];
+            const f32 area = cross2(flat[a], flat[b], flat[c]);
+            if (std::abs(area) < flattest)
+            {
+                flattest = std::abs(area);
+                flattestAt = k;
+            }
+            if (area <= 1.0e-12f)
+                continue; // a reflex (or flat) corner is not an ear
+            bool empty = true;
+            for (const u32 other : ring)
+            {
+                if (other == a || other == b || other == c)
+                    continue;
+                if (inside(flat[other], flat[a], flat[b], flat[c]))
+                {
+                    empty = false;
+                    break;
+                }
+            }
+            if (!empty)
+                continue;
+            out.push_back({a, b, c});
+            ring.erase(ring.begin() + static_cast<long>(k));
+            clipped = true;
+            break;
+        }
+        if (!clipped)
+        {
+            // No proper ear (a degenerate or self-touching outline): take the
+            // flattest corner so the loop always finishes.
+            const usize k = flattestAt;
+            out.push_back({ring[(k + ring.size() - 1) % ring.size()], ring[k], ring[(k + 1) % ring.size()]});
+            ring.erase(ring.begin() + static_cast<long>(k));
+        }
+    }
+    out.push_back({ring[0], ring[1], ring[2]});
+    return out;
+}
+} // namespace
+
+bool MeshEdit::fillHoles(MeshData& mesh, const std::vector<u64>& edges, u32 maxEdges, u32* filled, std::string* error)
+{
+    if (mesh.positions.empty() || mesh.indices.size() < 3)
+        return fail(error, "the mesh is empty");
+
+    MeshTopology topology;
+    topology.build(mesh);
+    Faces faces = readFaces(mesh);
+    const std::vector<Border> borders = collectBorders(mesh, topology, faces);
+    if (borders.empty())
+        return fail(error, "the mesh has no open border");
+
+    u32 count = 0;
+    bool tooLong = false;
+    for (const Border& border : borders)
+    {
+        if (!edges.empty())
+        {
+            bool wanted = false;
+            for (const u64 key : edges)
+            {
+                // Edge keys name canonical ids, looked up as they stand now.
+                if (borderHasEdge(border, key))
+                {
+                    wanted = true;
+                    break;
+                }
+            }
+            if (!wanted)
+                continue;
+        }
+        if (border.canonical.size() > maxEdges)
+        {
+            tooLong = true;
+            continue;
+        }
+
+        // The new face walks each border edge the opposite way to the triangle
+        // that has it: the border reversed.
+        const usize n = border.canonical.size();
+        std::vector<glm::vec3> points(n);
+        std::vector<u32> indexOf(n);
+        for (usize i = 0; i < n; ++i)
+        {
+            const usize from = n - 1 - i;
+            points[i] = mesh.positions[border.canonical[from]];
+            indexOf[i] = border.index[from];
+        }
+        for (const std::array<u32, 3>& tri : triangulatePolygon(points))
+        {
+            faces.tri.push_back({indexOf[tri[0]], indexOf[tri[1]], indexOf[tri[2]]});
+            faces.submesh.push_back(border.submesh);
+        }
+        ++count;
+    }
+
+    if (count == 0)
+        return fail(error, tooLong ? "every chosen border is longer than the limit" : "none of the chosen edges is on an open border");
+    if (faces.tri.size() > kMaxTriangles)
+        return fail(error, "the result would have too many triangles");
+
+    writeFaces(mesh, faces);
+    if (filled)
+        *filled = count;
+    return true;
+}
+
+bool MeshEdit::bridge(MeshData& mesh, const std::vector<u64>& edges, std::string* error)
+{
+    if (mesh.positions.empty() || mesh.indices.size() < 3)
+        return fail(error, "the mesh is empty");
+
+    MeshTopology topology;
+    topology.build(mesh);
+    Faces faces = readFaces(mesh);
+    const std::vector<Border> all = collectBorders(mesh, topology, faces);
+
+    std::vector<const Border*> chosen;
+    for (const Border& border : all)
+    {
+        if (edges.empty())
+        {
+            chosen.push_back(&border);
+            continue;
+        }
+        for (const u64 key : edges)
+        {
+            if (borderHasEdge(border, key))
+            {
+                chosen.push_back(&border);
+                break;
+            }
+        }
+    }
+    if (chosen.size() != 2)
+        return fail(error, "bridging needs exactly two open borders, found " + std::to_string(chosen.size()));
+
+    const Border& first = *chosen[0];
+    const Border& second = *chosen[1];
+    const usize n1 = first.canonical.size();
+    const usize n2 = second.canonical.size();
+
+    // The second border, turned round: two rings facing each other run opposite
+    // ways, and the strip pairs each vertex of one with the vertex across.
+    std::vector<u32> b(n2);
+    std::vector<u32> bIndex(n2);
+    for (usize i = 0; i < n2; ++i)
+    {
+        b[i] = second.canonical[n2 - 1 - i];
+        bIndex[i] = second.index[n2 - 1 - i];
+    }
+
+    // Start the strip where the two rings lie closest: try every rotation.
+    usize bestShift = 0;
+    f32 bestCost = 1.0e30f;
+    for (usize shift = 0; shift < n2; ++shift)
+    {
+        f32 cost = 0.0f;
+        for (usize i = 0; i < n1; ++i)
+        {
+            const usize j = (shift + (i * n2) / n1) % n2;
+            const glm::vec3 d = mesh.positions[first.canonical[i]] - mesh.positions[b[j]];
+            cost += glm::dot(d, d);
+        }
+        if (cost < bestCost)
+        {
+            bestCost = cost;
+            bestShift = shift;
+        }
+    }
+
+    auto A = [&](usize i) { return first.index[i % n1]; };
+    auto B = [&](usize j) { return bIndex[(bestShift + j) % n2]; };
+
+    // Walk both rings together, always advancing the one that is further behind.
+    usize i = 0;
+    usize j = 0;
+    while (i < n1 || j < n2)
+    {
+        const bool advanceFirst = i < n1 && (j >= n2 || (i + 1) * n2 <= (j + 1) * n1);
+        if (advanceFirst)
+        {
+            faces.tri.push_back({A(i + 1), A(i), B(j)});
+            ++i;
+        }
+        else
+        {
+            faces.tri.push_back({A(i), B(j), B(j + 1)});
+            ++j;
+        }
+        faces.submesh.push_back(first.submesh);
+    }
+
+    if (faces.tri.size() > kMaxTriangles)
+        return fail(error, "the result would have too many triangles");
+    writeFaces(mesh, faces);
+    return true;
+}
+
+// --------------------------------------------------------------------- mirror
+
+bool MeshEdit::mirror(MeshData& mesh, s32 axis, f32 offset, f32 weld, const std::vector<u32>& selected,
+                      std::string* error)
+{
+    if (axis < 0 || axis > 2)
+        return fail(error, "axis must be 0, 1 or 2");
+    if (mesh.positions.empty() || mesh.indices.size() < 3)
+        return fail(error, "the mesh is empty");
+    if (!std::isfinite(offset) || !(weld >= 0.0f))
+        return fail(error, "offset must be finite and weld must not be negative");
+
+    Faces faces = readFaces(mesh);
+    const usize faceCount = faces.tri.size();
+    std::vector<u32> chosen;
+    if (selected.empty())
+    {
+        chosen.resize(faceCount);
+        for (u32 f = 0; f < faceCount; ++f)
+            chosen[f] = f;
+    }
+    else
+    {
+        for (const u32 f : selected)
+        {
+            if (f >= faceCount)
+                return fail(error, "a face index is out of range");
+            chosen.push_back(f);
+        }
+    }
+    if (faceCount + chosen.size() > kMaxTriangles)
+        return fail(error, "the result would have too many triangles");
+
+    MeshData work = mesh;
+    std::unordered_map<u32, u32> mirrored;
+    auto mirrorOf = [&](u32 vertex) -> u32
+    {
+        const auto found = mirrored.find(vertex);
+        if (found != mirrored.end())
+            return found->second;
+
+        // On the plane: the copy would land on the original, so share it.
+        if (weld > 0.0f && std::abs(work.positions[vertex][axis] - offset) <= weld)
+        {
+            mirrored[vertex] = vertex;
+            return vertex;
+        }
+        const u32 copy = lerpVertex(work, vertex, vertex, 0.0f);
+        work.positions[copy][axis] = 2.0f * offset - work.positions[copy][axis];
+        if (copy < work.normals.size())
+            work.normals[copy][axis] = -work.normals[copy][axis];
+        if (copy < work.tangents.size())
+        {
+            // A reflection reverses handedness.
+            work.tangents[copy][axis] = -work.tangents[copy][axis];
+            work.tangents[copy].w = -work.tangents[copy].w;
+        }
+        mirrored[vertex] = copy;
+        return copy;
+    };
+
+    Faces out = faces;
+    for (const u32 f : chosen)
+    {
+        const Tri& t = faces.tri[f];
+        // The mirror image of a triangle is wound the other way; swap two corners to turn it back.
+        out.tri.push_back({mirrorOf(t[0]), mirrorOf(t[2]), mirrorOf(t[1])});
+        out.submesh.push_back(faces.submesh[f]);
+    }
+    writeFaces(work, out);
+    mesh = std::move(work);
+    return true;
+}
+
+// ----------------------------------------------------------------- submeshes
+
+bool MeshEdit::mergeSubmeshes(MeshData& mesh, const std::vector<u32>& submeshes, std::string* error)
+{
+    std::vector<u32> parts = submeshes;
+    std::sort(parts.begin(), parts.end());
+    parts.erase(std::unique(parts.begin(), parts.end()), parts.end());
+    if (parts.size() < 2)
+        return fail(error, "give at least two different parts to join");
+    for (const u32 part : parts)
+        if (part >= mesh.submeshes.size())
+            return fail(error, "a part index is out of range");
+
+    Faces faces = readFaces(mesh);
+    const u32 keep = parts.front();
+
+    // New position of every submesh once the joined ones are gone.
+    std::vector<u32> newIndex(mesh.submeshes.size());
+    u32 next = 0;
+    for (u32 s = 0; s < mesh.submeshes.size(); ++s)
+    {
+        const bool joined = std::binary_search(parts.begin(), parts.end(), s);
+        if (joined && s != keep)
+            continue;
+        newIndex[s] = next++;
+    }
+    for (const u32 part : parts)
+        newIndex[part] = newIndex[keep];
+
+    for (u32& s : faces.submesh)
+        s = newIndex[s];
+    for (usize k = parts.size(); k-- > 1;)
+        mesh.submeshes.erase(mesh.submeshes.begin() + parts[k]);
+
+    writeFaces(mesh, faces);
+    return true;
+}

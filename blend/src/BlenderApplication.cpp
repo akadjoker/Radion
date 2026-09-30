@@ -1168,19 +1168,279 @@ void BlenderApplication::groupSelectedFacesIntoSubmesh()
 {
     if (!mMeshData || mSelection.selectedFaceCount() == 0)
         return;
+    separateSelectedFaces();
+}
 
-    const usize count = mSelection.selectedFaceCount();
-    recordUndo();
-    if (Assets().groupFacesIntoSubmesh(*mMeshData, mSelection.selectedFaces()))
+bool BlenderApplication::separateSelectedFaces(s32* newPart, std::string* error)
+{
+    if (!mMeshData || mMeshData->indices.empty())
     {
-        mSelection.clearAll();
-        mSelectedSubmesh = static_cast<s32>(mMeshData->submeshes.size()) - 1;
-        Log::info("BlenderApplication: grouped %zu faces into submesh %d", count, mSelectedSubmesh);
-        applyMeshEdit();
+        if (error)
+            *error = "the document has no mesh";
+        return false;
     }
-    else
+
+    const std::vector<u32> faces = selectionFaces(false);
+    if (faces.empty())
+    {
+        if (error)
+            *error = "the selection does not contain a whole face";
+        return false;
+    }
+
+    recordUndo();
+    if (!Assets().groupFacesIntoSubmesh(*mMeshData, faces))
     {
         discardUndo();
+        if (error)
+            *error = "those faces already make up a whole part";
+        return false;
+    }
+
+    mSelection.clearAll();
+    mSelectedSubmesh = static_cast<s32>(mMeshData->submeshes.size()) - 1;
+    if (newPart)
+        *newPart = mSelectedSubmesh;
+    Log::info("BlenderApplication: grouped %zu faces into submesh %d", faces.size(), mSelectedSubmesh);
+    applyMeshEdit();
+    return true;
+}
+
+u32 BlenderApplication::fillHoles(u32 maxEdges, std::string* error)
+{
+    if (!mMeshData || mMeshData->indices.empty())
+    {
+        if (error)
+            *error = "the document has no mesh";
+        return 0;
+    }
+
+    recordUndo();
+    u32 filled = 0;
+    std::string why;
+    if (!MeshEdit::fillHoles(*mMeshData, mSelection.selectedEdges(), maxEdges, &filled, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return 0;
+    }
+
+    if (!mMeshData->normals.empty())
+        Assets().recalculateNormals(*mMeshData, mSmoothNormals, mAngleWeightedNormals);
+    mSelection.clearAll();
+    Log::info("BlenderApplication: filled %u open borders", filled);
+    applyMeshEdit();
+    return filled;
+}
+
+bool BlenderApplication::bridgeBorders(std::string* error)
+{
+    if (!mMeshData || mMeshData->indices.empty())
+    {
+        if (error)
+            *error = "the document has no mesh";
+        return false;
+    }
+
+    recordUndo();
+    std::string why;
+    if (!MeshEdit::bridge(*mMeshData, mSelection.selectedEdges(), &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    if (!mMeshData->normals.empty())
+        Assets().recalculateNormals(*mMeshData, mSmoothNormals, mAngleWeightedNormals);
+    mSelection.clearAll();
+    Log::info("BlenderApplication: bridged two borders");
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::mirrorGeometry(s32 axis, f32 offset, f32 weld, std::string* error)
+{
+    if (!mMeshData || mMeshData->indices.empty())
+    {
+        if (error)
+            *error = "the document has no mesh";
+        return false;
+    }
+
+    const bool anySelected = mSelection.selectedVertexCount() > 0 || mSelection.selectedFaceCount() > 0 ||
+                             mSelection.selectedEdgeCount() > 0;
+    std::vector<u32> faces;
+    if (anySelected)
+    {
+        faces = selectionFaces(false);
+        if (faces.empty())
+        {
+            if (error)
+                *error = "the selection does not contain a whole face";
+            return false;
+        }
+    }
+
+    recordUndo();
+    std::string why;
+    if (!MeshEdit::mirror(*mMeshData, axis, offset, weld, faces, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    mSelection.clearAll();
+    Log::info("BlenderApplication: mirrored %s across %c = %.3f", faces.empty() ? "the mesh" : "the selection",
+              "xyz"[axis], offset);
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::mergeParts(const std::vector<u32>& parts, std::string* error)
+{
+    if (!mMeshData || mMeshData->submeshes.empty())
+    {
+        if (error)
+            *error = "the document has no parts";
+        return false;
+    }
+
+    std::vector<u32> sorted = parts;
+    std::sort(sorted.begin(), sorted.end());
+    sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
+
+    recordUndo();
+    std::string why;
+    if (!MeshEdit::mergeSubmeshes(*mMeshData, sorted, &why))
+    {
+        discardUndo();
+        if (error)
+            *error = why;
+        return false;
+    }
+
+    // The viewport's per-part visibility and the picked part follow the renumbering.
+    const u32 keep = sorted.front();
+    for (usize k = sorted.size(); k-- > 1;)
+        if (sorted[k] < mSubmeshVisible.size())
+            mSubmeshVisible.erase(mSubmeshVisible.begin() + sorted[k]);
+    if (keep < mSubmeshVisible.size())
+        mSubmeshVisible[keep] = true;
+    mSelectedSubmesh = -1;
+    mSelection.clearAll();
+    Log::info("BlenderApplication: joined %zu parts", sorted.size());
+    applyMeshEdit();
+    return true;
+}
+
+void BlenderApplication::setSymmetry(s32 axis, f32 offset)
+{
+    mSymmetryAxis = axis >= 0 && axis <= 2 ? axis : -1;
+    mSymmetryOffset = offset;
+}
+
+std::vector<u32> BlenderApplication::symmetryPartners(const std::vector<u32>& vertices) const
+{
+    std::vector<u32> partners;
+    if (!mMeshData || mSymmetryAxis < 0 || vertices.empty())
+        return partners;
+
+    const std::vector<glm::vec3>& positions = mMeshData->positions;
+    const s32 axis = mSymmetryAxis;
+    constexpr f32 kTolerance = 1.0e-4f;
+    auto mirrored = [&](glm::vec3 p)
+    {
+        p[axis] = 2.0f * mSymmetryOffset - p[axis];
+        return p;
+    };
+
+    // Every vertex, by the cell it stands in, so a mirrored point finds what is at
+    // it without walking the whole mesh.
+    struct Cell
+    {
+        s64 x, y, z;
+        bool operator==(const Cell& o) const { return x == o.x && y == o.y && z == o.z; }
+    };
+    struct CellHash
+    {
+        usize operator()(const Cell& c) const
+        {
+            return static_cast<usize>(static_cast<u64>(c.x) * 73856093ull ^ static_cast<u64>(c.y) * 19349663ull ^
+                                      static_cast<u64>(c.z) * 83492791ull);
+        }
+    };
+    auto cellOf = [](const glm::vec3& p)
+    {
+        return Cell{static_cast<s64>(std::floor(p.x / 1.0e-3f)), static_cast<s64>(std::floor(p.y / 1.0e-3f)),
+                    static_cast<s64>(std::floor(p.z / 1.0e-3f))};
+    };
+    std::unordered_map<Cell, std::vector<u32>, CellHash> grid;
+    grid.reserve(positions.size());
+    for (u32 v = 0; v < positions.size(); ++v)
+        grid[cellOf(positions[v])].push_back(v);
+
+    std::vector<bool> inSet(positions.size(), false);
+    for (const u32 v : vertices)
+        if (v < inSet.size())
+            inSet[v] = true;
+
+    std::vector<bool> taken(positions.size(), false);
+    for (const u32 v : vertices)
+    {
+        if (v >= positions.size())
+            continue;
+        // A vertex on the plane is its own partner: nothing separate to move.
+        if (std::abs(positions[v][axis] - mSymmetryOffset) <= kTolerance)
+            continue;
+
+        const glm::vec3 target = mirrored(positions[v]);
+        const Cell home = cellOf(target);
+        for (s64 dx = -1; dx <= 1; ++dx)
+            for (s64 dy = -1; dy <= 1; ++dy)
+                for (s64 dz = -1; dz <= 1; ++dz)
+                {
+                    const auto found = grid.find({home.x + dx, home.y + dy, home.z + dz});
+                    if (found == grid.end())
+                        continue;
+                    for (const u32 candidate : found->second)
+                    {
+                        if (inSet[candidate] || taken[candidate])
+                            continue;
+                        if (glm::distance(positions[candidate], target) <= kTolerance)
+                        {
+                            taken[candidate] = true;
+                            partners.push_back(candidate);
+                        }
+                    }
+                }
+    }
+    return partners;
+}
+
+void BlenderApplication::transformVerticesWorld(const glm::mat4& world, const std::vector<u32>& vertices)
+{
+    if (!mMeshData)
+        return;
+
+    // The partners must be found before anything moves.
+    const std::vector<u32> partners = symmetryPartners(vertices);
+    Assets().transformVerticesAbout(*mMeshData, world, glm::vec3(0.0f), vertices);
+    if (!partners.empty())
+    {
+        glm::vec3 flip(1.0f);
+        flip[mSymmetryAxis] = -1.0f;
+        glm::mat4 reflect = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f));
+        glm::vec3 shift(0.0f);
+        shift[mSymmetryAxis] = 2.0f * mSymmetryOffset;
+        // x -> 2*offset - x along the axis.
+        reflect = glm::translate(glm::mat4(1.0f), shift) * glm::scale(glm::mat4(1.0f), flip);
+        // M * W * M, with M its own inverse: what the partner must do to mirror the move.
+        Assets().transformVerticesAbout(*mMeshData, reflect * world * reflect, glm::vec3(0.0f), partners);
     }
 }
 
@@ -2033,6 +2293,16 @@ void BlenderApplication::drawEdgeMenu()
     report();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetTooltip("Adds a vertex in the middle of each selected edge.");
+    if (ImGui::MenuItem("Fill Hole", nullptr, false, anyEdge))
+        fillHoles(256, &why);
+    report();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Closes the open border the selected edge is on.");
+    if (ImGui::MenuItem("Bridge", nullptr, false, anyEdge))
+        bridgeBorders(&why);
+    report();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Joins two open borders (select an edge on each) with a strip of triangles.");
     ImGui::Separator();
     ImGui::SetNextItemWidth(120.0f);
     ImGui::SliderInt("Loops", &mLoopCuts, 1, 8);
@@ -2283,6 +2553,7 @@ bool BlenderApplication::beginGizmoDrag()
     recordUndo();
 
     mGizmoIndices = editVertices();
+    mGizmoPartners = symmetryPartners(mGizmoIndices);
     mGizmoPositions = mMeshData->positions;
     mGizmoNormals = mMeshData->normals;
     mGizmoTangents = mMeshData->tangents;
@@ -2308,6 +2579,15 @@ void BlenderApplication::updateGizmoDrag(const glm::mat4& worldDelta)
     // The gizmo's matrix already sits at the pivot, so the delta is applied
     // in world space rather than around the median a second time.
     Assets().transformVerticesAbout(*mMeshData, worldDelta, glm::vec3(0.0f), mGizmoIndices);
+    if (!mGizmoPartners.empty())
+    {
+        glm::vec3 flip(1.0f);
+        flip[mSymmetryAxis] = -1.0f;
+        glm::vec3 shift(0.0f);
+        shift[mSymmetryAxis] = 2.0f * mSymmetryOffset;
+        const glm::mat4 reflect = glm::translate(glm::mat4(1.0f), shift) * glm::scale(glm::mat4(1.0f), flip);
+        Assets().transformVerticesAbout(*mMeshData, reflect * worldDelta * reflect, glm::vec3(0.0f), mGizmoPartners);
+    }
     applyMeshEdit(true);
 }
 
@@ -2321,6 +2601,7 @@ void BlenderApplication::endGizmoDrag()
     ++mMeshRevision;
     mGizmoIndices.clear();
     mGizmoIndices.shrink_to_fit();
+    mGizmoPartners.clear();
     mGizmoPositions.clear();
     mGizmoPositions.shrink_to_fit();
     mGizmoNormals.clear();
@@ -2338,7 +2619,21 @@ void BlenderApplication::applyTransform(const glm::mat4& matrix, const char* ver
 
     recordUndo();
     const std::vector<u32> vertices = editVertices();
-    Assets().transformVertices(*mMeshData, matrix, vertices);
+    if (mSymmetryAxis >= 0 && !vertices.empty())
+    {
+        // About the selection's own median, like transformVertices, but through the
+        // symmetric path so the opposite side follows.
+        glm::dvec3 sum(0.0);
+        for (const u32 v : vertices)
+            sum += glm::dvec3(mMeshData->positions[v]);
+        const glm::vec3 pivot = glm::vec3(sum / static_cast<double>(vertices.size()));
+        transformVerticesWorld(glm::translate(glm::mat4(1.0f), pivot) * matrix * glm::translate(glm::mat4(1.0f), -pivot),
+                               vertices);
+    }
+    else
+    {
+        Assets().transformVertices(*mMeshData, matrix, vertices);
+    }
     Log::info("BlenderApplication: %s %zu vertices", verb,
               vertices.empty() ? mMeshData->positions.size() : vertices.size());
     applyMeshEdit();
@@ -3248,6 +3543,31 @@ void BlenderApplication::drawMeshMenu()
         ImGui::SetTooltip("Cuts every triangle the plane crosses and keeps all the geometry, "
                           "unlike Bisect. The new line of edges is selected.");
 
+    ImGui::SetNextItemWidth(90.0f);
+    ImGui::Combo("##mirrorAxis", &mMirrorAxis, "X\0Y\0Z\0");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(90.0f);
+    ImGui::DragFloat("##mirrorOffset", &mMirrorOffset, 0.01f, -1000.0f, 1000.0f, "%.3f");
+    if (ImGui::MenuItem("Mirror"))
+    {
+        std::string why;
+        if (!mirrorGeometry(mMirrorAxis, mMirrorOffset, 1.0e-4f, &why))
+            Log::warning("BlenderApplication: %s", why.c_str());
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Adds a mirror image of the selected faces (or the whole mesh) across the "
+                          "plane. Vertices on the plane are shared.");
+
+    {
+        int symmetry = mSymmetryAxis + 1;
+        ImGui::SetNextItemWidth(90.0f);
+        if (ImGui::Combo("Symmetry", &symmetry, "Off\0X\0Y\0Z\0"))
+            setSymmetry(symmetry - 1, mMirrorOffset);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("While on, moving vertices also moves the mirrored ones across the "
+                              "plane at the Mirror offset above.");
+    }
+
     if (ImGui::MenuItem("Convex Hull"))
         makeConvexHull();
     if (ImGui::IsItemHovered())
@@ -3595,6 +3915,11 @@ void BlenderApplication::drawStatusBar()
         ImGui::Text("Select: %s", modeName);
     }
 
+    if (mSymmetryAxis >= 0)
+    {
+        ImGui::SameLine(0.0f, 24.0f);
+        ImGui::TextColored(ImVec4(0.45f, 0.75f, 1.0f, 1.0f), "Sym %c", "XYZ"[mSymmetryAxis]);
+    }
     if (apiRunning())
     {
         ImGui::SameLine(0.0f, 24.0f);

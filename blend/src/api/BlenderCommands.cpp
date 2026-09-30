@@ -456,6 +456,10 @@ Json statusJson(BlenderApplication& app)
                    {"selection", selectionJson(app)}};
 
     status["hiddenTriangles"] = app.hiddenFaceCount();
+    status["symmetry"] = app.symmetryAxis() < 0
+                             ? Json(nullptr)
+                             : Json({{"axis", std::string(1, "xyz"[app.symmetryAxis()])},
+                                     {"offset", app.symmetryOffset()}});
 
     if (hasMesh)
     {
@@ -1570,10 +1574,13 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 const glm::mat4 about = composeTransform(glm::vec3(0.0f), vec3Arg(args, "rotation", glm::vec3(0.0f)),
                                                          scaleArg(args, "scale"));
                 editor->recordUndo();
-                Assets().transformVerticesAbout(mesh, glm::translate(glm::mat4(1.0f), offset) * about,
-                                                pivot, vertices);
+                const glm::mat4 world = glm::translate(glm::mat4(1.0f), pivot) *
+                                        (glm::translate(glm::mat4(1.0f), offset) * about) *
+                                        glm::translate(glm::mat4(1.0f), -pivot);
+                editor->transformVerticesWorld(world, vertices);
                 editor->applyMeshEdit();
-                return result({{"vertices", vertices.size()}, {"bounds", boundsJson(mesh.bounds)}});
+                return result({{"vertices", vertices.size()}, {"symmetry", editor->symmetryAxis() >= 0},
+                               {"bounds", boundsJson(mesh.bounds)}});
             });
     }
 
@@ -1776,6 +1783,127 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 failed(why.empty() ? "nothing was bevelled" : why);
             return result({{"triangles", mesh.indices.size() / 3}, {"vertices", mesh.positions.size()}});
         });
+
+    add("fill_holes",
+        "Closes open borders with triangles. Selected edges (mode 'edge') pick the borders; with "
+        "nothing selected every open border is filled. Concave outlines are handled. Use to cap a "
+        "tube, plug a gap, or finish a shape made of open pieces.",
+        objectSchema({{"max_edges", integerSchema("Skip borders longer than this (default 256).")}}), false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const u32 maxEdges = static_cast<u32>(args.integer("max_edges", 256, 3, 100000));
+            std::string why;
+            const u32 filled = editor->fillHoles(maxEdges, &why);
+            if (filled == 0)
+                failed(why.empty() ? "nothing was filled" : why);
+            return result({{"filled", filled}, {"triangles", mesh.indices.size() / 3}});
+        });
+
+    add("bridge",
+        "Joins two open borders with a strip of triangles, like a tube between two rings (they may "
+        "have different numbers of edges). Select one edge on each border (mode 'edge'), or have a "
+        "mesh with exactly two open borders.",
+        objectSchema(Json::object()), false,
+        [editor](const CommandArgs&)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const usize before = mesh.indices.size() / 3;
+            std::string why;
+            if (!editor->bridgeBorders(&why))
+                failed(why.empty() ? "nothing was bridged" : why);
+            return result({{"trianglesAdded", mesh.indices.size() / 3 - before}, {"triangles", mesh.indices.size() / 3}});
+        });
+
+    add("mirror",
+        "Adds a mirror image of the selected faces (the whole mesh when nothing is selected) across "
+        "the plane 'axis' = 'offset', inside the same part. Model half of a symmetric shape - "
+        "fuselage, hull, face - then mirror it. Vertices within 'weld' of the plane are shared so "
+        "the halves join seamlessly (open the seam side first: delete the faces lying in the plane "
+        "or they end up inside). For a separate mirrored COPY of a whole part use duplicate_part.",
+        objectSchema({{"axis", choiceSchema("Plane perpendicular to this axis.", {"x", "y", "z"})},
+                      {"offset", numberSchema("Where the plane is along the axis. Default 0.")},
+                      {"weld", numberSchema("Share vertices this close to the plane. Default 0.0001; 0 keeps the halves separate.")}},
+                     {"axis"}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const std::string axis = args.requireChoice("axis", {"x", "y", "z"});
+            const f32 offset = static_cast<f32>(args.number("offset", 0.0, -kMaxCoordinate, kMaxCoordinate));
+            const f32 weld = static_cast<f32>(args.number("weld", 0.0001, 0.0, 10.0));
+            std::string why;
+            if (!editor->mirrorGeometry(axis == "x" ? 0 : axis == "y" ? 1 : 2, offset, weld, &why))
+                failed(why.empty() ? "nothing was mirrored" : why);
+            return result({{"triangles", mesh.indices.size() / 3}, {"vertices", mesh.positions.size()},
+                           {"bounds", boundsJson(mesh.bounds)}});
+        });
+
+    add("set_symmetry",
+        "Turns live symmetry on or off. While on, transform_selection and the gizmo also move the "
+        "vertices opposite the selection across the plane, mirrored - edit one side of a model and "
+        "the other follows. Vertices lying in the plane stay in it.",
+        objectSchema({{"axis", choiceSchema("Mirror plane perpendicular to this axis, or 'none'.", {"none", "x", "y", "z"})},
+                      {"offset", numberSchema("Where the plane is along the axis. Default 0.")}},
+                     {"axis"}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            const std::string axis = args.requireChoice("axis", {"none", "x", "y", "z"});
+            const f32 offset = static_cast<f32>(args.number("offset", 0.0, -kMaxCoordinate, kMaxCoordinate));
+            editor->setSymmetry(axis == "none" ? -1 : axis == "x" ? 0 : axis == "y" ? 1 : 2, offset);
+            return result({{"axis", axis}, {"offset", offset}});
+        });
+
+    add("merge_parts",
+        "Joins several parts into one (the lowest-numbered of them keeps its name and material). "
+        "Their triangles stay as they are; they just become a single part.",
+        objectSchema({{"parts", {{"type", "array"}, {"minItems", 2}, {"items", partRefSchema()},
+                                 {"description", "Parts to join, by index or name."}}}},
+                     {"parts"}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            const Json* list = args.raw("parts");
+            if (!list || !list->is_array() || list->size() < 2)
+                invalid("argument 'parts' must list at least two parts");
+            if (list->size() > 1000)
+                invalid("argument 'parts' may hold at most 1000 entries");
+
+            std::vector<u32> indices;
+            for (const Json& entry : *list)
+            {
+                const Json holder = {{"part", entry}};
+                indices.push_back(resolvePart(*editor, CommandArgs(holder)));
+            }
+            std::string why;
+            if (!editor->mergeParts(indices, &why))
+                failed(why.empty() ? "nothing was joined" : why);
+            return result({{"parts", statusJson(*editor)["parts"]}});
+        });
+
+    {
+        Json properties = {};
+        addStyleProperties(properties);
+        add("separate_selection",
+            "Makes the selected whole faces a part of their own (optionally named and coloured), so "
+            "they can be moved, hidden, restyled or deleted separately. Faces in the selection that "
+            "already make up a whole part are refused.",
+            objectSchema(properties), false,
+            [editor](const CommandArgs& args)
+            {
+                requireMesh(*editor);
+                s32 part = -1;
+                std::string why;
+                if (!editor->separateSelectedFaces(&part, &why))
+                    failed(why.empty() ? "nothing was separated" : why);
+                const BlenderApplication::PartStyle style = styleArg(args);
+                if ((!style.name.empty() || style.hasColor || style.hasRoughness || style.hasMetallic) &&
+                    !editor->styleSubmesh(static_cast<u32>(part), style))
+                    failed("the part was made but could not be restyled");
+                return partAdded(*editor, part);
+            });
+    }
 
     add("snap_to_grid",
         "Rounds the positions of the selected vertices (or of the whole mesh when nothing is "

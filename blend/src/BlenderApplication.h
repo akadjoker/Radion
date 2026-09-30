@@ -296,6 +296,42 @@ public:
     // Insets the selected faces as one region and selects the shrunken region.
     bool insetSelection(f32 thickness, f32 depth, std::string* error = nullptr);
     bool bevelSelectedEdges(f32 width, std::string* error = nullptr);
+    // Closes the open borders that have a selected edge (every open border when no
+    // edge is selected). Returns how many were closed.
+    u32 fillHoles(u32 maxEdges, std::string* error = nullptr);
+    // Joins the two open borders the selected edges belong to (or the mesh's only
+    // two) with a strip of triangles.
+    bool bridgeBorders(std::string* error = nullptr);
+    // Adds a mirror image of the selected faces (the whole mesh when none) across
+    // the plane where coordinate `axis` equals `offset`; geometry within `weld` of
+    // the plane is shared so the halves join.
+    bool mirrorGeometry(s32 axis, f32 offset, f32 weld, std::string* error = nullptr);
+    // Joins parts (submeshes) into the lowest-numbered of them.
+    bool mergeParts(const std::vector<u32>& parts, std::string* error = nullptr);
+    // Makes the selected faces a part of their own. `newPart` receives its index.
+    bool separateSelectedFaces(s32* newPart = nullptr, std::string* error = nullptr);
+
+    // -- Symmetry
+    //
+    // While it is on, moving, rotating or scaling vertices does the mirror image to
+    // the vertices standing opposite them across the plane - model one half and the
+    // other follows. Vertices on the plane itself are left as they are moved.
+    // `axis` is -1 (off), 0, 1 or 2.
+    void setSymmetry(s32 axis, f32 offset);
+    s32 symmetryAxis() const
+    {
+        return mSymmetryAxis;
+    }
+    f32 symmetryOffset() const
+    {
+        return mSymmetryOffset;
+    }
+    // The vertices that stand opposite `vertices` across the symmetry plane and are
+    // not themselves in it or on the plane. Empty when symmetry is off.
+    std::vector<u32> symmetryPartners(const std::vector<u32>& vertices) const;
+    // Applies `world` (a transform in world space) to `vertices`, and its mirror
+    // image to their partners when symmetry is on. An empty list is the whole mesh.
+    void transformVerticesWorld(const glm::mat4& world, const std::vector<u32>& vertices);
 
     // -- Hide
     //
@@ -620,11 +656,16 @@ private:
     std::vector<MeshData> mUndoStates;
     std::vector<MeshData> mRedoStates;
 
+    s32 mSymmetryAxis = -1;
+    f32 mSymmetryOffset = 0.0f;
+    std::vector<u32> mGizmoPartners;
     s32 mSubdivideLevels = 1;
     s32 mLoopCuts = 1;
     f32 mBevelWidth = 0.1f;
     f32 mInsetThickness = 0.1f;
     f32 mInsetDepth = 0.0f;
+    s32 mMirrorAxis = 0;
+    f32 mMirrorOffset = 0.0f;
     s32 mKnifeAxis = 1;
     f32 mKnifeOffset = 0.0f;
     f32 mWeldDistance = 0.001f;

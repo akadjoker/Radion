@@ -989,10 +989,248 @@ void testBevelRefusals()
     CHECK(mesh.indices.size() == 36); // every refusal left the mesh alone
 }
 
+f32 triangleAreaSum(const MeshData& mesh, usize firstFace, usize lastFace)
+{
+    f32 total = 0.0f;
+    for (usize f = firstFace; f < lastFace; ++f)
+    {
+        const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
+        const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+        const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+        total += 0.5f * glm::length(glm::cross(b - a, c - a));
+    }
+    return total;
+}
+
+void testFillAClosedOffHole()
+{
+    // A cube missing its +X face: fill puts it back, facing out.
+    MeshData mesh = weldedCube();
+    // Faces 10 and 11 are the x = 1 face (the sixth quad).
+    mesh.indices.resize(30);
+    std::string error;
+    u32 filled = 0;
+    CHECK(MeshEdit::fillHoles(mesh, {}, 64, &filled, &error));
+    CHECK(filled == 1);
+    const Report r = analyse(mesh);
+    CHECK(r.closed && r.consistent && r.valid);
+    CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
+    CHECK(facesOutward(mesh, glm::vec3(0.5f)));
+    CHECK(analyse(mesh).faces == 12);
+}
+
+void testFillAConcaveHole()
+{
+    // An L-shaped hole well inside a 4x4 grid: three cells removed.
+    MeshData mesh = quadGrid(4, 4);
+    std::vector<u32> kept;
+    const std::set<u32> holeCells = {1 * 4 + 1, 1 * 4 + 2, 2 * 4 + 1}; // (x,z) = (1,1), (2,1), (1,2)
+    for (u32 cell = 0; cell < 16; ++cell)
+    {
+        if (holeCells.count(cell))
+            continue;
+        kept.insert(kept.end(), mesh.indices.begin() + cell * 6, mesh.indices.begin() + cell * 6 + 6);
+    }
+    mesh.indices = kept;
+    const usize before = mesh.indices.size() / 3;
+
+    // The hole's own border: pick one of its edges (the one from vertex (1,1) to (2,1)).
+    const u64 holeEdge = MeshTopology::edgeKey(1 * 5 + 1, 1 * 5 + 2);
+    u32 filled = 0;
+    CHECK(MeshEdit::fillHoles(mesh, {holeEdge}, 64, &filled));
+    CHECK(filled == 1);
+    // Exactly the hole is filled: three cells = area 3, every triangle facing up.
+    CHECK(std::abs(triangleAreaSum(mesh, before, mesh.indices.size() / 3) - 3.0f) < 1.0e-4f);
+    for (usize f = before; f < mesh.indices.size() / 3; ++f)
+    {
+        const glm::vec3& a = mesh.positions[mesh.indices[f * 3]];
+        const glm::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
+        const glm::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
+        CHECK(glm::cross(b - a, c - a).y > 0.0f);
+    }
+    const MeshTopology topology = topologyOf(mesh);
+    CHECK(topology.boundaryLoops(mesh).size() == 1); // only the grid's outer border remains
+}
+
+void testFillRefusals()
+{
+    std::string error;
+    MeshData closed = weldedCube();
+    CHECK(!MeshEdit::fillHoles(closed, {}, 64, nullptr, &error));
+
+    MeshData open = weldedCube();
+    open.indices.resize(30);
+    CHECK(!MeshEdit::fillHoles(open, {}, 3, nullptr, &error)); // the hole has four edges
+    CHECK(!MeshEdit::fillHoles(open, {MeshTopology::edgeKey(0, 99)}, 64, nullptr, &error));
+    CHECK(open.indices.size() == 30);
+}
+
+// Two bands, `count` quads round, `gap` apart along Y.
+MeshData twoBands(u32 countA, u32 countB)
+{
+    MeshData a = band(countA);
+    MeshData b = band(countB);
+    for (glm::vec3& p : b.positions)
+        p.y += 2.0f;
+    const u32 base = static_cast<u32>(a.positions.size());
+    a.positions.insert(a.positions.end(), b.positions.begin(), b.positions.end());
+    for (const u32 index : b.indices)
+        a.indices.push_back(index + base);
+    return a;
+}
+
+void testBridgeEqualRings()
+{
+    MeshData mesh = twoBands(8, 8);
+    // An edge of the first band's top ring (vertices 8..15) and of the second's
+    // bottom ring (second band starts at 16).
+    const u64 top = MeshTopology::edgeKey(8, 9);
+    const u64 bottom = MeshTopology::edgeKey(16, 17);
+    const usize before = mesh.indices.size() / 3;
+    std::string error;
+    CHECK(MeshEdit::bridge(mesh, {top, bottom}, &error));
+    // 8 quads between the rings.
+    CHECK(mesh.indices.size() / 3 == before + 16);
+    const Report r = analyse(mesh);
+    CHECK(r.valid && r.consistent);
+    // Two border rings have become one tube: only the far ends stay open.
+    const MeshTopology topology = topologyOf(mesh);
+    CHECK(topology.boundaryLoops(mesh).size() == 2);
+    for (const MeshTopology::Edge& edge : topology.edges())
+        CHECK(!topology.isNonManifold(static_cast<u32>(&edge - &topology.edges()[0])));
+}
+
+void testBridgeUnequalRings()
+{
+    MeshData mesh = twoBands(8, 12);
+    const u64 top = MeshTopology::edgeKey(8, 9);
+    const u64 bottom = MeshTopology::edgeKey(16 + 0, 16 + 1);
+    const usize before = mesh.indices.size() / 3;
+    std::string error;
+    CHECK(MeshEdit::bridge(mesh, {top, bottom}, &error));
+    CHECK(mesh.indices.size() / 3 == before + 8 + 12); // one triangle per edge of either ring
+    const Report r = analyse(mesh);
+    CHECK(r.valid && r.consistent);
+}
+
+void testBridgeRefusals()
+{
+    std::string error;
+    MeshData mesh = twoBands(8, 8);
+    // Four open borders and none chosen: ambiguous.
+    CHECK(!MeshEdit::bridge(mesh, {}, &error));
+    // One border only.
+    CHECK(!MeshEdit::bridge(mesh, {MeshTopology::edgeKey(8, 9)}, &error));
+    MeshData closed = weldedCube();
+    CHECK(!MeshEdit::bridge(closed, {}, &error));
+}
+
+void testMirrorHalfACube()
+{
+    // A cube with its x = 0 face missing, mirrored across x = 0 and welded: a
+    // closed box twice as wide.
+    MeshData mesh = weldedCube();
+    std::vector<u32> kept;
+    for (usize f = 0; f < 12; ++f)
+    {
+        bool onPlane = true;
+        for (u32 c = 0; c < 3; ++c)
+            onPlane = onPlane && mesh.positions[mesh.indices[f * 3 + c]].x == 0.0f;
+        if (!onPlane)
+            kept.insert(kept.end(), mesh.indices.begin() + f * 3, mesh.indices.begin() + f * 3 + 3);
+    }
+    mesh.indices = kept;
+    addAttributes(mesh);
+
+    std::string error;
+    CHECK(MeshEdit::mirror(mesh, 0, 0.0f, 1.0e-5f, {}, &error));
+    CHECK(arraysInStep(mesh));
+    const Report r = analyse(mesh);
+    CHECK(r.closed && r.consistent && r.valid);
+    CHECK(r.vertices == 12);
+    CHECK(mesh.indices.size() / 3 == 20);
+    CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
+    CHECK(mesh.bounds.min.x == -1.0f && mesh.bounds.max.x == 1.0f);
+    CHECK(facesOutward(mesh, glm::vec3(0.0f, 0.5f, 0.5f)));
+}
+
+void testMirrorWithoutWeld()
+{
+    MeshData mesh = octahedron();
+    CHECK(MeshEdit::mirror(mesh, 1, 2.0f, 0.0f, {}));
+    // A separate copy across y = 2: the bounds reach y = 5.
+    CHECK(std::abs(mesh.bounds.max.y - 5.0f) < 1.0e-5f);
+    CHECK(mesh.positions.size() == 12);
+    CHECK(mesh.indices.size() / 3 == 16);
+    const Report r = analyse(mesh);
+    CHECK(r.valid && r.consistent);
+    // Both copies are closed, consistent and face out from their own centres.
+    MeshData lower = octahedron();
+    CHECK(facesOutward(lower, glm::vec3(0.0f)));
+
+    // Only some faces.
+    MeshData some = octahedron();
+    CHECK(MeshEdit::mirror(some, 0, 0.0f, 0.0f, {0, 1}));
+    CHECK(some.indices.size() / 3 == 10);
+}
+
+void testMirrorRefusals()
+{
+    std::string error;
+    MeshData mesh = octahedron();
+    CHECK(!MeshEdit::mirror(mesh, 3, 0.0f, 0.0f, {}, &error));
+    CHECK(!MeshEdit::mirror(mesh, 0, NAN, 0.0f, {}, &error));
+    CHECK(!MeshEdit::mirror(mesh, 0, 0.0f, -1.0f, {}, &error));
+    CHECK(!MeshEdit::mirror(mesh, 0, 0.0f, 0.0f, {99}, &error));
+    CHECK(mesh.indices.size() == 24);
+}
+
+void testMergeSubmeshes()
+{
+    MeshData mesh = weldedCube();
+    SubMesh a;
+    a.indexCount = 12;
+    SubMesh b;
+    b.indexOffset = 12;
+    b.indexCount = 12;
+    b.materialSlot = 1;
+    SubMesh c;
+    c.indexOffset = 24;
+    c.indexCount = 12;
+    c.materialSlot = 2;
+    mesh.submeshes = {a, b, c};
+    mesh.materials.resize(3);
+
+    std::string error;
+    CHECK(MeshEdit::mergeSubmeshes(mesh, {2, 0}, &error));
+    CHECK(mesh.submeshes.size() == 2);
+    // The joined one is the lowest-numbered (0), holding both 0's and 2's triangles.
+    CHECK(mesh.submeshes[0].indexCount == 24);
+    CHECK(mesh.submeshes[0].materialSlot == 0);
+    CHECK(mesh.submeshes[1].indexCount == 12);
+    CHECK(mesh.submeshes[1].materialSlot == 1);
+    CHECK(mesh.submeshes[0].indexOffset == 0 && mesh.submeshes[1].indexOffset == 24);
+    CHECK(mesh.indices.size() == 36);
+
+    CHECK(!MeshEdit::mergeSubmeshes(mesh, {1}, &error));
+    CHECK(!MeshEdit::mergeSubmeshes(mesh, {0, 7}, &error));
+    CHECK(!MeshEdit::mergeSubmeshes(mesh, {1, 1}, &error));
+}
+
 } // namespace
 
 int main()
 {
+    testFillAClosedOffHole();
+    testFillAConcaveHole();
+    testFillRefusals();
+    testBridgeEqualRings();
+    testBridgeUnequalRings();
+    testBridgeRefusals();
+    testMirrorHalfACube();
+    testMirrorWithoutWeld();
+    testMirrorRefusals();
+    testMergeSubmeshes();
     testRemoveUnusedVertices();
     testInsetAFlatRegion();
     testInsetWithDepth();
