@@ -63,6 +63,11 @@ make radion_blender
 - [ ] Export animação como sequence
 - [ ] Import no editor Radion
 
+## API para scripts e LLM
+
+`radion_blender --api` liga uma API HTTP local (porta 7420) com ~40 comandos para
+criar e editar meshes e tirar screenshots — ver [doc/API.md](doc/API.md).
+
 ## Integração com Radion
 
 - Usa `Engine` do Radion para renderização
