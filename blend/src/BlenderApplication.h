@@ -117,6 +117,10 @@ public:
     {
         return !mRedoStates.empty();
     }
+    usize undoDepth() const
+    {
+        return mUndoStates.size();
+    }
 
     // Animation timeline
     u32 currentFrame() const
@@ -452,7 +456,8 @@ public:
     bool duplicateSubmesh(u32 index, const glm::mat4& placement, s32* newIndex = nullptr);
     // Restyles the material of one submesh. Other submeshes that share that
     // material slot are given their own copy first, so only this one changes.
-    bool styleSubmesh(u32 index, const PartStyle& style);
+    // `undoStep` false when the caller has already recorded the step this restyle belongs to.
+    bool styleSubmesh(u32 index, const PartStyle& style, bool undoStep = true);
     // Vertex colour painting. Colours are LINEAR RGBA (MeshPaint); `opacity` blends
     // the colour into what is there. Each returns how many vertices changed and
     // is one undo step. paintSelection() widens the selection to coincident

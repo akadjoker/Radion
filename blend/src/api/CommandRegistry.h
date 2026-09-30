@@ -130,6 +130,12 @@ struct CommandDef
     Json inputSchema = Json::object({{"type", "object"}, {"properties", Json::object()}});
     // True when the command never changes the document.
     bool readOnly = false;
+    // True when a successful call adds exactly one step to the editor's undo stack.
+    // False for read-only commands and for the ones that leave the stack alone
+    // (selection, visibility, file writers) or empty it (new_document, load_mesh,
+    // undo, redo). A client counting steps to "undo this request" reads it from the
+    // command listing instead of keeping a table of its own.
+    bool undoable = true;
     CommandHandler handler;
 };
 
@@ -140,6 +146,9 @@ public:
     void add(CommandDef def);
 
     const CommandDef* find(const std::string& name) const;
+    // Flags a registered command as not adding an undo step (see CommandDef::undoable).
+    // False when there is no such command.
+    bool setUndoable(const std::string& name, bool undoable);
     const std::vector<CommandDef>& commands() const
     {
         return mCommands;

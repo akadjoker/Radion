@@ -251,6 +251,19 @@ CommandOutcome CommandRegistry::call(const std::string& name, const Json& args) 
     return outcome;
 }
 
+bool CommandRegistry::setUndoable(const std::string& name, bool undoable)
+{
+    for (CommandDef& def : mCommands)
+    {
+        if (def.name == name)
+        {
+            def.undoable = undoable;
+            return true;
+        }
+    }
+    return false;
+}
+
 Json CommandRegistry::describe() const
 {
     Json list = Json::array();
@@ -259,6 +272,7 @@ Json CommandRegistry::describe() const
         list.push_back({{"name", def.name},
                         {"description", def.description},
                         {"readOnly", def.readOnly},
+                        {"undoable", def.undoable && !def.readOnly},
                         {"inputSchema", def.inputSchema}});
     }
     return list;

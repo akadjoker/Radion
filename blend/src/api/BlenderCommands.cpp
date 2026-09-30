@@ -466,6 +466,7 @@ Json statusJson(BlenderApplication& app)
     Json status = {{"hasMesh", hasMesh},
                    {"dirty", app.isDirty()},
                    {"canUndo", app.canUndo()},
+                   {"undoSteps", app.undoDepth()},
                    {"canRedo", app.canRedo()},
                    {"lastFile", app.settings().general().lastOpenedMesh},
                    {"selection", selectionJson(app)}};
@@ -1376,7 +1377,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
 
                 const BlenderApplication::PartStyle style = styleArg(args);
                 if ((!style.name.empty() || style.hasColor || style.hasRoughness || style.hasMetallic) &&
-                    !editor->styleSubmesh(static_cast<u32>(copy), style))
+                    !editor->styleSubmesh(static_cast<u32>(copy), style, false))
                     failed("the copy was made but could not be restyled");
                 return partAdded(*editor, copy);
             });
@@ -2200,7 +2201,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     failed(why.empty() ? "nothing was separated" : why);
                 const BlenderApplication::PartStyle style = styleArg(args);
                 if ((!style.name.empty() || style.hasColor || style.hasRoughness || style.hasMetallic) &&
-                    !editor->styleSubmesh(static_cast<u32>(part), style))
+                    !editor->styleSubmesh(static_cast<u32>(part), style, false))
                     failed("the part was made but could not be restyled");
                 return partAdded(*editor, part);
             });
@@ -2784,6 +2785,14 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             }
             return result(statusJson(*editor)["animation"]);
         });
+
+    // Commands that leave the undo stack alone (they change the view, not the model, or
+    // write a file) or empty it. Kept in one place so the listing can tell a client;
+    // tools/api_selftest.py checks every command it runs against this table.
+    for (const char* name : {"select", "hide", "unhide", "set_part_visible", "set_animation", "set_symmetry",
+                             "pin_uv", "save_mesh", "export_obj", "export_gltf", "new_document", "load_mesh",
+                             "undo", "redo"})
+        registry.setUndoable(name, false);
 }
 
 } // namespace Radion::BlenderApi

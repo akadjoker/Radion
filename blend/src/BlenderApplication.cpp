@@ -3857,12 +3857,13 @@ bool BlenderApplication::setPartTexture(u32 index, u32 slot, const std::string& 
     return true;
 }
 
-bool BlenderApplication::styleSubmesh(u32 index, const PartStyle& style)
+bool BlenderApplication::styleSubmesh(u32 index, const PartStyle& style, bool undoStep)
 {
     if (!mMeshData || index >= mMeshData->submeshes.size())
         return false;
 
-    recordUndo();
+    if (undoStep)
+        recordUndo();
 
     SubMesh& submesh = mMeshData->submeshes[index];
     ownMaterial(index);

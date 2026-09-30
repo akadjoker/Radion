@@ -94,4 +94,6 @@ ver [doc/API.md](doc/API.md). File > Export também tem "glTF Binary (.glb)".
 
 **Status**: Estrutura base pronta. Aguardando implementação do Mini Renderer.
 
+**API HTTP** (um LLM/MCP comanda o editor): `doc/API.md` — cada ferramenta do editor é também um comando.
+**Ferramentas de modelação, texturas e cor**: menus Vertex/Edge/Face/Mesh/Paint, painel **UV Editor**; plano e estado em `doc/PLANO_EDICAO_E_CHAT.md`.
 **Chat com LLM**: `client/` (Python + Qt) — ver `client/README.md`.

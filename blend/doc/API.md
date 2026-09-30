@@ -30,7 +30,7 @@ enquanto estiver a servir.
 | Pedido | Resposta |
 |---|---|
 | `GET /api/health` | `{"ok":true,"name":"radion_blender","apiVersion":1}` (sem token) |
-| `GET /api/commands` | `{"ok":true,"commands":[{name, description, readOnly, inputSchema}]}` |
+| `GET /api/commands` | `{"ok":true,"commands":[{name, description, readOnly, undoable, inputSchema}]}` |
 | `POST /api/commands/<nome>` | corpo = objeto JSON com os argumentos (vazio = `{}`) |
 
 Sucesso: `{"ok":true,"result":{...}}`. Comandos que devolvem uma imagem (`screenshot`)
@@ -91,8 +91,10 @@ painéis, e cada comando é um passo de undo.
 
 ### Documento
 `new_document`, `load_mesh`, `append_mesh`, `save_mesh` (formato `.rmesh`), `export_obj`,
-`export_gltf` (`.glb`: uma primitiva e um material PBR por parte; só geometria estática — sem
-texturas, esqueleto nem animação), `undo`, `redo`
+`export_gltf` (`.glb`: uma primitiva e um material PBR por parte; embute as texturas PNG/JPEG
+atribuídas com `set_texture` e escreve as cores de vértice como `COLOR_0`; só geometria
+estática — sem esqueleto nem animação; o que não deu para embutir vem em `warnings`),
+`undo`, `redo`
 
 ### Construir (cada um acrescenta uma parte)
 | Comando | Para quê |
@@ -109,16 +111,64 @@ texturas, esqueleto nem animação), `undo`, `redo`
 `transform_part`, `duplicate_part` (com `mirror: "x"|"y"|"z"`), `style_part`, `delete_part`,
 `set_part_visible`, `extract_part`
 
+### Seleção e visibilidade
+`select` (modos `vertex`/`edge`/`face`; por índices, parte ou caixa;
+`set/add/remove/clear/all/invert/grow/shrink/linked`), `hide` (a seleção, ou tudo o que não
+está selecionado) e `unhide`. Os triângulos escondidos não se selecionam nem são tocados
+pelas edições; uma edição que muda o número de triângulos mostra tudo outra vez.
+
 ### Editar geometria
-`select` (por índices, parte ou caixa; `set/add/remove/clear/all/invert/grow/shrink/linked`),
 `transform_selection`, `transform_mesh`, `extrude`, `delete_selection`, `weld_vertices`,
 `smooth_vertices`, `recalculate_normals`, `flip_winding`, `center_mesh`, `bisect`,
-`convex_hull`, `generate_uv`, `unwrap_uv`, `simplify`, `optimize`
+`convex_hull`, `simplify`, `optimize`, `snap_to_grid` (passo), `snap_to_vertex` (tolerância)
 
-`boolean` (`union`/`difference`/`intersection` entre duas partes): remalha um volume numa grelha de `resolution` células (8–160) — estanque e suave mas não é um corte exato; só sólidos fechados; evitar faces exatamente coplanares.
+### Topologia (estilo MilkShape)
+| Comando | O que faz |
+|---|---|
+| `subdivide` | parte as faces (selecionadas, ou todas) `levels` vezes; `smooth` = Loop (arredonda) |
+| `turn_edge`, `split_edge`, `collapse_edge` | viram a diagonal, acrescentam um vértice (`t`), fundem as pontas de cada aresta selecionada |
+| `knife` | corta por um plano (`axis`+`offset` ou `normal`), guardando a geometria; a linha nova fica selecionada |
+| `loop_cut` | seleciona UMA aresta atravessada ao anel e acrescenta `cuts` laços |
+| `inset`, `bevel` | `inset` encolhe a região selecionada (`thickness`, `depth`); `bevel` chanfra arestas selecionadas (`width`) |
+| `fill_holes`, `bridge` | tampam bordos abertos; `bridge` liga dois bordos com uma tira |
+| `mirror` | acrescenta a imagem espelhada das faces (eixo + `offset`, soldando `weld`) |
+| `set_symmetry` | simetria ao vivo: editar um lado move o outro (`axis: "none"` desliga) |
+| `merge_parts`, `separate_selection` | juntam partes numa só; transformam as faces selecionadas numa parte nova |
+| `boolean` | `union`/`difference`/`intersection` entre duas partes (`a`, `b`): remalha um volume numa grelha de `resolution` células (8–160) — estanque e suave mas não é um corte exato; só sólidos fechados; evitar faces exatamente coplanares |
+
+### Texturas e cores
+| Comando | O que faz |
+|---|---|
+| `set_texture`, `clear_texture` | põem/tiram uma imagem (`albedo`, `normal`, `surface` = metal-rugosidade glTF, `emissive`) no material de uma parte; `get_status` mostra `textures` por parte |
+| `paint_vertices` | pinta cor por vértice (`color` sRGB, `opacity`): `target` = `selection`, `part`, `all` ou `sphere` (pincel redondo com `center`, `radius`, `hardness`). A cor multiplica o material — pintar sobre material branco; vê-se no viewport, nos screenshots (`vertex_colors`) e no `.glb` (`COLOR_0`, linear como o glTF manda) |
+| `clear_vertex_colors` | apaga a cor pintada (`selection`, `part` ou tudo) |
+
+### UV
+A origem das UV é o **canto superior esquerdo** da imagem (como nos ficheiros de textura e no
+glTF): `v` cresce para baixo.
+
+| Comando | O que faz |
+|---|---|
+| `generate_uv`, `unwrap_uv` | projeção planar/cilíndrica/esférica; ilhas sem sobreposição (xatlas) — sobre a mesh toda |
+| `box_map_uv` | projeção em caixa (`tile` repetições por unidade, `offset`) de `selection`/`island`/`part`/`all`; parte vértices partilhados por faces que olham para lados diferentes |
+| `transform_uv` | move/roda/escala/espelha UV (`translate`, `rotate`, `scale`, `flip`, `pivot`) de `selection`/`island`/`part`/`all` |
+| `fit_uv` | ajusta ao quadrado 0..1; `per_part: true` dá a cada parte o seu quadrado (texturas por parte, depois de um `unwrap_uv` único) |
+| `pin_uv` | fixa vértices para `transform_uv` e `fit_uv` os deixarem em paz |
+| `get_uv_data` | limites, nº de ilhas, se cabe em 0..1, e as UV por vértice |
+| `uv_layout` | PNG da malha UV de uma parte sobre a sua textura — para *ver* um unwrap |
+
+O editor tem um painel **UV Editor** (ao lado do viewport) e um menu **Paint**.
 
 ### Animação
 `set_animation` (clip, frame, playing) — para meshes com esqueleto.
+
+### Undo
+Cada comando que altera o documento é **um** passo de undo; `get_status` traz `undoSteps`.
+No listado de comandos, `undoable` diz se uma chamada bem-sucedida acrescenta um passo
+(`false` para os só de leitura e para `select`, `hide`, `unhide`, `set_part_visible`,
+`set_animation`, `set_symmetry`, `pin_uv`, os que escrevem ficheiros, e os que esvaziam a pilha:
+`new_document`, `load_mesh`, `undo`, `redo`). `tools/api_selftest.py` verifica a flag contra o
+editor a cada comando que corre.
 
 ## Exemplo
 
@@ -149,9 +199,16 @@ blend/src/api/
   ApiServer         servidor HTTP (cpp-httplib), autenticação, Host/Origin
   BlenderCommands   os comandos do editor, sobre as operações do BlenderApplication
   BlenderApiHost    liga tudo e é o dono; o BlenderApplication chama pump() por frame
-blend/src/ProceduralShapes   lathe e loft (geometria pura, testada à parte)
+blend/src/ProceduralShapes   lathe, loft, extrusão, disco, tubo, prisma, escada, arco (geometria pura)
+blend/src/mesh/              MeshTopology, MeshEdit, MeshBoolean, MeshPaint, MeshUv (puro, sem GL)
+blend/src/GltfExporter       escrita do .glb (texturas embutidas, COLOR_0)
 blend/src/BlenderCapture     captura offscreen para o screenshot
+blend/src/panels/UvEditorPanel   o painel de UV
+blend/client/                cliente de chat em Python + Qt (ver blend/client/README.md)
 ```
 
-Testes: `ctest -R blender_api` (registry, fila, servidor HTTP com cliente real, token,
-Host/Origin) e `ctest -R procedural_shapes`.
+Testes (`ctest`): `blender_api` (registry, fila, servidor HTTP com cliente real, token,
+Host/Origin), `procedural_shapes`, `mesh_topology`, `mesh_edit`, `mesh_boolean`, `blender_uv_edit`,
+`mesh_paint`, `gltf_export`, `blender_selection`. De ponta a ponta, com o editor a correr:
+`python3 blend/tools/api_selftest.py --launch bin/radion_blender` (precisa de `xvfb-run` sem
+ecrã) — corre todos os grupos de comandos e confere a flag `undoable`.

@@ -535,10 +535,89 @@ def group_uv(api):
     shutil.rmtree(folder, ignore_errors=True)
 
 
-GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids, "textures": group_textures, "paint": group_paint, "uv": group_uv}
+def group_misc(api):
+    """Runs the commands the other groups do not, so the undo accounting covers all of them."""
+    import tempfile
+    folder = tempfile.mkdtemp(prefix="radion_selftest_")
+
+    api.call("new_document")
+    api.call("add_lathe", profile=[[0.0, 0.0], [0.5, 0.0], [0.5, 1.0], [0.0, 1.0]], name="lathe")
+    api.call("add_loft", sections=[{"at": 0.0, "width": 1.0, "height": 1.0}, {"at": 1.0, "width": 0.5, "height": 0.5}], name="loft", position=[3, 0, 0])
+    api.call("add_mesh", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]], triangles=[[0, 1, 2]], name="tri", position=[6, 0, 0])
+    check(len(status(api)["parts"]) == 3, "three parts were added")
+
+    api.call("style_part", part="tri", color="#00ff00")
+    api.call("transform_part", part="tri", position=[6, 1, 0])
+    api.call("duplicate_part", part="tri", name="tri2", color="#0000ff", position=[8, 0, 0])
+    api.call("set_part_visible", part="tri2", visible=False)
+    api.call("set_part_visible", part="tri2", visible=True)
+    api.call("flip_winding", part="tri2")
+    api.call("extract_part", part="tri2")
+    check(len(status(api)["parts"]) == 1, "extract leaves one part")
+
+    fresh_box(api)
+    api.call("subdivide")
+    api.call("transform_mesh", position=[0, 1, 0])
+    api.call("center_mesh", ground=True)
+    api.call("weld_vertices", distance=0.001)
+    api.call("smooth_vertices", iterations=1, strength=0.2)
+    api.call("recalculate_normals")
+    api.call("generate_uv", mode="planar")
+    api.call("bisect", axis="y", offset=0.0, keep="positive")
+    api.call("convex_hull")
+    api.call("optimize")
+    api.call("simplify", ratio=0.9)
+    expect_error(api, "failed", "set_animation", frame=0)  # no skeleton
+
+    # Files.
+    obj = os.path.join(folder, "m.obj")
+    rmesh = os.path.join(folder, "m.rmesh")
+    api.call("export_obj", path=obj)
+    api.call("save_mesh", path=rmesh)
+    api.call("new_document")
+    api.call("add_primitive", type="box", name="base")
+    api.call("append_mesh", path=rmesh)
+    check(len(status(api)["parts"]) >= 2, "the saved mesh was appended")
+    api.call("delete_part", part=0)
+    api.call("load_mesh", path=rmesh)
+    check(status(api)["triangles"] > 0, "the saved mesh loads back")
+
+    import shutil
+    shutil.rmtree(folder, ignore_errors=True)
+
+
+GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids, "textures": group_textures, "paint": group_paint, "uv": group_uv, "misc": group_misc}
 
 
 # ------------------------------------------------------------------- driver
+
+class CheckedApi:
+    """Wraps the client: after every successful command that changes the document, checks
+    that the undo stack grew by exactly what the command listing's `undoable` flag says."""
+
+    SKIP = {"undo", "redo", "new_document", "load_mesh"}
+
+    def __init__(self, api):
+        self._api = api
+        self._info = {c["name"]: c for c in api.commands()}
+        self.checked = set()
+
+    def __getattr__(self, name):
+        return getattr(self._api, name)
+
+    def call(self, command, **arguments):
+        info = self._info.get(command)
+        tracked = info is not None and not info["readOnly"] and command not in self.SKIP
+        before = self._api.call("get_status")["undoSteps"] if tracked else None
+        result = self._api.call(command, **arguments)
+        if tracked:
+            after = self._api.call("get_status")["undoSteps"]
+            expected = 1 if info["undoable"] else 0
+            check(after - before == expected,
+                  f"{command}: undo steps changed by {after - before}, the listing says undoable={info['undoable']}")
+            self.checked.add(command)
+        return result
+
 
 def stop(process):
     try:
@@ -583,6 +662,7 @@ def main():
     else:
         api = BlenderApi(arguments.url)
 
+    api = CheckedApi(api)
     names = arguments.only.split(",") if arguments.only else list(GROUPS)
     try:
         for name in names:
@@ -597,6 +677,11 @@ def main():
     finally:
         if process:
             stop(process)
+
+    unchecked = sorted(name for name, info in api._info.items()
+                       if not info["readOnly"] and name not in CheckedApi.SKIP and name not in api.checked)
+    if unchecked:
+        print("\nnot exercised by this run (undo flag unchecked):", ", ".join(unchecked))
 
     print(f"\n{len(FAILURES)} failure(s)")
     for failure in FAILURES:

@@ -12,6 +12,28 @@ Itens marcados **[confirmar]** dependem de informação que ainda não tenho (ve
 
 ---
 
+## Estado (atualizado)
+
+| Fase | Estado | Notas |
+|---|---|---|
+| A1 Fundações (aresta, esconder, snap, topologia) | **feito** | `hide`/`unhide`, `snap_to_grid`/`snap_to_vertex`, modo aresta, `MeshTopology` testada |
+| A2 Modelação (subdivide, edge ops, inset/bevel, loop cut, faca, fill/bridge, espelho + simetria, merge/separate) | **feito** | um comando + menu + teste por ferramenta |
+| A2.8 Booleanas | **feito, com limites** | remalha por volume (não é corte exato); só sólidos fechados; ver `API.md` |
+| A2.9 Primitivas | **feito** | disco, tubo, prisma, escada, arco (+ lathe/loft/extrusão); todas centradas, `origin:"base"` assenta em y=0. Falta só o "perfil 2D extrudido" como comando de API (existe em `ProceduralShapes`) |
+| A3 Texturas e cor | **feito** | `set_texture`/`clear_texture`, `.glb` com texturas embutidas e `COLOR_0`, pintura de vértices (`paint_vertices`, menu Paint), painel **UV Editor**, `box_map_uv`/`transform_uv`/`fit_uv`/`pin_uv`/`uv_layout` |
+| A3 "cozinhar cor para textura" | **não feito** | marcado [confirmar] no plano; falta decidir se interessa |
+| A3 pincel de pintura no viewport (arrastar) | **não feito** | a pintura é por seleção/parte/esfera (API e menu); um pincel interativo precisa de picking por raio |
+| A4 Esqueleto e animação | **não feito** | é o que dá rotores a rodar aos helicópteros |
+| A5 Conforto e formatos | **não feito** | |
+| B1 Cliente de chat (Python + Qt) | **feito** | `blend/client/`, 110 testes + e2e com o editor real |
+| B2, B3 | **não feitos** | Anthropic nativo, modo JSON, fornecedor MCP |
+
+Verificação: `ctest` (34 testes), `blend/client` (`pytest`, Qt em modo offscreen) e
+`python3 blend/tools/api_selftest.py --launch bin/radion_blender` (todos os grupos de comandos,
+com a flag `undoable` conferida contra o editor).
+
+---
+
 ## 1. Ponto de partida (lido do código, não suposto)
 
 **Já existe** no editor: seleção de vértices e faces (caixa, grow/shrink, linked, invert),
