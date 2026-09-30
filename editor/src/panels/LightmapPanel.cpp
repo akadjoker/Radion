@@ -28,7 +28,7 @@ namespace
 // World-space surface area of the mesh. The atlas has to hold every triangle
 // at `texelsPerUnit` texels per world unit, and area scales with the square
 // of that, so this is what turns "I want a 2048 atlas" into a number.
-f32 worldSurfaceArea(const MeshData& mesh, const glm::mat4& transform)
+f32 worldSurfaceArea(const MeshData& mesh, const Math::mat4& transform)
 {
     f32 area = 0.0f;
     for (usize i = 0; i + 2 < mesh.indices.size(); i += 3)
@@ -38,10 +38,10 @@ f32 worldSurfaceArea(const MeshData& mesh, const glm::mat4& transform)
         const u32 c = mesh.indices[i + 2];
         if (a >= mesh.positions.size() || b >= mesh.positions.size() || c >= mesh.positions.size())
             continue;
-        const glm::vec3 p0 = glm::vec3(transform * glm::vec4(mesh.positions[a], 1.0f));
-        const glm::vec3 p1 = glm::vec3(transform * glm::vec4(mesh.positions[b], 1.0f));
-        const glm::vec3 p2 = glm::vec3(transform * glm::vec4(mesh.positions[c], 1.0f));
-        area += glm::length(glm::cross(p1 - p0, p2 - p0)) * 0.5f;
+        const Math::vec3 p0 = Math::vec3(transform * Math::vec4(mesh.positions[a], 1.0f));
+        const Math::vec3 p1 = Math::vec3(transform * Math::vec4(mesh.positions[b], 1.0f));
+        const Math::vec3 p2 = Math::vec3(transform * Math::vec4(mesh.positions[c], 1.0f));
+        area += Math::length(Math::cross(p1 - p0, p2 - p0)) * 0.5f;
     }
     return area;
 }
@@ -74,7 +74,7 @@ std::string lightmapPathFor(const MeshRenderer& renderer)
 
 } // namespace
 
-bool LightmapPanel::sceneSun(glm::vec3& direction, glm::vec3& color)
+bool LightmapPanel::sceneSun(Math::vec3& direction, Math::vec3& color)
 {
     DirectionalLight* sun = app().scene().electedSunLight();
     if (!sun || !sun->owner())
@@ -113,7 +113,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
 
     int resolution = static_cast<int>(mUnwrapSettings.resolution);
     if (ImGui::DragInt("Atlas resolution", &resolution, 16.0f, 0, 8192))
-        mUnwrapSettings.resolution = static_cast<u32>(glm::max(resolution, 0));
+        mUnwrapSettings.resolution = static_cast<u32>(Math::max(resolution, 0));
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Zero is not 'no preference' - it is the setting that guarantees a "
                          "single page, sized to whatever texels per unit needs. Any other value "
@@ -122,7 +122,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
 
     int padding = static_cast<int>(mUnwrapSettings.padding);
     if (ImGui::DragInt("Padding", &padding, 1.0f, 0, 32))
-        mUnwrapSettings.padding = static_cast<u32>(glm::max(padding, 0));
+        mUnwrapSettings.padding = static_cast<u32>(Math::max(padding, 0));
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Texels of empty space around each chart, so bilinear filtering at a "
                          "chart edge cannot pick up its neighbour.");
@@ -243,7 +243,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
     // smaller texture rescales every chart AND the padding between them, so
     // charts that were properly separated end up bleeding into each other -
     // silently, and looking like a bad bake rather than a mismatch.
-    const u32 largest = glm::max(atlas.width, atlas.height);
+    const u32 largest = Math::max(atlas.width, atlas.height);
     if (largest > mBakeResolution)
     {
         const f32 factor = static_cast<f32>(largest) / static_cast<f32>(mBakeResolution);
@@ -257,7 +257,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
     }
 }
 
-void LightmapPanel::applyPreset(bool draft, const MeshData& data, const glm::mat4& transform)
+void LightmapPanel::applyPreset(bool draft, const MeshData& data, const Math::mat4& transform)
 {
     // The Final numbers are the ones tools/lightmapbake settled on for the
     // Bistro, not a guess: 8192 shadow against a 4096 map, 16 samples over a
@@ -278,7 +278,7 @@ void LightmapPanel::applyPreset(bool draft, const MeshData& data, const glm::mat
         mBakeSettings.filterRadius = 2.0f;
     }
     mBakeSettings.sunAngularRadius = 2.0f;
-    mBakeSettings.ambient = glm::vec3(0.12f, 0.16f, 0.24f);
+    mBakeSettings.ambient = Math::vec3(0.12f, 0.16f, 0.24f);
     mBakeSettings.ambientGround = 0.35f;
     mBakeSettings.biasTexels = 3.0f;
     mBakeSettings.bias = 0.0f;
@@ -302,7 +302,7 @@ void LightmapPanel::drawBakeSection(GameObject& object, MeshRenderer& renderer, 
     ImGui::TextDisabled("Renders the sun's shadow map and reads it back. Fast, one shot, with "
                        "real penumbra from the sun's angular size.");
 
-    const glm::mat4 transform = object.globalTransform();
+    const Math::mat4 transform = object.globalTransform();
     if (ImGui::Button(ICON_MDI_FLASH " Draft"))
         applyPreset(true, data, transform);
     if (ImGui::IsItemHovered())
@@ -319,11 +319,11 @@ void LightmapPanel::drawBakeSection(GameObject& object, MeshRenderer& renderer, 
 
     int resolution = static_cast<int>(mBakeResolution);
     if (ImGui::DragInt("Resolution##gpu", &resolution, 8.0f, 16, 8192))
-        mBakeResolution = static_cast<u32>(glm::max(resolution, 16));
+        mBakeResolution = static_cast<u32>(Math::max(resolution, 16));
 
     int shadowResolution = static_cast<int>(mBakeSettings.shadowResolution);
     if (ImGui::DragInt("Shadow resolution", &shadowResolution, 64.0f, 256, 16384))
-        mBakeSettings.shadowResolution = static_cast<u32>(glm::max(shadowResolution, 256));
+        mBakeSettings.shadowResolution = static_cast<u32>(Math::max(shadowResolution, 256));
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("A different question from the resolution above: this is how finely the "
                          "sun's shadow was computed, and it is what actually limits how sharp a "
@@ -337,7 +337,7 @@ void LightmapPanel::drawBakeSection(GameObject& object, MeshRenderer& renderer, 
 
     int sampleCount = static_cast<int>(mBakeSettings.sampleCount);
     if (ImGui::DragInt("Samples##gpu", &sampleCount, 1.0f, 1, 128))
-        mBakeSettings.sampleCount = static_cast<u32>(glm::max(sampleCount, 1));
+        mBakeSettings.sampleCount = static_cast<u32>(Math::max(sampleCount, 1));
     ImGui::DragFloat("Filter radius", &mBakeSettings.filterRadius, 0.1f, 0.0f, 16.0f);
     ImGui::DragFloat("Bias texels", &mBakeSettings.biasTexels, 0.1f, 0.0f, 32.0f);
     if (ImGui::IsItemHovered())
@@ -366,8 +366,8 @@ void LightmapPanel::drawBakeSection(GameObject& object, MeshRenderer& renderer, 
     mBakeFramesShown = 0;
 
     {
-        glm::vec3 sunDirection(0.0f, -1.0f, 0.0f);
-        glm::vec3 sunColor(1.0f);
+        Math::vec3 sunDirection(0.0f, -1.0f, 0.0f);
+        Math::vec3 sunColor(1.0f);
         if (!sceneSun(sunDirection, sunColor))
             Log::warning("LightmapPanel: no directional light in the scene, baking straight down");
 

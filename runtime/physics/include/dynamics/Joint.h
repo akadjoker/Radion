@@ -50,8 +50,8 @@ public:
     // World-space anchor pair a debug view draws as a line between the two
     // bodies, read fresh from the current pose - not cached, so it is correct
     // in the editor too, where nothing is stepping.
-    virtual glm::vec3 anchorWorldA() const = 0;
-    virtual glm::vec3 anchorWorldB() const = 0;
+    virtual Math::vec3 anchorWorldA() const = 0;
+    virtual Math::vec3 anchorWorldB() const = 0;
     // Joints with a single free direction (a hinge's rotation axis, a slider's
     // or piston's travel axis, a wheel's suspension axis, ...) override both;
     // a joint with no such axis (Distance, Point, Fixed, Mouse) leaves the
@@ -60,9 +60,9 @@ public:
     {
         return false;
     }
-    virtual glm::vec3 axisWorld() const
+    virtual Math::vec3 axisWorld() const
     {
-        return glm::vec3(0.0f, 1.0f, 0.0f);
+        return Math::vec3(0.0f, 1.0f, 0.0f);
     }
     virtual void setup(f32 duration) = 0;
     virtual void warmStart() = 0;

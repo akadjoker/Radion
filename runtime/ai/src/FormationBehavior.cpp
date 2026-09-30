@@ -104,15 +104,15 @@ void FormationBehavior::iterate(float timeDelta, Agent& entity)
         return;
 
     // Orientation basis vectors: right = +X, up = +Y, forward (look) = +Z.
-    glm::mat3 pointManBasis = glm::mat3_cast(mPointMan->orientation());
+    Math::mat3 pointManBasis = Math::mat3_cast(mPointMan->orientation());
     mPointManLook = pointManBasis[2];
     mPointManRight = pointManBasis[0];
-    glm::mat3 leaderBasis = glm::mat3_cast(mSquadLeader->orientation());
+    Math::mat3 leaderBasis = Math::mat3_cast(mSquadLeader->orientation());
     mLeaderLook = leaderBasis[2];
     mLeaderRight = leaderBasis[0];
 
-    glm::vec3 goal(0.0f);
-    glm::vec3 dir(0.0f);
+    Math::vec3 goal(0.0f);
+    Math::vec3 dir(0.0f);
     switch (static_cast<SquadFormation>(mSquadLeader->squadFormation()))
     {
     case SquadFormation::Pentagon:
@@ -148,19 +148,19 @@ void FormationBehavior::iterate(float timeDelta, Agent& entity)
 
     // Build the facing orientation from the formation direction (XZ only).
     dir.y = 0.0f;
-    glm::vec3 up(0.0f, 1.0f, 0.0f);
-    glm::vec3 lk = dir;
-    float lkLen = glm::length(lk);
+    Math::vec3 up(0.0f, 1.0f, 0.0f);
+    Math::vec3 lk = dir;
+    float lkLen = Math::length(lk);
     // Near a formation slot the direction is dominated by floating-point
     // noise. Rebuilding the quaternion from that tiny vector makes a stopped
     // agent flip between two headings every frame.
     if (lkLen > 0.1f)
     {
         lk /= lkLen;
-        glm::vec3 rt = glm::normalize(glm::cross(up, lk));
-        glm::mat3 basis(rt, up, lk); // columns: right, up, forward
+        Math::vec3 rt = Math::normalize(Math::cross(up, lk));
+        Math::mat3 basis(rt, up, lk); // columns: right, up, forward
         entity.setGoal(goal);
-        entity.setOrientation(glm::quat_cast(basis));
+        entity.setOrientation(Math::quat_cast(basis));
     }
     else
     {
@@ -169,7 +169,7 @@ void FormationBehavior::iterate(float timeDelta, Agent& entity)
     }
 }
 
-void FormationBehavior::diamond(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::diamond(Agent& entity, Math::vec3& goal, Math::vec3& dir) const
 {
     const Agent& squadmate = entity;
     switch (squadmate.squadId())
@@ -197,7 +197,7 @@ void FormationBehavior::diamond(Agent& entity, glm::vec3& goal, glm::vec3& dir) 
     }
 }
 
-void FormationBehavior::abreast(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::abreast(Agent& entity, Math::vec3& goal, Math::vec3& dir) const
 {
     const Agent& squadmate = entity;
     switch (squadmate.squadId())
@@ -223,7 +223,7 @@ void FormationBehavior::abreast(Agent& entity, glm::vec3& goal, glm::vec3& dir) 
     dir = goal - squadmate.position();
 }
 
-void FormationBehavior::singleFile(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::singleFile(Agent& entity, Math::vec3& goal, Math::vec3& dir) const
 {
     const Agent& squadmate = entity;
     switch (squadmate.squadId())
@@ -251,15 +251,15 @@ void FormationBehavior::singleFile(Agent& entity, glm::vec3& goal, glm::vec3& di
     }
 }
 
-void FormationBehavior::pentagon(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::pentagon(Agent& entity, Math::vec3& goal, Math::vec3& dir) const
 {
     const Agent& squadmate = entity;
 
     // Rotate the leader's look by 45 degrees about the world up axis.  The
     // opposite diagonal must be rotated in the leader's local frame; mirroring
     // the global X component only works while the leader faces +Z.
-    glm::vec3 v1 = glm::angleAxis(glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * mLeaderLook;
-    glm::vec3 v2 = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * mLeaderLook;
+    Math::vec3 v1 = Math::angleAxis(Math::radians(45.0f), Math::vec3(0.0f, 1.0f, 0.0f)) * mLeaderLook;
+    Math::vec3 v2 = Math::angleAxis(Math::radians(-45.0f), Math::vec3(0.0f, 1.0f, 0.0f)) * mLeaderLook;
 
     switch (squadmate.squadId())
     {
@@ -286,10 +286,10 @@ void FormationBehavior::pentagon(Agent& entity, glm::vec3& goal, glm::vec3& dir)
     }
 }
 
-void FormationBehavior::wedge(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::wedge(Agent& entity, Math::vec3& goal, Math::vec3& dir) const
 {
     const Agent& member = entity;
-    const glm::vec3& leader = mSquadLeader->position();
+    const Math::vec3& leader = mSquadLeader->position();
     switch (member.squadId())
     {
     case 1: goal = leader + mLeaderLook * 25.0f; dir = mLeaderLook; break;
@@ -300,10 +300,10 @@ void FormationBehavior::wedge(Agent& entity, glm::vec3& goal, glm::vec3& dir) co
     }
 }
 
-void FormationBehavior::vFormation(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::vFormation(Agent& entity, Math::vec3& goal, Math::vec3& dir) const
 {
     const Agent& member = entity;
-    const glm::vec3& leader = mSquadLeader->position();
+    const Math::vec3& leader = mSquadLeader->position();
     switch (member.squadId())
     {
     case 1: goal = leader + mLeaderLook * 25.0f; break;
@@ -315,11 +315,11 @@ void FormationBehavior::vFormation(Agent& entity, glm::vec3& goal, glm::vec3& di
     dir = goal - member.position();
 }
 
-void FormationBehavior::circle(Agent& entity, glm::vec3& goal, glm::vec3& dir) const
+void FormationBehavior::circle(Agent& entity, Math::vec3& goal, Math::vec3& dir) const
 {
     const Agent& member = entity;
-    const float angle = glm::radians(90.0f * static_cast<float>(member.squadId() - 1));
-    const glm::vec3 offset = mLeaderRight * (std::cos(angle) * 45.0f) +
+    const float angle = Math::radians(90.0f * static_cast<float>(member.squadId() - 1));
+    const Math::vec3 offset = mLeaderRight * (std::cos(angle) * 45.0f) +
                              mLeaderLook * (std::sin(angle) * 45.0f);
     goal = mSquadLeader->position() + offset;
     dir = mSquadLeader->position() - member.position();

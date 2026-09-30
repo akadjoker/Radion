@@ -7,8 +7,8 @@
 namespace Radion
 {
 
-void PathTrack::addKeyframe(f32 time, const glm::vec3& position, const glm::quat& rotation,
-                            const glm::vec3& scale)
+void PathTrack::addKeyframe(f32 time, const Math::vec3& position, const Math::quat& rotation,
+                            const Math::vec3& scale)
 {
     mKeyframes.push_back({time, position, rotation, scale});
 }
@@ -42,7 +42,7 @@ PathPose PathTrack::evaluate(f32 time) const
         return PathPose{mKeyframes[0].position, mKeyframes[0].rotation, mKeyframes[0].scale};
 
     const f32 length = duration();
-    f32 t = length > 0.0f ? glm::mod(time, length) : 0.0f;
+    f32 t = length > 0.0f ? Math::mod(time, length) : 0.0f;
     if (t < 0.0f)
         t += length;
 
@@ -56,15 +56,15 @@ PathPose PathTrack::evaluate(f32 time) const
     const PathKeyframe& a = mKeyframes[segment];
     const PathKeyframe& b = mKeyframes[(segment + 1) % count];
     const f32 span = b.time - a.time;
-    const f32 localT = span > 0.0f ? glm::clamp((t - a.time) / span, 0.0f, 1.0f) : 0.0f;
+    const f32 localT = span > 0.0f ? Math::clamp((t - a.time) / span, 0.0f, 1.0f) : 0.0f;
 
     // Position: Catmull-Rom through the closed loop, using the point before
     // `a` and the one after `b`, wrapping around the keyframe list either
     // way - the same shape a patrol or a camera flythrough closes with.
-    const glm::vec3& p0 = mKeyframes[(segment + count - 1) % count].position;
-    const glm::vec3& p1 = a.position;
-    const glm::vec3& p2 = b.position;
-    const glm::vec3& p3 = mKeyframes[(segment + 2) % count].position;
+    const Math::vec3& p0 = mKeyframes[(segment + count - 1) % count].position;
+    const Math::vec3& p1 = a.position;
+    const Math::vec3& p2 = b.position;
+    const Math::vec3& p3 = mKeyframes[(segment + 2) % count].position;
 
     const f32 t2 = localT * localT;
     const f32 t3 = t2 * localT;
@@ -78,8 +78,8 @@ PathPose PathTrack::evaluate(f32 time) const
     // smooth across a keyframe, which is more than this track set out to
     // do - two adjacent keyframes are usually close enough that slerp reads
     // the same as one.
-    pose.rotation = glm::slerp(a.rotation, b.rotation, localT);
-    pose.scale = glm::mix(a.scale, b.scale, localT);
+    pose.rotation = Math::slerp(a.rotation, b.rotation, localT);
+    pose.scale = Math::mix(a.scale, b.scale, localT);
     return pose;
 }
 
@@ -145,7 +145,7 @@ void PathAnimator::onUpdate(f32 deltaTime)
     if (length > 0.0f && mTime >= length)
     {
         if (mLoop)
-            mTime = glm::mod(mTime, length);
+            mTime = Math::mod(mTime, length);
         else
         {
             mTime = length;

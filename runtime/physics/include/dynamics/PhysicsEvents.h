@@ -3,7 +3,7 @@
 
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion::Physics
 {
@@ -28,16 +28,16 @@ struct ContactEventInfo
     RigidBody* bodyB = nullptr;
     ContactEvent event = ContactEvent::Enter;
     // Empty for Exit - by then there is no contact left to describe.
-    glm::vec3 normal{0.0f};
-    glm::vec3 point{0.0f};
+    Math::vec3 normal{0.0f};
+    Math::vec3 point{0.0f};
     f32 penetration = 0.0f;
 };
 
 struct WorldRayHit
 {
     RigidBody* body = nullptr;
-    glm::vec3 point{0.0f};
-    glm::vec3 normal{0.0f, 1.0f, 0.0f};
+    Math::vec3 point{0.0f};
+    Math::vec3 normal{0.0f, 1.0f, 0.0f};
     f32 distance = 0.0f;
 };
 

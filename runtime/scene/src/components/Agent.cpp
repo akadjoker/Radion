@@ -74,7 +74,7 @@ void Agent::applySettings(const Settings& settings)
 
 void Agent::setSpeed(f32 newSpeed)
 {
-    f32 spd = glm::length(mVelocity);
+    f32 spd = Math::length(mVelocity);
     if (spd > 0.0f)
         mVelocity *= newSpeed / spd;
     else
@@ -83,7 +83,7 @@ void Agent::setSpeed(f32 newSpeed)
 
 void Agent::alignWithVelocity()
 {
-    f32 spd = glm::length(mVelocity);
+    f32 spd = Math::length(mVelocity);
     // A direction from a near-zero velocity is numerical noise. Updating the
     // orientation from it makes formation goals rotate while the squad is at
     // rest, which in turn makes the debug path visibly oscillate.
@@ -92,45 +92,45 @@ void Agent::alignWithVelocity()
 
     // Standard right-handed orthonormal regeneration:
     // forward = velocity, side = normalize(cross(up, forward)), up = cross(forward, side).
-    glm::vec3 newForward = mVelocity / spd;
-    glm::vec3 oldUp = up();
-    glm::vec3 sideReference = oldUp;
+    Math::vec3 newForward = mVelocity / spd;
+    Math::vec3 oldUp = up();
+    Math::vec3 sideReference = oldUp;
     // A forward vector parallel to up has no valid cross product.  Keep the
     // previous side (projected onto the plane perpendicular to forward) so a
     // vertical/near-vertical velocity cannot poison the quaternion with NaNs.
-    glm::vec3 newSide = glm::cross(sideReference, newForward);
-    if (glm::dot(newSide, newSide) <= 1e-8f)
+    Math::vec3 newSide = Math::cross(sideReference, newForward);
+    if (Math::dot(newSide, newSide) <= 1e-8f)
         newSide = side();
-    newSide -= newForward * glm::dot(newSide, newForward);
-    if (glm::dot(newSide, newSide) <= 1e-8f)
-        newSide = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), newForward);
-    newSide = glm::normalize(newSide);
-    glm::vec3 newUp = glm::cross(newForward, newSide);
+    newSide -= newForward * Math::dot(newSide, newForward);
+    if (Math::dot(newSide, newSide) <= 1e-8f)
+        newSide = Math::cross(Math::vec3(0.0f, 1.0f, 0.0f), newForward);
+    newSide = Math::normalize(newSide);
+    Math::vec3 newUp = Math::cross(newForward, newSide);
 
-    mOrientation = glm::quat_cast(glm::mat3(newSide, newUp, newForward));
+    mOrientation = Math::quat_cast(Math::mat3(newSide, newUp, newForward));
 }
 
-glm::vec3 Agent::localizeDirection(const glm::vec3& globalDirection) const
+Math::vec3 Agent::localizeDirection(const Math::vec3& globalDirection) const
 {
-    const glm::mat3 basis(side(), up(), forward());
-    return glm::transpose(basis) * globalDirection;
+    const Math::mat3 basis(side(), up(), forward());
+    return Math::transpose(basis) * globalDirection;
 }
 
-glm::vec3 Agent::localizePosition(const glm::vec3& globalPosition) const
+Math::vec3 Agent::localizePosition(const Math::vec3& globalPosition) const
 {
-    const glm::mat3 basis(side(), up(), forward());
-    return glm::transpose(basis) * (globalPosition - mPosition);
+    const Math::mat3 basis(side(), up(), forward());
+    return Math::transpose(basis) * (globalPosition - mPosition);
 }
 
-glm::vec3 Agent::globalizePosition(const glm::vec3& localPosition) const
+Math::vec3 Agent::globalizePosition(const Math::vec3& localPosition) const
 {
-    const glm::mat3 basis(side(), up(), forward());
+    const Math::mat3 basis(side(), up(), forward());
     return mPosition + (basis * localPosition);
 }
 
-glm::vec3 Agent::globalizeDirection(const glm::vec3& localDirection) const
+Math::vec3 Agent::globalizeDirection(const Math::vec3& localDirection) const
 {
-    const glm::mat3 basis(side(), up(), forward());
+    const Math::mat3 basis(side(), up(), forward());
     return basis * localDirection;
 }
 
@@ -152,8 +152,8 @@ void Agent::update(f32 deltaTime)
     // look up to hide/pose its GameObject.
     if (!alive())
     {
-        mVelocity = glm::vec3(0.0f);
-        mDesiredMoveVector = glm::vec3(0.0f);
+        mVelocity = Math::vec3(0.0f);
+        mDesiredMoveVector = Math::vec3(0.0f);
         return;
     }
 
@@ -168,7 +168,7 @@ void Agent::update(f32 deltaTime)
     // Behaviors contribute to a per-frame steering accumulator.  Keeping the
     // previous value makes acceleration compound forever and is especially
     // visible as oscillating turns in formations.
-    mDesiredMoveVector = glm::vec3(0.0f);
+    mDesiredMoveVector = Math::vec3(0.0f);
 
     // Refresh sense data.
     mVisibleGroupMembers.clear();
@@ -180,9 +180,9 @@ void Agent::update(f32 deltaTime)
         behavior->iterate(deltaTime, *this);
 
     // Clamp the desired move to the maximum velocity change (acceleration).
-    f32 velChange = glm::length(mDesiredMoveVector);
+    f32 velChange = Math::length(mDesiredMoveVector);
     if (velChange > mMaxVelocityChange && velChange > 0.0f)
-        mDesiredMoveVector = glm::normalize(mDesiredMoveVector) * mMaxVelocityChange;
+        mDesiredMoveVector = Math::normalize(mDesiredMoveVector) * mMaxVelocityChange;
 
     // Apply the change.
     mVelocity += mDesiredMoveVector;
@@ -193,16 +193,16 @@ void Agent::update(f32 deltaTime)
     mVelocity.z *= mMoveZScalar;
 
     // Clamp the actual velocity to max speed.
-    f32 spd = glm::length(mVelocity);
+    f32 spd = Math::length(mVelocity);
     if (spd > mMaxSpeed && spd > 0.0f)
-        mVelocity = glm::normalize(mVelocity) * mMaxSpeed;
+        mVelocity = Math::normalize(mVelocity) * mMaxSpeed;
 
     // Snap tiny residual velocities to rest. Without this dead zone an agent
     // that has reached a formation slot keeps moving by sub-pixel amounts;
     // those changes are especially visible when a debug path is aligned with
     // the camera.
-    if (glm::length(mVelocity) < 0.1f)
-        mVelocity = glm::vec3(0.0f);
+    if (Math::length(mVelocity) < 0.1f)
+        mVelocity = Math::vec3(0.0f);
 
     // Keep forward tracking the velocity just computed. Every steering
     // routine that reasons about "ahead" - obstacle avoidance, avoidNeighbors,
@@ -252,8 +252,8 @@ void Agent::updateVisibility()
 
 bool Agent::visibilityTest(const Agent& other, f32& dist) const
 {
-    glm::vec3 distVec = other.position() - position();
-    dist = glm::length(distVec);
+    Math::vec3 distVec = other.position() - position();
+    dist = Math::length(distVec);
     return dist < mSenseRange;
 }
 
@@ -357,9 +357,9 @@ bool Agent::waypointReached()
         AI::Waypoint* wp = mWaypointNetwork->findWaypoint(mNextWaypoint);
         if (wp)
         {
-            glm::vec3 vec = wp->position() - position();
+            Math::vec3 vec = wp->position() - position();
             vec.y = 0.0f; // XZ only, matching the reference demo
-            f32 distToWP = glm::length(vec);
+            f32 distToWP = Math::length(vec);
             return (distToWP - kEntityRadius) < wp->radius();
         }
     }
@@ -375,9 +375,9 @@ void Agent::onWaypointReached()
 
 bool Agent::goalReached()
 {
-    glm::vec3 vec = mGoalPosition - position();
+    Math::vec3 vec = mGoalPosition - position();
     vec.y = 0.0f; // XZ only
-    return glm::length(vec) < mGoalRadius;
+    return Math::length(vec) < mGoalRadius;
 }
 
 void Agent::onGoalReached()
@@ -589,7 +589,7 @@ void Agent::pushOwnerPose()
         mPosition = mSyncedPosition;
     if (mSyncRotation)
         mOrientation =
-            mSyncedRotation * glm::angleAxis(glm::pi<f32>(), glm::vec3(0.0f, 1.0f, 0.0f));
+            mSyncedRotation * Math::angleAxis(Math::pi<f32>(), Math::vec3(0.0f, 1.0f, 0.0f));
 }
 
 bool Agent::ownerMoved() const
@@ -597,10 +597,10 @@ bool Agent::ownerMoved() const
     const GameObject* object = owner();
     if (!object)
         return false;
-    const glm::vec3 delta = object->globalPosition() - mSyncedPosition;
-    if (glm::dot(delta, delta) > kPoseSyncEpsilon * kPoseSyncEpsilon)
+    const Math::vec3 delta = object->globalPosition() - mSyncedPosition;
+    if (Math::dot(delta, delta) > kPoseSyncEpsilon * kPoseSyncEpsilon)
         return true;
-    const f32 alignment = glm::abs(glm::dot(object->globalRotation(), mSyncedRotation));
+    const f32 alignment = Math::abs(Math::dot(object->globalRotation(), mSyncedRotation));
     return alignment < 1.0f - kPoseSyncEpsilon;
 }
 
@@ -613,7 +613,7 @@ void Agent::pullAgentPose()
         object->setGlobalPosition(mPosition);
     if (mSyncRotation)
         object->setGlobalRotation(mOrientation *
-                                  glm::angleAxis(glm::pi<f32>(), glm::vec3(0.0f, 1.0f, 0.0f)));
+                                  Math::angleAxis(Math::pi<f32>(), Math::vec3(0.0f, 1.0f, 0.0f)));
     mSyncedPosition = object->globalPosition();
     mSyncedRotation = object->globalRotation();
 }

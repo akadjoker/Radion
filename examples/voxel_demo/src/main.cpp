@@ -45,7 +45,7 @@ constexpr f32 kContinentalAmplitude = 26.0f;
 constexpr f32 kDetailAmplitude = 7.0f;
 constexpr f32 kReachDistance = 96.0f;
 const char* kWorldFile = "voxel_demo_world.rvox";
-const glm::vec3 kWorldCenter(0.0f, kBaseSurfaceHeight, 0.0f);
+const Math::vec3 kWorldCenter(0.0f, kBaseSurfaceHeight, 0.0f);
 
 void addSearchPathIfPresent(FileSystem& files, const std::filesystem::path& path)
 {
@@ -92,8 +92,8 @@ int main(int argc, char** argv)
     GameObject* cameraObject = scene->createGameObject("Camera");
     Camera* camera = cameraObject->addComponent<Camera>();
     camera->setPerspective(60.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
-    cameraObject->setPosition(kWorldCenter + glm::vec3(0.0f, 34.0f, -48.0f));
-    cameraObject->lookAt(kWorldCenter + glm::vec3(0.0f, 4.0f, 32.0f));
+    cameraObject->setPosition(kWorldCenter + Math::vec3(0.0f, 34.0f, -48.0f));
+    cameraObject->lookAt(kWorldCenter + Math::vec3(0.0f, 4.0f, 32.0f));
     FreeFly* fly = cameraObject->addComponent<FreeFly>();
     fly->setMoveSpeed(28.0f);
     fly->setSprintMultiplier(2.5f);
@@ -101,9 +101,9 @@ int main(int argc, char** argv)
 
     GameObject* sunObject = scene->createGameObject("Sun");
     DirectionalLight* sun = sunObject->addComponent<DirectionalLight>();
-    sun->setColor(glm::vec3(1.0f, 0.96f, 0.88f));
+    sun->setColor(::Radion::Math::vec3(1.0f, 0.96f, 0.88f));
     sun->setIntensity(1.2f);
-    sunObject->setPosition(kWorldCenter + glm::vec3(-60.0f, 80.0f, -40.0f));
+    sunObject->setPosition(kWorldCenter + ::Radion::Math::vec3(-60.0f, 80.0f, -40.0f));
     sunObject->lookAt(kWorldCenter);
 
     GameObject* voxelObject = scene->createGameObject("VoxelWorld");
@@ -142,7 +142,7 @@ int main(int argc, char** argv)
 
     // Walking body: half a metre wide, 1.8 tall, eyes near the top. The
     // camera is the eye, so the body centre sits below it.
-    const glm::vec3 bodyHalfExtents(0.3f, 0.9f, 0.3f);
+    const Math::vec3 bodyHalfExtents(0.3f, 0.9f, 0.3f);
     constexpr f32 kEyeHeight = 0.7f;
     constexpr f32 kGravity = -26.0f;
     constexpr f32 kJumpSpeed = 9.0f;
@@ -195,24 +195,24 @@ int main(int argc, char** argv)
 
         if (walking)
         {
-            const glm::vec3 eye = cameraObject->globalPosition();
-            glm::vec3 centre = eye - glm::vec3(0.0f, kEyeHeight, 0.0f);
+            const Math::vec3 eye = cameraObject->globalPosition();
+            Math::vec3 centre = eye - Math::vec3(0.0f, kEyeHeight, 0.0f);
 
-            const glm::vec3 forward = cameraObject->forward();
-            const glm::vec3 flatForward =
-                glm::normalize(glm::vec3(forward.x, 0.0f, forward.z) + glm::vec3(1e-5f, 0.0f, 0.0f));
-            const glm::vec3 right = glm::normalize(glm::cross(flatForward, glm::vec3(0, 1, 0)));
+            const Math::vec3 forward = cameraObject->forward();
+            const Math::vec3 flatForward =
+                Math::normalize(Math::vec3(forward.x, 0.0f, forward.z) + Math::vec3(1e-5f, 0.0f, 0.0f));
+            const Math::vec3 right = Math::normalize(Math::cross(flatForward, Math::vec3(0, 1, 0)));
 
-            glm::vec3 wish(0.0f);
+            Math::vec3 wish(0.0f);
             if (Input::isKeyDown(KEY_W)) wish += flatForward;
             if (Input::isKeyDown(KEY_S)) wish -= flatForward;
             if (Input::isKeyDown(KEY_D)) wish += right;
             if (Input::isKeyDown(KEY_A)) wish -= right;
-            if (glm::dot(wish, wish) > 0.0f)
-                wish = glm::normalize(wish) * kWalkSpeed;
+            if (Math::dot(wish, wish) > 0.0f)
+                wish = Math::normalize(wish) * kWalkSpeed;
 
             const bool onGround =
-                voxelWorld->moveBox(centre, bodyHalfExtents, glm::vec3(0.0f)).grounded;
+                voxelWorld->moveBox(centre, bodyHalfExtents, Math::vec3(0.0f)).grounded;
             if (onGround && verticalSpeed <= 0.0f)
             {
                 verticalSpeed = Input::isKeyDown(KEY_SPACE) ? kJumpSpeed : 0.0f;
@@ -222,7 +222,7 @@ int main(int argc, char** argv)
                 verticalSpeed += kGravity * deltaTime;
             }
 
-            const glm::vec3 displacement(wish.x * deltaTime, verticalSpeed * deltaTime,
+            const Math::vec3 displacement(wish.x * deltaTime, verticalSpeed * deltaTime,
                                          wish.z * deltaTime);
             const VoxelMoveResult moved =
                 voxelWorld->moveBox(centre, bodyHalfExtents, displacement);
@@ -231,7 +231,7 @@ int main(int argc, char** argv)
             if (moved.ceiling && verticalSpeed > 0.0f)
                 verticalSpeed = 0.0f;
 
-            cameraObject->setPosition(moved.position + glm::vec3(0.0f, kEyeHeight, 0.0f));
+            cameraObject->setPosition(moved.position + Math::vec3(0.0f, kEyeHeight, 0.0f));
         }
 
         if (Input::isKeyPressed(KEY_F6) || Input::isKeyPressed(KEY_F7))

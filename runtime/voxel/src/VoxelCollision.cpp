@@ -23,8 +23,8 @@ bool blocksMovement(const BlockRegistry& blocks, BlockId id)
     return definition && definition->solid;
 }
 
-bool boxOverlapsSolid(const VoxelWorld& world, const BlockRegistry& blocks, const glm::vec3& min,
-                      const glm::vec3& max)
+bool boxOverlapsSolid(const VoxelWorld& world, const BlockRegistry& blocks, const Math::vec3& min,
+                      const Math::vec3& max)
 {
     const s32 firstX = static_cast<s32>(std::floor(min.x));
     const s32 lastX = static_cast<s32>(std::floor(max.x));
@@ -45,15 +45,15 @@ bool boxOverlapsSolid(const VoxelWorld& world, const BlockRegistry& blocks, cons
 // that put it inside a block, snapped back to the boundary it just crossed.
 // Unit cubes on integer coordinates are what make the snap a floor/ceil rather
 // than a search.
-bool resolveAxis(const VoxelWorld& world, const BlockRegistry& blocks, glm::vec3& position,
-                 const glm::vec3& halfExtents, f32 delta, int axis)
+bool resolveAxis(const VoxelWorld& world, const BlockRegistry& blocks, Math::vec3& position,
+                 const Math::vec3& halfExtents, f32 delta, int axis)
 {
     if (delta == 0.0f)
         return false;
 
     position[axis] += delta;
-    glm::vec3 min = position - halfExtents;
-    glm::vec3 max = position + halfExtents;
+    Math::vec3 min = position - halfExtents;
+    Math::vec3 max = position + halfExtents;
     if (!boxOverlapsSolid(world, blocks, min, max))
         return false;
 
@@ -72,24 +72,24 @@ bool resolveAxis(const VoxelWorld& world, const BlockRegistry& blocks, glm::vec3
 } // namespace
 
 bool VoxelCollision::overlaps(const VoxelWorld& world, const BlockRegistry& blocks,
-                              const glm::vec3& position, const glm::vec3& halfExtents)
+                              const Math::vec3& position, const Math::vec3& halfExtents)
 {
     return boxOverlapsSolid(world, blocks, position - halfExtents, position + halfExtents);
 }
 
 bool VoxelCollision::grounded(const VoxelWorld& world, const BlockRegistry& blocks,
-                              const glm::vec3& position, const glm::vec3& halfExtents)
+                              const Math::vec3& position, const Math::vec3& halfExtents)
 {
-    glm::vec3 min = position - halfExtents;
-    glm::vec3 max = position + halfExtents;
+    Math::vec3 min = position - halfExtents;
+    Math::vec3 max = position + halfExtents;
     max.y = min.y;
     min.y -= 2.0f * Skin;
     return boxOverlapsSolid(world, blocks, min, max);
 }
 
 VoxelMoveResult VoxelCollision::moveBox(const VoxelWorld& world, const BlockRegistry& blocks,
-                                        const glm::vec3& position, const glm::vec3& halfExtents,
-                                        const glm::vec3& displacement)
+                                        const Math::vec3& position, const Math::vec3& halfExtents,
+                                        const Math::vec3& displacement)
 {
     VoxelMoveResult result;
     result.position = position;
@@ -97,7 +97,7 @@ VoxelMoveResult VoxelCollision::moveBox(const VoxelWorld& world, const BlockRegi
     const f32 longest = std::max(std::abs(displacement.x),
                                  std::max(std::abs(displacement.y), std::abs(displacement.z)));
     const s32 steps = std::max(1, static_cast<s32>(std::ceil(longest / MaxStep)));
-    const glm::vec3 step = displacement / static_cast<f32>(steps);
+    const Math::vec3 step = displacement / static_cast<f32>(steps);
 
     for (s32 i = 0; i < steps; ++i)
     {

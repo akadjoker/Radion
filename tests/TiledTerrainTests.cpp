@@ -34,7 +34,7 @@ bool near(f32 a, f32 b, f32 epsilon = 1e-5f)
     return std::abs(a - b) <= epsilon;
 }
 
-bool near(const glm::vec2& a, const glm::vec2& b, f32 epsilon = 1e-5f)
+bool near(const Math::vec2& a, const Math::vec2& b, f32 epsilon = 1e-5f)
 {
     return near(a.x, b.x, epsilon) && near(a.y, b.y, epsilon);
 }
@@ -109,60 +109,60 @@ void testAtlasUVMatchesExpectedCell()
     const int tilesInSide = 4;
     const f32 step = 0.25f;
     const f32 inset = step * 0.02f;
-    glm::vec2 uvMin, uvMax;
+    Math::vec2 uvMin, uvMax;
 
     TiledTerrain::atlasUV(0, tilesInSide, uvMin, uvMax);
-    CHECK(near(uvMin, glm::vec2(inset, 0.75f + inset)));
-    CHECK(near(uvMax, glm::vec2(step - inset, 1.0f - inset)));
+    CHECK(near(uvMin, Math::vec2(inset, 0.75f + inset)));
+    CHECK(near(uvMax, Math::vec2(step - inset, 1.0f - inset)));
 
     TiledTerrain::atlasUV(static_cast<u8>(tilesInSide * tilesInSide - 1), tilesInSide, uvMin,
                           uvMax);
-    CHECK(near(uvMin, glm::vec2(0.75f + inset, inset)));
-    CHECK(near(uvMax, glm::vec2(1.0f - inset, step - inset)));
+    CHECK(near(uvMin, Math::vec2(0.75f + inset, inset)));
+    CHECK(near(uvMax, Math::vec2(1.0f - inset, step - inset)));
 
     TiledTerrain::atlasUV(5, tilesInSide, uvMin, uvMax); // row 1, col 1
-    CHECK(near(uvMin, glm::vec2(0.25f + inset, 0.5f + inset)));
-    CHECK(near(uvMax, glm::vec2(0.5f - inset, 0.75f - inset)));
+    CHECK(near(uvMin, Math::vec2(0.25f + inset, 0.5f + inset)));
+    CHECK(near(uvMax, Math::vec2(0.5f - inset, 0.75f - inset)));
 
     // Bits 6-7 encode the rotation, not a different atlas cell.
     TiledTerrain::atlasUV(static_cast<u8>(5 | 0x80), tilesInSide, uvMin, uvMax);
-    CHECK(near(uvMin, glm::vec2(0.25f + inset, 0.5f + inset)));
-    CHECK(near(uvMax, glm::vec2(0.5f - inset, 0.75f - inset)));
+    CHECK(near(uvMin, Math::vec2(0.25f + inset, 0.5f + inset)));
+    CHECK(near(uvMax, Math::vec2(0.5f - inset, 0.75f - inset)));
 }
 
 void testAtlasUVsMatchEncodedRotations()
 {
     const int tilesInSide = 8;
     const u8 atlasTile = 9;
-    glm::vec2 uvMin, uvMax;
+    Math::vec2 uvMin, uvMax;
     TiledTerrain::atlasUV(atlasTile, tilesInSide, uvMin, uvMax);
 
-    glm::vec2 bottomLeft, bottomRight, topLeft, topRight;
+    Math::vec2 bottomLeft, bottomRight, topLeft, topRight;
     TiledTerrain::atlasUVs(atlasTile, tilesInSide, bottomLeft, bottomRight, topLeft, topRight);
-    CHECK(near(bottomLeft, glm::vec2(uvMin.x, uvMax.y)));
+    CHECK(near(bottomLeft, Math::vec2(uvMin.x, uvMax.y)));
     CHECK(near(bottomRight, uvMax));
     CHECK(near(topLeft, uvMin));
-    CHECK(near(topRight, glm::vec2(uvMax.x, uvMin.y)));
+    CHECK(near(topRight, Math::vec2(uvMax.x, uvMin.y)));
 
     TiledTerrain::atlasUVs(static_cast<u8>(atlasTile | 0x40), tilesInSide, bottomLeft,
                            bottomRight, topLeft, topRight);
     CHECK(near(bottomLeft, uvMax));
-    CHECK(near(bottomRight, glm::vec2(uvMax.x, uvMin.y)));
-    CHECK(near(topLeft, glm::vec2(uvMin.x, uvMax.y)));
+    CHECK(near(bottomRight, Math::vec2(uvMax.x, uvMin.y)));
+    CHECK(near(topLeft, Math::vec2(uvMin.x, uvMax.y)));
     CHECK(near(topRight, uvMin));
 
     TiledTerrain::atlasUVs(static_cast<u8>(atlasTile | 0x80), tilesInSide, bottomLeft,
                            bottomRight, topLeft, topRight);
-    CHECK(near(bottomLeft, glm::vec2(uvMax.x, uvMin.y)));
+    CHECK(near(bottomLeft, Math::vec2(uvMax.x, uvMin.y)));
     CHECK(near(bottomRight, uvMin));
     CHECK(near(topLeft, uvMax));
-    CHECK(near(topRight, glm::vec2(uvMin.x, uvMax.y)));
+    CHECK(near(topRight, Math::vec2(uvMin.x, uvMax.y)));
 
     TiledTerrain::atlasUVs(static_cast<u8>(atlasTile | 0xc0), tilesInSide, bottomLeft,
                            bottomRight, topLeft, topRight);
     CHECK(near(bottomLeft, uvMin));
-    CHECK(near(bottomRight, glm::vec2(uvMin.x, uvMax.y)));
-    CHECK(near(topLeft, glm::vec2(uvMax.x, uvMin.y)));
+    CHECK(near(bottomRight, Math::vec2(uvMin.x, uvMax.y)));
+    CHECK(near(topLeft, Math::vec2(uvMax.x, uvMin.y)));
     CHECK(near(topRight, uvMax));
 }
 

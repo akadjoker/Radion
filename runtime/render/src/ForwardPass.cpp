@@ -39,7 +39,7 @@ bool ForwardPass::setup()
     mEnvironmentBuffer = gpu.createBuffer(environment);
 
     BufferDesc mirrorCamera;
-    mirrorCamera.size = sizeof(glm::mat4);
+    mirrorCamera.size = sizeof(Math::mat4);
     mirrorCamera.usage = BufferUniform;
     mirrorCamera.residency = Residency::Stream;
     mirrorCamera.debugName = "forward.mirror_camera";
@@ -157,10 +157,10 @@ bool ForwardPass::ensurePaletteCapacity(u32 matrices)
     while (capacity < matrices)
         capacity *= 2;
     BufferDesc desc;
-    desc.size = static_cast<u64>(capacity) * sizeof(glm::mat4);
+    desc.size = static_cast<u64>(capacity) * sizeof(Math::mat4);
     desc.usage = BufferStorage;
     desc.residency = Residency::Stream;
-    desc.stride = sizeof(glm::mat4);
+    desc.stride = sizeof(Math::mat4);
     desc.debugName = "forward.palettes";
     GPU& gpu = GPU::getSingleton();
     BufferHandle next = gpu.createBuffer(desc);
@@ -180,7 +180,7 @@ void ForwardPass::bindFrameState(const FrameContext& frame)
     gpu.setViewport(frame.viewport);
 
     const CameraBlock camera{frame.viewProjection, frame.clipPlane,
-                             glm::vec4(frame.cameraPosition, 1.0f), frame.view};
+                             Math::vec4(frame.cameraPosition, 1.0f), frame.view};
     gpu.updateBuffer(mCameraBuffer, 0, sizeof(CameraBlock), &camera);
     gpu.bindUniform(BindingCamera, mCameraBuffer);
     const TemporalCameraBlock temporal{frame.viewProjectionNoJitter,
@@ -204,7 +204,7 @@ void ForwardPass::bindFrameState(const FrameContext& frame)
     // mirror. WaterPass writes the same slots for its own draws right
     // before this pass runs the next frame; each pass rewrites both before
     // its own batches, so the two never fight over them.
-    gpu.updateBuffer(mMirrorCameraBuffer, 0, sizeof(glm::mat4), &frame.reflectionViewProj);
+    gpu.updateBuffer(mMirrorCameraBuffer, 0, sizeof(Math::mat4), &frame.reflectionViewProj);
     gpu.bindUniform(BindingReflectionCamera, mMirrorCameraBuffer);
     const TextureHandle mirrorReflection =
         Assets().resolveRenderTarget(hashName(kReflectionTargetName));
@@ -288,8 +288,8 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
     // Rewritten into draw order, not submission order: instancing needs a
     // run's matrices to sit next to each other in the buffer, and the sort
     // only made the packets adjacent, not their instance indices.
-    const glm::mat4* models = frame.list->models();
-    const glm::mat4* prevModels = frame.list->prevModels();
+    const Math::mat4* models = frame.list->models();
+    const Math::mat4* prevModels = frame.list->prevModels();
     mGPUInstances.clear();
     mGPUInstances.reserve(packets.size());
     mPalettes.clear();
@@ -307,7 +307,7 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
         {
             mPalettes.insert(mPalettes.end(), instance.palette->begin(), instance.palette->end());
             gpuInstance.prevPaletteOffset = static_cast<u32>(mPalettes.size());
-            const std::vector<glm::mat4>* prevPalette =
+            const std::vector<Math::mat4>* prevPalette =
                 instance.prevPalette ? instance.prevPalette : instance.palette;
             mPalettes.insert(mPalettes.end(), prevPalette->begin(), prevPalette->end());
         }
@@ -317,7 +317,7 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
             // palette=nullptr) - identity so the vertex shader's
             // MATERIAL_SKINNED path reads bind pose instead of whatever the
             // buffer held from a previous frame's draw at this offset.
-            const std::vector<glm::mat4>& identity = RenderList::identityPalette();
+            const std::vector<Math::mat4>& identity = RenderList::identityPalette();
             mPalettes.insert(mPalettes.end(), identity.begin(), identity.end());
             gpuInstance.prevPaletteOffset = static_cast<u32>(mPalettes.size());
             mPalettes.insert(mPalettes.end(), identity.begin(), identity.end());
@@ -337,7 +337,7 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
     {
         if (!ensurePaletteCapacity(static_cast<u32>(mPalettes.size())))
             return;
-        gpu.updateBuffer(mPaletteBuffer, 0, mPalettes.size() * sizeof(glm::mat4), mPalettes.data());
+        gpu.updateBuffer(mPaletteBuffer, 0, mPalettes.size() * sizeof(Math::mat4), mPalettes.data());
         gpu.bindStorage(BindingPalettes, mPaletteBuffer);
     }
 
@@ -406,9 +406,9 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
                 if (instance.probe.cubemap.valid())
                 {
                     block.probePositionAndMips =
-                        glm::vec4(instance.probe.position, glm::max(instance.probe.mipCount, 1u));
+                        Math::vec4(instance.probe.position, Math::max(instance.probe.mipCount, 1u));
                     block.probeExtentsAndIntensity =
-                        glm::vec4(instance.probe.extents, instance.probe.intensity);
+                        Math::vec4(instance.probe.extents, instance.probe.intensity);
                 }
                 gpu.updateBuffer(mEnvironmentBuffer, 0, sizeof(block), &block);
                 gpu.bindUniform(BindingEnvironment, mEnvironmentBuffer);

@@ -3,7 +3,7 @@
 
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion
 {

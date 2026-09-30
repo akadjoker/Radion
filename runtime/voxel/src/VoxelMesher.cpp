@@ -13,8 +13,8 @@ struct FaceInfo
 {
     VoxelCoord neighbourOffset;
     BlockFace face;
-    glm::vec3 normal;
-    glm::vec3 corners[4];
+    Math::vec3 normal;
+    Math::vec3 corners[4];
     VoxelCoord uAxis;
     VoxelCoord vAxis;
     // The greedy sweep's u axis is chosen to keep the quad's winding facing
@@ -168,7 +168,7 @@ u32 slotFor(BlockRenderType type)
     }
 }
 
-glm::vec2 rotateUv(const glm::vec2& uv, s32 width, s32 height, BlockFaceRotation rotation)
+Math::vec2 rotateUv(const Math::vec2& uv, s32 width, s32 height, BlockFaceRotation rotation)
 {
     switch (rotation)
     {
@@ -189,11 +189,11 @@ void appendFace(MeshData& mesh, std::vector<u32>& indices, AABB& passBounds,
                 VoxelMesher::Settings settings, s32 width, s32 height, const MaskCell& cell)
 {
     const u32 base = static_cast<u32>(mesh.positions.size());
-    const glm::vec3 origin(static_cast<f32>(local.x), static_cast<f32>(local.y),
+    const Math::vec3 origin(static_cast<f32>(local.x), static_cast<f32>(local.y),
                            static_cast<f32>(local.z));
-    const glm::vec3 uEdge = face.corners[1] - face.corners[0];
-    const glm::vec3 vEdge = face.corners[3] - face.corners[0];
-    const glm::vec3 corners[] = {
+    const Math::vec3 uEdge = face.corners[1] - face.corners[0];
+    const Math::vec3 vEdge = face.corners[3] - face.corners[0];
+    const Math::vec3 corners[] = {
         face.corners[0],
         face.corners[0] + uEdge * static_cast<f32>(width),
         face.corners[0] + uEdge * static_cast<f32>(width) + vEdge * static_cast<f32>(height),
@@ -205,25 +205,25 @@ void appendFace(MeshData& mesh, std::vector<u32>& indices, AABB& passBounds,
     // exchanged with the sweep's.
     const s32 texWidth = face.swapUv ? height : width;
     const s32 texHeight = face.swapUv ? width : height;
-    glm::vec2 uvs[] = {
+    Math::vec2 uvs[] = {
         {0.0f, 0.0f},
         {static_cast<f32>(width), 0.0f},
         {static_cast<f32>(width), static_cast<f32>(height)},
         {0.0f, static_cast<f32>(height)},
     };
-    for (glm::vec2& uv : uvs)
+    for (Math::vec2& uv : uvs)
     {
         if (face.swapUv)
             uv = {uv.y, uv.x};
         uv = rotateUv(uv, texWidth, texHeight, material.rotation);
     }
-    const glm::vec2 atlasOrigin(static_cast<f32>(material.atlasX) * tileWidth,
+    const Math::vec2 atlasOrigin(static_cast<f32>(material.atlasX) * tileWidth,
                                 static_cast<f32>(material.atlasY) * tileHeight);
 
     for (u32 i = 0; i < 4; ++i)
     {
         mesh.positions.push_back(origin + corners[i]);
-        glm::vec2 uv = uvs[i];
+        Math::vec2 uv = uvs[i];
         if (material.flipVertical)
             uv.y = static_cast<f32>(texHeight) - uv.y;
         // Normals, tangents and both UV sets stay out of the mesh: the packed

@@ -14,36 +14,36 @@ namespace Radion
 namespace
 {
 
-bool readVec2(AssetFormat::Reader& reader, glm::vec2& value)
+bool readVec2(AssetFormat::Reader& reader, Math::vec2& value)
 {
     return reader.readF32(value.x) && reader.readF32(value.y);
 }
 
-bool readVec3(AssetFormat::Reader& reader, glm::vec3& value)
+bool readVec3(AssetFormat::Reader& reader, Math::vec3& value)
 {
     return reader.readF32(value.x) && reader.readF32(value.y) && reader.readF32(value.z);
 }
 
-bool readVec4(AssetFormat::Reader& reader, glm::vec4& value)
+bool readVec4(AssetFormat::Reader& reader, Math::vec4& value)
 {
     return reader.readF32(value.x) && reader.readF32(value.y) && reader.readF32(value.z) &&
            reader.readF32(value.w);
 }
 
-void writeVec2(AssetFormat::Writer& writer, const glm::vec2& value)
+void writeVec2(AssetFormat::Writer& writer, const Math::vec2& value)
 {
     writer.writeF32(value.x);
     writer.writeF32(value.y);
 }
 
-void writeVec3(AssetFormat::Writer& writer, const glm::vec3& value)
+void writeVec3(AssetFormat::Writer& writer, const Math::vec3& value)
 {
     writer.writeF32(value.x);
     writer.writeF32(value.y);
     writer.writeF32(value.z);
 }
 
-void writeVec4(AssetFormat::Writer& writer, const glm::vec4& value)
+void writeVec4(AssetFormat::Writer& writer, const Math::vec4& value)
 {
     writer.writeF32(value.x);
     writer.writeF32(value.y);
@@ -76,7 +76,7 @@ bool RadionMeshImporter::supports(const char* extension) const
 
 static bool readStaticMeshHeader(AssetFormat::Reader& reader,
                                  u32& vertexCount, u32& indexCount, u32& subMeshCount,
-                                 glm::vec3& boundsMin, glm::vec3& boundsMax,
+                                 Math::vec3& boundsMin, Math::vec3& boundsMax,
                                  u32& uncompressedSize, u32& compressedSize)
 {
     if (!reader.readU32(vertexCount) ||
@@ -192,7 +192,7 @@ static bool importStaticMesh(const std::string& filename, ByteArray& data, MeshD
     u32 vertexCount = 0;
     u32 indexCount = 0;
     u32 subMeshCount = 0;
-    glm::vec3 boundsMin, boundsMax;
+    Math::vec3 boundsMin, boundsMax;
     u32 uncompressedSize = 0;
     u32 compressedSize = 0;
     if (!readStaticMeshHeader(reader, vertexCount, indexCount, subMeshCount,
@@ -252,14 +252,14 @@ static bool importStaticMesh(const std::string& filename, ByteArray& data, MeshD
 
     u32 materialCount = 0;
     for (const SubMesh& submesh : mesh.submeshes)
-        materialCount = glm::max(materialCount, submesh.materialSlot + 1);
+        materialCount = Math::max(materialCount, submesh.materialSlot + 1);
 
     mesh.materials.resize(materialCount);
     for (u32 i = 0; i < materialCount; ++i)
     {
         Material& material = mesh.materials[i];
         material.flags = MaterialCastShadow | MaterialReceiveShadow;
-        material.params.baseColor = glm::vec4(0.75f, 0.78f, 0.82f, 1.0f);
+        material.params.baseColor = Math::vec4(0.75f, 0.78f, 0.82f, 1.0f);
         material.name = "Material_" + std::to_string(i);
         material.nameHash = hashName(material.name.c_str());
     }
@@ -402,7 +402,7 @@ bool RadionMeshImporter::import(const std::string& filename, ByteArray& data, Fi
             if (!reader.readU32(count) || count > 100000000 || !fitsChunk(reader, count, 8))
                 return false;
             mesh.uvs2.resize(count);
-            for (glm::vec2& uv : mesh.uvs2)
+            for (Math::vec2& uv : mesh.uvs2)
                 if (!readVec2(reader, uv))
                     return false;
         }
@@ -427,7 +427,7 @@ bool RadionMeshImporter::import(const std::string& filename, ByteArray& data, Fi
             return false;
     u32 materialCount = static_cast<u32>(materialSlots.size());
     for (const SubMesh& submesh : mesh.submeshes)
-        materialCount = glm::max(materialCount, submesh.materialSlot + 1);
+        materialCount = Math::max(materialCount, submesh.materialSlot + 1);
 
     mesh.materials.resize(materialCount);
     for (u32 i = 0; i < materialCount; ++i)
@@ -437,7 +437,7 @@ bool RadionMeshImporter::import(const std::string& filename, ByteArray& data, Fi
         material.flags = MaterialCastShadow | MaterialReceiveShadow;
         if (!mesh.skin.empty())
             material.flags |= MaterialSkinned;
-        material.params.baseColor = glm::vec4(0.75f, 0.78f, 0.82f, 1.0f);
+        material.params.baseColor = Math::vec4(0.75f, 0.78f, 0.82f, 1.0f);
         material.nameHash = hashName(material.name.c_str());
     }
     return true;
@@ -518,7 +518,7 @@ bool saveRadionMesh(const std::string& filename, const MeshData& mesh,
     {
         chunk = writer.beginChunk(AssetFormat::LightmapUV);
         writer.writeU32(static_cast<u32>(mesh.uvs2.size()));
-        for (const glm::vec2& uv : mesh.uvs2)
+        for (const Math::vec2& uv : mesh.uvs2)
             writeVec2(writer, uv);
         writer.endChunk(chunk);
     }

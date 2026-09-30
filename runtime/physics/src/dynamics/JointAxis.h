@@ -10,7 +10,7 @@
 namespace Radion::Physics::detail
 {
 
-// glm::normalize(vec3(0)) is NaN, and a NaN axis does not stay put: it goes
+// Math::normalize(vec3(0)) is NaN, and a NaN axis does not stay put: it goes
 // into the joint's frames, out through the impulses into both bodies, and
 // from there into every body they touch - the whole simulation, silently,
 // with no error anywhere and nothing to point at afterwards.
@@ -20,9 +20,9 @@ namespace Radion::Physics::detail
 // This closes it in the one direction that matters: a zero axis is a caller
 // mistake, and falling back to a sane one keeps it a mistake in that one
 // joint instead of the end of the simulation.
-inline glm::vec3 normalizedAxisOr(const glm::vec3& axis, const glm::vec3& fallback)
+inline Math::vec3 normalizedAxisOr(const Math::vec3& axis, const Math::vec3& fallback)
 {
-    const f32 length = glm::length(axis);
+    const f32 length = Math::length(axis);
     if (length > 1.0e-6f && std::isfinite(length))
         return axis / length;
     return fallback;

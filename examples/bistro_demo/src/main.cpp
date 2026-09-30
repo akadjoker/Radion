@@ -146,12 +146,12 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const glm::vec3 center = sourceBounds.center() * kSceneScale;
-    const glm::vec3 extents = sourceBounds.extents() * kSceneScale;
+    const Math::vec3 center = sourceBounds.center() * kSceneScale;
+    const Math::vec3 extents = sourceBounds.extents() * kSceneScale;
     const f32 radius = std::max(extents.x, std::max(extents.y, extents.z));
 
     GameObject* worldObject = scene->createGameObject("Bistro");
-    worldObject->setScale(glm::vec3(kSceneScale));
+    worldObject->setScale(Math::vec3(kSceneScale));
     // Only a static renderer enters the SceneBVH - see Scene::rebuildStaticIndex().
     // Without this the whole measurement is of the unindexed path.
     worldObject->setStatic(true);
@@ -161,7 +161,7 @@ int main(int argc, char** argv)
     GameObject* cameraObject = scene->createGameObject("Camera");
     Camera* camera = cameraObject->addComponent<Camera>();
     camera->setPerspective(60.0f, 16.0f / 9.0f, 0.1f, radius * 8.0f);
-    cameraObject->setPosition(center + glm::vec3(0.0f, extents.y * 0.35f, -radius * 0.9f));
+    cameraObject->setPosition(center + Math::vec3(0.0f, extents.y * 0.35f, -radius * 0.9f));
     cameraObject->lookAt(center);
     FreeFly* fly = cameraObject->addComponent<FreeFly>();
     fly->setMoveSpeed(radius * 0.25f);
@@ -170,9 +170,9 @@ int main(int argc, char** argv)
 
     GameObject* sunObject = scene->createGameObject("Sun");
     DirectionalLight* sun = sunObject->addComponent<DirectionalLight>();
-    sun->setColor(glm::vec3(1.0f, 0.95f, 0.85f));
+    sun->setColor(Math::vec3(1.0f, 0.95f, 0.85f));
     sun->setIntensity(1.0f);
-    sunObject->setPosition(center + glm::vec3(-radius, radius, -radius * 0.8f));
+    sunObject->setPosition(center + Math::vec3(-radius, radius, -radius * 0.8f));
     sunObject->lookAt(center);
 
     Log::info("Bistro demo: '%s' - %zu vertices, %zu triangles, %zu submeshes, %zu materials",

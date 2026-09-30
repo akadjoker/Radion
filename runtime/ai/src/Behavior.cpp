@@ -46,13 +46,13 @@ void Behavior::setParamFloat(u32 index, f32 value)
     (void)value;
 }
 
-glm::vec3 Behavior::paramVec3(u32 index) const
+Math::vec3 Behavior::paramVec3(u32 index) const
 {
     (void)index;
-    return glm::vec3(0.0f);
+    return Math::vec3(0.0f);
 }
 
-void Behavior::setParamVec3(u32 index, const glm::vec3& value)
+void Behavior::setParamVec3(u32 index, const Math::vec3& value)
 {
     (void)index;
     (void)value;
@@ -135,7 +135,7 @@ void SeparationBehavior::iterate(float timeDelta, Agent& entity)
     // lets a school collapse into a dense ball at the centre of mass where
     // separation and cohesion fight every frame - the "crazy fish at the
     // centre" look.
-    glm::vec3 separationPush(0.0f);
+    Math::vec3 separationPush(0.0f);
     for (const EntityDist& member : groupMembers)
     {
         const float d = member.distance;
@@ -147,19 +147,19 @@ void SeparationBehavior::iterate(float timeDelta, Agent& entity)
         const float pct =
             std::clamp(d / mSeparationDistance, mMinSeparationPercentage, mMaxSeparationPercentage);
 
-        glm::vec3 away = member.entity->position() - entity.position();
-        if (glm::dot(away, away) < 1e-8f)
-            away = glm::vec3(1.0f, 0.0f, 0.0f); // coincident - pick a stable direction
+        Math::vec3 away = member.entity->position() - entity.position();
+        if (Math::dot(away, away) < 1e-8f)
+            away = Math::vec3(1.0f, 0.0f, 0.0f); // coincident - pick a stable direction
         else
             away = safeNormalize(away);
 
         separationPush -= away * (1.0f - pct);
     }
 
-    if (glm::dot(separationPush, separationPush) < 1e-8f)
+    if (Math::dot(separationPush, separationPush) < 1e-8f)
         return;
 
-    glm::vec3 currentDesiredMove = entity.desiredMove();
+    Math::vec3 currentDesiredMove = entity.desiredMove();
     currentDesiredMove += safeNormalize(separationPush) * gain();
     entity.setDesiredMove(currentDesiredMove);
 }
@@ -211,8 +211,8 @@ void AlignmentBehavior::iterate(float timeDelta, Agent& entity)
     const Agent& nearestGroupMember = *groupMembers.front().entity;
 
     // Match the heading of our closest group member.
-    glm::vec3 desiredMoveAdj = safeNormalize(nearestGroupMember.velocity()) * mTurnRate;
-    glm::vec3 currentDesiredMove = entity.desiredMove();
+    Math::vec3 desiredMoveAdj = safeNormalize(nearestGroupMember.velocity()) * mTurnRate;
+    Math::vec3 currentDesiredMove = entity.desiredMove();
     currentDesiredMove += desiredMoveAdj * gain();
     entity.setDesiredMove(currentDesiredMove);
 }
@@ -262,7 +262,7 @@ void CohesionBehavior::iterate(float timeDelta, Agent& entity)
         return;
 
     // Compute the centre of mass of the group.
-    glm::vec3 groupCenterOfMass(0.0f);
+    Math::vec3 groupCenterOfMass(0.0f);
     for (const EntityDist& member : groupMembers)
         groupCenterOfMass += member.entity->position();
     groupCenterOfMass /= static_cast<float>(groupMembers.size());
@@ -270,13 +270,13 @@ void CohesionBehavior::iterate(float timeDelta, Agent& entity)
     // Dead zone: when we are essentially ON the centre of mass the direction
     // is pure floating-point noise and the force fights the separation every
     // frame (the "crazy at the centre" look). Skip it until we drift away.
-    const glm::vec3 toCenterOfMass = groupCenterOfMass - entity.position();
-    if (glm::dot(toCenterOfMass, toCenterOfMass) < 0.0625f) // < 0.25 units
+    const Math::vec3 toCenterOfMass = groupCenterOfMass - entity.position();
+    if (Math::dot(toCenterOfMass, toCenterOfMass) < 0.0625f) // < 0.25 units
         return;
 
     // Move toward the centre of the group.
-    glm::vec3 desiredMoveAdj = safeNormalize(toCenterOfMass) * mTurnRate;
-    glm::vec3 currentDesiredMove = entity.desiredMove();
+    Math::vec3 desiredMoveAdj = safeNormalize(toCenterOfMass) * mTurnRate;
+    Math::vec3 currentDesiredMove = entity.desiredMove();
     currentDesiredMove += desiredMoveAdj * gain();
     entity.setDesiredMove(currentDesiredMove);
 }
@@ -342,9 +342,9 @@ void AvoidanceBehavior::iterate(float timeDelta, Agent& entity)
     // Head away from the enemy.
     if (nearestEnemyDist < mAvoidanceDistance)
     {
-        glm::vec3 desiredMoveAdj =
+        Math::vec3 desiredMoveAdj =
             safeNormalize(entity.position() - nearestEnemy.position()) * mAvoidanceSpeed;
-        glm::vec3 currentDesiredMove = entity.desiredMove();
+        Math::vec3 currentDesiredMove = entity.desiredMove();
         currentDesiredMove += desiredMoveAdj * gain();
         entity.setDesiredMove(currentDesiredMove);
     }
@@ -423,7 +423,7 @@ void CruisingBehavior::iterate(float timeDelta, Agent& entity)
     (void)timeDelta;
 
     // How fast we are going vs how fast we'd like to be going.
-    float currentSpeed = glm::length(entity.velocity());
+    float currentSpeed = Math::length(entity.velocity());
     float percentDesiredSpeed =
         std::fabs((currentSpeed - entity.desiredSpeed()) / entity.maxSpeed());
     float signum = (currentSpeed - entity.desiredSpeed()) > 0.0f ? -1.0f : 1.0f;
@@ -435,7 +435,7 @@ void CruisingBehavior::iterate(float timeDelta, Agent& entity)
     // the roll is tested against cumulative bands - comparing each against
     // the raw roll would make an axis unreachable whenever its chance is
     // smaller than the previous one (Y never fired for X=0.45, Y=0.2).
-    glm::vec3 desiredMoveAdj(0.0f);
+    Math::vec3 desiredMoveAdj(0.0f);
     float randmove = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
     if (randmove < mRandMoveXChance)
         desiredMoveAdj.x += mMinRandomMove * signum;
@@ -452,7 +452,7 @@ void CruisingBehavior::iterate(float timeDelta, Agent& entity)
     // (it only ever bounded a value nothing read). The clamp's lower bound
     // is mMinRateChange, so an agent already at its desired speed gets what
     // it got before.
-    glm::vec3 currentDesiredMove = entity.desiredMove();
+    Math::vec3 currentDesiredMove = entity.desiredMove();
     desiredMoveAdj = safeNormalize(desiredMoveAdj) * (percentDesiredSpeed * signum);
     currentDesiredMove += desiredMoveAdj * gain();
     entity.setDesiredMove(currentDesiredMove);
@@ -470,7 +470,7 @@ const BehaviorParam kStayWithinSphereParams[] = {
 };
 } // namespace
 
-StayWithinSphereBehavior::StayWithinSphereBehavior(const glm::vec3& center, float radius)
+StayWithinSphereBehavior::StayWithinSphereBehavior(const Math::vec3& center, float radius)
     : mCenter(center), mRadius(radius)
 {
 }
@@ -497,13 +497,13 @@ void StayWithinSphereBehavior::setParamFloat(u32 index, f32 value)
     mRadius = value;
 }
 
-glm::vec3 StayWithinSphereBehavior::paramVec3(u32 index) const
+Math::vec3 StayWithinSphereBehavior::paramVec3(u32 index) const
 {
     (void)index;
     return mCenter;
 }
 
-void StayWithinSphereBehavior::setParamVec3(u32 index, const glm::vec3& value)
+void StayWithinSphereBehavior::setParamVec3(u32 index, const Math::vec3& value)
 {
     (void)index;
     mCenter = value;
@@ -513,12 +513,12 @@ void StayWithinSphereBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
-    glm::vec3 toCenter = mCenter - entity.position();
-    float dist = glm::length(toCenter);
+    Math::vec3 toCenter = mCenter - entity.position();
+    float dist = Math::length(toCenter);
     if (dist > mRadius)
     {
-        glm::vec3 desiredMoveAdj = safeNormalize(toCenter) * entity.maxSpeed();
-        glm::vec3 currentDesiredMove = entity.desiredMove();
+        Math::vec3 desiredMoveAdj = safeNormalize(toCenter) * entity.maxSpeed();
+        Math::vec3 currentDesiredMove = entity.desiredMove();
         currentDesiredMove += desiredMoveAdj * gain();
         entity.setDesiredMove(currentDesiredMove);
     }

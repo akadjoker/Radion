@@ -28,7 +28,6 @@ target_precompile_headers(radion_core PRIVATE
 target_include_directories(radion_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(radion_core SYSTEM PUBLIC
     ${PROJECT_SOURCE_DIR}/vendor
-    ${PROJECT_SOURCE_DIR}/vendor/glm
     ${PROJECT_SOURCE_DIR}/vendor/miniz
 )
-target_link_libraries(radion_core PUBLIC radion_options SDL2::SDL2)
+target_link_libraries(radion_core PUBLIC radion_options radion_math SDL2::SDL2)

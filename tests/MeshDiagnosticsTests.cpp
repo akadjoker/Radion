@@ -35,11 +35,11 @@ MeshData makeTetrahedron()
 {
     MeshData mesh;
     mesh.positions = {
-        glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f),
+        Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(1.0f, 0.0f, 0.0f),
+        Math::vec3(0.0f, 1.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f),
     };
-    mesh.normals.assign(4, glm::vec3(0.0f, 1.0f, 0.0f));
-    mesh.uvs.assign(4, glm::vec2(0.0f));
+    mesh.normals.assign(4, Math::vec3(0.0f, 1.0f, 0.0f));
+    mesh.uvs.assign(4, Math::vec2(0.0f));
     mesh.indices = {0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3};
 
     SubMesh submesh;
@@ -85,7 +85,7 @@ void testOpenSurfaceHasBoundaryEdges()
     AssetManager& assets = AssetManager::getSingleton();
 
     MeshData mesh;
-    mesh.positions = {glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)};
+    mesh.positions = {Math::vec3(0.0f), Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f)};
     mesh.indices = {0, 2, 1};
 
     AssetManager::Diagnostics d;
@@ -113,7 +113,7 @@ void testDegenerateTriangles()
     // Three distinct vertices on one line: no repeated index, no area. This
     // is the one an index-only check misses.
     MeshData sliver;
-    sliver.positions = {glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(2.0f, 0.0f, 0.0f)};
+    sliver.positions = {Math::vec3(0.0f), Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(2.0f, 0.0f, 0.0f)};
     sliver.indices = {0, 1, 2};
     assets.analyzeMesh(sliver, d);
     CHECK(d.degenerateTriangles == 1);
@@ -125,12 +125,12 @@ void testOrphanVertices()
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeTetrahedron();
 
-    mesh.positions.push_back(glm::vec3(9.0f, 9.0f, 9.0f));
-    mesh.positions.push_back(glm::vec3(8.0f, 8.0f, 8.0f));
-    mesh.normals.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
-    mesh.normals.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
-    mesh.uvs.push_back(glm::vec2(0.0f));
-    mesh.uvs.push_back(glm::vec2(0.0f));
+    mesh.positions.push_back(Math::vec3(9.0f, 9.0f, 9.0f));
+    mesh.positions.push_back(Math::vec3(8.0f, 8.0f, 8.0f));
+    mesh.normals.push_back(Math::vec3(0.0f, 1.0f, 0.0f));
+    mesh.normals.push_back(Math::vec3(0.0f, 1.0f, 0.0f));
+    mesh.uvs.push_back(Math::vec2(0.0f));
+    mesh.uvs.push_back(Math::vec2(0.0f));
 
     AssetManager::Diagnostics d;
     assets.analyzeMesh(mesh, d);
@@ -145,8 +145,8 @@ void testNonManifoldEdge()
     // Three triangles hinged on the same edge 0-1.
     MeshData mesh;
     mesh.positions = {
-        glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f),
+        Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f),
+        Math::vec3(0.0f, 0.0f, 1.0f), Math::vec3(0.0f, -1.0f, 0.0f),
     };
     mesh.indices = {0, 1, 2, 0, 1, 3, 0, 1, 4};
 
@@ -180,8 +180,8 @@ void testDuplicatePositions()
     // orphans as well.
     mesh.positions.push_back(mesh.positions[0]);
     mesh.positions.push_back(mesh.positions[0]);
-    mesh.normals.resize(mesh.positions.size(), glm::vec3(0.0f, 1.0f, 0.0f));
-    mesh.uvs.resize(mesh.positions.size(), glm::vec2(0.0f));
+    mesh.normals.resize(mesh.positions.size(), Math::vec3(0.0f, 1.0f, 0.0f));
+    mesh.uvs.resize(mesh.positions.size(), Math::vec2(0.0f));
     mesh.indices.push_back(4);
     mesh.indices.push_back(5);
     mesh.indices.push_back(1);

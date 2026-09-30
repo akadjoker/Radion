@@ -8,7 +8,7 @@
 #include "VoxelTerrain.h"
 #include "VoxelWorld.h"
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 
 #include <unordered_set>
 #include <vector>
@@ -82,7 +82,7 @@ public:
     u32 seed() const { return mSeed; }
     void setMesherSettings(const VoxelMesher::Settings& settings) { mMesherSettings = settings; }
 
-    void setOrigin(const glm::vec3& position);
+    void setOrigin(const Math::vec3& position);
     // Collects finished jobs, unloads what left the radius and dispatches new
     // work. Main thread only.
     void update();

@@ -11,13 +11,13 @@ class HingeJoint final : public Joint
 {
 public:
     HingeJoint();
-    HingeJoint(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
-               const glm::vec3& worldHingeAxis);
-    HingeJoint(RigidBody& a, const glm::vec3& localAnchorA, const glm::vec3& localHingeAxisA,
-               const glm::vec3& localNormalAxisA, RigidBody& b, const glm::vec3& localAnchorB,
-               const glm::vec3& localHingeAxisB, const glm::vec3& localNormalAxisB);
-    void configure(RigidBody& a, RigidBody& b, const glm::vec3& worldAnchor,
-                  const glm::vec3& worldHingeAxis);
+    HingeJoint(RigidBody& a, RigidBody& b, const Math::vec3& worldAnchor,
+               const Math::vec3& worldHingeAxis);
+    HingeJoint(RigidBody& a, const Math::vec3& localAnchorA, const Math::vec3& localHingeAxisA,
+               const Math::vec3& localNormalAxisA, RigidBody& b, const Math::vec3& localAnchorB,
+               const Math::vec3& localHingeAxisB, const Math::vec3& localNormalAxisB);
+    void configure(RigidBody& a, RigidBody& b, const Math::vec3& worldAnchor,
+                  const Math::vec3& worldHingeAxis);
     void rebuild() override;
 
     RigidBody* bodyA() const override;
@@ -27,13 +27,13 @@ public:
     void solveVelocity() override;
     void solvePosition(f32 baumgarte) override;
 
-    glm::vec3 anchorWorldA() const override;
-    glm::vec3 anchorWorldB() const override;
+    Math::vec3 anchorWorldA() const override;
+    Math::vec3 anchorWorldB() const override;
     bool hasAxis() const override
     {
         return true;
     }
-    glm::vec3 axisWorld() const override;
+    Math::vec3 axisWorld() const override;
 
     void setLimits(f32 minAngle, f32 maxAngle);
     f32 minAngle() const;
@@ -68,8 +68,8 @@ public:
     f32 servoMaxAngularVelocity() const;
     bool servoEnabled() const;
 
-    void setAuthoredAxis(const glm::vec3& axis);
-    const glm::vec3& authoredAxis() const;
+    void setAuthoredAxis(const Math::vec3& axis);
+    const Math::vec3& authoredAxis() const;
 
 private:
     void calculatePositionProperties();
@@ -79,8 +79,8 @@ private:
     void calculateMotorProperties();
     f32 smallestAngleToLimit() const;
     bool minLimitClosest() const;
-    void applyVelocityImpulse(const glm::vec3& impulse);
-    void applyAngularVelocityImpulse(const glm::vec3& impulse);
+    void applyVelocityImpulse(const Math::vec3& impulse);
+    void applyAngularVelocityImpulse(const Math::vec3& impulse);
 
     // Null until rebuild() resolves them. Uninitialised, the component path -
     // where a joint exists from the moment it is added and is only wired up
@@ -88,31 +88,31 @@ private:
     // its bodies would follow.
     RigidBody* mBodyA = nullptr;
     RigidBody* mBodyB = nullptr;
-    glm::vec3 mLocalAnchorA;
-    glm::vec3 mLocalAnchorB;
-    glm::vec3 mLocalHingeAxisA;
-    glm::vec3 mLocalHingeAxisB;
-    glm::vec3 mLocalNormalAxisA;
-    glm::vec3 mLocalNormalAxisB;
-    glm::quat mInverseInitialOrientation;
-    glm::vec3 mAuthoredAxis{0.0f, 1.0f, 0.0f};
+    Math::vec3 mLocalAnchorA;
+    Math::vec3 mLocalAnchorB;
+    Math::vec3 mLocalHingeAxisA;
+    Math::vec3 mLocalHingeAxisB;
+    Math::vec3 mLocalNormalAxisA;
+    Math::vec3 mLocalNormalAxisB;
+    Math::quat mInverseInitialOrientation;
+    Math::vec3 mAuthoredAxis{0.0f, 1.0f, 0.0f};
 
-    glm::vec3 mArmA{0.0f};
-    glm::vec3 mArmB{0.0f};
-    glm::mat3 mPositionEffectiveMass{0.0f};
-    glm::vec3 mTotalPositionImpulse{0.0f};
+    Math::vec3 mArmA{0.0f};
+    Math::vec3 mArmB{0.0f};
+    Math::mat3 mPositionEffectiveMass{0.0f};
+    Math::vec3 mTotalPositionImpulse{0.0f};
 
-    glm::vec3 mA1{0.0f, 1.0f, 0.0f};
-    glm::vec3 mB2{1.0f, 0.0f, 0.0f};
-    glm::vec3 mC2{0.0f, 0.0f, 1.0f};
-    glm::vec3 mB2xA1{0.0f};
-    glm::vec3 mC2xA1{0.0f};
-    glm::mat2 mHingeRotationEffectiveMass{0.0f};
-    glm::vec2 mTotalHingeRotationImpulse{0.0f};
+    Math::vec3 mA1{0.0f, 1.0f, 0.0f};
+    Math::vec3 mB2{1.0f, 0.0f, 0.0f};
+    Math::vec3 mC2{0.0f, 0.0f, 1.0f};
+    Math::vec3 mB2xA1{0.0f};
+    Math::vec3 mC2xA1{0.0f};
+    Math::mat2 mHingeRotationEffectiveMass{0.0f};
+    Math::vec2 mTotalHingeRotationImpulse{0.0f};
 
     f32 mTheta = 0.0f;
-    f32 mLimitsMin = -glm::pi<f32>();
-    f32 mLimitsMax = glm::pi<f32>();
+    f32 mLimitsMin = -Math::pi<f32>();
+    f32 mLimitsMax = Math::pi<f32>();
     bool mHasLimits = false;
     f32 mLimitEffectiveMass = 0.0f;
     f32 mTotalLimitImpulse = 0.0f;

@@ -20,7 +20,7 @@ WaypointID nextWaypointId()
 }
 } // namespace
 
-Waypoint::Waypoint(const glm::vec3& position, const glm::quat& orientation, float radius)
+Waypoint::Waypoint(const Math::vec3& position, const Math::quat& orientation, float radius)
     : mId(nextWaypointId()), mPosition(position), mOrientation(orientation), mRadius(radius)
 {
 }
@@ -66,7 +66,7 @@ float Waypoint::costForEdge(const NetworkEdge& edge, const WaypointNetwork& netw
     // not "free": 0.0f here used to look like a zero-cost edge.
     if (!dest)
         return FLT_MAX;
-    return glm::length(mPosition - dest->position()) * edge.costModifier;
+    return Math::length(mPosition - dest->position()) * edge.costModifier;
 }
 
 } // namespace Radion::AI

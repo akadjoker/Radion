@@ -31,13 +31,13 @@ struct WeightedJoint
     f32 weight = 0.0f;
 };
 
-void rootSkin(const MeshData& mesh, const glm::uvec3& triangle, const glm::vec3& bary,
-              glm::uvec4& joints, glm::vec4& weights)
+void rootSkin(const MeshData& mesh, const Math::uvec3& triangle, const Math::vec3& bary,
+              Math::uvec4& joints, Math::vec4& weights)
 {
     if (mesh.skin.size() != mesh.positions.size())
     {
-        joints = glm::uvec4(0u);
-        weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+        joints = Math::uvec4(0u);
+        weights = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
 
@@ -64,8 +64,8 @@ void rootSkin(const MeshData& mesh, const glm::uvec3& triangle, const glm::vec3&
         return a.weight > b.weight;
     });
 
-    joints = glm::uvec4(0u);
-    weights = glm::vec4(0.0f);
+    joints = Math::uvec4(0u);
+    weights = Math::vec4(0.0f);
     const usize count = std::min<usize>(4, combined.size());
     f32 total = 0.0f;
     for (usize i = 0; i < count; ++i)
@@ -77,7 +77,7 @@ void rootSkin(const MeshData& mesh, const glm::uvec3& triangle, const glm::vec3&
     if (total > 0.000001f)
         weights /= total;
     else
-        weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+        weights = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 }
 } // namespace
 
@@ -119,7 +119,7 @@ bool Hair::generate()
 
     struct Candidate
     {
-        glm::uvec3 triangle = glm::uvec3(0u);
+        Math::uvec3 triangle = Math::uvec3(0u);
         f32 cumulative = 0.0f;
     };
     std::vector<Candidate> candidates;
@@ -129,11 +129,11 @@ bool Hair::generate()
     const u32 indexOffset = mesh.submeshes.empty() ? 0u : mesh.submeshes[mSubmesh].indexOffset;
     const u32 indexCount = mesh.submeshes.empty() ? static_cast<u32>(mesh.indices.size())
                                                   : mesh.submeshes[mSubmesh].indexCount;
-    const u32 end = glm::min(indexOffset + indexCount, static_cast<u32>(mesh.indices.size()));
+    const u32 end = Math::min(indexOffset + indexCount, static_cast<u32>(mesh.indices.size()));
     f32 total = 0.0f;
     for (u32 i = indexOffset; i + 2 < end; i += 3)
     {
-        const glm::uvec3 tri(mesh.indices[i], mesh.indices[i + 1], mesh.indices[i + 2]);
+        const Math::uvec3 tri(mesh.indices[i], mesh.indices[i + 1], mesh.indices[i + 2]);
         if (tri.x >= mesh.positions.size() || tri.y >= mesh.positions.size() ||
             tri.z >= mesh.positions.size())
             continue;
@@ -151,12 +151,12 @@ bool Hair::generate()
         f32 normalMask = 1.0f;
         if (mMinimumGrowthNormalY > -0.999f)
         {
-            const f32 fadeEnd = glm::min(1.0f, mMinimumGrowthNormalY + 0.18f);
-            normalMask = glm::smoothstep(mMinimumGrowthNormalY, fadeEnd, averageNormalY);
+            const f32 fadeEnd = Math::min(1.0f, mMinimumGrowthNormalY + 0.18f);
+            normalMask = Math::smoothstep(mMinimumGrowthNormalY, fadeEnd, averageNormalY);
         }
-        const glm::vec3 e0 = mesh.positions[tri.y] - mesh.positions[tri.x];
-        const glm::vec3 e1 = mesh.positions[tri.z] - mesh.positions[tri.x];
-        const f32 weight = glm::length(glm::cross(e0, e1)) * 0.5f * mask * normalMask;
+        const Math::vec3 e0 = mesh.positions[tri.y] - mesh.positions[tri.x];
+        const Math::vec3 e1 = mesh.positions[tri.z] - mesh.positions[tri.x];
+        const f32 weight = Math::length(Math::cross(e0, e1)) * 0.5f * mask * normalMask;
         if (weight <= 0.0000001f)
             continue;
         total += weight;
@@ -178,28 +178,28 @@ bool Hair::generate()
                                             [](const Candidate& c, f32 value) {
                                                 return c.cumulative < value;
                                             });
-        const glm::uvec3 tri = (found != candidates.end() ? found : candidates.end() - 1)->triangle;
+        const Math::uvec3 tri = (found != candidates.end() ? found : candidates.end() - 1)->triangle;
 
         const f32 r0 = std::sqrt(random());
         const f32 r1 = random();
-        const glm::vec3 bary(1.0f - r0, r0 * (1.0f - r1), r0 * r1);
-        const glm::vec3 position = mesh.positions[tri.x] * bary.x +
+        const Math::vec3 bary(1.0f - r0, r0 * (1.0f - r1), r0 * r1);
+        const Math::vec3 position = mesh.positions[tri.x] * bary.x +
                                    mesh.positions[tri.y] * bary.y +
                                    mesh.positions[tri.z] * bary.z;
-        glm::vec3 normal = mesh.normals[tri.x] * bary.x + mesh.normals[tri.y] * bary.y +
+        Math::vec3 normal = mesh.normals[tri.x] * bary.x + mesh.normals[tri.y] * bary.y +
                            mesh.normals[tri.z] * bary.z;
-        normal = glm::dot(normal, normal) > 0.000001f ? glm::normalize(normal)
-                                                      : glm::vec3(0.0f, 1.0f, 0.0f);
-        const f32 mask = glm::clamp(vertexMask(mesh, tri.x) * bary.x +
+        normal = Math::dot(normal, normal) > 0.000001f ? Math::normalize(normal)
+                                                      : Math::vec3(0.0f, 1.0f, 0.0f);
+        const f32 mask = Math::clamp(vertexMask(mesh, tri.x) * bary.x +
                                     vertexMask(mesh, tri.y) * bary.y +
                                     vertexMask(mesh, tri.z) * bary.z, 0.02f, 1.0f);
 
         HairRoot root;
-        const f32 length = glm::mix(mMinimumLength, mMaximumLength, random()) * mask;
-        root.positionLength = glm::vec4(position, length);
-        root.normalWidth = glm::vec4(normal, mWidth * glm::mix(0.75f, 1.2f, random()));
+        const f32 length = Math::mix(mMinimumLength, mMaximumLength, random()) * mask;
+        root.positionLength = Math::vec4(position, length);
+        root.normalWidth = Math::vec4(normal, mWidth * Math::mix(0.75f, 1.2f, random()));
         rootSkin(mesh, tri, bary, root.joints, root.weights);
-        root.params = glm::vec4(random() * glm::two_pi<f32>(), random(), random() - 0.5f, 0.0f);
+        root.params = Math::vec4(random() * Math::two_pi<f32>(), random(), random() - 0.5f, 0.0f);
         roots.push_back(root);
     }
 
@@ -225,29 +225,29 @@ bool Hair::loadTexture(const std::string& filename)
 const std::string& Hair::textureFile() const { return mTextureFile; }
 TextureHandle Hair::texture() const { return mTexture; }
 
-void Hair::setStrandCount(u32 v) { mStrandCount = glm::min(v, 250000u); }
+void Hair::setStrandCount(u32 v) { mStrandCount = Math::min(v, 250000u); }
 void Hair::setSubmesh(u32 v) { mSubmesh = v; }
 void Hair::setSeed(u32 v) { mSeed = v; }
-void Hair::setMinimumGrowthNormalY(f32 v) { mMinimumGrowthNormalY = glm::clamp(v, -1.0f, 1.0f); }
-void Hair::setSegments(u32 v) { mSegments = glm::clamp(v, 1u, kHairMaxSegments); mReset = true; }
-void Hair::setFollowers(u32 v) { mFollowers = glm::clamp(v, 1u, kHairMaxFollowers); }
+void Hair::setMinimumGrowthNormalY(f32 v) { mMinimumGrowthNormalY = Math::clamp(v, -1.0f, 1.0f); }
+void Hair::setSegments(u32 v) { mSegments = Math::clamp(v, 1u, kHairMaxSegments); mReset = true; }
+void Hair::setFollowers(u32 v) { mFollowers = Math::clamp(v, 1u, kHairMaxFollowers); }
 void Hair::setLengthRange(f32 a, f32 b)
 {
-    mMinimumLength = glm::max(0.001f, glm::min(a, b));
-    mMaximumLength = glm::max(mMinimumLength, glm::max(a, b));
+    mMinimumLength = Math::max(0.001f, Math::min(a, b));
+    mMaximumLength = Math::max(mMinimumLength, Math::max(a, b));
 }
-void Hair::setWidth(f32 v) { mWidth = glm::max(0.0001f, v); }
-void Hair::setStiffness(f32 v) { mStiffness = glm::max(0.0f, v); }
-void Hair::setDrag(f32 v) { mDrag = glm::clamp(v, 0.0f, 0.999f); }
+void Hair::setWidth(f32 v) { mWidth = Math::max(0.0001f, v); }
+void Hair::setStiffness(f32 v) { mStiffness = Math::max(0.0f, v); }
+void Hair::setDrag(f32 v) { mDrag = Math::clamp(v, 0.0f, 0.999f); }
 void Hair::setGravity(f32 v) { mGravity = v; }
 void Hair::setWind(f32 v) { mWind = v; }
-void Hair::setDrawDistance(f32 v) { mDrawDistance = glm::max(0.0f, v); }
-void Hair::setAlphaCut(f32 v) { mAlphaCut = glm::clamp(v, 0.0f, 1.0f); }
-void Hair::setRoughness(f32 v) { mRoughness = glm::clamp(v, 0.04f, 1.0f); }
-void Hair::setSpecularStrength(f32 v) { mSpecularStrength = glm::clamp(v, 0.0f, 2.0f); }
-void Hair::setSpecularTint(f32 v) { mSpecularTint = glm::clamp(v, 0.0f, 1.0f); }
-void Hair::setTransmission(f32 v) { mTransmission = glm::clamp(v, 0.0f, 2.0f); }
-void Hair::setColor(const glm::vec3& v) { mColor = glm::max(v, glm::vec3(0.0f)); }
+void Hair::setDrawDistance(f32 v) { mDrawDistance = Math::max(0.0f, v); }
+void Hair::setAlphaCut(f32 v) { mAlphaCut = Math::clamp(v, 0.0f, 1.0f); }
+void Hair::setRoughness(f32 v) { mRoughness = Math::clamp(v, 0.04f, 1.0f); }
+void Hair::setSpecularStrength(f32 v) { mSpecularStrength = Math::clamp(v, 0.0f, 2.0f); }
+void Hair::setSpecularTint(f32 v) { mSpecularTint = Math::clamp(v, 0.0f, 1.0f); }
+void Hair::setTransmission(f32 v) { mTransmission = Math::clamp(v, 0.0f, 2.0f); }
+void Hair::setColor(const Math::vec3& v) { mColor = Math::max(v, Math::vec3(0.0f)); }
 void Hair::setSoftFringe(bool v) { mSoftFringe = v; }
 
 u32 Hair::strandCount() const { return mStrandCount; }
@@ -269,27 +269,27 @@ f32 Hair::roughness() const { return mRoughness; }
 f32 Hair::specularStrength() const { return mSpecularStrength; }
 f32 Hair::specularTint() const { return mSpecularTint; }
 f32 Hair::transmission() const { return mTransmission; }
-const glm::vec3& Hair::color() const { return mColor; }
+const Math::vec3& Hair::color() const { return mColor; }
 bool Hair::softFringe() const { return mSoftFringe; }
 
 void Hair::clearColliders() { mColliders.clear(); }
-bool Hair::addSphereCollider(const glm::vec3& centre, f32 radius)
+bool Hair::addSphereCollider(const Math::vec3& centre, f32 radius)
 {
     if (mColliders.size() >= kHairMaxColliders || radius <= 0.0f)
         return false;
     HairCollider collider;
-    collider.a = glm::vec4(centre, radius);
+    collider.a = Math::vec4(centre, radius);
     collider.type = HairColliderType::Sphere;
     mColliders.push_back(collider);
     return true;
 }
-bool Hair::addCapsuleCollider(const glm::vec3& a, const glm::vec3& b, f32 radius)
+bool Hair::addCapsuleCollider(const Math::vec3& a, const Math::vec3& b, f32 radius)
 {
     if (mColliders.size() >= kHairMaxColliders || radius <= 0.0f)
         return false;
     HairCollider collider;
-    collider.a = glm::vec4(a, radius);
-    collider.b = glm::vec4(b, 0.0f);
+    collider.a = Math::vec4(a, radius);
+    collider.b = Math::vec4(b, 0.0f);
     collider.type = HairColliderType::Capsule;
     mColliders.push_back(collider);
     return true;

@@ -25,14 +25,14 @@ public:
     void drawAtlas(TextureHandle atlas, u32 windowWidth, u32 windowHeight);
     void drawTexture(TextureHandle texture, bool isArray, u32 layer, TargetHandle target,
                      u32 width, u32 height,
-                     const glm::vec4& sourceRect = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f));
+                     const Math::vec4& sourceRect = Math::vec4(1.0f, 1.0f, 0.0f, 0.0f));
     void drawCubemap(TextureHandle texture, u32 face, u32 mip, TargetHandle target,
                      u32 width, u32 height);
 
 private:
     void blit(TextureHandle texture, bool isArray, u32 layer, TargetHandle target,
               const Viewport& viewport,
-              const glm::vec4& sourceRect = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f));
+              const Math::vec4& sourceRect = Math::vec4(1.0f, 1.0f, 0.0f, 0.0f));
     void blitCubemap(TextureHandle texture, u32 face, u32 mip, TargetHandle target,
                      const Viewport& viewport);
 

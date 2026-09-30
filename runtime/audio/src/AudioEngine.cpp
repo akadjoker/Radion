@@ -503,7 +503,7 @@ AudioEngine::VoiceId AudioEngine::crossfadeMusic(SoundId sound, bool loop, f32 v
     return next->id;
 }
 
-bool AudioEngine::setListenerPosition(const glm::vec3& position)
+bool AudioEngine::setListenerPosition(const Math::vec3& position)
 {
     if (!mImpl || !mImpl->ready)
         return false;
@@ -511,7 +511,7 @@ bool AudioEngine::setListenerPosition(const glm::vec3& position)
     return true;
 }
 
-bool AudioEngine::setListenerOrientation(const glm::vec3& forward, const glm::vec3& up)
+bool AudioEngine::setListenerOrientation(const Math::vec3& forward, const Math::vec3& up)
 {
     if (!mImpl || !mImpl->ready)
         return false;
@@ -520,7 +520,7 @@ bool AudioEngine::setListenerOrientation(const glm::vec3& forward, const glm::ve
     return true;
 }
 
-bool AudioEngine::setListenerVelocity(const glm::vec3& velocity)
+bool AudioEngine::setListenerVelocity(const Math::vec3& velocity)
 {
     if (!mImpl || !mImpl->ready)
         return false;
@@ -528,7 +528,7 @@ bool AudioEngine::setListenerVelocity(const glm::vec3& velocity)
     return true;
 }
 
-bool AudioEngine::setVoicePosition(VoiceId voice, const glm::vec3& position)
+bool AudioEngine::setVoicePosition(VoiceId voice, const Math::vec3& position)
 {
     Impl::Voice* found = findVoice(mImpl, voice);
     if (!found)
@@ -537,7 +537,7 @@ bool AudioEngine::setVoicePosition(VoiceId voice, const glm::vec3& position)
     return true;
 }
 
-bool AudioEngine::setVoiceVelocity(VoiceId voice, const glm::vec3& velocity)
+bool AudioEngine::setVoiceVelocity(VoiceId voice, const Math::vec3& velocity)
 {
     Impl::Voice* found = findVoice(mImpl, voice);
     if (!found)
@@ -563,7 +563,7 @@ bool AudioEngine::setVoiceSpatial(VoiceId voice, bool enabled, f32 minDistance, 
     return true;
 }
 
-AudioEngine::VoiceId AudioEngine::playAt(SoundId sound, const glm::vec3& position, f32 volume,
+AudioEngine::VoiceId AudioEngine::playAt(SoundId sound, const Math::vec3& position, f32 volume,
                                          f32 pitch, f32 minDistance, f32 maxDistance,
                                          f32 rolloff)
 {

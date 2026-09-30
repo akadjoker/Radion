@@ -57,15 +57,15 @@ std::string readCString(ByteArray& b)
     return out;
 }
 
-glm::quat readQuat(ByteArray& b)
+Math::quat readQuat(ByteArray& b)
 {
     const f32 w = b.readF32();
     const f32 x = b.readF32();
     const f32 y = b.readF32();
     const f32 z = b.readF32();
-    glm::quat q(-w, x, y, z);
-    const f32 length = glm::length(q);
-    return length > 1e-8f ? q / length : glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::quat q(-w, x, y, z);
+    const f32 length = Math::length(q);
+    return length > 1e-8f ? q / length : Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
 }
 
 bool readHeader(ByteArray& data, ChunkStack& stack)
@@ -130,11 +130,11 @@ struct WeightSlots
 
 struct StoredVertex
 {
-    glm::vec3 pos = glm::vec3(0.0f);
-    glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec2 uv = glm::vec2(0.0f);
-    glm::mat4 xform = glm::mat4(1.0f);
-    glm::mat3 nmat = glm::mat3(1.0f);
+    Math::vec3 pos = Math::vec3(0.0f);
+    Math::vec3 normal = Math::vec3(0.0f, 1.0f, 0.0f);
+    Math::vec2 uv = Math::vec2(0.0f);
+    Math::mat4 xform = Math::mat4(1.0f);
+    Math::mat3 nmat = Math::mat3(1.0f);
 };
 
 struct Surface
@@ -147,14 +147,14 @@ struct Surface
 struct Brush
 {
     std::string name;
-    glm::vec3 diffuse = glm::vec3(1.0f);
+    Math::vec3 diffuse = Math::vec3(1.0f);
     s32 tex0 = -1;
 };
 
 struct OutMaterial
 {
     std::string name;
-    glm::vec3 diffuse = glm::vec3(1.0f);
+    Math::vec3 diffuse = Math::vec3(1.0f);
     std::string texFile;
 };
 
@@ -175,7 +175,7 @@ struct B3DContext
     s32 boneCount = 0;
     bool sawBones = false;
 
-    void readVRTS(const glm::mat4& xform, const glm::mat3& nmat)
+    void readVRTS(const Math::mat4& xform, const Math::mat3& nmat)
     {
         const s32 flags = b.readS32();
         const s32 numUV = b.readS32();
@@ -218,7 +218,7 @@ struct B3DContext
                 for (int k = 2; k < uvSize; ++k)
                     b.readF32();
                 if (t == 0)
-                    vertex.uv = glm::vec2(u, v);
+                    vertex.uv = Math::vec2(u, v);
             }
             vertex.xform = xform;
             vertex.nmat = nmat;
@@ -248,24 +248,24 @@ struct B3DContext
             surfaces.push_back(surface);
     }
 
-    void parseNode(const glm::mat4& parentGlobal)
+    void parseNode(const Math::mat4& parentGlobal)
     {
         readCString(b);
-        glm::vec3 pos;
-        glm::vec3 scale(1.0f);
+        Math::vec3 pos;
+        Math::vec3 scale(1.0f);
         pos.x = b.readF32();
         pos.y = b.readF32();
         pos.z = b.readF32();
         scale.x = b.readF32();
         scale.y = b.readF32();
         scale.z = b.readF32();
-        const glm::quat rotation = readQuat(b);
+        const Math::quat rotation = readQuat(b);
         const s32 myBone = boneCount++;
 
-        const glm::mat4 local = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rotation) *
-                                glm::scale(glm::mat4(1.0f), scale);
-        const glm::mat4 global = parentGlobal * local;
-        const glm::mat3 normalMatrix = glm::mat3(glm::transpose(glm::inverse(glm::mat3(global))));
+        const Math::mat4 local = Math::translate(Math::mat4(1.0f), pos) * Math::mat4_cast(rotation) *
+                                Math::scale(Math::mat4(1.0f), scale);
+        const Math::mat4 global = parentGlobal * local;
+        const Math::mat3 normalMatrix = Math::mat3(Math::transpose(Math::inverse(Math::mat3(global))));
         u32 nodeVertexStart = 0;
 
         while (stack.remaining(b) > 0)
@@ -401,7 +401,7 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
         }
         else if (tag == "NODE")
         {
-            context.parseNode(glm::mat4(1.0f));
+            context.parseNode(Math::mat4(1.0f));
         }
 
         context.stack.pop(data);
@@ -446,10 +446,10 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
         }
         else
         {
-            const glm::vec3 world = glm::vec3(vertex.xform * glm::vec4(vertex.pos, 1.0f));
-            glm::vec3 normal = vertex.nmat * vertex.normal;
-            if (glm::dot(normal, normal) > 1e-8f)
-                normal = glm::normalize(normal);
+            const Math::vec3 world = Math::vec3(vertex.xform * Math::vec4(vertex.pos, 1.0f));
+            Math::vec3 normal = vertex.nmat * vertex.normal;
+            if (Math::dot(normal, normal) > 1e-8f)
+                normal = Math::normalize(normal);
             mesh.positions.push_back(world);
             mesh.normals.push_back(normal);
             mesh.uvs.push_back(vertex.uv);
@@ -466,7 +466,7 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
             if (sum <= 1e-8f)
             {
                 skinVertex.joints[0] = 0;
-                skinVertex.weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+                skinVertex.weights = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
             }
             else
             {
@@ -478,7 +478,7 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
                 skinVertex.joints[1] = static_cast<u8>(b1 & 0xFF);
                 skinVertex.joints[2] = static_cast<u8>(b2 & 0xFF);
                 skinVertex.joints[3] = static_cast<u8>(b3 & 0xFF);
-                skinVertex.weights = glm::vec4(slots.weights[0] / sum, slots.weights[1] / sum,
+                skinVertex.weights = Math::vec4(slots.weights[0] / sum, slots.weights[1] / sum,
                                                slots.weights[2] / sum, slots.weights[3] / sum);
             }
             mesh.skin.push_back(skinVertex);
@@ -535,7 +535,7 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
     {
         mesh.materials[i].name = outMaterials[i].name;
         mesh.materials[i].nameHash = hashName(outMaterials[i].name);
-        mesh.materials[i].params.baseColor = glm::vec4(outMaterials[i].diffuse, 1.0f);
+        mesh.materials[i].params.baseColor = Math::vec4(outMaterials[i].diffuse, 1.0f);
         mesh.materialTextureFiles[i] = joinPath(directory, outMaterials[i].texFile);
     }
 
@@ -551,7 +551,7 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
             material.flags |= MaterialSkinned;
 
     mesh.bounds = AABB();
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::vec3& position : mesh.positions)
         mesh.bounds.expand(position);
     for (SubMesh& submesh : mesh.submeshes)
     {
@@ -569,24 +569,24 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
 struct RawKey
 {
     f32 time = 0.0f;
-    glm::vec3 value = glm::vec3(0.0f);
+    Math::vec3 value = Math::vec3(0.0f);
 };
 
 struct RawRotKey
 {
     f32 time = 0.0f;
-    glm::quat value = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::quat value = Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
 };
 
 struct JointData
 {
     std::string name;
     s32 parent = -1;
-    glm::mat4 bindLocal = glm::mat4(1.0f);
-    glm::mat4 inverseBind = glm::mat4(1.0f);
-    glm::vec3 bindPos = glm::vec3(0.0f);
-    glm::quat bindRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    glm::vec3 bindScale = glm::vec3(1.0f);
+    Math::mat4 bindLocal = Math::mat4(1.0f);
+    Math::mat4 inverseBind = Math::mat4(1.0f);
+    Math::vec3 bindPos = Math::vec3(0.0f);
+    Math::quat bindRot = Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::vec3 bindScale = Math::vec3(1.0f);
     std::vector<RawKey> posKeys;
     std::vector<RawKey> scaleKeys;
     std::vector<RawRotKey> rotKeys;
@@ -606,28 +606,28 @@ struct ParseContext
     ChunkStack stack;
     B3DAnimData& out;
 
-    void parseNode(const glm::mat4& parentGlobal, s32 parentBone)
+    void parseNode(const Math::mat4& parentGlobal, s32 parentBone)
     {
         JointData joint;
         joint.name = readCString(b);
-        glm::vec3 pos;
-        glm::vec3 scale(1.0f);
+        Math::vec3 pos;
+        Math::vec3 scale(1.0f);
         pos.x = b.readF32();
         pos.y = b.readF32();
         pos.z = b.readF32();
         scale.x = b.readF32();
         scale.y = b.readF32();
         scale.z = b.readF32();
-        const glm::quat rotation = readQuat(b);
+        const Math::quat rotation = readQuat(b);
         const s32 myBone = static_cast<s32>(out.joints.size());
 
-        const glm::mat4 local = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rotation) *
-                                glm::scale(glm::mat4(1.0f), scale);
-        const glm::mat4 global = parentGlobal * local;
+        const Math::mat4 local = Math::translate(Math::mat4(1.0f), pos) * Math::mat4_cast(rotation) *
+                                Math::scale(Math::mat4(1.0f), scale);
+        const Math::mat4 global = parentGlobal * local;
 
         joint.parent = parentBone;
         joint.bindLocal = local;
-        joint.inverseBind = glm::inverse(global);
+        joint.inverseBind = Math::inverse(global);
         joint.bindPos = pos;
         joint.bindRot = rotation;
         joint.bindScale = scale;
@@ -711,7 +711,7 @@ B3DAnimData parseB3D(FileSystem& files, const std::string& filename)
         const s32 length = data.readS32();
         context.stack.push(data, static_cast<u64>(length));
         if (tag == "NODE")
-            context.parseNode(glm::mat4(1.0f), -1);
+            context.parseNode(Math::mat4(1.0f), -1);
         context.stack.pop(data);
     }
 
@@ -719,7 +719,7 @@ B3DAnimData parseB3D(FileSystem& files, const std::string& filename)
     return result;
 }
 
-glm::vec3 sampleVec(const std::vector<RawKey>& keys, f32 t, const glm::vec3& fallback)
+Math::vec3 sampleVec(const std::vector<RawKey>& keys, f32 t, const Math::vec3& fallback)
 {
     if (keys.empty())
         return fallback;
@@ -739,7 +739,7 @@ glm::vec3 sampleVec(const std::vector<RawKey>& keys, f32 t, const glm::vec3& fal
     return keys[k0].value + (keys[k1].value - keys[k0].value) * f;
 }
 
-glm::quat sampleQuat(const std::vector<RawRotKey>& keys, f32 t, const glm::quat& fallback)
+Math::quat sampleQuat(const std::vector<RawRotKey>& keys, f32 t, const Math::quat& fallback)
 {
     if (keys.empty())
         return fallback;
@@ -756,7 +756,7 @@ glm::quat sampleQuat(const std::vector<RawRotKey>& keys, f32 t, const glm::quat&
     usize k0 = k1 - 1;
     const f32 span = keys[k1].time - keys[k0].time;
     const f32 f = span > 1e-6f ? (t - keys[k0].time) / span : 0.0f;
-    return glm::slerp(keys[k0].value, keys[k1].value, f);
+    return Math::slerp(keys[k0].value, keys[k1].value, f);
 }
 
 void buildTrack(s32 boneIndex, const JointData& joint, f32 fps, BoneTrack& track)

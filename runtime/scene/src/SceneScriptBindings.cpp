@@ -20,7 +20,7 @@
 #include "zen/value.h"
 #include "zen/vm.h"
 
-#include <glm/gtc/quaternion.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -31,7 +31,7 @@ static zen::ObjClass* findClass(zen::VM* vm, const char* name)
     return zen::is_class(value) ? zen::as_class(value) : nullptr;
 }
 
-static zen::Value makeVec3(zen::VM* vm, const glm::vec3& v)
+static zen::Value makeVec3(zen::VM* vm, const Math::vec3& v)
 {
     zen::ObjClass* klass = findClass(vm, "Vec3");
     if (!klass)
@@ -53,12 +53,12 @@ static bool isVec3Instance(zen::Value value)
     return zen::is_instance(value) && zen::as_instance(value)->num_fields >= 3;
 }
 
-static glm::vec3 readVec3(zen::Value instance)
+static Math::vec3 readVec3(zen::Value instance)
 {
     if (!isVec3Instance(instance))
-        return glm::vec3(0.0f);
+        return Math::vec3(0.0f);
     zen::ObjInstance* inst = zen::as_instance(instance);
-    return glm::vec3(static_cast<f32>(zen::to_number(inst->fields[0])),
+    return Math::vec3(static_cast<f32>(zen::to_number(inst->fields[0])),
                      static_cast<f32>(zen::to_number(inst->fields[1])),
                      static_cast<f32>(zen::to_number(inst->fields[2])));
 }
@@ -278,8 +278,8 @@ static int vec3Length(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
     (void)nargs;
-    const glm::vec3 v = readVec3(args[-1]);
-    args[0] = zen::val_float(static_cast<f64>(glm::length(v)));
+    const Math::vec3 v = readVec3(args[-1]);
+    args[0] = zen::val_float(static_cast<f64>(Math::length(v)));
     return 1;
 }
 
@@ -289,8 +289,8 @@ static int vec3Length(zen::VM* vm, zen::Value* args, int nargs)
 static int vec3Add(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
-    const glm::vec3 a = readVec3(args[0]);
-    const glm::vec3 b = readVec3(args[1]);
+    const Math::vec3 a = readVec3(args[0]);
+    const Math::vec3 b = readVec3(args[1]);
     args[0] = makeVec3(vm, a + b);
     return 1;
 }
@@ -298,8 +298,8 @@ static int vec3Add(zen::VM* vm, zen::Value* args, int nargs)
 static int vec3Sub(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
-    const glm::vec3 a = readVec3(args[0]);
-    const glm::vec3 b = readVec3(args[1]);
+    const Math::vec3 a = readVec3(args[0]);
+    const Math::vec3 b = readVec3(args[1]);
     args[0] = makeVec3(vm, a - b);
     return 1;
 }
@@ -307,7 +307,7 @@ static int vec3Sub(zen::VM* vm, zen::Value* args, int nargs)
 static int vec3Mul(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
-    const glm::vec3 a = readVec3(args[0]);
+    const Math::vec3 a = readVec3(args[0]);
     const f32 scalar = static_cast<f32>(zen::to_number(args[1]));
     args[0] = makeVec3(vm, a * scalar);
     return 1;
@@ -373,7 +373,7 @@ static int goGetPosition(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
     GameObject* object = selfGameObject(args);
-    args[0] = makeVec3(vm, object ? object->position() : glm::vec3(0.0f));
+    args[0] = makeVec3(vm, object ? object->position() : Math::vec3(0.0f));
     return 1;
 }
 
@@ -390,7 +390,7 @@ static int goGetScale(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
     GameObject* object = selfGameObject(args);
-    args[0] = makeVec3(vm, object ? object->scale() : glm::vec3(0.0f));
+    args[0] = makeVec3(vm, object ? object->scale() : Math::vec3(0.0f));
     return 1;
 }
 
@@ -407,8 +407,8 @@ static int goGetRotation(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
     GameObject* object = selfGameObject(args);
-    const glm::vec3 degrees =
-        object ? glm::degrees(glm::eulerAngles(object->rotation())) : glm::vec3(0.0f);
+    const Math::vec3 degrees =
+        object ? Math::degrees(Math::eulerAngles(object->rotation())) : Math::vec3(0.0f);
     args[0] = makeVec3(vm, degrees);
     return 1;
 }
@@ -535,7 +535,7 @@ static int goGetGlobalPosition(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
     GameObject* object = selfGameObject(args);
-    args[0] = makeVec3(vm, object ? object->globalPosition() : glm::vec3(0.0f));
+    args[0] = makeVec3(vm, object ? object->globalPosition() : Math::vec3(0.0f));
     return 1;
 }
 
@@ -552,8 +552,8 @@ static int goGetGlobalRotation(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
     GameObject* object = selfGameObject(args);
-    const glm::vec3 degrees =
-        object ? glm::degrees(glm::eulerAngles(object->globalRotation())) : glm::vec3(0.0f);
+    const Math::vec3 degrees =
+        object ? Math::degrees(Math::eulerAngles(object->globalRotation())) : Math::vec3(0.0f);
     args[0] = makeVec3(vm, degrees);
     return 1;
 }
@@ -566,7 +566,7 @@ static int goSetGlobalRotation(zen::VM* vm, zen::Value* args, int nargs)
     (void)vm;
     if (GameObject* object = selfGameObject(args))
         if (nargs >= 1 && isVec3Instance(args[0]))
-            object->setGlobalRotation(glm::quat(glm::radians(readVec3(args[0]))));
+            object->setGlobalRotation(Math::quat(Math::radians(readVec3(args[0]))));
     return 0;
 }
 
@@ -614,8 +614,8 @@ static int goLookAt(zen::VM* vm, zen::Value* args, int nargs)
     GameObject* object = selfGameObject(args);
     if (!object || nargs < 1 || !isVec3Instance(args[0]))
         return 0;
-    const glm::vec3 up =
-        (nargs >= 2 && isVec3Instance(args[1])) ? readVec3(args[1]) : glm::vec3(0, 1, 0);
+    const Math::vec3 up =
+        (nargs >= 2 && isVec3Instance(args[1])) ? readVec3(args[1]) : Math::vec3(0, 1, 0);
     object->lookAt(readVec3(args[0]), up);
     return 0;
 }
@@ -1040,7 +1040,7 @@ static int rigidBodyGetVelocity(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
     Physics::RigidBody* body = selfRigidBody(args);
-    args[0] = makeVec3(vm, body ? body->velocity() : glm::vec3(0.0f));
+    args[0] = makeVec3(vm, body ? body->velocity() : Math::vec3(0.0f));
     return 1;
 }
 
@@ -1057,7 +1057,7 @@ static int rigidBodyGetAngularVelocity(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
     Physics::RigidBody* body = selfRigidBody(args);
-    args[0] = makeVec3(vm, body ? body->angularVelocity() : glm::vec3(0.0f));
+    args[0] = makeVec3(vm, body ? body->angularVelocity() : Math::vec3(0.0f));
     return 1;
 }
 
@@ -1787,7 +1787,7 @@ f32 argFloat(zen::Value* args, int nargs, int index, f32 fallback)
 static int meshRendererSetBox(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
-    const glm::vec3 size(argFloat(args, nargs, 0, 1.0f), argFloat(args, nargs, 1, 1.0f),
+    const Math::vec3 size(argFloat(args, nargs, 0, 1.0f), argFloat(args, nargs, 1, 1.0f),
                          argFloat(args, nargs, 2, 1.0f));
     const bool assigned = assignMesh(selfMeshRenderer(args), MeshDesc::box(size));
     args[0] = zen::val_bool(assigned);
@@ -2176,7 +2176,7 @@ static int animatorFindBone(zen::VM* vm, zen::Value* args, int nargs)
 static int animatorGetBonePosition(zen::VM* vm, zen::Value* args, int nargs)
 {
     Animator* animator = selfAnimator(args);
-    glm::vec3 position;
+    Math::vec3 position;
     if (!animator || nargs < 1 ||
         !animator->boneGlobalPosition((s32)zen::to_integer(args[0]), position))
     {

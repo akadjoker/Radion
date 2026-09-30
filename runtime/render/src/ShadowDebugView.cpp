@@ -74,7 +74,7 @@ bool ShadowDebugView::setup()
     mPipeline = gpu.createPipeline(pipeline);
 
     BufferDesc uniform;
-    uniform.size = sizeof(glm::vec4) * 2;
+    uniform.size = sizeof(Math::vec4) * 2;
     uniform.usage = BufferUniform;
     uniform.residency = Residency::Stream;
     uniform.debugName = "shadow.debug.uniform";
@@ -101,13 +101,13 @@ void ShadowDebugView::shutdown()
 }
 
 void ShadowDebugView::blit(TextureHandle texture, bool isArray, u32 layer, TargetHandle target,
-                           const Viewport& viewport, const glm::vec4& sourceRect)
+                           const Viewport& viewport, const Math::vec4& sourceRect)
 {
     if (!texture.valid() || !mPipeline.valid())
         return;
 
-    const glm::vec4 values[2] = {
-        glm::vec4(isArray ? 1.0f : 0.0f, static_cast<f32>(layer), 0.0f, 0.0f), sourceRect};
+    const Math::vec4 values[2] = {
+        Math::vec4(isArray ? 1.0f : 0.0f, static_cast<f32>(layer), 0.0f, 0.0f), sourceRect};
     GPU& gpu = GPU::getSingleton();
     gpu.setTarget(target);
     gpu.setViewport(viewport);
@@ -135,7 +135,7 @@ void ShadowDebugView::drawCascades(TextureHandle cascades, u32 count, u32 window
         // useful rather than displaying the whole atlas four times.
         const DirectionalShadowRegion region = directionalShadowRegion(2, count, c);
         blit(cascades, false, 0, TargetHandle(), viewport,
-             glm::vec4(static_cast<f32>(region.width) * 0.5f,
+             Math::vec4(static_cast<f32>(region.width) * 0.5f,
                        static_cast<f32>(region.height) * 0.5f,
                        static_cast<f32>(region.x) * 0.5f,
                        static_cast<f32>(region.y) * 0.5f));
@@ -153,7 +153,7 @@ void ShadowDebugView::drawAtlas(TextureHandle atlas, u32 windowWidth, u32 window
 
 void ShadowDebugView::drawTexture(TextureHandle texture, bool isArray, u32 layer,
                                   TargetHandle target, u32 width, u32 height,
-                                  const glm::vec4& sourceRect)
+                                  const Math::vec4& sourceRect)
 {
     blit(texture, isArray, layer, target,
          Viewport{0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height)}, sourceRect);
@@ -165,9 +165,9 @@ void ShadowDebugView::blitCubemap(TextureHandle texture, u32 face, u32 mip,
     if (!texture.valid() || !mPipeline.valid())
         return;
 
-    const glm::vec4 values[2] = {
-        glm::vec4(2.0f, static_cast<f32>(face), static_cast<f32>(mip), 0.0f),
-        glm::vec4(1.0f, 1.0f, 0.0f, 0.0f)};
+    const Math::vec4 values[2] = {
+        Math::vec4(2.0f, static_cast<f32>(face), static_cast<f32>(mip), 0.0f),
+        Math::vec4(1.0f, 1.0f, 0.0f, 0.0f)};
     GPU& gpu = GPU::getSingleton();
     gpu.setTarget(target);
     gpu.setViewport(viewport);

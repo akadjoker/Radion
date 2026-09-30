@@ -32,20 +32,20 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-bool finiteVec(const glm::vec3& v)
+bool finiteVec(const Math::vec3& v)
 {
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
 
-bool near(const glm::vec3& a, const glm::vec3& b, float epsilon = 0.0001f)
+bool near(const Math::vec3& a, const Math::vec3& b, float epsilon = 0.0001f)
 {
-    return glm::length(a - b) <= epsilon;
+    return Math::length(a - b) <= epsilon;
 }
 
 // A visibility functor that rejects everything (forces path generation).
 struct NoVisibility final : WaypointVisibility
 {
-    bool isVisible(const glm::vec3&, const glm::vec3&) const override
+    bool isVisible(const Math::vec3&, const Math::vec3&) const override
     {
         return false;
     }
@@ -126,13 +126,13 @@ void testWaypointNetwork()
 
     // Linear chain A-B-C-D.
     Waypoint* a =
-        new Waypoint(glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
+        new Waypoint(Math::vec3(0.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
     Waypoint* b =
-        new Waypoint(glm::vec3(10.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
+        new Waypoint(Math::vec3(10.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
     Waypoint* c =
-        new Waypoint(glm::vec3(20.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
+        new Waypoint(Math::vec3(20.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
     Waypoint* d =
-        new Waypoint(glm::vec3(30.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
+        new Waypoint(Math::vec3(30.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
     CHECK(network.addWaypoint(a));
     CHECK(network.addWaypoint(b));
     CHECK(network.addWaypoint(c));
@@ -159,13 +159,13 @@ void testWaypointNetwork()
 
     // Position-based search (everything visible).
     Path posPath;
-    CHECK(network.findPath(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(30.0f, 0.0f, 0.0f),
+    CHECK(network.findPath(Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(30.0f, 0.0f, 0.0f),
                            WaypointVisibility(), posPath));
     CHECK(posPath.size() == 4);
 
     // Nothing visible -> no valid waypoint -> search fails.
     Path noPath;
-    CHECK(!network.findPath(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(30.0f, 0.0f, 0.0f),
+    CHECK(!network.findPath(Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(30.0f, 0.0f, 0.0f),
                             NoVisibility(), noPath));
 
     // Closed edge makes A-D unreachable.
@@ -262,9 +262,9 @@ void testFlocking()
     // it a no-op rather than an extra, uncounted simulation step.
     scene.update(0.0f);
 
-    a->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    b->setPosition(glm::vec3(3.0f, 0.0f, 0.0f));
-    c->setPosition(glm::vec3(1.5f, 0.0f, 2.5f));
+    a->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    b->setPosition(Math::vec3(3.0f, 0.0f, 0.0f));
+    c->setPosition(Math::vec3(1.5f, 0.0f, 2.5f));
     // Same flock: groupId() replaces AI::Group membership (0 means "no group").
     a->setGroupId(1);
     b->setGroupId(1);
@@ -278,15 +278,15 @@ void testFlocking()
         e->addBehavior<SeparationBehavior>(4.0f, 0.2f, 1.0f);
         e->addBehavior<CohesionBehavior>(2.0f);
         e->addBehavior<AlignmentBehavior>(1.0f);
-        e->addBehavior<StayWithinSphereBehavior>(glm::vec3(0.0f, 0.0f, 0.0f), 20.0f);
+        e->addBehavior<StayWithinSphereBehavior>(Math::vec3(0.0f, 0.0f, 0.0f), 20.0f);
     }
 
     // The three start separated; after one step every agent should have a
     // non-zero desired move (it sensed its flockmates).
     scene.updateAgents(0.016f);
-    CHECK(glm::length(a->desiredMove()) > 0.0f);
-    CHECK(glm::length(b->desiredMove()) > 0.0f);
-    CHECK(glm::length(c->desiredMove()) > 0.0f);
+    CHECK(Math::length(a->desiredMove()) > 0.0f);
+    CHECK(Math::length(b->desiredMove()) > 0.0f);
+    CHECK(Math::length(c->desiredMove()) > 0.0f);
 
     // Run a while; the sim must stay finite and the flock roughly together.
     for (int i = 0; i < 300; ++i)
@@ -295,9 +295,9 @@ void testFlocking()
     CHECK(finiteVec(a->position()));
     CHECK(finiteVec(b->position()));
     CHECK(finiteVec(c->position()));
-    CHECK(glm::length(a->position() - b->position()) < 12.0f);
-    CHECK(glm::length(b->position() - c->position()) < 12.0f);
-    CHECK(glm::length(a->position() - glm::vec3(0.0f, 0.0f, 0.0f)) < 25.0f);
+    CHECK(Math::length(a->position() - b->position()) < 12.0f);
+    CHECK(Math::length(b->position() - c->position()) < 12.0f);
+    CHECK(Math::length(a->position() - Math::vec3(0.0f, 0.0f, 0.0f)) < 25.0f);
 }
 // --- grid search algorithms ------------------------------------------------
 
@@ -334,16 +334,16 @@ void testSquadMovement()
     // Simple two-waypoint network far along +X.
     WaypointNetwork network;
     Waypoint* wpStart =
-        new Waypoint(glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
+        new Waypoint(Math::vec3(0.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
     Waypoint* wpGoal =
-        new Waypoint(glm::vec3(50.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
+        new Waypoint(Math::vec3(50.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
     network.addWaypoint(wpStart);
     network.addWaypoint(wpGoal);
     wpStart->addEdge(NetworkEdge{wpGoal->id()});
     wpGoal->addEdge(NetworkEdge{wpStart->id()});
 
     PointsOfInterest pois;
-    PointOfInterest* target = new PointOfInterest(glm::vec3(50.0f, 0.0f, 0.0f), 5.0f);
+    PointOfInterest* target = new PointOfInterest(Math::vec3(50.0f, 0.0f, 0.0f), 5.0f);
     CHECK(pois.add(target));
 
     Agent* leader = makeAgent(scene, settings, "leader");
@@ -352,17 +352,17 @@ void testSquadMovement()
 
     leader->setWaypointNetwork(&network);
     leader->setSquadId(0);
-    leader->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    leader->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
 
     member->setWaypointNetwork(&network);
     member->setSquadId(1);
-    member->setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
+    member->setPosition(Math::vec3(5.0f, 0.0f, 0.0f));
 
     leader->addSquadMember(member);
 
     // Force pathfinding: block line of sight so the member has to route.
     member->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
-        0.2f, 50.0f, 0.0f, 25.0f, 0.5f, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), &network, nullptr});
+        0.2f, 50.0f, 0.0f, 25.0f, 0.5f, 0.0f, Math::vec3(0.0f, 1.0f, 0.0f), &network, nullptr});
 
     // Owned by the agent now (Agent::setStateMachine()) - no manual delete.
     member->setStateMachine(buildMemberStateMachine(*member));
@@ -392,7 +392,7 @@ void testMemberStateMachine()
 
     WaypointNetwork network;
     Waypoint* wp =
-        new Waypoint(glm::vec3(50.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
+        new Waypoint(Math::vec3(50.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
     network.addWaypoint(wp);
 
     // Agent::update() is called directly here (not through the Scene's own
@@ -400,8 +400,8 @@ void testMemberStateMachine()
     Agent* member = makeAgent(scene, settings, "member");
     member->setWaypointNetwork(&network);
     member->setSquadId(1);
-    member->setPosition(glm::vec3(50.5f, 0.0f, 0.0f)); // inside wp radius
-    member->setGoal(glm::vec3(50.0f, 0.0f, 0.0f));
+    member->setPosition(Math::vec3(50.5f, 0.0f, 0.0f)); // inside wp radius
+    member->setGoal(Math::vec3(50.0f, 0.0f, 0.0f));
 
     StateMachine* machine = buildMemberStateMachine(*member);
     member->setStateMachine(machine);
@@ -432,11 +432,11 @@ void testLeaderStateMachine()
 
     Agent* leader = makeAgent(scene, settings, "leader");
     leader->setSquadId(0);
-    leader->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    leader->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
 
     Agent* member = makeAgent(scene, settings, "member");
     member->setSquadId(1);
-    member->setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
+    member->setPosition(Math::vec3(5.0f, 0.0f, 0.0f));
     member->setGoal(member->position()); // already at its goal
     leader->addSquadMember(member);
 
@@ -468,23 +468,23 @@ void testSteerLibrary()
 {
     Scene scene;
     Agent& e = *makeAgent(scene, defaultAgentSettings());
-    e.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    e.setVelocity(glm::vec3(2.0f, 0.0f, 0.0f));
-    e.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward = +Z
+    e.setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    e.setVelocity(Math::vec3(2.0f, 0.0f, 0.0f));
+    e.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward = +Z
 
     SteerLibrary steer(e);
 
     // seek: (target - position) - velocity
-    CHECK(near(steer.seek(glm::vec3(10.0f, 0.0f, 0.0f)), glm::vec3(8.0f, 0.0f, 0.0f)));
+    CHECK(near(steer.seek(Math::vec3(10.0f, 0.0f, 0.0f)), Math::vec3(8.0f, 0.0f, 0.0f)));
     // flee: (position - target) - velocity
-    CHECK(near(steer.flee(glm::vec3(10.0f, 0.0f, 0.0f)), glm::vec3(-12.0f, 0.0f, 0.0f)));
+    CHECK(near(steer.flee(Math::vec3(10.0f, 0.0f, 0.0f)), Math::vec3(-12.0f, 0.0f, 0.0f)));
     // targetSpeed: forward * clip(target - current, -maxForce, +maxForce); maxForce = 2
-    CHECK(near(steer.targetSpeed(5.0f), glm::vec3(0.0f, 0.0f, 2.0f)));
+    CHECK(near(steer.targetSpeed(5.0f), Math::vec3(0.0f, 0.0f, 2.0f)));
     // predictFuturePosition
-    CHECK(near(e.predictFuturePosition(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)));
+    CHECK(near(e.predictFuturePosition(1.0f), Math::vec3(2.0f, 0.0f, 0.0f)));
     // local/global transforms round-trip
-    CHECK(near(e.globalizePosition(e.localizePosition(glm::vec3(3.0f, 4.0f, 5.0f))),
-               glm::vec3(3.0f, 4.0f, 5.0f)));
+    CHECK(near(e.globalizePosition(e.localizePosition(Math::vec3(3.0f, 4.0f, 5.0f))),
+               Math::vec3(3.0f, 4.0f, 5.0f)));
 }
 
 void testPlaneAndRectangleObstacle()
@@ -498,29 +498,29 @@ void testPlaneAndRectangleObstacle()
     PlaneObstacle plane;
 
     // Facing the plane head-on from the outside.
-    vehicle.setPosition(glm::vec3(1.0f, 2.0f, 5.0f));
-    vehicle.setOrientation(glm::angleAxis(glm::pi<f32>(), glm::vec3(0.0f, 1.0f, 0.0f))); // -Z
+    vehicle.setPosition(Math::vec3(1.0f, 2.0f, 5.0f));
+    vehicle.setOrientation(Math::angleAxis(Math::pi<f32>(), Math::vec3(0.0f, 1.0f, 0.0f))); // -Z
     PathIntersection pi;
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
     CHECK(std::fabs(pi.distance - 5.0f) < 0.001f);
-    CHECK(near(pi.surfacePoint, glm::vec3(1.0f, 2.0f, 0.0f), 0.001f));
-    CHECK(near(pi.surfaceNormal, glm::vec3(0.0f, 0.0f, 1.0f), 0.001f));
+    CHECK(near(pi.surfacePoint, Math::vec3(1.0f, 2.0f, 0.0f), 0.001f));
+    CHECK(near(pi.surfaceNormal, Math::vec3(0.0f, 0.0f, 1.0f), 0.001f));
     CHECK(pi.vehicleOutside);
 
     // Heading away from the plane: no intersection.
-    vehicle.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // +Z
+    vehicle.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // +Z
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
 
     // Path parallel to the plane: no intersection.
-    vehicle.setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f))); // +X
+    vehicle.setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 1.0f, 0.0f))); // +X
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
 
     // Behind an Outside-only plane, heading into it: the back is not solid.
-    vehicle.setPosition(glm::vec3(0.0f, 0.0f, -5.0f));
-    vehicle.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // +Z, toward the plane
+    vehicle.setPosition(Math::vec3(0.0f, 0.0f, -5.0f));
+    vehicle.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // +Z, toward the plane
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
 
@@ -528,24 +528,24 @@ void testPlaneAndRectangleObstacle()
     plane.setSeenFrom(ObstacleSeenFrom::Inside);
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
-    CHECK(near(pi.surfaceNormal, glm::vec3(0.0f, 0.0f, -1.0f), 0.001f));
+    CHECK(near(pi.surfaceNormal, Math::vec3(0.0f, 0.0f, -1.0f), 0.001f));
     CHECK(!pi.vehicleOutside);
 
     // A 2x2 rectangle only blocks paths crossing inside its (radius-grown) bounds.
     RectangleObstacle rect(2.0f, 2.0f);
-    vehicle.setPosition(glm::vec3(0.5f, 0.5f, 5.0f));
-    vehicle.setOrientation(glm::angleAxis(glm::pi<f32>(), glm::vec3(0.0f, 1.0f, 0.0f))); // -Z
+    vehicle.setPosition(Math::vec3(0.5f, 0.5f, 5.0f));
+    vehicle.setOrientation(Math::angleAxis(Math::pi<f32>(), Math::vec3(0.0f, 1.0f, 0.0f))); // -Z
     rect.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
     CHECK(std::fabs(pi.distance - 5.0f) < 0.001f);
 
     // Crossing the plane well outside the rectangle: miss.
-    vehicle.setPosition(glm::vec3(5.0f, 0.0f, 5.0f));
+    vehicle.setPosition(Math::vec3(5.0f, 0.0f, 5.0f));
     rect.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
 
     // Grazing inside the vehicle-radius-grown edge (half-width 1 + radius 0.5).
-    vehicle.setPosition(glm::vec3(1.4f, 0.0f, 5.0f));
+    vehicle.setPosition(Math::vec3(1.4f, 0.0f, 5.0f));
     rect.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
 }
@@ -558,42 +558,42 @@ void testBoxObstacle()
     Agent& vehicle = *makeAgent(scene, settings);
 
     // 2x2x2 box at the origin, world-aligned.
-    BoxObstacle box(2.0f, 2.0f, 2.0f, glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-                    glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f));
+    BoxObstacle box(2.0f, 2.0f, 2.0f, Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f),
+                    Math::vec3(0.0f, 0.0f, 1.0f), Math::vec3(0.0f));
 
     // Head-on along -Z: hits the front face at z = +1, steer hint outward.
-    vehicle.setPosition(glm::vec3(0.0f, 0.0f, 5.0f));
-    vehicle.setOrientation(glm::angleAxis(glm::pi<f32>(), glm::vec3(0.0f, 1.0f, 0.0f))); // -Z
+    vehicle.setPosition(Math::vec3(0.0f, 0.0f, 5.0f));
+    vehicle.setOrientation(Math::angleAxis(Math::pi<f32>(), Math::vec3(0.0f, 1.0f, 0.0f))); // -Z
     PathIntersection pi;
     box.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
     CHECK(std::fabs(pi.distance - 4.0f) < 0.001f);
-    CHECK(near(pi.surfacePoint, glm::vec3(0.0f, 0.0f, 1.0f), 0.001f));
-    CHECK(near(pi.steerHint, glm::vec3(0.0f, 0.0f, 1.0f), 0.001f));
+    CHECK(near(pi.surfacePoint, Math::vec3(0.0f, 0.0f, 1.0f), 0.001f));
+    CHECK(near(pi.steerHint, Math::vec3(0.0f, 0.0f, 1.0f), 0.001f));
     CHECK(pi.vehicleOutside);
     CHECK(pi.obstacle == &box);
 
     // Head-on along -X: hits the +X side face at x = +1.
-    vehicle.setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
-    vehicle.setOrientation(glm::angleAxis(glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    vehicle.setPosition(Math::vec3(5.0f, 0.0f, 0.0f));
+    vehicle.setOrientation(Math::angleAxis(Math::radians(-90.0f), Math::vec3(0.0f, 1.0f, 0.0f)));
     box.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
     CHECK(std::fabs(pi.distance - 4.0f) < 0.001f);
-    CHECK(near(pi.surfacePoint, glm::vec3(1.0f, 0.0f, 0.0f), 0.001f));
-    CHECK(near(pi.steerHint, glm::vec3(1.0f, 0.0f, 0.0f), 0.001f));
+    CHECK(near(pi.surfacePoint, Math::vec3(1.0f, 0.0f, 0.0f), 0.001f));
+    CHECK(near(pi.steerHint, Math::vec3(1.0f, 0.0f, 0.0f), 0.001f));
 
     // Descending onto the top: hits the +Y face at y = +1.
-    vehicle.setPosition(glm::vec3(0.0f, 5.0f, 0.0f));
-    vehicle.setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
+    vehicle.setPosition(Math::vec3(0.0f, 5.0f, 0.0f));
+    vehicle.setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(1.0f, 0.0f, 0.0f)));
     box.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
     CHECK(std::fabs(pi.distance - 4.0f) < 0.001f);
-    CHECK(near(pi.surfacePoint, glm::vec3(0.0f, 1.0f, 0.0f), 0.001f));
-    CHECK(near(pi.steerHint, glm::vec3(0.0f, 1.0f, 0.0f), 0.001f));
+    CHECK(near(pi.surfacePoint, Math::vec3(0.0f, 1.0f, 0.0f), 0.001f));
+    CHECK(near(pi.steerHint, Math::vec3(0.0f, 1.0f, 0.0f), 0.001f));
 
     // A path passing beside the box misses every face.
-    vehicle.setPosition(glm::vec3(5.0f, 5.0f, 5.0f));
-    vehicle.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // +Z, away
+    vehicle.setPosition(Math::vec3(5.0f, 5.0f, 5.0f));
+    vehicle.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // +Z, away
     box.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
 }
@@ -606,31 +606,31 @@ void testSphereObstacleSeenFrom()
     Agent& vehicle = *makeAgent(scene, settings);
 
     // A vehicle outside an Inside-only sphere must be pulled back toward it.
-    SphereObstacle pen(2.0f, glm::vec3(0.0f));
+    SphereObstacle pen(2.0f, Math::vec3(0.0f));
     pen.setSeenFrom(ObstacleSeenFrom::Inside);
-    vehicle.setPosition(glm::vec3(10.0f, 0.0f, 0.0f));
-    vehicle.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
+    vehicle.setPosition(Math::vec3(10.0f, 0.0f, 0.0f));
+    vehicle.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f));
     PathIntersection pi;
     pen.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
     CHECK(pi.distance == 0.0f);
-    CHECK(near(pi.steerHint, glm::vec3(-1.0f, 0.0f, 0.0f), 0.001f));
+    CHECK(near(pi.steerHint, Math::vec3(-1.0f, 0.0f, 0.0f), 0.001f));
     CHECK(pi.vehicleOutside);
 
     // Inside a hollow (Both) shell, the exit ahead pushes back inward.
-    SphereObstacle shell(3.0f, glm::vec3(0.0f));
+    SphereObstacle shell(3.0f, Math::vec3(0.0f));
     shell.setSeenFrom(ObstacleSeenFrom::Both);
-    vehicle.setPosition(glm::vec3(0.0f));
+    vehicle.setPosition(Math::vec3(0.0f));
     shell.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
     CHECK(!pi.vehicleOutside);
     CHECK(std::fabs(pi.distance - 3.5f) < 0.001f); // radius + vehicle radius
-    CHECK(near(pi.surfaceNormal, glm::vec3(0.0f, 0.0f, 1.0f), 0.001f));
-    CHECK(near(pi.steerHint, glm::vec3(0.0f, 0.0f, -1.0f), 0.001f));
+    CHECK(near(pi.surfaceNormal, Math::vec3(0.0f, 0.0f, 1.0f), 0.001f));
+    CHECK(near(pi.steerHint, Math::vec3(0.0f, 0.0f, -1.0f), 0.001f));
 
     // A path whose closest approach is beyond the radius misses entirely.
-    SphereObstacle ball(2.0f, glm::vec3(0.0f));
-    vehicle.setPosition(glm::vec3(0.0f, 10.0f, 0.0f));
+    SphereObstacle ball(2.0f, Math::vec3(0.0f));
+    vehicle.setPosition(Math::vec3(0.0f, 10.0f, 0.0f));
     ball.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
 }
@@ -639,7 +639,7 @@ void testCruisingAxisDistribution()
 {
     Scene scene;
     Agent& e = *makeAgent(scene, defaultAgentSettings());
-    e.setVelocity(glm::vec3(0.0f)); // below desiredSpeed, so signum is +1
+    e.setVelocity(Math::vec3(0.0f)); // below desiredSpeed, so signum is +1
 
     // The flocking demo's own chances: X larger than Y. The per-axis chances
     // form cumulative bands, so Y must still fire - with a raw-roll compare
@@ -650,9 +650,9 @@ void testCruisingAxisDistribution()
     int hits[3] = {0, 0, 0};
     for (int i = 0; i < 2000; ++i)
     {
-        e.setDesiredMove(glm::vec3(0.0f));
+        e.setDesiredMove(Math::vec3(0.0f));
         cruising.iterate(0.016f, e);
-        const glm::vec3 move = e.desiredMove();
+        const Math::vec3 move = e.desiredMove();
         if (move.x != 0.0f)
             ++hits[0];
         if (move.y != 0.0f)
@@ -683,20 +683,20 @@ void testCruisingScalesWithSpeedError()
     // At rest: the speed error is the whole desired speed.
     Agent& slow = *makeAgent(scene, settings, "slow");
     scene.update(0.0f);
-    slow.setVelocity(glm::vec3(0.0f));
-    slow.setDesiredMove(glm::vec3(0.0f));
+    slow.setVelocity(Math::vec3(0.0f));
+    slow.setDesiredMove(Math::vec3(0.0f));
     CruisingBehavior farOff(1.0f, 0.0f, 0.0f, 1.0f, maxRate, minRate);
     farOff.iterate(0.016f, slow);
-    const f32 farMagnitude = glm::length(slow.desiredMove());
+    const f32 farMagnitude = Math::length(slow.desiredMove());
 
     // Already at the desired speed: no error at all.
     Agent& atSpeed = *makeAgent(scene, settings, "atSpeed");
     scene.update(0.0f);
-    atSpeed.setVelocity(glm::vec3(2.0f, 0.0f, 0.0f));
-    atSpeed.setDesiredMove(glm::vec3(0.0f));
+    atSpeed.setVelocity(Math::vec3(2.0f, 0.0f, 0.0f));
+    atSpeed.setDesiredMove(Math::vec3(0.0f));
     CruisingBehavior onTarget(1.0f, 0.0f, 0.0f, 1.0f, maxRate, minRate);
     onTarget.iterate(0.016f, atSpeed);
-    const f32 onTargetMagnitude = glm::length(atSpeed.desiredMove());
+    const f32 onTargetMagnitude = Math::length(atSpeed.desiredMove());
 
     // Being far off must push harder than being on target.
     CHECK(farMagnitude > onTargetMagnitude);
@@ -866,16 +866,16 @@ void testStateMachineSurvivesCallbackMutation()
 void testPointsOfInterest()
 {
     PointsOfInterest pois;
-    PointOfInterest* first = new PointOfInterest(glm::vec3(0.0f, 0.0f, 0.0f), 1.0f);
-    PointOfInterest* second = new PointOfInterest(glm::vec3(10.0f, 0.0f, 0.0f), 1.0f);
-    PointOfInterest* third = new PointOfInterest(glm::vec3(0.0f, 0.0f, 20.0f), 1.0f);
+    PointOfInterest* first = new PointOfInterest(Math::vec3(0.0f, 0.0f, 0.0f), 1.0f);
+    PointOfInterest* second = new PointOfInterest(Math::vec3(10.0f, 0.0f, 0.0f), 1.0f);
+    PointOfInterest* third = new PointOfInterest(Math::vec3(0.0f, 0.0f, 20.0f), 1.0f);
     CHECK(pois.add(first));
     CHECK(pois.add(second));
     CHECK(pois.add(third));
 
     CHECK(pois.find(first->id()) == first);
-    CHECK(pois.findNearest(glm::vec3(9.0f, 0.0f, 1.0f)) == second);
-    CHECK(pois.findNearest(glm::vec3(0.0f, 0.0f, 19.0f)) == third);
+    CHECK(pois.findNearest(Math::vec3(9.0f, 0.0f, 1.0f)) == second);
+    CHECK(pois.findNearest(Math::vec3(0.0f, 0.0f, 19.0f)) == third);
 
     // selectRandom never hands back the POI the caller is already at.
     for (int i = 0; i < 50; ++i)
@@ -898,12 +898,12 @@ void testPursuitEvasion()
     Agent::Settings settings = defaultAgentSettings();
 
     Agent& hunter = *makeAgent(scene, settings, "hunter");
-    hunter.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    hunter.setVelocity(glm::vec3(0.0f, 0.0f, 2.0f));
-    hunter.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
+    hunter.setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    hunter.setVelocity(Math::vec3(0.0f, 0.0f, 2.0f));
+    hunter.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
     Agent& quarry = *makeAgent(scene, settings, "quarry");
-    quarry.setPosition(glm::vec3(0.0f, 0.0f, 10.0f));
+    quarry.setPosition(Math::vec3(0.0f, 0.0f, 10.0f));
 
     SteerLibrary steer(hunter);
 
@@ -912,20 +912,20 @@ void testPursuitEvasion()
 
     // Ahead-parallel quarry: estimated intercept (10/2 * 4 = 20s) is capped
     // at maxPredictionTime, so the target is one second of quarry travel.
-    quarry.setVelocity(glm::vec3(0.0f, 0.0f, 3.0f));
-    quarry.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
+    quarry.setVelocity(Math::vec3(0.0f, 0.0f, 3.0f));
+    quarry.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f));
     CHECK(near(steer.pursuit(quarry, 1.0f),
                steer.seek(quarry.position() + quarry.velocity() * 1.0f)));
 
     // A stationary menace is predicted at the cap rather than dividing by
     // zero, and its predicted position is where it already is.
     Agent& menace = *makeAgent(scene, settings, "menace");
-    menace.setPosition(glm::vec3(5.0f, 0.0f, 0.0f));
+    menace.setPosition(Math::vec3(5.0f, 0.0f, 0.0f));
     CHECK(near(steer.evasion(menace, 2.0f), steer.flee(menace.position())));
 
     // Slow distant menace: rough intercept (5s) exceeds the cap (2s), so the
     // flee target is two seconds of menace travel.
-    menace.setVelocity(glm::vec3(0.0f, 0.0f, 1.0f));
+    menace.setVelocity(Math::vec3(0.0f, 0.0f, 1.0f));
     CHECK(near(steer.evasion(menace, 2.0f),
                steer.flee(menace.position() + menace.velocity() * 2.0f)));
 }
@@ -934,35 +934,35 @@ void testDirectionalPredicates()
 {
     Scene scene;
     Agent& e = *makeAgent(scene, defaultAgentSettings());
-    e.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    e.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
+    e.setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    e.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
     SteerLibrary steer(e);
-    CHECK(steer.isAhead(glm::vec3(0.0f, 0.0f, 5.0f)));
-    CHECK(!steer.isBehind(glm::vec3(0.0f, 0.0f, 5.0f)));
-    CHECK(steer.isBehind(glm::vec3(0.0f, 0.0f, -5.0f)));
-    CHECK(!steer.isAhead(glm::vec3(0.0f, 0.0f, -5.0f)));
-    CHECK(steer.isAside(glm::vec3(5.0f, 0.0f, 0.0f)));
-    CHECK(!steer.isAhead(glm::vec3(0.0f, 0.0f, 0.0f))); // degenerate offset
+    CHECK(steer.isAhead(Math::vec3(0.0f, 0.0f, 5.0f)));
+    CHECK(!steer.isBehind(Math::vec3(0.0f, 0.0f, 5.0f)));
+    CHECK(steer.isBehind(Math::vec3(0.0f, 0.0f, -5.0f)));
+    CHECK(!steer.isAhead(Math::vec3(0.0f, 0.0f, -5.0f)));
+    CHECK(steer.isAside(Math::vec3(5.0f, 0.0f, 0.0f)));
+    CHECK(!steer.isAhead(Math::vec3(0.0f, 0.0f, 0.0f))); // degenerate offset
 
     // Local frame convention: right = +X, up = +Y, forward = +Z.
-    CHECK(near(e.localizeDirection(e.forward()), glm::vec3(0.0f, 0.0f, 1.0f)));
-    CHECK(near(e.localizeDirection(e.side()), glm::vec3(1.0f, 0.0f, 0.0f)));
-    CHECK(near(e.localizeDirection(e.up()), glm::vec3(0.0f, 1.0f, 0.0f)));
-    CHECK(near(e.globalizeDirection(glm::vec3(0.0f, 0.0f, 1.0f)), e.forward()));
+    CHECK(near(e.localizeDirection(e.forward()), Math::vec3(0.0f, 0.0f, 1.0f)));
+    CHECK(near(e.localizeDirection(e.side()), Math::vec3(1.0f, 0.0f, 0.0f)));
+    CHECK(near(e.localizeDirection(e.up()), Math::vec3(0.0f, 1.0f, 0.0f)));
+    CHECK(near(e.globalizeDirection(Math::vec3(0.0f, 0.0f, 1.0f)), e.forward()));
 
     // Right-handed yaw: +90 degrees about +Y swings forward from +Z to +X.
-    e.setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-    CHECK(near(e.forward(), glm::vec3(1.0f, 0.0f, 0.0f), 0.001f));
-    CHECK(near(e.side(), glm::vec3(0.0f, 0.0f, -1.0f), 0.001f));
+    e.setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 1.0f, 0.0f)));
+    CHECK(near(e.forward(), Math::vec3(1.0f, 0.0f, 0.0f), 0.001f));
+    CHECK(near(e.side(), Math::vec3(0.0f, 0.0f, -1.0f), 0.001f));
 
     // alignWithVelocity regenerates a right-handed orthonormal frame with
     // forward along the velocity and up preserved.
-    e.setVelocity(glm::vec3(0.0f, 0.0f, -3.0f));
+    e.setVelocity(Math::vec3(0.0f, 0.0f, -3.0f));
     e.alignWithVelocity();
-    CHECK(near(e.forward(), glm::vec3(0.0f, 0.0f, -1.0f), 0.001f));
-    CHECK(near(e.up(), glm::vec3(0.0f, 1.0f, 0.0f), 0.001f));
-    CHECK(near(glm::cross(e.up(), e.forward()), e.side(), 0.001f));
+    CHECK(near(e.forward(), Math::vec3(0.0f, 0.0f, -1.0f), 0.001f));
+    CHECK(near(e.up(), Math::vec3(0.0f, 1.0f, 0.0f), 0.001f));
+    CHECK(near(Math::cross(e.up(), e.forward()), e.side(), 0.001f));
 }
 
 void testBoidNeighborhoodAndSeparation()
@@ -970,17 +970,17 @@ void testBoidNeighborhoodAndSeparation()
     Scene scene;
     Agent::Settings settings = defaultAgentSettings();
     Agent& self = *makeAgent(scene, settings, "self");
-    self.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    self.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
+    self.setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    self.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
     Agent& ahead = *makeAgent(scene, settings, "ahead");
-    ahead.setPosition(glm::vec3(0.0f, 0.0f, 5.0f));
+    ahead.setPosition(Math::vec3(0.0f, 0.0f, 5.0f));
     Agent& behind = *makeAgent(scene, settings, "behind");
-    behind.setPosition(glm::vec3(0.0f, 0.0f, -5.0f));
+    behind.setPosition(Math::vec3(0.0f, 0.0f, -5.0f));
     Agent& veryClose = *makeAgent(scene, settings, "veryClose");
-    veryClose.setPosition(glm::vec3(0.0f, 0.0f, -0.5f));
+    veryClose.setPosition(Math::vec3(0.0f, 0.0f, -0.5f));
     Agent& far = *makeAgent(scene, settings, "far");
-    far.setPosition(glm::vec3(0.0f, 0.0f, 50.0f));
+    far.setPosition(Math::vec3(0.0f, 0.0f, 50.0f));
 
     SteerLibrary steer(self);
     CHECK(steer.inBoidNeighborhood(ahead, 1.0f, 10.0f, 0.0f));
@@ -993,8 +993,8 @@ void testBoidNeighborhoodAndSeparation()
     // returns the error direction toward the neighbor's heading.
     std::vector<EntityDist> flock;
     flock.push_back(EntityDist{5.0f, &ahead});
-    CHECK(near(steer.separation(10.0f, -1.0f, flock), glm::vec3(0.0f, 0.0f, -1.0f)));
-    CHECK(near(steer.cohesion(10.0f, -1.0f, flock), glm::vec3(0.0f, 0.0f, 1.0f)));
+    CHECK(near(steer.separation(10.0f, -1.0f, flock), Math::vec3(0.0f, 0.0f, -1.0f)));
+    CHECK(near(steer.cohesion(10.0f, -1.0f, flock), Math::vec3(0.0f, 0.0f, 1.0f)));
 }
 
 void testTargetSpeedClamp()
@@ -1002,14 +1002,14 @@ void testTargetSpeedClamp()
     Scene scene;
     Agent::Settings settings = defaultAgentSettings(); // maxVelocityChange = 2
     Agent& e = *makeAgent(scene, settings);
-    e.setVelocity(glm::vec3(2.0f, 0.0f, 0.0f)); // speed 2
-    e.setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
+    e.setVelocity(Math::vec3(2.0f, 0.0f, 0.0f)); // speed 2
+    e.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
     SteerLibrary steer(e);
     // Already at the target speed: no correction.
-    CHECK(near(steer.targetSpeed(2.0f), glm::vec3(0.0f)));
+    CHECK(near(steer.targetSpeed(2.0f), Math::vec3(0.0f)));
     // Braking is clamped to maxForce, along -forward.
-    CHECK(near(steer.targetSpeed(-5.0f), glm::vec3(0.0f, 0.0f, -2.0f)));
+    CHECK(near(steer.targetSpeed(-5.0f), Math::vec3(0.0f, 0.0f, -2.0f)));
 }
 
 void testSeekFlee()
@@ -1020,8 +1020,8 @@ void testSeekFlee()
     // A seeker converges on a target far along +X.
     Agent* chaser = makeAgent(scene, settings, "chaser");
     scene.update(0.0f);
-    chaser->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    const glm::vec3 target(100.0f, 0.0f, 0.0f);
+    chaser->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    const Math::vec3 target(100.0f, 0.0f, 0.0f);
     chaser->addBehavior<SeekBehavior>(target);
 
     for (int i = 0; i < 600; ++i)
@@ -1033,7 +1033,7 @@ void testSeekFlee()
     // A runner flees from the same target and ends up on the opposite side.
     Agent* runner = makeAgent(scene, settings, "runner");
     scene.update(0.0f);
-    runner->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    runner->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     runner->addBehavior<FleeBehavior>(target);
 
     for (int i = 0; i < 600; ++i)
@@ -1049,7 +1049,7 @@ void testWander()
     Agent::Settings settings = defaultAgentSettings();
     Agent* e = makeAgent(scene, settings, "wanderer");
     scene.update(0.0f);
-    e->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    e->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     e->addBehavior<WanderBehavior>();
 
     for (int i = 0; i < 300; ++i)
@@ -1057,8 +1057,8 @@ void testWander()
 
     // Wandered away from the start, stayed finite and bounded.
     CHECK(finiteVec(e->position()));
-    CHECK(glm::length(e->position()) > 0.001f);
-    CHECK(glm::length(e->position()) < 50.0f);
+    CHECK(Math::length(e->position()) > 0.001f);
+    CHECK(Math::length(e->position()) < 50.0f);
 }
 
 void testObstacleAvoidance()
@@ -1068,16 +1068,16 @@ void testObstacleAvoidance()
     settings.radius = 0.5f;
 
     // A sphere slightly off the +X travel line so there is a lateral component.
-    SphereObstacle sphere(3.0f, glm::vec3(8.0f, 0.0f, 2.0f));
+    SphereObstacle sphere(3.0f, Math::vec3(8.0f, 0.0f, 2.0f));
     ObstacleGroup obstacles;
     obstacles.push_back(&sphere);
 
     Agent* vehicle = makeAgent(scene, settings, "vehicle");
     scene.update(0.0f);
-    vehicle->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X
+    vehicle->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    vehicle->setVelocity(Math::vec3(5.0f, 0.0f, 0.0f)); // moving +X
     // Face +X so the vehicle's forward path intersects the sphere.
-    vehicle->setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    vehicle->setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 1.0f, 0.0f)));
     ObstacleAvoidanceBehavior* avoidance = vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f);
     avoidance->setObstacles(obstacles);
 
@@ -1092,7 +1092,7 @@ void testObstacleAvoidance()
     // The vehicle steered around to the -Z side without entering the sphere.
     CHECK(finiteVec(vehicle->position()));
     CHECK(vehicle->position().z < 0.0f);
-    CHECK(glm::length(vehicle->position() - sphere.center) > sphere.radius);
+    CHECK(Math::length(vehicle->position() - sphere.center) > sphere.radius);
 }
 
 // Regression: Agent::update() must call alignWithVelocity() itself, or
@@ -1110,14 +1110,14 @@ void testObstacleAvoidanceTracksVelocityDirection()
 
     // Same geometry as testObstacleAvoidance(): a sphere off the +X travel
     // line so there is a lateral component to steer along.
-    SphereObstacle sphere(3.0f, glm::vec3(8.0f, 0.0f, 2.0f));
+    SphereObstacle sphere(3.0f, Math::vec3(8.0f, 0.0f, 2.0f));
     ObstacleGroup obstacles;
     obstacles.push_back(&sphere);
 
     Agent* vehicle = makeAgent(scene, settings, "vehicle");
     scene.update(0.0f);
-    vehicle->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X, orientation left at spawn
+    vehicle->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    vehicle->setVelocity(Math::vec3(5.0f, 0.0f, 0.0f)); // moving +X, orientation left at spawn
     ObstacleAvoidanceBehavior* avoidance = vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f);
     avoidance->setObstacles(obstacles);
 
@@ -1149,12 +1149,12 @@ void testNearestApproach()
     // Head-on: we move +X, the other moves -X from further down +X. Closing
     // distance, so the nearest approach must be in the future (time > 0).
     Agent& us = *makeAgent(scene, settings, "us");
-    us.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    us.setVelocity(glm::vec3(1.0f, 0.0f, 0.0f));
+    us.setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    us.setVelocity(Math::vec3(1.0f, 0.0f, 0.0f));
 
     Agent& oncoming = *makeAgent(scene, settings, "oncoming");
-    oncoming.setPosition(glm::vec3(10.0f, 0.0f, 0.0f));
-    oncoming.setVelocity(glm::vec3(-1.0f, 0.0f, 0.0f));
+    oncoming.setPosition(Math::vec3(10.0f, 0.0f, 0.0f));
+    oncoming.setVelocity(Math::vec3(-1.0f, 0.0f, 0.0f));
 
     SteerLibrary steer(us);
     const float tHeadOn = steer.predictNearestApproachTime(oncoming);
@@ -1168,11 +1168,11 @@ void testNearestApproach()
     // Receding: swap the velocities so both move apart. The nearest approach
     // was in the past (time < 0), so avoidNeighbors must ignore it.
     Agent& receding = *makeAgent(scene, settings, "receding");
-    receding.setPosition(glm::vec3(10.0f, 0.0f, 0.0f));
-    receding.setVelocity(glm::vec3(1.0f, 0.0f, 0.0f)); // same direction as us, but faster gap
+    receding.setPosition(Math::vec3(10.0f, 0.0f, 0.0f));
+    receding.setVelocity(Math::vec3(1.0f, 0.0f, 0.0f)); // same direction as us, but faster gap
     Agent& fast = *makeAgent(scene, settings, "fast");
-    fast.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    fast.setVelocity(glm::vec3(-1.0f, 0.0f, 0.0f));
+    fast.setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    fast.setVelocity(Math::vec3(-1.0f, 0.0f, 0.0f));
     SteerLibrary steerFast(fast);
     const float tReceding = steerFast.predictNearestApproachTime(receding);
     CHECK(tReceding < 0.0f);
@@ -1180,15 +1180,15 @@ void testNearestApproach()
     // avoidNeighbors: a slower entity dead ahead on a closing path must
     // produce a nonzero lateral steer; a receding one must produce none.
     std::vector<EntityDist> ahead;
-    ahead.push_back(EntityDist{glm::length(oncoming.position() - us.position()), &oncoming});
-    glm::vec3 steerAway = steer.avoidNeighbors(8.0f, ahead);
+    ahead.push_back(EntityDist{Math::length(oncoming.position() - us.position()), &oncoming});
+    Math::vec3 steerAway = steer.avoidNeighbors(8.0f, ahead);
     CHECK(finiteVec(steerAway));
-    CHECK(glm::length(steerAway) > 0.0f);
+    CHECK(Math::length(steerAway) > 0.0f);
 
     std::vector<EntityDist> awayFrom;
-    awayFrom.push_back(EntityDist{glm::length(receding.position() - fast.position()), &receding});
-    glm::vec3 steerNone = steerFast.avoidNeighbors(8.0f, awayFrom);
-    CHECK(near(steerNone, glm::vec3(0.0f)));
+    awayFrom.push_back(EntityDist{Math::length(receding.position() - fast.position()), &receding});
+    Math::vec3 steerNone = steerFast.avoidNeighbors(8.0f, awayFrom);
+    CHECK(near(steerNone, Math::vec3(0.0f)));
 }
 
 // --- PathfindBehavior line-of-sight short-circuit ---------------------------
@@ -1198,7 +1198,7 @@ void testPathfindLineOfSight()
     struct ToggleVisibility final : WaypointVisibility
     {
         bool visible = false;
-        bool isVisible(const glm::vec3&, const glm::vec3&) const override
+        bool isVisible(const Math::vec3&, const Math::vec3&) const override
         {
             return visible;
         }
@@ -1210,7 +1210,7 @@ void testPathfindLineOfSight()
     // "heading straight to the goal" are distinguishable by Z position.
     WaypointNetwork network;
     Waypoint* wpDetour =
-        new Waypoint(glm::vec3(5.0f, 0.0f, 30.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
+        new Waypoint(Math::vec3(5.0f, 0.0f, 30.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
     network.addWaypoint(wpDetour);
 
     ToggleVisibility visibility;
@@ -1220,8 +1220,8 @@ void testPathfindLineOfSight()
     Agent* member = makeAgent(scene, settings, "member");
     scene.update(0.0f);
     member->setWaypointNetwork(&network);
-    member->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    member->setGoal(glm::vec3(20.0f, 0.0f, 0.0f));
+    member->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    member->setGoal(Math::vec3(20.0f, 0.0f, 0.0f));
     member->setGoalRadius(1.0f);
     // Seed a "mid-route, no LOS yet" state directly (findPath() itself is
     // covered by testWaypointNetwork/testSquadMovement) - this test is only
@@ -1229,7 +1229,7 @@ void testPathfindLineOfSight()
     member->setNextWaypoint(wpDetour->id());
 
     member->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
-        0.3f, 1.0f, 0.0f, 25.0f, 0.05f, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), &network,
+        0.3f, 1.0f, 0.0f, 25.0f, 0.05f, 0.0f, Math::vec3(0.0f, 1.0f, 0.0f), &network,
         &visibility});
 
     // No LOS: the member walks toward the seeded waypoint, off toward +Z.
@@ -1342,8 +1342,8 @@ Agent* makeFormationLeader(Scene& scene, const Agent::Settings& settings)
 {
     Agent* leader = makeAgent(scene, settings, "leader");
     leader->setSquadId(0);
-    leader->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    leader->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward = +Z
+    leader->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    leader->setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward = +Z
     return leader;
 }
 
@@ -1364,17 +1364,17 @@ void testFormationFollowsItsOwnLeader()
 
     // Squad A is at the origin, squad B is a hundred metres away.
     leaderA->setSquadId(0);
-    leaderA->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    leaderA->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     leaderA->setSquadFormation(static_cast<int>(SquadFormation::Abreast));
     memberA->setSquadId(2);
-    memberA->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    memberA->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     leaderA->addSquadMember(memberA);
 
     leaderB->setSquadId(0);
-    leaderB->setPosition(glm::vec3(100.0f, 0.0f, 0.0f));
+    leaderB->setPosition(Math::vec3(100.0f, 0.0f, 0.0f));
     leaderB->setSquadFormation(static_cast<int>(SquadFormation::Abreast));
     memberB->setSquadId(2);
-    memberB->setPosition(glm::vec3(100.0f, 0.0f, 0.0f));
+    memberB->setPosition(Math::vec3(100.0f, 0.0f, 0.0f));
     leaderB->addSquadMember(memberB);
 
     CHECK(memberA->squadLeader() == leaderA);
@@ -1403,12 +1403,12 @@ void testFormationAbreast()
     leader->setSquadFormation(static_cast<int>(SquadFormation::Abreast));
 
     pointMan->setSquadId(1);
-    pointMan->setPosition(glm::vec3(0.0f, 0.0f, 5.0f));
-    pointMan->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
-    pointMan->setGoal(glm::vec3(0.0f, 0.0f, 20.0f));
+    pointMan->setPosition(Math::vec3(0.0f, 0.0f, 5.0f));
+    pointMan->setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f));
+    pointMan->setGoal(Math::vec3(0.0f, 0.0f, 20.0f));
 
     rightFlank->setSquadId(2);
-    rightFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    rightFlank->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
 
     // Which leader a member forms up on is the squad link, not a scan for
     // whoever happens to have squadId 0.
@@ -1424,7 +1424,7 @@ void testFormationAbreast()
 
     // Abreast case 2: goal = pointMan.position + pointManRight * 40.
     // pointManRight is +X (side vector) while pointMan faces +Z.
-    CHECK(near(rightFlank->goal(), pointMan->position() + glm::vec3(40.0f, 0.0f, 0.0f), 0.01f));
+    CHECK(near(rightFlank->goal(), pointMan->position() + Math::vec3(40.0f, 0.0f, 0.0f), 0.01f));
 }
 
 void testFormationPentagonSymmetry()
@@ -1441,14 +1441,14 @@ void testFormationPentagonSymmetry()
     leader->setSquadFormation(static_cast<int>(SquadFormation::Pentagon));
 
     pointMan->setSquadId(1);
-    pointMan->setPosition(glm::vec3(1.0f, 0.0f, 1.0f));
-    pointMan->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
+    pointMan->setPosition(Math::vec3(1.0f, 0.0f, 1.0f));
+    pointMan->setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f));
 
     rightFlank->setSquadId(2);
-    rightFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    rightFlank->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
 
     leftFlank->setSquadId(3);
-    leftFlank->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    leftFlank->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
 
     leader->addSquadMember(pointMan);
     leader->addSquadMember(rightFlank);
@@ -1466,8 +1466,8 @@ void testFormationPentagonSymmetry()
     // leaderLook rotated +45 about Y, case 3 (left) faces v2 = leaderLook
     // rotated -45 about Y. With the leader facing +Z those two facings must
     // be mirror images across the look axis (X negated, Z equal).
-    glm::vec3 forwardRight = glm::mat3_cast(rightFlank->orientation())[2];
-    glm::vec3 forwardLeft = glm::mat3_cast(leftFlank->orientation())[2];
+    Math::vec3 forwardRight = Math::mat3_cast(rightFlank->orientation())[2];
+    Math::vec3 forwardLeft = Math::mat3_cast(leftFlank->orientation())[2];
     CHECK(std::fabs(forwardRight.x + forwardLeft.x) < 0.01f);
     CHECK(std::fabs(forwardRight.z - forwardLeft.z) < 0.01f);
 }
@@ -1543,11 +1543,11 @@ void testSensingByGroupId()
     b2->setGroupId(2);
     CHECK(lone->groupId() == 0); // default: no group
 
-    a1->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    a2->setPosition(glm::vec3(1.0f, 0.0f, 0.0f));
-    b1->setPosition(glm::vec3(2.0f, 0.0f, 0.0f));
-    b2->setPosition(glm::vec3(3.0f, 0.0f, 0.0f));
-    lone->setPosition(glm::vec3(0.5f, 0.0f, 0.0f));
+    a1->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    a2->setPosition(Math::vec3(1.0f, 0.0f, 0.0f));
+    b1->setPosition(Math::vec3(2.0f, 0.0f, 0.0f));
+    b2->setPosition(Math::vec3(3.0f, 0.0f, 0.0f));
+    lone->setPosition(Math::vec3(0.5f, 0.0f, 0.0f));
 
     scene.updateAgents(0.016f);
 
@@ -1577,15 +1577,15 @@ void testAgentPoseSyncFlipsForward()
     Agent* agent = makeAgent(scene, defaultAgentSettings(), "agent");
     scene.update(0.0f); // register before touching velocity/orientation
 
-    agent->setVelocity(glm::vec3(1.0f, 0.0f, 0.0f));
+    agent->setVelocity(Math::vec3(1.0f, 0.0f, 0.0f));
     agent->alignWithVelocity();
-    CHECK(near(agent->forward(), glm::vec3(1.0f, 0.0f, 0.0f)));
+    CHECK(near(agent->forward(), Math::vec3(1.0f, 0.0f, 0.0f)));
 
     // pullAgentPose() is private (friend Scene) - driven the same way
     // Scene::update() drives it every frame, through the AI block.
     scene.update(0.016f);
 
-    CHECK(near(agent->owner()->forward(), glm::vec3(1.0f, 0.0f, 0.0f), 0.0001f));
+    CHECK(near(agent->owner()->forward(), Math::vec3(1.0f, 0.0f, 0.0f), 0.0001f));
 }
 
 // Test 4 (Fase 7 #4): behaviors are owned - the agent builds them, deletes
@@ -1653,9 +1653,9 @@ void testPathfindRepathIsRateLimited()
     // every search fails and the retry path is the one under test.
     WaypointNetwork network;
     Waypoint* wpStart =
-        new Waypoint(glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
+        new Waypoint(Math::vec3(0.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
     Waypoint* wpIsland =
-        new Waypoint(glm::vec3(80.0f, 0.0f, 0.0f), glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
+        new Waypoint(Math::vec3(80.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
     network.addWaypoint(wpStart);
     network.addWaypoint(wpIsland);
 
@@ -1663,13 +1663,13 @@ void testPathfindRepathIsRateLimited()
     scene.update(0.0f);
     agent->setWaypointNetwork(&network);
     agent->setSquadId(1);
-    agent->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    agent->setGoal(glm::vec3(80.0f, 0.0f, 0.0f));
+    agent->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    agent->setGoal(Math::vec3(80.0f, 0.0f, 0.0f));
     agent->setGoalRadius(2.0f);
 
     NoVisibility blocked; // never any line of sight, so it must route
     PathfindBehavior* pathfind = agent->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
-        0.2f, 2.0f, 0.0f, 25.0f, 0.05f, 1.0f, glm::vec3(0.0f, 1.0f, 0.0f), &network, &blocked});
+        0.2f, 2.0f, 0.0f, 25.0f, 0.05f, 1.0f, Math::vec3(0.0f, 1.0f, 0.0f), &network, &blocked});
     CHECK(pathfind != nullptr);
     if (!pathfind)
         return;
@@ -1742,7 +1742,7 @@ void testLeaderWithoutWaypointNetwork()
 
     leader->sendSquadToRandomWaypoint();
     CHECK(leader->selectedWaypoint() == nullptr);
-    CHECK(member->goal() == glm::vec3(0.0f)); // never handed a destination
+    CHECK(member->goal() == Math::vec3(0.0f)); // never handed a destination
 }
 
 // --- BehaviorFactory (Fase 2) ------------------------------------------------
@@ -1806,13 +1806,13 @@ void testBehaviorParamRoundTrip()
             if (info.kind == BehaviorParam::Kind::Float)
             {
                 const f32 testValue =
-                    glm::clamp(info.minValue + 0.5f, info.minValue, info.maxValue);
+                    Math::clamp(info.minValue + 0.5f, info.minValue, info.maxValue);
                 behavior->setParamFloat(i, testValue);
                 CHECK(std::fabs(behavior->paramFloat(i) - testValue) < 0.0001f);
             }
             else if (info.kind == BehaviorParam::Kind::Vec3)
             {
-                const glm::vec3 testValue(1.5f, -2.5f, 3.5f);
+                const Math::vec3 testValue(1.5f, -2.5f, 3.5f);
                 behavior->setParamVec3(i, testValue);
                 CHECK(near(behavior->paramVec3(i), testValue));
             }
@@ -1962,7 +1962,7 @@ void testObstacleAvoidanceReadsSceneGroup()
     Scene scene;
 
     GameObject* wall = scene.createGameObject("wall");
-    wall->setPosition(glm::vec3(8.0f, 0.0f, 2.0f));
+    wall->setPosition(Math::vec3(8.0f, 0.0f, 2.0f));
     Radion::Obstacle* wallObstacle = wall->addComponent<Radion::Obstacle>();
     wallObstacle->setSphere(3.0f);
     scene.update(0.0f);
@@ -1971,9 +1971,9 @@ void testObstacleAvoidanceReadsSceneGroup()
     settings.radius = 0.5f;
     Agent* vehicle = makeAgent(scene, settings, "vehicle");
     scene.update(0.0f);
-    vehicle->setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
-    vehicle->setVelocity(glm::vec3(5.0f, 0.0f, 0.0f)); // moving +X
-    vehicle->setOrientation(glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+    vehicle->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
+    vehicle->setVelocity(Math::vec3(5.0f, 0.0f, 0.0f)); // moving +X
+    vehicle->setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 1.0f, 0.0f)));
     vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f); // no setObstacles() call
 
     scene.updateAgents(0.016f);
@@ -1987,7 +1987,7 @@ void testObstacleAvoidanceReadsSceneGroup()
     CHECK(vehicle->position().z < 0.0f);
     // Sphere centre/radius as set above (8, 0, 2), 3.0 - the vehicle must
     // have steered around it, not through it.
-    CHECK(glm::length(vehicle->position() - glm::vec3(8.0f, 0.0f, 2.0f)) > 3.0f);
+    CHECK(Math::length(vehicle->position() - Math::vec3(8.0f, 0.0f, 2.0f)) > 3.0f);
 }
 
 } // namespace

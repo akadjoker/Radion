@@ -6,7 +6,7 @@
 #include "GPU.h"
 #include "RenderTechnique.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <vector>
 
 namespace Radion
@@ -14,8 +14,8 @@ namespace Radion
 
 struct TrailVertex
 {
-    glm::vec3 position;
-    glm::vec2 uv;
+    Math::vec3 position;
+    Math::vec2 uv;
     Color color;
 };
 
@@ -39,10 +39,10 @@ enum class BillboardMode : u8
 // frame's camera basis; Fixed ignores it and returns fixedRight/fixedUp
 // unchanged. Shared by Billboard and Text3D so both facing rules stay in
 // exactly one place.
-void resolveBillboardAxes(BillboardMode mode, const glm::vec3& cameraRight,
-                          const glm::vec3& cameraUp, const glm::vec3& cameraForward,
-                          const glm::vec3& fixedRight, const glm::vec3& fixedUp,
-                          glm::vec3& outRight, glm::vec3& outUp);
+void resolveBillboardAxes(BillboardMode mode, const Math::vec3& cameraRight,
+                          const Math::vec3& cameraUp, const Math::vec3& cameraForward,
+                          const Math::vec3& fixedRight, const Math::vec3& fixedUp,
+                          Math::vec3& outRight, Math::vec3& outUp);
 
 // One camera-facing quad. Submitted with the instance's own transform only -
 // the camera isn't known at the component's onLateUpdate() - and expanded
@@ -50,14 +50,14 @@ void resolveBillboardAxes(BillboardMode mode, const glm::vec3& cameraRight,
 // camera axes are.
 struct BillboardInstance
 {
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::vec2 size = glm::vec2(1.0f);
+    Math::vec3 position = Math::vec3(0.0f);
+    Math::vec2 size = Math::vec2(1.0f);
     f32 rotation = 0.0f; // radians, spins the quad in its own facing plane
-    glm::vec4 uvRect = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    Math::vec4 uvRect = Math::vec4(0.0f, 0.0f, 1.0f, 1.0f);
     Color color;
     BillboardMode mode = BillboardMode::Free;
-    glm::vec3 fixedRight = glm::vec3(1.0f, 0.0f, 0.0f);
-    glm::vec3 fixedUp = glm::vec3(0.0f, 1.0f, 0.0f);
+    Math::vec3 fixedRight = Math::vec3(1.0f, 0.0f, 0.0f);
+    Math::vec3 fixedUp = Math::vec3(0.0f, 1.0f, 0.0f);
     TextureHandle texture;
     BatchRenderer::BlendMode blend = BatchRenderer::BlendMode::Additive;
     bool depthTest = true;
@@ -68,8 +68,8 @@ struct BillboardInstance
 // pixels), plus that glyph's cell in the font atlas.
 struct MeshGlyph
 {
-    glm::vec2 offset = glm::vec2(0.0f);
-    glm::vec4 uvRect = glm::vec4(0.0f);
+    Math::vec2 offset = Math::vec2(0.0f);
+    Math::vec4 uvRect = Math::vec4(0.0f);
 };
 
 // A whole string of glyphs sharing one base position, facing mode and
@@ -78,12 +78,12 @@ struct MeshGlyph
 // buffer, which outlives the frame this instance is submitted on.
 struct MeshTextInstance
 {
-    glm::vec3 position = glm::vec3(0.0f);
+    Math::vec3 position = Math::vec3(0.0f);
     f32 glyphSize = 1.0f; // world-space width and height of one glyph quad
     Color color;
     BillboardMode mode = BillboardMode::Free;
-    glm::vec3 fixedRight = glm::vec3(1.0f, 0.0f, 0.0f);
-    glm::vec3 fixedUp = glm::vec3(0.0f, 1.0f, 0.0f);
+    Math::vec3 fixedRight = Math::vec3(1.0f, 0.0f, 0.0f);
+    Math::vec3 fixedUp = Math::vec3(0.0f, 1.0f, 0.0f);
     TextureHandle texture;
     BatchRenderer::BlendMode blend = BatchRenderer::BlendMode::Alpha;
     bool depthTest = true;

@@ -165,7 +165,7 @@ void UiSystem::refresh()
 
     if (anyInteractive)
     {
-        const glm::vec2 mouse = Input::getMousePosition();
+        const Math::vec2 mouse = Input::getMousePosition();
         if (mouse.x >= 0.0f && mouse.y >= 0.0f && mouse.x < mViewport.width &&
             mouse.y < mViewport.height)
         {
@@ -205,30 +205,30 @@ UiControl::UiControl(ComponentType type, bool interactive)
 {
 }
 
-const glm::vec4& UiControl::anchors() const
+const Math::vec4& UiControl::anchors() const
 {
     return mAnchors;
 }
 
-const glm::vec4& UiControl::offsets() const
+const Math::vec4& UiControl::offsets() const
 {
     return mOffsets;
 }
 
-void UiControl::setAnchors(const glm::vec4& value)
+void UiControl::setAnchors(const Math::vec4& value)
 {
     mAnchors = value;
 }
 
-void UiControl::setOffsets(const glm::vec4& value)
+void UiControl::setOffsets(const Math::vec4& value)
 {
     mOffsets = value;
 }
 
 void UiControl::setRect(f32 x, f32 y, f32 width, f32 height)
 {
-    mAnchors = glm::vec4(0.0f);
-    mOffsets = glm::vec4(x, y, x + width, y + height);
+    mAnchors = Math::vec4(0.0f);
+    mOffsets = Math::vec4(x, y, x + width, y + height);
 }
 
 const FloatRect& UiControl::rect() const
@@ -588,7 +588,7 @@ void UiSlider::onUiInput(bool down, bool pressed, bool)
     if (!down && !pressed)
         return;
     const FloatRect r = rect();
-    const glm::vec2 mouse = Input::getMousePosition();
+    const Math::vec2 mouse = Input::getMousePosition();
     const f32 t = r.width > 1.0f ? (mouse.x - r.x) / r.width : 0.0f;
     const f32 next = mMinimum + (t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t)) * (mMaximum - mMinimum);
     if (next != mValue)

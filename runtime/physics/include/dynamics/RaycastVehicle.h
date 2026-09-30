@@ -37,9 +37,9 @@ public:
 
     struct Wheel
     {
-        glm::vec3 chassisConnectionLocal{0.0f};
-        glm::vec3 directionLocal{0.0f, -1.0f, 0.0f};
-        glm::vec3 axleLocal{-1.0f, 0.0f, 0.0f};
+        Math::vec3 chassisConnectionLocal{0.0f};
+        Math::vec3 directionLocal{0.0f, -1.0f, 0.0f};
+        Math::vec3 axleLocal{-1.0f, 0.0f, 0.0f};
         f32 restLength = 0.3f;
         f32 radius = 0.4f;
 
@@ -62,11 +62,11 @@ public:
 
         bool inContact = false;
         RigidBody* groundBody = nullptr;
-        glm::vec3 contactPoint{0.0f};
-        glm::vec3 contactNormal{0.0f, 1.0f, 0.0f};
-        glm::vec3 hardPointWorld{0.0f};
-        glm::vec3 directionWorld{0.0f, -1.0f, 0.0f};
-        glm::vec3 axleWorld{-1.0f, 0.0f, 0.0f};
+        Math::vec3 contactPoint{0.0f};
+        Math::vec3 contactNormal{0.0f, 1.0f, 0.0f};
+        Math::vec3 hardPointWorld{0.0f};
+        Math::vec3 directionWorld{0.0f, -1.0f, 0.0f};
+        Math::vec3 axleWorld{-1.0f, 0.0f, 0.0f};
         f32 suspensionLength = 0.0f;
         f32 suspensionRelativeVelocity = 0.0f;
         f32 clippedInvContactDotSuspension = 1.0f;
@@ -75,15 +75,15 @@ public:
         // top of the wheels - a lean controller weighs its target by these.
         f32 appliedSuspensionImpulse = 0.0f;
         f32 appliedSideImpulse = 0.0f;
-        glm::vec3 lateralWorld{1.0f, 0.0f, 0.0f};
+        Math::vec3 lateralWorld{1.0f, 0.0f, 0.0f};
 
-        glm::mat4 worldTransform{1.0f};
+        Math::mat4 worldTransform{1.0f};
     };
 
     RaycastVehicle(RigidBody& chassis, const Radion::Scene* scene);
 
-    u32 addWheel(const glm::vec3& connectionPointLocal, const glm::vec3& directionLocal,
-                const glm::vec3& axleLocal, f32 suspensionRestLength, f32 wheelRadius,
+    u32 addWheel(const Math::vec3& connectionPointLocal, const Math::vec3& directionLocal,
+                const Math::vec3& axleLocal, f32 suspensionRestLength, f32 wheelRadius,
                 const Tuning& tuning, bool isFrontWheel);
 
     void update(f32 step);
@@ -131,8 +131,8 @@ private:
     const Radion::Scene* mScene;
 
     std::vector<Wheel> mWheels;
-    std::vector<glm::vec3> mForwardWS;
-    std::vector<glm::vec3> mAxleWS;
+    std::vector<Math::vec3> mForwardWS;
+    std::vector<Math::vec3> mAxleWS;
     std::vector<f32> mForwardImpulse;
     std::vector<f32> mSideImpulse;
 

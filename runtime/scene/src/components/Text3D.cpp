@@ -39,7 +39,7 @@ const std::string& Text3D::text() const
 }
 void Text3D::setCharacterSize(f32 size)
 {
-    const f32 clamped = glm::max(size, 0.001f);
+    const f32 clamped = Math::max(size, 0.001f);
     if (clamped == mCharacterSize)
         return;
     mCharacterSize = clamped;
@@ -152,7 +152,7 @@ void Text3D::rebuildGlyphs()
         if (code < 32 || code > 127)
             code = '?';
         MeshGlyph glyph;
-        glyph.offset = glm::vec2(penX, penY);
+        glyph.offset = Math::vec2(penX, penY);
         glyph.uvRect = fontGlyphUVRect(code);
         mGlyphs.push_back(glyph);
         penX += advance;

@@ -165,8 +165,8 @@ void MorphAnimator::framePair(const PlayState& state, s32& a, s32& b, f32& t) co
     }
 }
 
-void MorphAnimator::writeVertices(const MorphKeyframes& keyframes, std::vector<glm::vec3>& positions,
-                                  std::vector<glm::vec3>& normals) const
+void MorphAnimator::writeVertices(const MorphKeyframes& keyframes, std::vector<Math::vec3>& positions,
+                                  std::vector<Math::vec3>& normals) const
 {
     const usize count = keyframes.vertexCount();
     if (count == 0 || positions.size() < count || !mCurrent.clip)
@@ -179,8 +179,8 @@ void MorphAnimator::writeVertices(const MorphKeyframes& keyframes, std::vector<g
     framePair(mCurrent, currentA, currentB, currentT);
     currentA = clampFrame(currentA, maxFrame);
     currentB = clampFrame(currentB, maxFrame);
-    const std::vector<glm::vec3>& positionsA = keyframes.framePositions[currentA];
-    const std::vector<glm::vec3>& positionsB = keyframes.framePositions[currentB];
+    const std::vector<Math::vec3>& positionsA = keyframes.framePositions[currentA];
+    const std::vector<Math::vec3>& positionsB = keyframes.framePositions[currentB];
 
     const bool hasNormals = !keyframes.frameNormals.empty() && normals.size() >= count;
     const bool blending = mBlend < 1.0f && mPrevious.clip;
@@ -193,42 +193,42 @@ void MorphAnimator::writeVertices(const MorphKeyframes& keyframes, std::vector<g
         previousA = clampFrame(previousA, maxFrame);
         previousB = clampFrame(previousB, maxFrame);
     }
-    const std::vector<glm::vec3>* previousPositionsA =
+    const std::vector<Math::vec3>* previousPositionsA =
         blending ? &keyframes.framePositions[previousA] : nullptr;
-    const std::vector<glm::vec3>* previousPositionsB =
+    const std::vector<Math::vec3>* previousPositionsB =
         blending ? &keyframes.framePositions[previousB] : nullptr;
 
     for (usize i = 0; i < count; ++i)
     {
-        glm::vec3 position = glm::mix(positionsA[i], positionsB[i], currentT);
-        glm::vec3 normal = hasNormals ? glm::mix(keyframes.frameNormals[currentA][i],
+        Math::vec3 position = Math::mix(positionsA[i], positionsB[i], currentT);
+        Math::vec3 normal = hasNormals ? Math::mix(keyframes.frameNormals[currentA][i],
                                                  keyframes.frameNormals[currentB][i], currentT)
-                                      : glm::vec3(0.0f, 1.0f, 0.0f);
+                                      : Math::vec3(0.0f, 1.0f, 0.0f);
         if (blending)
         {
-            const glm::vec3 previousPosition =
-                glm::mix((*previousPositionsA)[i], (*previousPositionsB)[i], previousT);
-            position = glm::mix(previousPosition, position, mBlend);
+            const Math::vec3 previousPosition =
+                Math::mix((*previousPositionsA)[i], (*previousPositionsB)[i], previousT);
+            position = Math::mix(previousPosition, position, mBlend);
             if (hasNormals)
             {
-                const glm::vec3 previousNormal =
-                    glm::mix(keyframes.frameNormals[previousA][i],
+                const Math::vec3 previousNormal =
+                    Math::mix(keyframes.frameNormals[previousA][i],
                              keyframes.frameNormals[previousB][i], previousT);
-                normal = glm::mix(previousNormal, normal, mBlend);
+                normal = Math::mix(previousNormal, normal, mBlend);
             }
         }
         positions[i] = position;
         if (hasNormals)
-            normals[i] = glm::dot(normal, normal) > 1.0e-12f ? glm::normalize(normal)
-                                                             : glm::vec3(0.0f, 1.0f, 0.0f);
+            normals[i] = Math::dot(normal, normal) > 1.0e-12f ? Math::normalize(normal)
+                                                             : Math::vec3(0.0f, 1.0f, 0.0f);
     }
 }
 
-glm::mat4 MorphAnimator::tagTransform(const MorphTags& tags, s32 tagIndex) const
+Math::mat4 MorphAnimator::tagTransform(const MorphTags& tags, s32 tagIndex) const
 {
     if (tags.empty() || tagIndex < 0 || tagIndex >= static_cast<s32>(tags.names.size()) ||
         tags.perFrame.empty())
-        return glm::mat4(1.0f);
+        return Math::mat4(1.0f);
 
     // Nothing playing - a static single-frame model that never had a clip -
     // uses the tag's own frame 0 rather than identity, so a model does not
@@ -236,7 +236,7 @@ glm::mat4 MorphAnimator::tagTransform(const MorphTags& tags, s32 tagIndex) const
     if (!mCurrent.clip)
     {
         const MorphTagFrame& first = tags.perFrame[0][tagIndex];
-        return glm::translate(glm::mat4(1.0f), first.origin) * glm::mat4_cast(first.rotation);
+        return Math::translate(Math::mat4(1.0f), first.origin) * Math::mat4_cast(first.rotation);
     }
 
     const s32 maxFrame = static_cast<s32>(tags.perFrame.size()) - 1;
@@ -248,8 +248,8 @@ glm::mat4 MorphAnimator::tagTransform(const MorphTags& tags, s32 tagIndex) const
     currentB = clampFrame(currentB, maxFrame);
     const MorphTagFrame& frameA = tags.perFrame[currentA][tagIndex];
     const MorphTagFrame& frameB = tags.perFrame[currentB][tagIndex];
-    glm::vec3 origin = glm::mix(frameA.origin, frameB.origin, currentT);
-    glm::quat rotation = glm::normalize(glm::lerp(frameA.rotation, frameB.rotation, currentT));
+    Math::vec3 origin = Math::mix(frameA.origin, frameB.origin, currentT);
+    Math::quat rotation = Math::normalize(Math::lerp(frameA.rotation, frameB.rotation, currentT));
 
     if (mBlend < 1.0f && mPrevious.clip)
     {
@@ -260,15 +260,15 @@ glm::mat4 MorphAnimator::tagTransform(const MorphTags& tags, s32 tagIndex) const
         previousB = clampFrame(previousB, maxFrame);
         const MorphTagFrame& previousFrameA = tags.perFrame[previousA][tagIndex];
         const MorphTagFrame& previousFrameB = tags.perFrame[previousB][tagIndex];
-        const glm::vec3 previousOrigin =
-            glm::mix(previousFrameA.origin, previousFrameB.origin, previousT);
-        const glm::quat previousRotation = glm::normalize(
-            glm::lerp(previousFrameA.rotation, previousFrameB.rotation, previousT));
-        origin = glm::mix(previousOrigin, origin, mBlend);
-        rotation = glm::normalize(glm::lerp(previousRotation, rotation, mBlend));
+        const Math::vec3 previousOrigin =
+            Math::mix(previousFrameA.origin, previousFrameB.origin, previousT);
+        const Math::quat previousRotation = Math::normalize(
+            Math::lerp(previousFrameA.rotation, previousFrameB.rotation, previousT));
+        origin = Math::mix(previousOrigin, origin, mBlend);
+        rotation = Math::normalize(Math::lerp(previousRotation, rotation, mBlend));
     }
 
-    return glm::translate(glm::mat4(1.0f), origin) * glm::mat4_cast(rotation);
+    return Math::translate(Math::mat4(1.0f), origin) * Math::mat4_cast(rotation);
 }
 
 } // namespace Radion

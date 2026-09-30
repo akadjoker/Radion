@@ -35,15 +35,15 @@ struct ParticleHit
 {
     u32 particleId = 0xFFFFFFFFu;
     u32 userTag = 0;
-    glm::vec3 point{0.0f};
-    glm::vec3 normal{0.0f, 1.0f, 0.0f};
-    glm::vec3 incomingVelocity{0.0f};
+    Math::vec3 point{0.0f};
+    Math::vec3 normal{0.0f, 1.0f, 0.0f};
+    Math::vec3 incomingVelocity{0.0f};
 };
 
 struct ParticleSpawn
 {
-    glm::vec3 position{0.0f};
-    glm::vec3 velocity{0.0f};
+    Math::vec3 position{0.0f};
+    Math::vec3 velocity{0.0f};
     f32 radius = 0.02f;
     f32 life = 1.0f;
     f32 restitution = 0.3f;
@@ -62,11 +62,11 @@ public:
 
     explicit ParticleSystem(Radion::Scene& scene);
 
-    void setGravity(const glm::vec3& gravity)
+    void setGravity(const Math::vec3& gravity)
     {
         mGravity = gravity;
     }
-    const glm::vec3& gravity() const
+    const Math::vec3& gravity() const
     {
         return mGravity;
     }
@@ -87,7 +87,7 @@ public:
     // Convenience burst for the classic "explosion" case: `count` particles
     // from `center`, speed and radius picked uniformly from the given ranges,
     // direction uniform over the sphere.
-    void explode(const glm::vec3& center, u32 count, f32 speedMin, f32 speedMax, f32 radiusMin,
+    void explode(const Math::vec3& center, u32 count, f32 speedMin, f32 speedMax, f32 radiusMin,
                 f32 radiusMax, f32 life, u32 userTag = 0, ParticleResponse response = ParticleResponse::Bounce);
 
     // Integrates every live particle by `dt`, sweeps each against the world
@@ -108,8 +108,8 @@ public:
 private:
     struct Particle
     {
-        glm::vec3 position{0.0f};
-        glm::vec3 velocity{0.0f};
+        Math::vec3 position{0.0f};
+        Math::vec3 velocity{0.0f};
         f32 radius = 0.02f;
         f32 life = 1.0f;
         f32 restitution = 0.3f;
@@ -122,7 +122,7 @@ private:
 
     Radion::Scene& mScene;
     std::vector<Particle> mParticles;
-    glm::vec3 mGravity{0.0f, -9.81f, 0.0f};
+    Math::vec3 mGravity{0.0f, -9.81f, 0.0f};
     QueryFilter mFilter;
     HitCallback mHitCallback = nullptr;
     void* mHitUserData = nullptr;

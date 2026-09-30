@@ -24,7 +24,7 @@
 
 #include <cmath>
 #include <cstring>
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 #include <limits>
 #include <nlohmann/json.hpp>
 
@@ -73,7 +73,7 @@ void syncAudioListener(const Camera* camera)
 // (invalid cubemap) result when no probe qualifies is exactly what tells
 // ForwardPass to fall back to the frame's single default probe.
 RenderProbe resolveNearestProbe(const std::vector<ReflectionProbe*>& probes,
-                                const glm::vec3& position)
+                                const Math::vec3& position)
 {
     RenderProbe result;
     const ReflectionProbe* nearest = nullptr;
@@ -96,18 +96,18 @@ RenderProbe resolveNearestProbe(const std::vector<ReflectionProbe*>& probes,
         // (EnvironmentProbe::extents' own doc): a plain mirror of what was
         // captured, sampled straight. A probe that sets only extents keeps
         // being selected by its box exactly as before.
-        const glm::vec3 offset = position - env.position;
+        const Math::vec3 offset = position - env.position;
         if (env.influenceRadius > 0.0f)
         {
-            if (glm::dot(offset, offset) > env.influenceRadius * env.influenceRadius)
+            if (Math::dot(offset, offset) > env.influenceRadius * env.influenceRadius)
                 continue;
         }
         else if (env.extents.x <= 0.0f || env.extents.y <= 0.0f || env.extents.z <= 0.0f)
             continue;
-        else if (glm::abs(offset.x) > env.extents.x || glm::abs(offset.y) > env.extents.y ||
-                 glm::abs(offset.z) > env.extents.z)
+        else if (Math::abs(offset.x) > env.extents.x || Math::abs(offset.y) > env.extents.y ||
+                 Math::abs(offset.z) > env.extents.z)
             continue;
-        const f32 distSq = glm::dot(offset, offset);
+        const f32 distSq = Math::dot(offset, offset);
         if (!nearest || distSq < nearestDistSq)
         {
             nearest = candidate;
@@ -158,9 +158,9 @@ void submitDynamicRenderer(MeshRenderer* renderer, RenderList& list, AssetManage
             materials.sync(material);
         }
     Animator* animator = object->getComponent<Animator>();
-    const std::vector<glm::mat4>* palette =
+    const std::vector<Math::mat4>* palette =
         animator && animator->active() ? &animator->palette() : nullptr;
-    const std::vector<glm::mat4>* prevPalette =
+    const std::vector<Math::mat4>* prevPalette =
         animator && animator->active() ? &animator->prevPalette() : nullptr;
     const RenderProbe probe = resolveNearestProbe(probes, object->globalPosition());
     list.submit(renderer->mesh(), *mesh, object->globalTransform(), overrides, overrideCount,
@@ -173,12 +173,12 @@ bool outsideCasterVolume(const std::vector<Plane>* casterPlanes, const AABB& bou
 {
     if (!casterPlanes)
         return false;
-    const glm::vec3 center = bounds.center();
-    const glm::vec3 extents = bounds.extents();
+    const Math::vec3 center = bounds.center();
+    const Math::vec3 extents = bounds.extents();
     for (const Plane& plane : *casterPlanes)
     {
-        const f32 distance = glm::dot(plane.normal, center) + plane.d;
-        const f32 radius = glm::dot(glm::abs(plane.normal), extents);
+        const f32 distance = Math::dot(plane.normal, center) + plane.d;
+        const f32 radius = Math::dot(Math::abs(plane.normal), extents);
         if (distance + radius < 0.0f)
             return true;
     }
@@ -187,25 +187,25 @@ bool outsideCasterVolume(const std::vector<Plane>* casterPlanes, const AABB& bou
 
 // Depth-buffer pixel -> view-space position, for pickSurface()'s centre pixel
 // and its 3x3 neighbours.
-glm::vec3 viewPositionFromDepth(s32 x, s32 y, f32 depth, u32 depthWidth, u32 depthHeight,
-                                const glm::mat4& inverseProjection)
+Math::vec3 viewPositionFromDepth(s32 x, s32 y, f32 depth, u32 depthWidth, u32 depthHeight,
+                                const Math::mat4& inverseProjection)
 {
-    const glm::vec2 uv((static_cast<f32>(x) + 0.5f) / static_cast<f32>(depthWidth),
+    const Math::vec2 uv((static_cast<f32>(x) + 0.5f) / static_cast<f32>(depthWidth),
                        (static_cast<f32>(y) + 0.5f) / static_cast<f32>(depthHeight));
-    const glm::vec4 clip(uv * 2.0f - 1.0f, depth * 2.0f - 1.0f, 1.0f);
-    const glm::vec4 view = inverseProjection * clip;
-    return glm::vec3(view) / view.w;
+    const Math::vec4 clip(uv * 2.0f - 1.0f, depth * 2.0f - 1.0f, 1.0f);
+    const Math::vec4 view = inverseProjection * clip;
+    return Math::vec3(view) / view.w;
 }
 
 struct OcclusionBlock
 {
-    glm::mat4 viewProjection;
-    glm::mat4 model;
+    Math::mat4 viewProjection;
+    Math::mat4 model;
 };
 
 // One shared cube, [-1, 1]^3 - every entry's own model matrix scales it to
 // that entry's world AABB (extents already half-size, matching this).
-const glm::vec3 kOcclusionCubeVertices[8] = {
+const Math::vec3 kOcclusionCubeVertices[8] = {
     {-1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, -1.0f}, {-1.0f, 1.0f, -1.0f},
     {-1.0f, -1.0f, 1.0f},  {1.0f, -1.0f, 1.0f},  {1.0f, 1.0f, 1.0f},  {-1.0f, 1.0f, 1.0f},
 };
@@ -442,8 +442,8 @@ bool Scene::saveCamera(const std::string& filename) const
         return false;
 
     GameObject* object = mActiveCamera->owner();
-    const glm::vec3 position = object->globalPosition();
-    const glm::quat rotation = object->globalRotation();
+    const Math::vec3 position = object->globalPosition();
+    const Math::quat rotation = object->globalRotation();
 
     nlohmann::json root;
     root["position"] = {position.x, position.y, position.z};
@@ -486,8 +486,8 @@ bool Scene::loadCamera(const std::string& filename)
 
     GameObject* object = mActiveCamera->owner();
     object->setPosition(
-        glm::vec3((*position)[0].get<f32>(), (*position)[1].get<f32>(), (*position)[2].get<f32>()));
-    object->setRotation(glm::quat((*rotation)[3].get<f32>(), (*rotation)[0].get<f32>(),
+        Math::vec3((*position)[0].get<f32>(), (*position)[1].get<f32>(), (*position)[2].get<f32>()));
+    object->setRotation(Math::quat((*rotation)[3].get<f32>(), (*rotation)[0].get<f32>(),
                                   (*rotation)[1].get<f32>(), (*rotation)[2].get<f32>()));
 
     Log::info("Scene: loaded camera from '%s'", filename.c_str());
@@ -898,7 +898,7 @@ bool Scene::setupOcclusionQueryResources()
     // own uniform-buffer offset alignment - binding at an arbitrary byte
     // offset is not portable even though this particular driver tolerates
     // it (see GPUCaps).
-    const u32 alignment = glm::max(gpu.caps().uniformOffsetAlignment, 4u);
+    const u32 alignment = Math::max(gpu.caps().uniformOffsetAlignment, 4u);
     mOcclusionBlockStride = ((sizeof(OcclusionBlock) + alignment - 1) / alignment) * alignment;
     if (!ensureOcclusionBlockCapacity(64))
         return false;
@@ -907,7 +907,7 @@ bool Scene::setupOcclusionQueryResources()
     verticesDesc.size = sizeof(kOcclusionCubeVertices);
     verticesDesc.usage = BufferVertex;
     verticesDesc.residency = Residency::Static;
-    verticesDesc.stride = sizeof(glm::vec3);
+    verticesDesc.stride = sizeof(Math::vec3);
     verticesDesc.data = kOcclusionCubeVertices;
     verticesDesc.debugName = "occlusion.cube.vertices";
     mOcclusionCubeVertices = gpu.createBuffer(verticesDesc);
@@ -927,7 +927,7 @@ bool Scene::setupOcclusionQueryResources()
 
     VertexLayout layout;
     layout.streamCount = 1;
-    layout.streams[StreamPosition].stride = sizeof(glm::vec3);
+    layout.streams[StreamPosition].stride = sizeof(Math::vec3);
     layout.attribCount = 1;
     layout.attribs[0] = {0, StreamPosition, 0, AttribFormat::Float3};
 
@@ -970,7 +970,7 @@ bool Scene::ensureOcclusionResultCapacity(u32 count)
 
     // Grown in steps rather than to exactly what was asked for, so a scene
     // gaining a few entries a frame does not reallocate and remap every time.
-    mOcclusionResultCapacity = glm::max(count + count / 2u, 256u);
+    mOcclusionResultCapacity = Math::max(count + count / 2u, 256u);
     for (u32 i = 0; i < kOcclusionResultBuffers; ++i)
     {
         BufferDesc desc;
@@ -1005,8 +1005,8 @@ bool Scene::ensureOcclusionBlockCapacity(u32 count)
     return mOcclusionBlock.valid();
 }
 
-void Scene::updateOcclusionQueries(TargetHandle depthTarget, const glm::mat4& viewProjection,
-                                   const glm::vec3& cameraPosition)
+void Scene::updateOcclusionQueries(TargetHandle depthTarget, const Math::mat4& viewProjection,
+                                   const Math::vec3& cameraPosition)
 {
     if (!mOcclusionQueryEnabled || mStaticHits.empty())
         return;
@@ -1126,14 +1126,14 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const glm::mat4& vi
         // things at different scene scales, with a floor for a box that is
         // nearly flat on one axis.
         constexpr f32 kOcclusionBoxPadding = 0.002f;
-        const glm::vec3 extents = candidates[i].worldBounds.extents();
-        const glm::vec3 padded =
-            extents + glm::max(extents * kOcclusionBoxPadding, glm::vec3(0.0005f));
+        const Math::vec3 extents = candidates[i].worldBounds.extents();
+        const Math::vec3 padded =
+            extents + Math::max(extents * kOcclusionBoxPadding, Math::vec3(0.0005f));
 
         OcclusionBlock block;
         block.viewProjection = viewProjection;
-        block.model = glm::translate(glm::mat4(1.0f), candidates[i].worldBounds.center()) *
-                      glm::scale(glm::mat4(1.0f), padded);
+        block.model = Math::translate(Math::mat4(1.0f), candidates[i].worldBounds.center()) *
+                      Math::scale(Math::mat4(1.0f), padded);
         std::memcpy(mOcclusionBlockScratch.data() + i * mOcclusionBlockStride, &block,
                     sizeof(block));
     }
@@ -1174,7 +1174,7 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const glm::mat4& vi
     {
         RADION_PROFILE_SCOPE("Occlusion resolve");
         RADION_GPU_PROFILE_SCOPE("Occlusion resolve");
-        const usize limit = glm::min(candidates.size(), usize(mOcclusionResultCapacity));
+        const usize limit = Math::min(candidates.size(), usize(mOcclusionResultCapacity));
         for (usize i = 0; i < limit; ++i)
         {
             gpu.resolveQuery(candidates[i].query, results,
@@ -1221,7 +1221,7 @@ void Scene::debugDrawOcclusion() const
     {
         const bool visible = mStaticIndex.lastVisible(hit.entryIndex);
         AABB bounds = mStaticIndex.entryBounds(hit.entryIndex);
-        const glm::vec3 margin = (bounds.max - bounds.min) * 0.01f + glm::vec3(0.01f);
+        const Math::vec3 margin = (bounds.max - bounds.min) * 0.01f + Math::vec3(0.01f);
         bounds.min -= margin;
         bounds.max += margin;
         DebugDraw().box(bounds, visible ? Color::Green : Color::Red);
@@ -1267,8 +1267,8 @@ bool Scene::buildRenderList(RenderList& list, u32 filter)
                            mActiveCamera->owner()->globalPosition(), filter);
 }
 
-bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
-                            const glm::vec3& cameraPosition, u32 filter, bool occlusionView,
+bool Scene::buildRenderList(RenderList& list, const Math::mat4& viewProjection,
+                            const Math::vec3& cameraPosition, u32 filter, bool occlusionView,
                             bool previewOcclusion)
 {
     flushChanges();
@@ -1300,10 +1300,10 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
         {
             const SpotLight* spot = static_cast<SpotLight*>(light);
             output.range = spot->range();
-            const f32 innerCos = glm::cos(glm::radians(spot->innerAngle()));
-            const f32 outerCos = glm::cos(glm::radians(spot->outerAngle()));
+            const f32 innerCos = Math::cos(Math::radians(spot->innerAngle()));
+            const f32 outerCos = Math::cos(Math::radians(spot->outerAngle()));
             output.coneAngleCos = outerCos;
-            output.coneAngleScale = 1.0f / glm::max(innerCos - outerCos, 0.0001f);
+            output.coneAngleScale = 1.0f / Math::max(innerCos - outerCos, 0.0001f);
             break;
         }
         case LightType::Rectangle:
@@ -1411,9 +1411,9 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
             }
 
             Animator* animator = object->getComponent<Animator>();
-            const std::vector<glm::mat4>* palette =
+            const std::vector<Math::mat4>* palette =
                 animator && animator->active() ? &animator->palette() : nullptr;
-            const std::vector<glm::mat4>* prevPalette =
+            const std::vector<Math::mat4>* prevPalette =
                 animator && animator->active() ? &animator->prevPalette() : nullptr;
             if (object != probeOwner)
             {
@@ -1580,17 +1580,17 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
         if (object->hasDebugFlag(DebugSkeleton) && animator)
         {
             const Skeleton* skeleton = animator->skeleton();
-            const std::vector<glm::mat4>& pose = animator->globalPose();
+            const std::vector<Math::mat4>& pose = animator->globalPose();
             if (skeleton && pose.size() == skeleton->boneCount())
                 for (u32 bone = 0; bone < skeleton->boneCount(); ++bone)
                 {
                     const s32 parent = skeleton->bone(bone).parent;
                     if (parent < 0)
                         continue;
-                    const glm::vec3 joint =
-                        glm::vec3(object->globalTransform() * pose[bone] * glm::vec4(0, 0, 0, 1));
-                    const glm::vec3 parentJoint =
-                        glm::vec3(object->globalTransform() * pose[parent] * glm::vec4(0, 0, 0, 1));
+                    const Math::vec3 joint =
+                        Math::vec3(object->globalTransform() * pose[bone] * Math::vec4(0, 0, 0, 1));
+                    const Math::vec3 parentJoint =
+                        Math::vec3(object->globalTransform() * pose[parent] * Math::vec4(0, 0, 0, 1));
                     debug.line(parentJoint, joint, Color::Cyan, false);
                 }
         }
@@ -1599,7 +1599,7 @@ bool Scene::buildRenderList(RenderList& list, const glm::mat4& viewProjection,
     return true;
 }
 
-bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u32 filter,
+bool Scene::buildShadowList(RenderList& list, const Math::mat4& viewProjection, u32 filter,
                             const Sphere* cullSphere, MeshHandle exclude, u64 excludeObjectId,
                             bool reflectionCapture, const std::vector<Plane>* casterPlanes,
                             f32 minCasterExtent)
@@ -1612,7 +1612,7 @@ bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u
         rebuildStaticIndex();
     list.clear();
     list.setFilter(filter);
-    list.setCamera(viewProjection, glm::vec3(0.0f));
+    list.setCamera(viewProjection, Math::vec3(0.0f));
     if (cullSphere)
         list.setCullSphere(*cullSphere);
 
@@ -1650,8 +1650,8 @@ bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u
                 continue;
             if (minCasterExtent > 0.0f)
             {
-                const glm::vec3 size = mStaticIndex.entryBounds(hit.entryIndex).extents() * 2.0f;
-                if (glm::max(size.x, glm::max(size.y, size.z)) < minCasterExtent)
+                const Math::vec3 size = mStaticIndex.entryBounds(hit.entryIndex).extents() * 2.0f;
+                if (Math::max(size.x, Math::max(size.y, size.z)) < minCasterExtent)
                     continue;
             }
             Mesh* mesh = assets.getMesh(renderer->mesh());
@@ -1693,16 +1693,16 @@ bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u
             continue;
         if (minCasterExtent > 0.0f)
         {
-            const glm::vec3 size = worldBounds.extents() * 2.0f;
-            if (glm::max(size.x, glm::max(size.y, size.z)) < minCasterExtent)
+            const Math::vec3 size = worldBounds.extents() * 2.0f;
+            if (Math::max(size.x, Math::max(size.y, size.z)) < minCasterExtent)
                 continue;
         }
         const Material* overrides = renderer->materialOverrides();
         const u32 overrideCount = renderer->materialOverrideCount();
         Animator* animator = object->getComponent<Animator>();
-        const std::vector<glm::mat4>* palette =
+        const std::vector<Math::mat4>* palette =
             animator && animator->active() ? &animator->palette() : nullptr;
-        const std::vector<glm::mat4>* prevPalette =
+        const std::vector<Math::mat4>* prevPalette =
             animator && animator->active() ? &animator->prevPalette() : nullptr;
         list.submit(renderer->mesh(), *mesh, object->globalTransform(), overrides, overrideCount,
                     palette, nullptr, &object->previousGlobalTransform(), prevPalette);
@@ -1725,8 +1725,8 @@ bool Scene::buildShadowList(RenderList& list, const glm::mat4& viewProjection, u
     // way buildRenderList() lets it through unfiltered. Without this loop a
     // tree just never appeared in any shadow view: buildShadowList() only
     // ever walked mRenderers.
-    const glm::vec3 cameraPosition =
-        mActiveCamera ? mActiveCamera->owner()->globalPosition() : glm::vec3(0.0f);
+    const Math::vec3 cameraPosition =
+        mActiveCamera ? mActiveCamera->owner()->globalPosition() : Math::vec3(0.0f);
     for (Forest* forest : mForests)
     {
         GameObject* object = forest->owner();
@@ -2021,8 +2021,8 @@ void Scene::flushChanges()
 
 bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f32 mouseX,
                         f32 mouseY, u32 windowWidth, u32 windowHeight,
-                        const glm::mat4& inverseProjection, const glm::mat4& inverseView,
-                        glm::vec3& outPosition, glm::vec3& outNormal)
+                        const Math::mat4& inverseProjection, const Math::mat4& inverseView,
+                        Math::vec3& outPosition, Math::vec3& outNormal)
 {
     if (!depth.valid() || depthWidth <= 2 || depthHeight <= 2 || windowWidth == 0 ||
         windowHeight == 0)
@@ -2049,7 +2049,7 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
     if (centre >= 1.0f || centre <= 0.0f)
         return false; // sky or background: nothing to stick to
 
-    const glm::vec3 position =
+    const Math::vec3 position =
         viewPositionFromDepth(px, py, centre, depthWidth, depthHeight, inverseProjection);
 
     // The normal comes from differences, but taking the NEAREST neighbour on
@@ -2066,20 +2066,20 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
     const bool useRight = std::fabs(d[5] - centre) <= std::fabs(d[3] - centre);
     const bool useUp = std::fabs(d[7] - centre) <= std::fabs(d[1] - centre);
 
-    const glm::vec3 alongX =
+    const Math::vec3 alongX =
         useRight
             ? viewPositionFromDepth(px + 1, py, d[5], depthWidth, depthHeight, inverseProjection)
             : viewPositionFromDepth(px - 1, py, d[3], depthWidth, depthHeight, inverseProjection);
-    const glm::vec3 alongY =
+    const Math::vec3 alongY =
         useUp ? viewPositionFromDepth(px, py + 1, d[7], depthWidth, depthHeight, inverseProjection)
               : viewPositionFromDepth(px, py - 1, d[1], depthWidth, depthHeight, inverseProjection);
 
     // Keeps the cross product's sense when the far-side neighbour is used.
-    const glm::vec3 dX = useRight ? (alongX - position) : (position - alongX);
-    const glm::vec3 dY = useUp ? (alongY - position) : (position - alongY);
+    const Math::vec3 dX = useRight ? (alongX - position) : (position - alongX);
+    const Math::vec3 dY = useUp ? (alongY - position) : (position - alongY);
 
-    glm::vec3 normal = glm::cross(dX, dY);
-    const f32 length = glm::length(normal);
+    Math::vec3 normal = Math::cross(dX, dY);
+    const f32 length = Math::length(normal);
     if (length < 1e-8f)
         return false; // degenerate neighbours
     normal /= length;
@@ -2089,8 +2089,8 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
     if (normal.z < 0.0f)
         normal = -normal;
 
-    outPosition = glm::vec3(inverseView * glm::vec4(position, 1.0f));
-    outNormal = glm::normalize(glm::mat3(inverseView) * normal);
+    outPosition = Math::vec3(inverseView * Math::vec4(position, 1.0f));
+    outNormal = Math::normalize(Math::mat3(inverseView) * normal);
     return true;
 }
 
@@ -2117,7 +2117,7 @@ void pickObjectRecursive(const GameObject& object, const Ray& ray, GameObject*& 
     for (usize i = 0; i < object.childCount(); ++i)
         pickObjectRecursive(*object.child(i), ray, best, bestT);
 }
-void pickObjectAtPointRecursive(const GameObject& object, const glm::vec3& point, GameObject*& best,
+void pickObjectAtPointRecursive(const GameObject& object, const Math::vec3& point, GameObject*& best,
                                 f32& bestVolume)
 {
     if (object.active() && object.isVisibleInHierarchy())
@@ -2129,7 +2129,7 @@ void pickObjectAtPointRecursive(const GameObject& object, const glm::vec3& point
                 const AABB worldBounds = transformAABB(mesh->bounds, object.globalTransform());
                 if (worldBounds.contains(point))
                 {
-                    const glm::vec3 extents = worldBounds.extents();
+                    const Math::vec3 extents = worldBounds.extents();
                     const f32 volume = extents.x * extents.y * extents.z;
                     if (volume < bestVolume)
                     {
@@ -2182,7 +2182,7 @@ GameObject* Scene::pickDynamicObject(const Ray& ray, f32* outDistance)
     return best;
 }
 
-GameObject* Scene::pickObjectAtPoint(const glm::vec3& point) const
+GameObject* Scene::pickObjectAtPoint(const Math::vec3& point) const
 {
     GameObject* best = nullptr;
     f32 bestVolume = std::numeric_limits<f32>::max();
@@ -2190,7 +2190,7 @@ GameObject* Scene::pickObjectAtPoint(const glm::vec3& point) const
     return best;
 }
 
-s32 Scene::pickSubmeshAtPoint(const GameObject& object, const glm::vec3& point, s32* outSubmesh)
+s32 Scene::pickSubmeshAtPoint(const GameObject& object, const Math::vec3& point, s32* outSubmesh)
 {
     if (outSubmesh)
         *outSubmesh = -1;
@@ -2200,7 +2200,7 @@ s32 Scene::pickSubmeshAtPoint(const GameObject& object, const glm::vec3& point, 
     if (!mesh)
         return -1;
 
-    const glm::mat4& transform = object.globalTransform();
+    const Math::mat4& transform = object.globalTransform();
     s32 best = -1;
     f32 bestVolume = std::numeric_limits<f32>::max();
     for (usize i = 0; i < mesh->submeshes.size(); ++i)
@@ -2211,7 +2211,7 @@ s32 Scene::pickSubmeshAtPoint(const GameObject& object, const glm::vec3& point, 
         const AABB worldBounds = transformAABB(submesh.bounds, transform);
         if (!worldBounds.contains(point))
             continue;
-        const glm::vec3 extents = worldBounds.extents();
+        const Math::vec3 extents = worldBounds.extents();
         const f32 volume = extents.x * extents.y * extents.z;
         if (volume < bestVolume)
         {
@@ -2234,22 +2234,22 @@ namespace
 // a face inherits an impulse meant for somewhere else.
 constexpr f32 kMatchDistance = 0.02f;
 
-bool finiteVector(const glm::vec3& value)
+bool finiteVector(const Math::vec3& value)
 {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
-f32 radialWeight(const glm::vec3& centre, const glm::vec3& position, f32 radius,
-                 glm::vec3* direction = nullptr)
+f32 radialWeight(const Math::vec3& centre, const Math::vec3& position, f32 radius,
+                 Math::vec3* direction = nullptr)
 {
-    const glm::vec3 offset = position - centre;
-    const f32 distanceSquared = glm::dot(offset, offset);
+    const Math::vec3 offset = position - centre;
+    const f32 distanceSquared = Math::dot(offset, offset);
     if (distanceSquared >= radius * radius)
         return 0.0f;
 
     const f32 distance = std::sqrt(distanceSquared);
     if (direction)
-        *direction = distance > 1.0e-6f ? offset / distance : glm::vec3(0.0f, 1.0f, 0.0f);
+        *direction = distance > 1.0e-6f ? offset / distance : Math::vec3(0.0f, 1.0f, 0.0f);
     return 1.0f - distance / radius;
 }
 
@@ -2517,7 +2517,7 @@ void Scene::rebuildObstacleGroup()
 
 // --------------------------------------------------------------- settings
 
-void Scene::setGravity(const glm::vec3& gravity)
+void Scene::setGravity(const Math::vec3& gravity)
 {
     mGravity = gravity;
 }
@@ -2547,12 +2547,12 @@ void Scene::setPhysicsStepCallback(PhysicsStepCallback callback, void* userData)
 
 void Scene::setContactPersistence(u32 steps)
 {
-    mContactPersistence = glm::max(steps, 1u);
+    mContactPersistence = Math::max(steps, 1u);
 }
 
 void Scene::setContactMargin(f32 margin)
 {
-    mContactMargin = glm::max(margin, 0.0f);
+    mContactMargin = Math::max(margin, 0.0f);
     mStaticBroadphaseDirty = true;
 }
 
@@ -2574,8 +2574,8 @@ void Scene::rebuildStaticBroadphase()
         if (!bodyCollides(body) || body->bodyType() != BodyType::Static)
             continue;
         AABB bounds = body->shape()->bounds(body->transform());
-        bounds.min -= glm::vec3(mContactMargin);
-        bounds.max += glm::vec3(mContactMargin);
+        bounds.min -= Math::vec3(mContactMargin);
+        bounds.max += Math::vec3(mContactMargin);
         mStaticBounds.push_back(bounds);
         mStaticBodies.push_back(body);
     }
@@ -2606,7 +2606,7 @@ void Scene::warmStartFromCache(const CachedContactPair* cached, ContactManifold&
         const CachedContactPoint* match = nullptr;
         for (u32 j = 0; j < cached->count; ++j)
         {
-            const f32 distance = glm::length(point.position - cached->points[j].position);
+            const f32 distance = Math::length(point.position - cached->points[j].position);
             if (distance < best)
             {
                 best = distance;
@@ -2731,10 +2731,10 @@ void Scene::solveBulletSweeps()
     for (const BulletSweep& sweep : mBulletSweeps)
     {
         RigidBody* sweptBody = sweep.body;
-        const glm::vec3 newPosition = sweptBody->position();
-        const glm::vec3 delta = newPosition - sweep.previousPosition;
+        const Math::vec3 newPosition = sweptBody->position();
+        const Math::vec3 delta = newPosition - sweep.previousPosition;
 
-        const f32 distSq = glm::dot(delta, delta);
+        const f32 distSq = Math::dot(delta, delta);
         if (distSq < slop * slop)
             continue;
 
@@ -2751,7 +2751,7 @@ void Scene::solveBulletSweeps()
         if (!hit.body || hit.body->isDynamic())
             continue;
 
-        const f32 endSide = glm::dot(newPosition - hit.point, hit.normal);
+        const f32 endSide = Math::dot(newPosition - hit.point, hit.normal);
         if (endSide >= -slop)
             continue;
 
@@ -2815,8 +2815,8 @@ void Scene::stepPhysics(f32 duration)
         // the pairs the margin exists to keep: a body resting on a surface
         // has its AABB ending where the other one starts, they do not
         // overlap, and the narrowphase is never even asked.
-        proxy.bounds.min -= glm::vec3(mContactMargin);
-        proxy.bounds.max += glm::vec3(mContactMargin);
+        proxy.bounds.min -= Math::vec3(mContactMargin);
+        proxy.bounds.max += Math::vec3(mContactMargin);
         mDynamicBroadphase.add(proxy);
         mDynamicProxies.push_back(proxy);
     }
@@ -2834,7 +2834,7 @@ void Scene::stepPhysics(f32 duration)
                 !Broadphase::overlaps(dynamic.bounds, staticBounds))
                 continue;
             const u32 staticSlot = staticBody->mStepSlot;
-            mPairs.push_back({glm::min(dynamic.id, staticSlot), glm::max(dynamic.id, staticSlot)});
+            mPairs.push_back({Math::min(dynamic.id, staticSlot), Math::max(dynamic.id, staticSlot)});
         }
     }
     mDynamicBroadphase.findPairs(mDynamicPairs);
@@ -2898,7 +2898,7 @@ void Scene::stepPhysics(f32 duration)
             // Combined the usual way: the geometric mean for friction, the
             // larger for restitution, so one bouncy body is enough to bounce.
             contact.friction = std::sqrt(a.friction() * b.friction());
-            contact.restitution = glm::max(a.restitution(), b.restitution());
+            contact.restitution = Math::max(a.restitution(), b.restitution());
             mContacts.push_back(contact);
         }
 
@@ -3040,7 +3040,7 @@ void Scene::debugDrawPhysicsContacts() const
     for (const Contact& contact : mContacts)
         for (u32 i = 0; i < contact.manifold.count; ++i)
         {
-            const glm::vec3& point = contact.manifold.points[i].position;
+            const Math::vec3& point = contact.manifold.points[i].position;
             // The normal is drawn scaled by the impulse it is carrying, so a
             // stack shows where the weight actually goes.
             const f32 scale = 0.05f + contact.manifold.points[i].normalImpulse * 0.02f;
@@ -3055,8 +3055,8 @@ void Scene::debugDrawPhysicsJoints() const
     {
         if (!joint || !joint->enabled())
             continue;
-        const glm::vec3 anchorA = joint->anchorWorldA();
-        const glm::vec3 anchorB = joint->anchorWorldB();
+        const Math::vec3 anchorA = joint->anchorWorldA();
+        const Math::vec3 anchorB = joint->anchorWorldB();
         DebugDraw().line(anchorA, anchorB, Color::Yellow);
         if (joint->hasAxis())
             DebugDraw().line(anchorA, anchorA + joint->axisWorld() * axisLength, Color::Cyan);
@@ -3088,16 +3088,16 @@ void Scene::debugDrawObstacleShape(const Obstacle& obstacle, Color color)
     constexpr f32 kNormalArrowHead = 0.15f;
     constexpr f32 kPlaneHalfExtent = 1.0f; // finite 2m patch standing in for the infinite plane
 
-    const glm::vec3 position = object->globalPosition();
-    const glm::vec3 rightAxis = object->right();
-    const glm::vec3 upAxis = object->up();
-    const glm::vec3 forwardAxis = object->forward();
-    const glm::mat4 transform =
-        glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(object->globalRotation());
+    const Math::vec3 position = object->globalPosition();
+    const Math::vec3 rightAxis = object->right();
+    const Math::vec3 upAxis = object->up();
+    const Math::vec3 forwardAxis = object->forward();
+    const Math::mat4 transform =
+        Math::translate(Math::mat4(1.0f), position) * Math::mat4_cast(object->globalRotation());
 
     // Where the normal arrow(s) start from - the surface, not the centre, so
     // it reads as pointing away from the shape rather than through it.
-    glm::vec3 arrowOrigin = position;
+    Math::vec3 arrowOrigin = position;
 
     switch (obstacle.shape())
     {
@@ -3108,7 +3108,7 @@ void Scene::debugDrawObstacleShape(const Obstacle& obstacle, Color color)
         arrowOrigin = position + forwardAxis * obstacle.radius();
         break;
     case ObstacleShape::Box:
-        BoxShape(glm::vec3(obstacle.width(), obstacle.height(), obstacle.depth()) * 0.5f)
+        BoxShape(Math::vec3(obstacle.width(), obstacle.height(), obstacle.depth()) * 0.5f)
             .debugDraw(transform, color);
         break;
     case ObstacleShape::Rectangle:
@@ -3118,9 +3118,9 @@ void Scene::debugDrawObstacleShape(const Obstacle& obstacle, Color color)
             obstacle.shape() == ObstacleShape::Plane ? kPlaneHalfExtent : obstacle.width() * 0.5f;
         const f32 halfHeight =
             obstacle.shape() == ObstacleShape::Plane ? kPlaneHalfExtent : obstacle.height() * 0.5f;
-        const glm::vec3 halfSide = rightAxis * halfWidth;
-        const glm::vec3 halfUp = upAxis * halfHeight;
-        const glm::vec3 corners[4] = {position - halfSide - halfUp, position + halfSide - halfUp,
+        const Math::vec3 halfSide = rightAxis * halfWidth;
+        const Math::vec3 halfUp = upAxis * halfHeight;
+        const Math::vec3 corners[4] = {position - halfSide - halfUp, position + halfSide - halfUp,
                                       position + halfSide + halfUp, position - halfSide + halfUp};
         for (u32 i = 0; i < 4; ++i)
             DebugDraw().line(corners[i], corners[(i + 1) % 4], color);
@@ -3165,7 +3165,7 @@ bool Scene::raycast(const Ray& ray, f32 maxDistance, const QueryFilter& filter,
     return found;
 }
 
-void Scene::overlapSphere(const glm::vec3& centre, f32 radius, const QueryFilter& filter,
+void Scene::overlapSphere(const Math::vec3& centre, f32 radius, const QueryFilter& filter,
                           std::vector<RigidBody*>& out) const
 {
     out.clear();
@@ -3193,7 +3193,7 @@ void Scene::queryAABB(const AABB& bounds, const QueryFilter& filter,
 
 // ---------------------------------------------------------- area effects
 
-u32 Scene::applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 strength,
+u32 Scene::applyRadialImpulse(const Math::vec3& centre, f32 radius, f32 strength,
                               const QueryFilter& filter)
 {
     if (!finiteVector(centre) || !(radius > 0.0f) || !std::isfinite(radius) ||
@@ -3206,7 +3206,7 @@ u32 Scene::applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 strength,
         if (!body->enabled() || !body->isDynamic() || !filter.accepts(body, body->filter()))
             continue;
 
-        glm::vec3 direction;
+        Math::vec3 direction;
         const f32 weight = radialWeight(centre, body->position(), radius, &direction);
         if (weight <= 0.0f)
             continue;
@@ -3216,7 +3216,7 @@ u32 Scene::applyRadialImpulse(const glm::vec3& centre, f32 radius, f32 strength,
     return affected;
 }
 
-u32 Scene::addRadialForce(const glm::vec3& centre, f32 radius, f32 strength,
+u32 Scene::addRadialForce(const Math::vec3& centre, f32 radius, f32 strength,
                           const QueryFilter& filter)
 {
     if (!finiteVector(centre) || !(radius > 0.0f) || !std::isfinite(radius) ||
@@ -3229,7 +3229,7 @@ u32 Scene::addRadialForce(const glm::vec3& centre, f32 radius, f32 strength,
         if (!body->enabled() || !body->isDynamic() || !filter.accepts(body, body->filter()))
             continue;
 
-        glm::vec3 direction;
+        Math::vec3 direction;
         const f32 weight = radialWeight(centre, body->position(), radius, &direction);
         if (weight <= 0.0f)
             continue;
@@ -3239,11 +3239,11 @@ u32 Scene::addRadialForce(const glm::vec3& centre, f32 radius, f32 strength,
     return affected;
 }
 
-u32 Scene::addDirectionalForce(const glm::vec3& centre, f32 radius, const glm::vec3& force,
+u32 Scene::addDirectionalForce(const Math::vec3& centre, f32 radius, const Math::vec3& force,
                                const QueryFilter& filter)
 {
     if (!finiteVector(centre) || !finiteVector(force) || !(radius > 0.0f) ||
-        !std::isfinite(radius) || glm::dot(force, force) == 0.0f)
+        !std::isfinite(radius) || Math::dot(force, force) == 0.0f)
         return 0;
 
     u32 affected = 0;

@@ -47,7 +47,7 @@ Material makeVoxelMaterial(const std::string& atlasFile, VoxelPass pass)
     // zero the whole face samples the tile's first texel and every block comes
     // out flat.
     material.params.custom0 =
-        glm::vec4(1.0f / static_cast<f32>(AtlasColumns), 1.0f / static_cast<f32>(AtlasRows),
+        Math::vec4(1.0f / static_cast<f32>(AtlasColumns), 1.0f / static_cast<f32>(AtlasRows),
                   0.0f, 0.0f);
     material.blend = pass == VoxelPass::Transparent ? BlendMode::Alpha : BlendMode::Opaque;
     if (pass == VoxelPass::Transparent)
@@ -627,7 +627,7 @@ void VoxelWorldComponent::applyChunkMesh(Voxel::ChunkCoord coordinate,
         {
             render.object->addComponent<MeshRenderer>(render.mesh);
             render.object->setPosition(
-                glm::vec3(static_cast<f32>(coordinate.x * Voxel::VoxelChunk::Size),
+                Math::vec3(static_cast<f32>(coordinate.x * Voxel::VoxelChunk::Size),
                           static_cast<f32>(coordinate.y * Voxel::VoxelChunk::Size),
                           static_cast<f32>(coordinate.z * Voxel::VoxelChunk::Size)));
         }
@@ -639,7 +639,7 @@ void VoxelWorldComponent::applyChunkMesh(Voxel::ChunkCoord coordinate,
     }
 }
 
-bool VoxelWorldComponent::raycast(const glm::vec3& origin, const glm::vec3& direction,
+bool VoxelWorldComponent::raycast(const Math::vec3& origin, const Math::vec3& direction,
                                   f32 maxDistance, Voxel::VoxelRaycastHit& hit) const
 {
     return Voxel::raycast(mStreamer.world(), mStreamer.blocks(), origin, direction, maxDistance,
@@ -707,16 +707,16 @@ bool VoxelWorldComponent::loadEdits(const char* filename)
     return true;
 }
 
-Voxel::VoxelMoveResult VoxelWorldComponent::moveBox(const glm::vec3& position,
-                                                    const glm::vec3& halfExtents,
-                                                    const glm::vec3& displacement) const
+Voxel::VoxelMoveResult VoxelWorldComponent::moveBox(const Math::vec3& position,
+                                                    const Math::vec3& halfExtents,
+                                                    const Math::vec3& displacement) const
 {
     return Voxel::VoxelCollision::moveBox(mStreamer.world(), mStreamer.blocks(), position,
                                           halfExtents, displacement);
 }
 
-bool VoxelWorldComponent::boxOverlaps(const glm::vec3& position,
-                                      const glm::vec3& halfExtents) const
+bool VoxelWorldComponent::boxOverlaps(const Math::vec3& position,
+                                      const Math::vec3& halfExtents) const
 {
     return Voxel::VoxelCollision::overlaps(mStreamer.world(), mStreamer.blocks(), position,
                                            halfExtents);
@@ -725,9 +725,9 @@ bool VoxelWorldComponent::boxOverlaps(const glm::vec3& position,
 AABB VoxelWorldComponent::blockBounds(Voxel::VoxelCoord block)
 {
     AABB bounds;
-    bounds.min = glm::vec3(static_cast<f32>(block.x), static_cast<f32>(block.y),
+    bounds.min = Math::vec3(static_cast<f32>(block.x), static_cast<f32>(block.y),
                            static_cast<f32>(block.z));
-    bounds.max = bounds.min + glm::vec3(1.0f);
+    bounds.max = bounds.min + Math::vec3(1.0f);
     return bounds;
 }
 

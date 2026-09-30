@@ -3,7 +3,7 @@
 
 #include "VoxelWorld.h"
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -12,7 +12,7 @@ namespace Voxel
 
 struct VoxelMoveResult
 {
-    glm::vec3 position = glm::vec3(0.0f);
+    Math::vec3 position = Math::vec3(0.0f);
     bool grounded = false;
     bool ceiling = false;
     bool wall = false;
@@ -30,14 +30,14 @@ public:
     // the second one. Displacement is split so no substep crosses a whole
     // block, which is what keeps a fast fall from passing through the ground.
     static VoxelMoveResult moveBox(const VoxelWorld& world, const BlockRegistry& blocks,
-                                   const glm::vec3& position, const glm::vec3& halfExtents,
-                                   const glm::vec3& displacement);
+                                   const Math::vec3& position, const Math::vec3& halfExtents,
+                                   const Math::vec3& displacement);
 
     static bool overlaps(const VoxelWorld& world, const BlockRegistry& blocks,
-                         const glm::vec3& position, const glm::vec3& halfExtents);
+                         const Math::vec3& position, const Math::vec3& halfExtents);
     // True when the box is resting on something solid, tested just below it.
     static bool grounded(const VoxelWorld& world, const BlockRegistry& blocks,
-                         const glm::vec3& position, const glm::vec3& halfExtents);
+                         const Math::vec3& position, const Math::vec3& halfExtents);
 };
 
 } // namespace Voxel

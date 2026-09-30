@@ -84,14 +84,14 @@ void NavMeshBehavior::setParamFloat(u32 index, f32 value)
     }
 }
 
-glm::vec3 NavMeshBehavior::paramVec3(u32 index) const
+Math::vec3 NavMeshBehavior::paramVec3(u32 index) const
 {
     if (index == 6)
         return mSettings.searchExtents;
-    return glm::vec3(0.0f);
+    return Math::vec3(0.0f);
 }
 
-void NavMeshBehavior::setParamVec3(u32 index, const glm::vec3& value)
+void NavMeshBehavior::setParamVec3(u32 index, const Math::vec3& value)
 {
     if (index == 6)
         mSettings.searchExtents = value;
@@ -114,12 +114,12 @@ void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
     // on its own.
     constrainToSurface(entity, route);
 
-    const glm::vec3 position = entity.position();
-    const glm::vec3 goal = entity.goal();
+    const Math::vec3 position = entity.position();
+    const Math::vec3 goal = entity.goal();
 
-    glm::vec3 flatToGoal = goal - position;
+    Math::vec3 flatToGoal = goal - position;
     flatToGoal.y = 0.0f;
-    if (glm::length(flatToGoal) < mSettings.goalRadius)
+    if (Math::length(flatToGoal) < mSettings.goalRadius)
     {
         // Arrived: brake rather than drift past, then still resolve
         // avoidance so a crowd standing on the goal spreads out.
@@ -135,7 +135,7 @@ void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
     // crowd on screen.
     const bool goalMoved =
         !route.hasRoute ||
-        glm::length(goal - route.goalWhenFound) > mSettings.goalMoveThreshold;
+        Math::length(goal - route.goalWhenFound) > mSettings.goalMoveThreshold;
     const bool outOfCorners = route.next >= route.corners.size();
     // Running out of corners is a reason to search again, but not a reason to
     // skip the interval: when findPath() fails - goal off the mesh, nothing
@@ -145,7 +145,7 @@ void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
     if (route.sinceRepath >= mSettings.repathInterval && (goalMoved || outOfCorners))
     {
         route.sinceRepath = 0.0f;
-        std::vector<glm::vec3> fresh;
+        std::vector<Math::vec3> fresh;
         if (mNavMesh->findPath(position, goal, fresh, mSettings.searchExtents) && fresh.size() > 1)
         {
             route.corners = std::move(fresh);
@@ -165,12 +165,12 @@ void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
         }
     }
 
-    glm::vec3 towards = flatToGoal;
+    Math::vec3 towards = flatToGoal;
     if (route.next < route.corners.size())
     {
-        glm::vec3 toCorner = route.corners[route.next] - position;
+        Math::vec3 toCorner = route.corners[route.next] - position;
         toCorner.y = 0.0f;
-        if (glm::length(toCorner) < mSettings.cornerRadius)
+        if (Math::length(toCorner) < mSettings.cornerRadius)
         {
             ++route.next;
             if (route.next < route.corners.size())
@@ -183,7 +183,7 @@ void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
             towards = toCorner;
     }
 
-    glm::vec3 desired = entity.desiredMove();
+    Math::vec3 desired = entity.desiredMove();
     desired += safeNormalize(towards) * mSettings.turnRate * gain();
     entity.setDesiredMove(desired);
 
@@ -192,22 +192,22 @@ void NavMeshBehavior::iterate(float timeDelta, Agent& entity)
 
 void NavMeshBehavior::constrainToSurface(Agent& entity, Route& route)
 {
-    const glm::vec3 wanted = entity.position();
+    const Math::vec3 wanted = entity.position();
 
     // First pass for this agent: it has no known-good position behind it, so
     // snap onto the surface instead of sliding across it.
     if (!route.onSurface)
     {
-        glm::vec3 snapped;
+        Math::vec3 snapped;
         if (!mNavMesh->nearestPoint(wanted, snapped, mSettings.searchExtents))
             return;
         route.surfacePosition = snapped;
         route.onSurface = true;
-        entity.setPosition(glm::vec3(snapped.x, wanted.y, snapped.z));
+        entity.setPosition(Math::vec3(snapped.x, wanted.y, snapped.z));
         return;
     }
 
-    glm::vec3 slid;
+    Math::vec3 slid;
     if (!mNavMesh->moveAlongSurface(route.surfacePosition, wanted, slid, mSettings.searchExtents))
     {
         // The last good position stopped being on the mesh - the surface was
@@ -220,7 +220,7 @@ void NavMeshBehavior::constrainToSurface(Agent& entity, Route& route)
 
     // Height stays the caller's business: the demo places its characters on
     // its own ground offset, and overwriting y here would fight it.
-    entity.setPosition(glm::vec3(slid.x, wanted.y, slid.z));
+    entity.setPosition(Math::vec3(slid.x, wanted.y, slid.z));
 }
 
 void NavMeshBehavior::applyAvoidance(Agent& entity)

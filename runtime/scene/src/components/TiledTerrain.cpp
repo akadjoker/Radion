@@ -31,8 +31,8 @@ constexpr usize kMaxTiles = 1024u * 1024u;
 // coarse atlas and too deep for a fine one.
 u32 atlasMipLimit(int tilesInSide)
 {
-    return static_cast<u32>(glm::max(1, static_cast<int>(std::log2(
-                                         static_cast<f32>(glm::max(tilesInSide, 1))))));
+    return static_cast<u32>(Math::max(1, static_cast<int>(std::log2(
+                                         static_cast<f32>(Math::max(tilesInSide, 1))))));
 }
 
 bool validCell(const TiledTerrain& terrain, int x, int z)
@@ -234,7 +234,7 @@ u8 TiledTerrain::wrappedTile(const u8* tileMap, u32 mapWidth, u32 mapHeight,
     return tileMap[static_cast<usize>(z) * mapWidth + x];
 }
 
-void TiledTerrain::atlasUV(u8 tile, int tilesInSide, glm::vec2& uvMin, glm::vec2& uvMax)
+void TiledTerrain::atlasUV(u8 tile, int tilesInSide, Math::vec2& uvMin, Math::vec2& uvMax)
 {
     const f32 stepUV = 1.0f / static_cast<f32>(tilesInSide);
     const u8 atlasTile = tile & 0x3f;
@@ -250,41 +250,41 @@ void TiledTerrain::atlasUV(u8 tile, int tilesInSide, glm::vec2& uvMin, glm::vec2
     // instead - comfortably under one texel for any atlas built at a normal
     // resolution, without visibly cropping the art.
     const f32 inset = stepUV * 0.02f;
-    uvMin = glm::vec2(atlasX * stepUV + inset, atlasZ * stepUV + inset);
-    uvMax = glm::vec2((atlasX + 1) * stepUV - inset, (atlasZ + 1) * stepUV - inset);
+    uvMin = Math::vec2(atlasX * stepUV + inset, atlasZ * stepUV + inset);
+    uvMax = Math::vec2((atlasX + 1) * stepUV - inset, (atlasZ + 1) * stepUV - inset);
 }
 
-void TiledTerrain::atlasUVs(u8 tile, int tilesInSide, glm::vec2& bottomLeft,
-                            glm::vec2& bottomRight, glm::vec2& topLeft, glm::vec2& topRight)
+void TiledTerrain::atlasUVs(u8 tile, int tilesInSide, Math::vec2& bottomLeft,
+                            Math::vec2& bottomRight, Math::vec2& topLeft, Math::vec2& topRight)
 {
-    glm::vec2 uvMin, uvMax;
+    Math::vec2 uvMin, uvMax;
     atlasUV(tile, tilesInSide, uvMin, uvMax);
 
     switch (tile >> 6)
     {
     case 1:
         bottomLeft = uvMax;
-        bottomRight = glm::vec2(uvMax.x, uvMin.y);
-        topLeft = glm::vec2(uvMin.x, uvMax.y);
+        bottomRight = Math::vec2(uvMax.x, uvMin.y);
+        topLeft = Math::vec2(uvMin.x, uvMax.y);
         topRight = uvMin;
         break;
     case 2:
-        bottomLeft = glm::vec2(uvMax.x, uvMin.y);
+        bottomLeft = Math::vec2(uvMax.x, uvMin.y);
         bottomRight = uvMin;
         topLeft = uvMax;
-        topRight = glm::vec2(uvMin.x, uvMax.y);
+        topRight = Math::vec2(uvMin.x, uvMax.y);
         break;
     case 3:
         bottomLeft = uvMin;
-        bottomRight = glm::vec2(uvMin.x, uvMax.y);
-        topLeft = glm::vec2(uvMax.x, uvMin.y);
+        bottomRight = Math::vec2(uvMin.x, uvMax.y);
+        topLeft = Math::vec2(uvMax.x, uvMin.y);
         topRight = uvMax;
         break;
     default:
-        bottomLeft = glm::vec2(uvMin.x, uvMax.y);
+        bottomLeft = Math::vec2(uvMin.x, uvMax.y);
         bottomRight = uvMax;
         topLeft = uvMin;
-        topRight = glm::vec2(uvMax.x, uvMin.y);
+        topRight = Math::vec2(uvMax.x, uvMin.y);
         break;
     }
 }
@@ -455,8 +455,8 @@ void TiledTerrain::rebuild()
             const u32 firstIndex = static_cast<u32>(data.indices.size());
 
             AABB bounds;
-            bounds.expand(glm::vec3(worldX, -0.01f, worldZ));
-            bounds.expand(glm::vec3(worldX + mPatchLength, 0.01f, worldZ + mPatchLength));
+            bounds.expand(Math::vec3(worldX, -0.01f, worldZ));
+            bounds.expand(Math::vec3(worldX + mPatchLength, 0.01f, worldZ + mPatchLength));
 
             for (int tz = 0; tz < mTilesPerPatch; ++tz)
             {
@@ -464,7 +464,7 @@ void TiledTerrain::rebuild()
                 {
                     const u8 tileId = wrappedTile(mTileMap.data(), mMapWidth, mMapHeight,
                                                   originX + tx, originZ + tz, mDefaultTile);
-                    glm::vec2 bottomLeft, bottomRight, topLeft, topRight;
+                    Math::vec2 bottomLeft, bottomRight, topLeft, topRight;
                     atlasUVs(tileId, mTilesInSide, bottomLeft, bottomRight, topLeft, topRight);
 
                     const f32 x0 = worldX + tx * tileWorld;
@@ -472,13 +472,13 @@ void TiledTerrain::rebuild()
                     const f32 z0 = worldZ + tz * tileWorld;
                     const f32 z1 = z0 + tileWorld;
                     const u32 base = static_cast<u32>(data.positions.size());
-                    const glm::vec3 normal(0.0f, 1.0f, 0.0f);
-                    const glm::vec4 tangent(1.0f, 0.0f, 0.0f, 1.0f);
+                    const Math::vec3 normal(0.0f, 1.0f, 0.0f);
+                    const Math::vec4 tangent(1.0f, 0.0f, 0.0f, 1.0f);
 
-                    data.positions.push_back(glm::vec3(x0, 0.0f, z0));
-                    data.positions.push_back(glm::vec3(x1, 0.0f, z0));
-                    data.positions.push_back(glm::vec3(x0, 0.0f, z1));
-                    data.positions.push_back(glm::vec3(x1, 0.0f, z1));
+                    data.positions.push_back(Math::vec3(x0, 0.0f, z0));
+                    data.positions.push_back(Math::vec3(x1, 0.0f, z0));
+                    data.positions.push_back(Math::vec3(x0, 0.0f, z1));
+                    data.positions.push_back(Math::vec3(x1, 0.0f, z1));
                     data.normals.insert(data.normals.end(), 4, normal);
                     data.tangents.insert(data.tangents.end(), 4, tangent);
                     data.uvs.push_back(bottomLeft);
@@ -544,7 +544,7 @@ void TiledTerrain::rebuild()
                 material = Material();
                 material.name = mAtlasTexture;
                 material.flags |= MaterialLit;
-                material.params.baseColor = glm::vec4(1.0f);
+                material.params.baseColor = Math::vec4(1.0f);
                 material.params.surface.x = 1.0f; // roughness - a floor, not a mirror
                 material.params.surface.y = 0.0f; // metal
             }

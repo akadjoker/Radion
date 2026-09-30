@@ -4,7 +4,7 @@
 #include "EditorPanel.h"
 #include "ImGuiFileDialog.h"
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 #include <string>
 
 namespace Radion
@@ -48,7 +48,7 @@ private:
         bool open = false;
         PrimitiveKind kind = PrimitiveKind::Cube;
         GameObject* parent = nullptr;
-        glm::vec3 dimensions{1.0f};
+        Math::vec3 dimensions{1.0f};
         f32 uvTiles = 16.0f;
         int segmentsA = 0;
         int segmentsB = 0;

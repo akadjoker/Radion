@@ -72,11 +72,11 @@ public:
     static u8 wrappedTile(const u8* tileMap, u32 mapWidth, u32 mapHeight,
                           int x, int z, u8 defaultTile);
     // Atlas UV rectangle for one encoded tile byte in a tilesInSide x tilesInSide atlas.
-    static void atlasUV(u8 tile, int tilesInSide, glm::vec2& uvMin, glm::vec2& uvMax);
+    static void atlasUV(u8 tile, int tilesInSide, Math::vec2& uvMin, Math::vec2& uvMax);
     // UVs in mesh vertex order: bottom-left, bottom-right, top-left, top-right.
     // The tile byte stores the atlas cell in bits 0-5 and its quarter-turn in bits 6-7.
-    static void atlasUVs(u8 tile, int tilesInSide, glm::vec2& bottomLeft,
-                         glm::vec2& bottomRight, glm::vec2& topLeft, glm::vec2& topRight);
+    static void atlasUVs(u8 tile, int tilesInSide, Math::vec2& bottomLeft,
+                         Math::vec2& bottomRight, Math::vec2& topLeft, Math::vec2& topRight);
 
     // Tile-grid paint operations shared by the editor's Tile Painter panel
     // and its unit tests - pure grid math over setTile()/tile(), no ImGui or

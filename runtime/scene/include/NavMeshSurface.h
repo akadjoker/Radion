@@ -31,8 +31,8 @@ public:
     // walkable-slope test the ground does; without a seed it stays in the
     // surface, an island with no stairs down to it. Defaults to the owner's
     // own position, which is ground level for most levels as authored.
-    void setGroundSeed(const glm::vec3& worldPosition);
-    const glm::vec3& groundSeed() const;
+    void setGroundSeed(const Math::vec3& worldPosition);
+    const Math::vec3& groundSeed() const;
 
     // Rebuilds from the owner's MeshRenderer, baked through the owner's own
     // world transform so the surface lands where the level is actually
@@ -64,7 +64,7 @@ private:
     AI::NavMesh mNavMesh;
     f32 mLastBuildMilliseconds = 0.0f;
     std::string mNavDataFile;
-    glm::vec3 mGroundSeed = glm::vec3(0.0f);
+    Math::vec3 mGroundSeed = Math::vec3(0.0f);
     bool mGroundSeedSet = false;
 };
 

@@ -21,7 +21,7 @@ f32 randomRange(f32 lo, f32 hi)
     return lo + (hi - lo) * randomUnit();
 }
 
-glm::vec3 randomDirection()
+Math::vec3 randomDirection()
 {
     // Uniform point on the unit sphere (Marsaglia): reject outside the disk,
     // then the standard 2D-to-3D lift - no trig, no clustering at the poles.
@@ -33,7 +33,7 @@ glm::vec3 randomDirection()
         s = x1 * x1 + x2 * x2;
     } while (s >= 1.0f);
     const f32 factor = 2.0f * std::sqrt(1.0f - s);
-    return glm::vec3(x1 * factor, x2 * factor, 1.0f - 2.0f * s);
+    return Math::vec3(x1 * factor, x2 * factor, 1.0f - 2.0f * s);
 }
 } // namespace
 
@@ -57,7 +57,7 @@ u32 ParticleSystem::emit(const ParticleSpawn& spawn)
     return particle.id;
 }
 
-void ParticleSystem::explode(const glm::vec3& center, u32 count, f32 speedMin, f32 speedMax,
+void ParticleSystem::explode(const Math::vec3& center, u32 count, f32 speedMin, f32 speedMax,
                              f32 radiusMin, f32 radiusMax, f32 life, u32 userTag,
                              ParticleResponse response)
 {
@@ -87,10 +87,10 @@ void ParticleSystem::step(f32 dt)
             continue;
 
         particle.velocity += mGravity * dt;
-        particle.velocity *= glm::max(0.0f, 1.0f - particle.drag * dt);
+        particle.velocity *= Math::max(0.0f, 1.0f - particle.drag * dt);
 
-        const glm::vec3 displacement = particle.velocity * dt;
-        const f32 travel = glm::length(displacement);
+        const Math::vec3 displacement = particle.velocity * dt;
+        const f32 travel = Math::length(displacement);
         if (travel <= 1e-6f)
             continue;
 
@@ -120,12 +120,12 @@ void ParticleSystem::step(f32 dt)
             case ParticleResponse::Bounce:
                 particle.position = hit.point + hit.normal * particle.radius;
                 particle.velocity = particle.velocity -
-                                    (1.0f + particle.restitution) * glm::dot(particle.velocity, hit.normal) *
+                                    (1.0f + particle.restitution) * Math::dot(particle.velocity, hit.normal) *
                                         hit.normal;
                 break;
             case ParticleResponse::Stick:
                 particle.position = hit.point + hit.normal * particle.radius;
-                particle.velocity = glm::vec3(0.0f);
+                particle.velocity = Math::vec3(0.0f);
                 particle.settled = true;
                 break;
             }

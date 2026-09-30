@@ -52,7 +52,7 @@ void benchOneMoverUpdate(u32 count, u32 frames)
     const auto begin = std::chrono::steady_clock::now();
     for (u32 frame = 0; frame < frames; ++frame)
     {
-        mover->setPosition(glm::vec3(static_cast<f32>(frame), 0.0f, 0.0f));
+        mover->setPosition(Math::vec3(static_cast<f32>(frame), 0.0f, 0.0f));
         scene.update(1.0f / 60.0f);
     }
     const auto end = std::chrono::steady_clock::now();
@@ -72,7 +72,7 @@ void benchCollisionStep(u32 count, u32 frames)
     for (u32 i = 0; i < count; ++i)
     {
         GameObject* object = scene.createGameObject("collider");
-        object->setPosition(glm::vec3(static_cast<f32>(i % side) * 20.0f, 0.0f,
+        object->setPosition(Math::vec3(static_cast<f32>(i % side) * 20.0f, 0.0f,
                                       static_cast<f32>(i / side) * 20.0f));
         Collider* collider = object->addComponent<Collider>();
         collider->setSphere(1.0f);

@@ -250,16 +250,16 @@ void main()
 
 struct SkyBlock
 {
-    glm::mat4 invViewProjection;
-    glm::vec4 cameraPosition;
-    glm::vec4 sunDirection;
-    glm::vec4 sunTransmittance;
-    glm::vec4 ambientIntensity;
-    glm::vec4 atmosphere;
-    glm::vec4 options;
-    glm::vec4 cloudGeometry;
-    glm::vec4 cloudMotion;
-    glm::vec4 cloudColorEnabled;
+    Math::mat4 invViewProjection;
+    Math::vec4 cameraPosition;
+    Math::vec4 sunDirection;
+    Math::vec4 sunTransmittance;
+    Math::vec4 ambientIntensity;
+    Math::vec4 atmosphere;
+    Math::vec4 options;
+    Math::vec4 cloudGeometry;
+    Math::vec4 cloudMotion;
+    Math::vec4 cloudColorEnabled;
 };
 
 class SkyPass final : public RenderTechnique
@@ -330,18 +330,18 @@ public:
                               : sky.mode == SkyMode::Atmosphere ? 1.0f
                                                                 : 0.0f;
         SkyBlock block;
-        block.invViewProjection = glm::inverse(frame.viewProjection);
-        block.cameraPosition = glm::vec4(frame.cameraPosition, 1.0f);
-        block.sunDirection = glm::vec4(glm::normalize(sky.sunDirection), 0.0f);
-        block.sunTransmittance = glm::vec4(sky.sunTransmittance, 1.0f);
-        block.ambientIntensity = glm::vec4(sky.ambient, sky.intensity);
-        block.atmosphere = glm::vec4(sky.rayleigh, sky.mie, sky.mieG, sky.atmosphereExposure);
-        block.options = glm::vec4(sky.sunIntensity, modeOption, static_cast<f32>(sky.viewSteps),
+        block.invViewProjection = Math::inverse(frame.viewProjection);
+        block.cameraPosition = Math::vec4(frame.cameraPosition, 1.0f);
+        block.sunDirection = Math::vec4(Math::normalize(sky.sunDirection), 0.0f);
+        block.sunTransmittance = Math::vec4(sky.sunTransmittance, 1.0f);
+        block.ambientIntensity = Math::vec4(sky.ambient, sky.intensity);
+        block.atmosphere = Math::vec4(sky.rayleigh, sky.mie, sky.mieG, sky.atmosphereExposure);
+        block.options = Math::vec4(sky.sunIntensity, modeOption, static_cast<f32>(sky.viewSteps),
                                   static_cast<f32>(sky.lightSteps));
         block.cloudGeometry =
-            glm::vec4(sky.cloudHeight, sky.cloudScale, sky.cloudCoverage, sky.cloudDensity);
-        block.cloudMotion = glm::vec4(sky.cloudDirection, sky.cloudSpeed, frame.time);
-        block.cloudColorEnabled = glm::vec4(sky.cloudColor, sky.cloudsEnabled ? 1.0f : 0.0f);
+            Math::vec4(sky.cloudHeight, sky.cloudScale, sky.cloudCoverage, sky.cloudDensity);
+        block.cloudMotion = Math::vec4(sky.cloudDirection, sky.cloudSpeed, frame.time);
+        block.cloudColorEnabled = Math::vec4(sky.cloudColor, sky.cloudsEnabled ? 1.0f : 0.0f);
         GPU& gpu = GPU::getSingleton();
         gpu.setTarget(frame.target);
         gpu.setViewport(frame.viewport);
@@ -380,9 +380,9 @@ EnvironmentBlock environmentFromSky(const SkySettings* sky)
     if (!sky || !sky->enabled)
         return environment;
 
-    environment.sunDirection = glm::vec4(-sky->sunDirection, 0.0f);
-    environment.sunColor = glm::vec4(sky->sunTransmittance, 1.0f);
-    environment.ambient = glm::vec4(sky->ambient * sky->ambientStrength * sky->intensity,
+    environment.sunDirection = Math::vec4(-sky->sunDirection, 0.0f);
+    environment.sunColor = Math::vec4(sky->sunTransmittance, 1.0f);
+    environment.ambient = Math::vec4(sky->ambient * sky->ambientStrength * sky->intensity,
                                     sky->lightmapIntensity);
     environment.timeAndUnused.y = sky->lightmapShadowLift;
     return environment;
@@ -395,20 +395,20 @@ EnvironmentBlock environmentForFrame(const FrameContext& frame)
     // The probe travels in the frame, not in the sky: it is captured by a
     // pass, and its placement has nothing to do with the time of day.
     environment.probePositionAndMips =
-        glm::vec4(frame.environmentProbePosition,
-                  static_cast<f32>(glm::max(frame.environmentProbeMips, 1u)));
+        Math::vec4(frame.environmentProbePosition,
+                  static_cast<f32>(Math::max(frame.environmentProbeMips, 1u)));
     environment.probeExtentsAndIntensity =
-        glm::vec4(frame.environmentProbeExtents,
+        Math::vec4(frame.environmentProbeExtents,
                   frame.environmentCube.valid() ? frame.environmentProbeIntensity : 0.0f);
-    environment.timeAndUnused = glm::vec4(frame.time, environment.timeAndUnused.y, 0.0f, 0.0f);
+    environment.timeAndUnused = Math::vec4(frame.time, environment.timeAndUnused.y, 0.0f, 0.0f);
 
     if (!frame.list)
         return environment;
 
     if (const RenderLight* sun = frame.list->sun())
     {
-        environment.sunDirection = glm::vec4(glm::normalize(sun->direction), 0.0f);
-        environment.sunColor = glm::vec4(sun->color, 1.0f);
+        environment.sunDirection = Math::vec4(Math::normalize(sun->direction), 0.0f);
+        environment.sunColor = Math::vec4(sun->color, 1.0f);
     }
     return environment;
 }
@@ -440,60 +440,60 @@ void SkySettings::updateSun()
 {
     if (automaticSun)
     {
-        timeOfDay = glm::mod(timeOfDay, 24.0f);
+        timeOfDay = Math::mod(timeOfDay, 24.0f);
         if (timeOfDay < 0.0f)
             timeOfDay += 24.0f;
-        const f32 phase = glm::two_pi<f32>() * (timeOfDay - 6.0f) / 24.0f;
-        sunElevation = glm::sin(phase) * maximumElevation;
-        sunAzimuth = glm::mod(90.0f + (timeOfDay - 6.0f) * 15.0f + northOffset, 360.0f);
+        const f32 phase = Math::two_pi<f32>() * (timeOfDay - 6.0f) / 24.0f;
+        sunElevation = Math::sin(phase) * maximumElevation;
+        sunAzimuth = Math::mod(90.0f + (timeOfDay - 6.0f) * 15.0f + northOffset, 360.0f);
     }
-    const f32 azimuth = glm::radians(sunAzimuth);
-    const f32 elevation = glm::radians(sunElevation);
-    const f32 horizontal = glm::cos(elevation);
-    sunDirection = glm::normalize(glm::vec3(glm::sin(azimuth) * horizontal,
-                                            glm::sin(elevation),
-                                            glm::cos(azimuth) * horizontal));
+    const f32 azimuth = Math::radians(sunAzimuth);
+    const f32 elevation = Math::radians(sunElevation);
+    const f32 horizontal = Math::cos(elevation);
+    sunDirection = Math::normalize(Math::vec3(Math::sin(azimuth) * horizontal,
+                                            Math::sin(elevation),
+                                            Math::cos(azimuth) * horizontal));
 
     constexpr f32 planetRadius = 6360000.0f;
     constexpr f32 atmosphereRadius = 6420000.0f;
     constexpr f32 rayleighHeight = 8000.0f;
     constexpr f32 mieHeight = 1200.0f;
     constexpr f32 betaMie = 21e-6f;
-    const glm::vec3 betaRayleigh(5.8e-6f, 13.5e-6f, 33.1e-6f);
+    const Math::vec3 betaRayleigh(5.8e-6f, 13.5e-6f, 33.1e-6f);
     if (sunDirection.y < -0.05f)
     {
-        sunTransmittance = glm::vec3(0.0f);
+        sunTransmittance = Math::vec3(0.0f);
         return;
     }
-    const glm::vec3 origin(0.0f, planetRadius + 1000.0f, 0.0f);
-    const f32 b = glm::dot(origin, sunDirection);
-    const f32 c = glm::dot(origin, origin) - atmosphereRadius * atmosphereRadius;
+    const Math::vec3 origin(0.0f, planetRadius + 1000.0f, 0.0f);
+    const f32 b = Math::dot(origin, sunDirection);
+    const f32 c = Math::dot(origin, origin) - atmosphereRadius * atmosphereRadius;
     const f32 discriminant = b * b - c;
     if (discriminant < 0.0f)
     {
-        sunTransmittance = glm::vec3(0.0f);
+        sunTransmittance = Math::vec3(0.0f);
         return;
     }
     constexpr u32 samples = 32;
-    const f32 top = -b + glm::sqrt(discriminant);
+    const f32 top = -b + Math::sqrt(discriminant);
     const f32 step = top / samples;
     f32 opticalRayleigh = 0.0f;
     f32 opticalMie = 0.0f;
     for (u32 i = 0; i < samples; ++i)
     {
-        const glm::vec3 point = origin + sunDirection * (step * (static_cast<f32>(i) + 0.5f));
-        const f32 height = glm::length(point) - planetRadius;
+        const Math::vec3 point = origin + sunDirection * (step * (static_cast<f32>(i) + 0.5f));
+        const f32 height = Math::length(point) - planetRadius;
         if (height < 0.0f)
         {
-            sunTransmittance = glm::vec3(0.0f);
+            sunTransmittance = Math::vec3(0.0f);
             return;
         }
-        opticalRayleigh += glm::exp(-height / rayleighHeight) * step;
-        opticalMie += glm::exp(-height / mieHeight) * step;
+        opticalRayleigh += Math::exp(-height / rayleighHeight) * step;
+        opticalMie += Math::exp(-height / mieHeight) * step;
     }
-    const glm::vec3 extinction = betaRayleigh * rayleigh * opticalRayleigh +
-                                 glm::vec3(betaMie * mie * opticalMie);
-    sunTransmittance = glm::exp(-extinction);
+    const Math::vec3 extinction = betaRayleigh * rayleigh * opticalRayleigh +
+                                 Math::vec3(betaMie * mie * opticalMie);
+    sunTransmittance = Math::exp(-extinction);
 }
 
 } // namespace Radion

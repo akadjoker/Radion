@@ -152,7 +152,7 @@ void TilePainterPanel::onImGui()
             const ImVec2 min(mapOrigin.x + static_cast<f32>(x) * drawCellW,
                              mapOrigin.y + static_cast<f32>(z) * drawCellH);
             const ImVec2 max(min.x + drawCellW, min.y + drawCellH);
-            glm::vec2 bottomLeft, bottomRight, topLeft, topRight;
+            Math::vec2 bottomLeft, bottomRight, topLeft, topRight;
             const int terrainZ = mapH - 1 - z;
             TiledTerrain::atlasUVs(terrain->tile(static_cast<u32>(x), static_cast<u32>(terrainZ)),
                                    tilesInSide, bottomLeft, bottomRight, topLeft, topRight);

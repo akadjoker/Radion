@@ -11,7 +11,7 @@
 #include "Behavior.h"
 #include "WaypointNetwork.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -38,7 +38,7 @@ public:
         // again on the very next frame, and kept doing it: a full graph
         // search per agent per frame, precisely when the search is failing.
         float repathInterval = 0.35f;
-        glm::vec3 upVector = glm::vec3(0.0f, 1.0f, 0.0f);
+        Math::vec3 upVector = Math::vec3(0.0f, 1.0f, 0.0f);
         WaypointNetwork* waypointNetwork = nullptr; // non-owning
         // Line-of-sight functor used for the goal short-circuit. Supply one to
         // feed real LOS results, or nullptr for "always visible".
@@ -65,8 +65,8 @@ public:
     const BehaviorParam& paramInfo(u32 index) const override;
     f32 paramFloat(u32 index) const override;
     void setParamFloat(u32 index, f32 value) override;
-    glm::vec3 paramVec3(u32 index) const override;
-    void setParamVec3(u32 index, const glm::vec3& value) override;
+    Math::vec3 paramVec3(u32 index) const override;
+    void setParamVec3(u32 index, const Math::vec3& value) override;
 
     Settings& settings()
     {

@@ -65,7 +65,7 @@ void Obstacle::rebuildOwnedShape()
     switch (mShape)
     {
     case ObstacleShape::Sphere:
-        mObstacle = new AI::SphereObstacle(mRadius, glm::vec3(0.0f));
+        mObstacle = new AI::SphereObstacle(mRadius, Math::vec3(0.0f));
         break;
     case ObstacleShape::Plane:
         mObstacle = new AI::PlaneObstacle();
@@ -74,9 +74,9 @@ void Obstacle::rebuildOwnedShape()
         mObstacle = new AI::RectangleObstacle(mWidth, mHeight);
         break;
     case ObstacleShape::Box:
-        mObstacle = new AI::BoxObstacle(mWidth, mHeight, mDepth, glm::vec3(1.0f, 0.0f, 0.0f),
-                                        glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f),
-                                        glm::vec3(0.0f));
+        mObstacle = new AI::BoxObstacle(mWidth, mHeight, mDepth, Math::vec3(1.0f, 0.0f, 0.0f),
+                                        Math::vec3(0.0f, 1.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f),
+                                        Math::vec3(0.0f));
         break;
     }
     mObstacle->setSeenFrom(mSeenFrom);

@@ -4,7 +4,7 @@
 #include "GPU.h"
 #include "RenderTechnique.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <vector>
 
 namespace Radion
@@ -16,12 +16,12 @@ namespace Radion
 // packed/interleaved vertex format.
 struct alignas(16) HairRoot
 {
-    glm::vec4 positionLength = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    glm::vec4 normalWidth = glm::vec4(0.0f, 1.0f, 0.0f, 0.01f);
-    glm::uvec4 joints = glm::uvec4(0u);
-    glm::vec4 weights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::vec4 positionLength = Math::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    Math::vec4 normalWidth = Math::vec4(0.0f, 1.0f, 0.0f, 0.01f);
+    Math::uvec4 joints = Math::uvec4(0u);
+    Math::vec4 weights = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
     // x rotation, y stable colour variation, z clump offset, w reserved.
-    glm::vec4 params = glm::vec4(0.0f);
+    Math::vec4 params = Math::vec4(0.0f);
 };
 
 enum class HairColliderType : u32
@@ -33,8 +33,8 @@ enum class HairColliderType : u32
 struct alignas(16) HairCollider
 {
     // Sphere: a.xyz=center, a.w=radius. Capsule: a/b are endpoints, a.w=radius.
-    glm::vec4 a = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    glm::vec4 b = glm::vec4(0.0f);
+    Math::vec4 a = Math::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    Math::vec4 b = Math::vec4(0.0f);
     HairColliderType type = HairColliderType::Sphere;
     u32 padding[3] = {};
 };
@@ -53,16 +53,16 @@ struct HairDrawCommand
     u32 rootCount = 0;
     u64 revision = 0;
 
-    const std::vector<glm::mat4>* palette = nullptr;
-    const std::vector<glm::mat4>* previousPalette = nullptr;
-    glm::mat4 model = glm::mat4(1.0f);
-    glm::mat4 previousModel = glm::mat4(1.0f);
+    const std::vector<Math::mat4>* palette = nullptr;
+    const std::vector<Math::mat4>* previousPalette = nullptr;
+    Math::mat4 model = Math::mat4(1.0f);
+    Math::mat4 previousModel = Math::mat4(1.0f);
 
     const HairCollider* colliders = nullptr;
     u32 colliderCount = 0;
     TextureHandle texture;
 
-    glm::vec3 color = glm::vec3(0.12f, 0.055f, 0.025f);
+    Math::vec3 color = Math::vec3(0.12f, 0.055f, 0.025f);
     f32 roughness = 0.38f;
     f32 specularStrength = 0.12f;
     f32 specularTint = 0.55f;

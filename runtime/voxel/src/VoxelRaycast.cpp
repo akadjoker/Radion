@@ -26,10 +26,10 @@ AxisStep makeAxisStep(f32 position, f32 direction)
 
 } // namespace
 
-bool raycast(const VoxelWorld& world, const BlockRegistry& blocks, glm::vec3 origin,
-             glm::vec3 direction, f32 maxDistance, VoxelRaycastHit& hit)
+bool raycast(const VoxelWorld& world, const BlockRegistry& blocks, Math::vec3 origin,
+             Math::vec3 direction, f32 maxDistance, VoxelRaycastHit& hit)
 {
-    const f32 directionLength = glm::length(direction);
+    const f32 directionLength = Math::length(direction);
     if (directionLength <= 0.0f || maxDistance < 0.0f)
         return false;
     direction /= directionLength;

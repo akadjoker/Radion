@@ -653,10 +653,10 @@ void testCollisionFallsOntoFloor()
     VoxelWorld world;
     fillFloor(world, stone);
 
-    const glm::vec3 half(0.3f, 0.9f, 0.3f);
-    const glm::vec3 start(0.5f, 5.0f, 0.5f);
+    const Math::vec3 half(0.3f, 0.9f, 0.3f);
+    const Math::vec3 start(0.5f, 5.0f, 0.5f);
     const VoxelMoveResult result =
-        VoxelCollision::moveBox(world, registry, start, half, glm::vec3(0.0f, -6.0f, 0.0f));
+        VoxelCollision::moveBox(world, registry, start, half, Math::vec3(0.0f, -6.0f, 0.0f));
 
     CHECK(result.grounded);
     // Feet rest on the top of the block at y = 1, never inside it.
@@ -675,10 +675,10 @@ void testCollisionStopsAtWall()
         for (s32 z = -4; z <= 4; ++z)
             world.setBlock({2, y, z}, stone);
 
-    const glm::vec3 half(0.3f, 0.9f, 0.3f);
-    const glm::vec3 start(0.5f, 1.9f, 0.5f);
+    const Math::vec3 half(0.3f, 0.9f, 0.3f);
+    const Math::vec3 start(0.5f, 1.9f, 0.5f);
     const VoxelMoveResult result =
-        VoxelCollision::moveBox(world, registry, start, half, glm::vec3(4.0f, 0.0f, 0.0f));
+        VoxelCollision::moveBox(world, registry, start, half, Math::vec3(4.0f, 0.0f, 0.0f));
 
     CHECK(result.wall);
     CHECK(result.position.x + half.x <= 2.0f);
@@ -695,10 +695,10 @@ void testCollisionHitsCeiling()
         for (s32 x = -4; x <= 4; ++x)
             world.setBlock({x, 5, z}, stone);
 
-    const glm::vec3 half(0.3f, 0.9f, 0.3f);
-    const glm::vec3 start(0.5f, 1.9f, 0.5f);
+    const Math::vec3 half(0.3f, 0.9f, 0.3f);
+    const Math::vec3 start(0.5f, 1.9f, 0.5f);
     const VoxelMoveResult result =
-        VoxelCollision::moveBox(world, registry, start, half, glm::vec3(0.0f, 6.0f, 0.0f));
+        VoxelCollision::moveBox(world, registry, start, half, Math::vec3(0.0f, 6.0f, 0.0f));
 
     CHECK(result.ceiling);
     CHECK(result.position.y + half.y <= 5.0f);
@@ -714,9 +714,9 @@ void testFastFallDoesNotTunnel()
 
     // Forty blocks in one call: without substepping the box would be past the
     // floor before anything tested it.
-    const glm::vec3 half(0.3f, 0.9f, 0.3f);
+    const Math::vec3 half(0.3f, 0.9f, 0.3f);
     const VoxelMoveResult result = VoxelCollision::moveBox(
-        world, registry, glm::vec3(0.5f, 40.0f, 0.5f), half, glm::vec3(0.0f, -60.0f, 0.0f));
+        world, registry, Math::vec3(0.5f, 40.0f, 0.5f), half, Math::vec3(0.0f, -60.0f, 0.0f));
 
     CHECK(result.grounded);
     CHECK(result.position.y - half.y >= 1.0f);
@@ -732,9 +732,9 @@ void testWaterIsNotSolid()
             for (s32 y = 0; y <= 2; ++y)
                 world.setBlock({x, y, z}, water);
 
-    const glm::vec3 half(0.3f, 0.9f, 0.3f);
+    const Math::vec3 half(0.3f, 0.9f, 0.3f);
     const VoxelMoveResult result = VoxelCollision::moveBox(
-        world, registry, glm::vec3(0.5f, 4.0f, 0.5f), half, glm::vec3(0.0f, -3.0f, 0.0f));
+        world, registry, Math::vec3(0.5f, 4.0f, 0.5f), half, Math::vec3(0.0f, -3.0f, 0.0f));
 
     CHECK(!result.grounded);
     CHECK(result.position.y < 1.5f);

@@ -11,7 +11,7 @@
 
 #include "Behavior.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -72,13 +72,13 @@ public:
     }
 
 private:
-    void singleFile(Radion::Agent& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void abreast(Radion::Agent& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void diamond(Radion::Agent& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void pentagon(Radion::Agent& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void wedge(Radion::Agent& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void vFormation(Radion::Agent& entity, glm::vec3& goal, glm::vec3& dir) const;
-    void circle(Radion::Agent& entity, glm::vec3& goal, glm::vec3& dir) const;
+    void singleFile(Radion::Agent& entity, Math::vec3& goal, Math::vec3& dir) const;
+    void abreast(Radion::Agent& entity, Math::vec3& goal, Math::vec3& dir) const;
+    void diamond(Radion::Agent& entity, Math::vec3& goal, Math::vec3& dir) const;
+    void pentagon(Radion::Agent& entity, Math::vec3& goal, Math::vec3& dir) const;
+    void wedge(Radion::Agent& entity, Math::vec3& goal, Math::vec3& dir) const;
+    void vFormation(Radion::Agent& entity, Math::vec3& goal, Math::vec3& dir) const;
+    void circle(Radion::Agent& entity, Math::vec3& goal, Math::vec3& dir) const;
 
     float mGoalRadius;
     float mFormationRadius;
@@ -91,10 +91,10 @@ private:
     Radion::Agent* mSquadLeader = nullptr; // non-owning
     Radion::Agent* mPointMan = nullptr;    // non-owning
 
-    glm::vec3 mPointManLook;
-    glm::vec3 mPointManRight;
-    glm::vec3 mLeaderLook;
-    glm::vec3 mLeaderRight;
+    Math::vec3 mPointManLook;
+    Math::vec3 mPointManRight;
+    Math::vec3 mLeaderLook;
+    Math::vec3 mLeaderRight;
 };
 
 } // namespace Radion::AI

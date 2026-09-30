@@ -15,7 +15,7 @@ constexpr u32 kGridFlags = 0;
 constexpr char kGridMagic[] = "RVOL";
 }
 
-GridSource::GridSource(glm::uvec3 dimensions, glm::vec3 origin, f32 cellSize, f32 initialDensity)
+GridSource::GridSource(Math::uvec3 dimensions, Math::vec3 origin, f32 cellSize, f32 initialDensity)
     : m_dimensions(dimensions), m_origin(origin), m_cellSize(cellSize)
 {
     constexpr u64 maxVoxels = 256ull * 1024ull * 1024ull;
@@ -23,7 +23,7 @@ GridSource::GridSource(glm::uvec3 dimensions, glm::vec3 origin, f32 cellSize, f3
     if (cellSize > 0.0f && std::isfinite(cellSize) && count > 0 && count <= maxVoxels)
         m_values.assign(static_cast<usize>(count), initialDensity);
     else
-        m_dimensions = glm::uvec3(0);
+        m_dimensions = Math::uvec3(0);
 }
 
 usize GridSource::index(u32 x, u32 y, u32 z) const
@@ -41,22 +41,22 @@ AABB GridSource::bounds() const
     AABB result;
     if (!valid()) return result;
     result.min = m_origin;
-    result.max = m_origin + glm::vec3(m_dimensions - glm::uvec3(1)) * m_cellSize;
+    result.max = m_origin + Math::vec3(m_dimensions - Math::uvec3(1)) * m_cellSize;
     return result;
 }
 
-glm::vec3 GridSource::voxelPosition(u32 x, u32 y, u32 z) const
+Math::vec3 GridSource::voxelPosition(u32 x, u32 y, u32 z) const
 {
-    return m_origin + glm::vec3(x, y, z) * m_cellSize;
+    return m_origin + Math::vec3(x, y, z) * m_cellSize;
 }
 
-bool GridSource::worldToVoxel(const glm::vec3& position, glm::uvec3& voxel) const
+bool GridSource::worldToVoxel(const Math::vec3& position, Math::uvec3& voxel) const
 {
     if (!valid() || !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) return false;
-    const glm::vec3 coordinate = (position - m_origin) / m_cellSize;
-    const glm::vec3 last = glm::vec3(m_dimensions - glm::uvec3(1));
-    if (glm::any(glm::lessThan(coordinate, glm::vec3(0.0f))) || glm::any(glm::greaterThan(coordinate, last))) return false;
-    voxel = glm::uvec3(glm::floor(coordinate));
+    const Math::vec3 coordinate = (position - m_origin) / m_cellSize;
+    const Math::vec3 last = Math::vec3(m_dimensions - Math::uvec3(1));
+    if (Math::any(Math::lessThan(coordinate, Math::vec3(0.0f))) || Math::any(Math::greaterThan(coordinate, last))) return false;
+    voxel = Math::uvec3(Math::floor(coordinate));
     return true;
 }
 
@@ -73,39 +73,39 @@ bool GridSource::setVoxel(u32 x, u32 y, u32 z, f32 density)
     return true;
 }
 
-f32 GridSource::sampleClamped(const glm::ivec3& point) const
+f32 GridSource::sampleClamped(const Math::ivec3& point) const
 {
-    const glm::ivec3 last = glm::ivec3(m_dimensions) - glm::ivec3(1);
-    const glm::ivec3 clamped = glm::clamp(point, glm::ivec3(0), last);
+    const Math::ivec3 last = Math::ivec3(m_dimensions) - Math::ivec3(1);
+    const Math::ivec3 clamped = Math::clamp(point, Math::ivec3(0), last);
     return voxel(static_cast<u32>(clamped.x), static_cast<u32>(clamped.y), static_cast<u32>(clamped.z));
 }
 
-f32 GridSource::sampleDensity(const glm::vec3& position) const
+f32 GridSource::sampleDensity(const Math::vec3& position) const
 {
     if (!valid()) return -std::numeric_limits<f32>::infinity();
-    const glm::vec3 coordinate = (position - m_origin) / m_cellSize;
-    const glm::ivec3 base = glm::floor(coordinate);
-    const glm::vec3 fraction = coordinate - glm::vec3(base);
-    const f32 c000 = sampleClamped(base + glm::ivec3(0,0,0));
-    const f32 c100 = sampleClamped(base + glm::ivec3(1,0,0));
-    const f32 c010 = sampleClamped(base + glm::ivec3(0,1,0));
-    const f32 c110 = sampleClamped(base + glm::ivec3(1,1,0));
-    const f32 c001 = sampleClamped(base + glm::ivec3(0,0,1));
-    const f32 c101 = sampleClamped(base + glm::ivec3(1,0,1));
-    const f32 c011 = sampleClamped(base + glm::ivec3(0,1,1));
-    const f32 c111 = sampleClamped(base + glm::ivec3(1,1,1));
-    const f32 x00 = glm::mix(c000, c100, fraction.x), x10 = glm::mix(c010, c110, fraction.x);
-    const f32 x01 = glm::mix(c001, c101, fraction.x), x11 = glm::mix(c011, c111, fraction.x);
-    return glm::mix(glm::mix(x00, x10, fraction.y), glm::mix(x01, x11, fraction.y), fraction.z);
+    const Math::vec3 coordinate = (position - m_origin) / m_cellSize;
+    const Math::ivec3 base = Math::floor(coordinate);
+    const Math::vec3 fraction = coordinate - Math::vec3(base);
+    const f32 c000 = sampleClamped(base + Math::ivec3(0,0,0));
+    const f32 c100 = sampleClamped(base + Math::ivec3(1,0,0));
+    const f32 c010 = sampleClamped(base + Math::ivec3(0,1,0));
+    const f32 c110 = sampleClamped(base + Math::ivec3(1,1,0));
+    const f32 c001 = sampleClamped(base + Math::ivec3(0,0,1));
+    const f32 c101 = sampleClamped(base + Math::ivec3(1,0,1));
+    const f32 c011 = sampleClamped(base + Math::ivec3(0,1,1));
+    const f32 c111 = sampleClamped(base + Math::ivec3(1,1,1));
+    const f32 x00 = Math::mix(c000, c100, fraction.x), x10 = Math::mix(c010, c110, fraction.x);
+    const f32 x01 = Math::mix(c001, c101, fraction.x), x11 = Math::mix(c011, c111, fraction.x);
+    return Math::mix(Math::mix(x00, x10, fraction.y), Math::mix(x01, x11, fraction.y), fraction.z);
 }
 
-Sample GridSource::sample(const glm::vec3& position) const
+Sample GridSource::sample(const Math::vec3& position) const
 {
     const f32 h = m_cellSize * 0.5f;
-    const f32 dx = sampleDensity(position + glm::vec3(h,0,0)) - sampleDensity(position - glm::vec3(h,0,0));
-    const f32 dy = sampleDensity(position + glm::vec3(0,h,0)) - sampleDensity(position - glm::vec3(0,h,0));
-    const f32 dz = sampleDensity(position + glm::vec3(0,0,h)) - sampleDensity(position - glm::vec3(0,0,h));
-    return {glm::vec3(dx, dy, dz) / m_cellSize, sampleDensity(position)};
+    const f32 dx = sampleDensity(position + Math::vec3(h,0,0)) - sampleDensity(position - Math::vec3(h,0,0));
+    const f32 dy = sampleDensity(position + Math::vec3(0,h,0)) - sampleDensity(position - Math::vec3(0,h,0));
+    const f32 dz = sampleDensity(position + Math::vec3(0,0,h)) - sampleDensity(position - Math::vec3(0,0,h));
+    return {Math::vec3(dx, dy, dz) / m_cellSize, sampleDensity(position)};
 }
 
 void GridSource::fill(const Source& source)
@@ -119,13 +119,13 @@ AABB GridSource::apply(VolumeOperation operation, const Source& brush, const AAB
 {
     AABB changed;
     if (!valid() || affected.empty()) return changed;
-    const glm::vec3 minCoord = glm::floor((affected.min - m_origin) / m_cellSize);
-    const glm::vec3 maxCoord = glm::ceil((affected.max - m_origin) / m_cellSize);
+    const Math::vec3 minCoord = Math::floor((affected.min - m_origin) / m_cellSize);
+    const Math::vec3 maxCoord = Math::ceil((affected.max - m_origin) / m_cellSize);
     for (s32 z = std::max(0, static_cast<s32>(minCoord.z)); z <= std::min(static_cast<s32>(m_dimensions.z) - 1, static_cast<s32>(maxCoord.z)); ++z)
         for (s32 y = std::max(0, static_cast<s32>(minCoord.y)); y <= std::min(static_cast<s32>(m_dimensions.y) - 1, static_cast<s32>(maxCoord.y)); ++y)
             for (s32 x = std::max(0, static_cast<s32>(minCoord.x)); x <= std::min(static_cast<s32>(m_dimensions.x) - 1, static_cast<s32>(maxCoord.x)); ++x)
             {
-                const glm::vec3 p = voxelPosition(static_cast<u32>(x), static_cast<u32>(y), static_cast<u32>(z));
+                const Math::vec3 p = voxelPosition(static_cast<u32>(x), static_cast<u32>(y), static_cast<u32>(z));
                 const f32 oldValue = voxel(x,y,z), brushValue = brush.sampleDensity(p);
                 f32 value = oldValue;
                 if (operation == VolumeOperation::Union) value = std::max(oldValue, brushValue);
@@ -180,8 +180,8 @@ bool GridSource::load(ByteArray& input, GridSource& output)
         return false;
     }
     const u32 version = input.readU32();
-    const glm::uvec3 dimensions(input.readU32(), input.readU32(), input.readU32());
-    const glm::vec3 origin(input.readF32(), input.readF32(), input.readF32());
+    const Math::uvec3 dimensions(input.readU32(), input.readU32(), input.readU32());
+    const Math::vec3 origin(input.readF32(), input.readF32(), input.readF32());
     const f32 cellSize = input.readF32();
     const u32 flags = input.readU32();
     const u64 count = input.readU64();

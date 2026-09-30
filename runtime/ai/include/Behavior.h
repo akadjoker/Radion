@@ -4,7 +4,7 @@
 #include "BehaviorFactory.h"
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -69,8 +69,8 @@ public:
     virtual const BehaviorParam& paramInfo(u32 index) const;
     virtual f32 paramFloat(u32 index) const;
     virtual void setParamFloat(u32 index, f32 value);
-    virtual glm::vec3 paramVec3(u32 index) const;
-    virtual void setParamVec3(u32 index, const glm::vec3& value);
+    virtual Math::vec3 paramVec3(u32 index) const;
+    virtual void setParamVec3(u32 index, const Math::vec3& value);
     virtual bool paramBool(u32 index) const;
     virtual void setParamBool(u32 index, bool value);
 
@@ -332,7 +332,7 @@ private:
 class StayWithinSphereBehavior final : public Behavior
 {
 public:
-    StayWithinSphereBehavior(const glm::vec3& center = glm::vec3(0.0f), float radius = 20.0f);
+    StayWithinSphereBehavior(const Math::vec3& center = Math::vec3(0.0f), float radius = 20.0f);
     void iterate(float timeDelta, Radion::Agent& entity) override;
     const char* name() const override
     {
@@ -346,14 +346,14 @@ public:
     const BehaviorParam& paramInfo(u32 index) const override;
     f32 paramFloat(u32 index) const override;
     void setParamFloat(u32 index, f32 value) override;
-    glm::vec3 paramVec3(u32 index) const override;
-    void setParamVec3(u32 index, const glm::vec3& value) override;
+    Math::vec3 paramVec3(u32 index) const override;
+    void setParamVec3(u32 index, const Math::vec3& value) override;
 
-    const glm::vec3& sphereCenter() const
+    const Math::vec3& sphereCenter() const
     {
         return mCenter;
     }
-    void setSphereCenter(const glm::vec3& center)
+    void setSphereCenter(const Math::vec3& center)
     {
         mCenter = center;
     }
@@ -367,7 +367,7 @@ public:
     }
 
 private:
-    glm::vec3 mCenter;
+    Math::vec3 mCenter;
     float mRadius;
 };
 

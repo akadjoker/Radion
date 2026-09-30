@@ -154,7 +154,7 @@ void VoxelStreamer::setTerrain(u32 seed, const VoxelTerrain::Settings& terrain)
     reset();
 }
 
-void VoxelStreamer::setOrigin(const glm::vec3& position)
+void VoxelStreamer::setOrigin(const Math::vec3& position)
 {
     const ChunkCoord coordinate = VoxelWorld::chunkFor({static_cast<s32>(std::floor(position.x)),
                                                         static_cast<s32>(std::floor(position.y)),

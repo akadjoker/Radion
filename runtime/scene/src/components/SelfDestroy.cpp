@@ -25,7 +25,7 @@ f32 SelfDestroy::elapsed() const
 }
 f32 SelfDestroy::remaining() const
 {
-    return glm::max(mLifetime - mElapsed, 0.0f);
+    return Math::max(mLifetime - mElapsed, 0.0f);
 }
 void SelfDestroy::restart()
 {

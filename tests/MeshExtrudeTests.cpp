@@ -29,7 +29,7 @@ void check(bool condition, const char* expression, int line)
 
 bool near(f32 a, f32 b, f32 tolerance = 1e-4f)
 {
-    return glm::abs(a - b) <= tolerance;
+    return Math::abs(a - b) <= tolerance;
 }
 
 // Two triangles making one flat quad in XZ, both wound so their normal is +Y.
@@ -39,12 +39,12 @@ MeshData makeQuad()
 {
     MeshData mesh;
     mesh.positions = {
-        glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f),
-        glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f),
+        Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(1.0f, 0.0f, 0.0f),
+        Math::vec3(1.0f, 0.0f, 1.0f), Math::vec3(0.0f, 0.0f, 1.0f),
     };
-    mesh.normals.assign(4, glm::vec3(0.0f, 1.0f, 0.0f));
-    mesh.uvs = {glm::vec2(0.0f, 0.0f), glm::vec2(1.0f, 0.0f), glm::vec2(1.0f, 1.0f),
-                glm::vec2(0.0f, 1.0f)};
+    mesh.normals.assign(4, Math::vec3(0.0f, 1.0f, 0.0f));
+    mesh.uvs = {Math::vec2(0.0f, 0.0f), Math::vec2(1.0f, 0.0f), Math::vec2(1.0f, 1.0f),
+                Math::vec2(0.0f, 1.0f)};
     mesh.colors.assign(4, 0xff00ff00u);
     mesh.indices = {0, 3, 2, 0, 2, 1};
 
@@ -253,8 +253,8 @@ void testMeshWithoutOptionalStreams()
 
     MeshData mesh;
     mesh.positions = {
-        glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f),
-        glm::vec3(1.0f, 0.0f, 1.0f),
+        Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(1.0f, 0.0f, 0.0f),
+        Math::vec3(1.0f, 0.0f, 1.0f),
     };
     mesh.indices = {0, 2, 1};
 

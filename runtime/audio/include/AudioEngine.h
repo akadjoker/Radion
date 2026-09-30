@@ -3,7 +3,7 @@
 
 #include "Types.h"
 
-#include <glm/glm.hpp>
+#include "Math.h"
 #include <string>
 
 namespace Radion
@@ -62,17 +62,17 @@ public:
     // places it, orientation decides which side of it a voice is heard on.
     // Set both - a listener with a stale orientation pans every voice
     // wrongly the moment the camera turns.
-    bool setListenerPosition(const glm::vec3& position);
-    bool setListenerOrientation(const glm::vec3& forward, const glm::vec3& up);
-    bool setListenerVelocity(const glm::vec3& velocity);
-    bool setVoicePosition(VoiceId voice, const glm::vec3& position);
-    bool setVoiceVelocity(VoiceId voice, const glm::vec3& velocity);
+    bool setListenerPosition(const Math::vec3& position);
+    bool setListenerOrientation(const Math::vec3& forward, const Math::vec3& up);
+    bool setListenerVelocity(const Math::vec3& velocity);
+    bool setVoicePosition(VoiceId voice, const Math::vec3& position);
+    bool setVoiceVelocity(VoiceId voice, const Math::vec3& velocity);
     // Distances are world units. Below minDistance a voice is at full
     // volume; past maxDistance it is silent, with rolloff shaping the
     // inverse curve between them.
     bool setVoiceSpatial(VoiceId voice, bool enabled, f32 minDistance = 1.0f,
                          f32 maxDistance = 100.0f, f32 rolloff = 1.0f);
-    VoiceId playAt(SoundId sound, const glm::vec3& position, f32 volume = 1.0f,
+    VoiceId playAt(SoundId sound, const Math::vec3& position, f32 volume = 1.0f,
                    f32 pitch = 1.0f, f32 minDistance = 1.0f, f32 maxDistance = 100.0f,
                    f32 rolloff = 1.0f);
     void stopAll();

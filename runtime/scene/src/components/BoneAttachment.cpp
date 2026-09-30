@@ -5,7 +5,7 @@
 #include "GameObject.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/matrix_decompose.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -53,20 +53,20 @@ void BoneAttachment::update()
 {
     if (!active() || !mAnimator || mBoneIndex < 0 || !owner())
         return;
-    const std::vector<glm::mat4>& pose = mAnimator->globalPose();
+    const std::vector<Math::mat4>& pose = mAnimator->globalPose();
     if (mBoneIndex >= static_cast<s32>(pose.size()))
         return;
 
-    glm::vec3 scale;
-    glm::quat rotation;
-    glm::vec3 position;
-    glm::vec3 skew;
-    glm::vec4 perspective;
-    if (!glm::decompose(pose[static_cast<usize>(mBoneIndex)], scale, rotation, position, skew,
+    Math::vec3 scale;
+    Math::quat rotation;
+    Math::vec3 position;
+    Math::vec3 skew;
+    Math::vec4 perspective;
+    if (!Math::decompose(pose[static_cast<usize>(mBoneIndex)], scale, rotation, position, skew,
                         perspective))
         return;
     owner()->setPosition(position);
-    owner()->setRotation(glm::normalize(rotation));
+    owner()->setRotation(Math::normalize(rotation));
     owner()->setScale(scale);
 }
 

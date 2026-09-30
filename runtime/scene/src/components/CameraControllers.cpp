@@ -22,28 +22,28 @@ void configureMovementKeys(KeyCode* keys)
     keys[static_cast<u8>(FPS::Action::Sprint)] = KEY_LEFT_SHIFT;
 }
 
-glm::vec3 orbitOffset(f32 yaw, f32 pitch)
+Math::vec3 orbitOffset(f32 yaw, f32 pitch)
 {
-    const f32 yawRadians = glm::radians(yaw);
-    const f32 pitchRadians = glm::radians(pitch);
-    return glm::vec3(glm::cos(pitchRadians) * glm::sin(yawRadians), glm::sin(pitchRadians),
-                     glm::cos(pitchRadians) * glm::cos(yawRadians));
+    const f32 yawRadians = Math::radians(yaw);
+    const f32 pitchRadians = Math::radians(pitch);
+    return Math::vec3(Math::cos(pitchRadians) * Math::sin(yawRadians), Math::sin(pitchRadians),
+                     Math::cos(pitchRadians) * Math::cos(yawRadians));
 }
 
-glm::vec3 shoulderRight(f32 yaw)
+Math::vec3 shoulderRight(f32 yaw)
 {
-    const f32 yawRadians = glm::radians(yaw);
-    return glm::vec3(glm::cos(yawRadians), 0.0f, -glm::sin(yawRadians));
+    const f32 yawRadians = Math::radians(yaw);
+    return Math::vec3(Math::cos(yawRadians), 0.0f, -Math::sin(yawRadians));
 }
 
-glm::vec3 springDamp(const glm::vec3& current, const glm::vec3& target, glm::vec3& velocity,
+Math::vec3 springDamp(const Math::vec3& current, const Math::vec3& target, Math::vec3& velocity,
                      f32 smoothTime, f32 dt)
 {
     const f32 omega = 2.0f / smoothTime;
     const f32 x = omega * dt;
     const f32 exponent = 1.0f / (1.0f + x + 0.48f * x * x + 0.235f * x * x * x);
-    const glm::vec3 change = current - target;
-    const glm::vec3 temp = (velocity + omega * change) * dt;
+    const Math::vec3 change = current - target;
+    const Math::vec3 temp = (velocity + omega * change) * dt;
     velocity = (velocity - omega * temp) * exponent;
     return target + (change + temp) * exponent;
 }
@@ -90,10 +90,10 @@ void FreeFly::onUpdate(f32 deltaTime)
     if (mRequireLookButton && !Input::isMouseDown(mLookButton))
         return;
 
-    const glm::vec2 mouseDelta = Input::getMouseDelta();
+    const Math::vec2 mouseDelta = Input::getMouseDelta();
     const f32 yawDelta = -mouseDelta.x * mLookSpeed;
     f32 pitchDelta = (mInvertY ? mouseDelta.y : -mouseDelta.y) * mLookSpeed;
-    const f32 nextPitch = glm::clamp(mPitch + pitchDelta, -mPitchLimit, mPitchLimit);
+    const f32 nextPitch = Math::clamp(mPitch + pitchDelta, -mPitchLimit, mPitchLimit);
     pitchDelta = nextPitch - mPitch;
     mPitch = nextPitch;
 
@@ -103,7 +103,7 @@ void FreeFly::onUpdate(f32 deltaTime)
 
 void FreeFly::setMoveSpeed(f32 speed)
 {
-    mMoveSpeed = glm::max(0.0f, speed);
+    mMoveSpeed = Math::max(0.0f, speed);
 }
 f32 FreeFly::moveSpeed() const
 {
@@ -111,7 +111,7 @@ f32 FreeFly::moveSpeed() const
 }
 void FreeFly::setSprintMultiplier(f32 multiplier)
 {
-    mSprintMultiplier = glm::max(0.0f, multiplier);
+    mSprintMultiplier = Math::max(0.0f, multiplier);
 }
 f32 FreeFly::sprintMultiplier() const
 {
@@ -119,7 +119,7 @@ f32 FreeFly::sprintMultiplier() const
 }
 void FreeFly::setLookSpeed(f32 speed)
 {
-    mLookSpeed = glm::max(0.0f, speed);
+    mLookSpeed = Math::max(0.0f, speed);
 }
 f32 FreeFly::lookSpeed() const
 {
@@ -127,8 +127,8 @@ f32 FreeFly::lookSpeed() const
 }
 void FreeFly::setPitchLimit(f32 degrees)
 {
-    mPitchLimit = glm::clamp(degrees, 0.0f, 89.9f);
-    mPitch = glm::clamp(mPitch, -mPitchLimit, mPitchLimit);
+    mPitchLimit = Math::clamp(degrees, 0.0f, 89.9f);
+    mPitch = Math::clamp(mPitch, -mPitchLimit, mPitchLimit);
 }
 f32 FreeFly::pitchLimit() const
 {
@@ -181,14 +181,14 @@ void FPS::onUpdate(f32 deltaTime)
     GameObject* object = owner();
     if (editingBlocksController(object))
         return;
-    glm::vec3 forward = object->forward();
-    glm::vec3 right = object->right();
+    Math::vec3 forward = object->forward();
+    Math::vec3 right = object->right();
     forward.y = 0.0f;
     right.y = 0.0f;
-    if (glm::dot(forward, forward) > 0.000001f)
-        forward = glm::normalize(forward);
-    if (glm::dot(right, right) > 0.000001f)
-        right = glm::normalize(right);
+    if (Math::dot(forward, forward) > 0.000001f)
+        forward = Math::normalize(forward);
+    if (Math::dot(right, right) > 0.000001f)
+        right = Math::normalize(right);
 
     const f32 forwardInput =
         (Input::isKeyDown(mKeys[static_cast<u8>(Action::Forward)]) ? 1.0f : 0.0f) -
@@ -199,16 +199,16 @@ void FPS::onUpdate(f32 deltaTime)
                         (Input::isKeyDown(mKeys[static_cast<u8>(Action::Down)]) ? 1.0f : 0.0f);
     const f32 sprint =
         Input::isKeyDown(mKeys[static_cast<u8>(Action::Sprint)]) ? mSprintMultiplier : 1.0f;
-    object->translate((forward * forwardInput + right * rightInput + glm::vec3(0, upInput, 0)) *
+    object->translate((forward * forwardInput + right * rightInput + Math::vec3(0, upInput, 0)) *
                           (mMoveSpeed * sprint * deltaTime),
                       TransformSpace::World);
 
     if (mRequireLookButton && !Input::isMouseDown(mLookButton))
         return;
-    const glm::vec2 delta = Input::getMouseDelta();
+    const Math::vec2 delta = Input::getMouseDelta();
     const f32 yawDelta = -delta.x * mLookSpeed;
     const f32 requestedPitch = (mInvertY ? delta.y : -delta.y) * mLookSpeed;
-    const f32 nextPitch = glm::clamp(mPitch + requestedPitch, -mPitchLimit, mPitchLimit);
+    const f32 nextPitch = Math::clamp(mPitch + requestedPitch, -mPitchLimit, mPitchLimit);
     object->yaw(yawDelta, TransformSpace::Parent);
     object->pitch(nextPitch - mPitch, TransformSpace::Local);
     mPitch = nextPitch;
@@ -216,7 +216,7 @@ void FPS::onUpdate(f32 deltaTime)
 
 void FPS::setMoveSpeed(f32 speed)
 {
-    mMoveSpeed = glm::max(0.0f, speed);
+    mMoveSpeed = Math::max(0.0f, speed);
 }
 f32 FPS::moveSpeed() const
 {
@@ -224,7 +224,7 @@ f32 FPS::moveSpeed() const
 }
 void FPS::setSprintMultiplier(f32 multiplier)
 {
-    mSprintMultiplier = glm::max(0.0f, multiplier);
+    mSprintMultiplier = Math::max(0.0f, multiplier);
 }
 f32 FPS::sprintMultiplier() const
 {
@@ -232,7 +232,7 @@ f32 FPS::sprintMultiplier() const
 }
 void FPS::setLookSpeed(f32 speed)
 {
-    mLookSpeed = glm::max(0.0f, speed);
+    mLookSpeed = Math::max(0.0f, speed);
 }
 f32 FPS::lookSpeed() const
 {
@@ -240,8 +240,8 @@ f32 FPS::lookSpeed() const
 }
 void FPS::setPitchLimit(f32 degrees)
 {
-    mPitchLimit = glm::clamp(degrees, 0.0f, 89.9f);
-    mPitch = glm::clamp(mPitch, -mPitchLimit, mPitchLimit);
+    mPitchLimit = Math::clamp(degrees, 0.0f, 89.9f);
+    mPitch = Math::clamp(mPitch, -mPitchLimit, mPitchLimit);
 }
 f32 FPS::pitchLimit() const
 {
@@ -293,14 +293,14 @@ void Orbit::onUpdate(f32)
         return;
     if (!mRequireOrbitButton || Input::isMouseDown(mOrbitButton))
     {
-        const glm::vec2 delta = Input::getMouseDelta();
+        const Math::vec2 delta = Input::getMouseDelta();
         mYaw += delta.x * mOrbitSpeed;
-        mPitch = glm::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mOrbitSpeed, -mPitchLimit,
+        mPitch = Math::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mOrbitSpeed, -mPitchLimit,
                             mPitchLimit);
     }
     mDistance -= Input::getMouseWheelMoveV() * mZoomSpeed;
     clampDistance();
-    const glm::vec3 point = currentTarget();
+    const Math::vec3 point = currentTarget();
     owner()->setGlobalPosition(point + orbitOffset(mYaw, mPitch) * mDistance);
     owner()->lookAt(point);
 }
@@ -312,12 +312,12 @@ GameObject* Orbit::target() const
 {
     return mTarget;
 }
-void Orbit::setTargetPoint(const glm::vec3& point)
+void Orbit::setTargetPoint(const Math::vec3& point)
 {
     mTarget = nullptr;
     mTargetPoint = point;
 }
-const glm::vec3& Orbit::targetPoint() const
+const Math::vec3& Orbit::targetPoint() const
 {
     return mTargetPoint;
 }
@@ -332,14 +332,14 @@ f32 Orbit::distance() const
 }
 void Orbit::setDistanceLimits(f32 minimum, f32 maximum)
 {
-    mMinDistance = glm::max(0.0f, minimum);
-    mMaxDistance = glm::max(mMinDistance, maximum);
+    mMinDistance = Math::max(0.0f, minimum);
+    mMaxDistance = Math::max(mMinDistance, maximum);
     clampDistance();
 }
 void Orbit::setYawPitch(f32 yaw, f32 pitch)
 {
     mYaw = yaw;
-    mPitch = glm::clamp(pitch, -mPitchLimit, mPitchLimit);
+    mPitch = Math::clamp(pitch, -mPitchLimit, mPitchLimit);
 }
 f32 Orbit::yaw() const
 {
@@ -351,8 +351,8 @@ f32 Orbit::pitch() const
 }
 void Orbit::setPitchLimit(f32 degrees)
 {
-    mPitchLimit = glm::clamp(degrees, 0.0f, 89.9f);
-    mPitch = glm::clamp(mPitch, -mPitchLimit, mPitchLimit);
+    mPitchLimit = Math::clamp(degrees, 0.0f, 89.9f);
+    mPitch = Math::clamp(mPitch, -mPitchLimit, mPitchLimit);
 }
 f32 Orbit::pitchLimit() const
 {
@@ -360,7 +360,7 @@ f32 Orbit::pitchLimit() const
 }
 void Orbit::setOrbitSpeed(f32 speed)
 {
-    mOrbitSpeed = glm::max(0.0f, speed);
+    mOrbitSpeed = Math::max(0.0f, speed);
 }
 f32 Orbit::orbitSpeed() const
 {
@@ -368,7 +368,7 @@ f32 Orbit::orbitSpeed() const
 }
 void Orbit::setZoomSpeed(f32 speed)
 {
-    mZoomSpeed = glm::max(0.0f, speed);
+    mZoomSpeed = Math::max(0.0f, speed);
 }
 f32 Orbit::zoomSpeed() const
 {
@@ -398,13 +398,13 @@ bool Orbit::invertY() const
 {
     return mInvertY;
 }
-glm::vec3 Orbit::currentTarget() const
+Math::vec3 Orbit::currentTarget() const
 {
     return mTarget ? mTarget->globalPosition() : mTargetPoint;
 }
 void Orbit::clampDistance()
 {
-    mDistance = glm::clamp(mDistance, mMinDistance, mMaxDistance);
+    mDistance = Math::clamp(mDistance, mMinDistance, mMaxDistance);
 }
 
 Maya::Maya() : Component(Type, ComponentEventUpdate)
@@ -415,17 +415,17 @@ void Maya::onUpdate(f32)
 {
     if (editingBlocksController(owner()))
         return;
-    glm::vec3 point = currentTarget();
+    Math::vec3 point = currentTarget();
     if (Input::isKeyDown(mModifierKey) && Input::isMouseDown(mOrbitButton))
     {
-        const glm::vec2 delta = Input::getMouseDelta();
+        const Math::vec2 delta = Input::getMouseDelta();
         mYaw += delta.x * mOrbitSpeed;
-        mPitch = glm::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mOrbitSpeed, -mPitchLimit,
+        mPitch = Math::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mOrbitSpeed, -mPitchLimit,
                             mPitchLimit);
     }
     else if (Input::isKeyDown(mModifierKey) && Input::isMouseDown(mPanButton))
     {
-        const glm::vec2 delta = Input::getMouseDelta();
+        const Math::vec2 delta = Input::getMouseDelta();
         point += owner()->right() * (-delta.x * mPanSpeed) + owner()->up() * (delta.y * mPanSpeed);
         setTargetPoint(point);
     }
@@ -445,12 +445,12 @@ GameObject* Maya::target() const
 {
     return mTarget;
 }
-void Maya::setTargetPoint(const glm::vec3& point)
+void Maya::setTargetPoint(const Math::vec3& point)
 {
     mTarget = nullptr;
     mTargetPoint = point;
 }
-const glm::vec3& Maya::targetPoint() const
+const Math::vec3& Maya::targetPoint() const
 {
     return mTargetPoint;
 }
@@ -465,14 +465,14 @@ f32 Maya::distance() const
 }
 void Maya::setDistanceLimits(f32 minimum, f32 maximum)
 {
-    mMinDistance = glm::max(0.0f, minimum);
-    mMaxDistance = glm::max(mMinDistance, maximum);
+    mMinDistance = Math::max(0.0f, minimum);
+    mMaxDistance = Math::max(mMinDistance, maximum);
     clampDistance();
 }
 void Maya::setYawPitch(f32 yaw, f32 pitch)
 {
     mYaw = yaw;
-    mPitch = glm::clamp(pitch, -mPitchLimit, mPitchLimit);
+    mPitch = Math::clamp(pitch, -mPitchLimit, mPitchLimit);
 }
 f32 Maya::yaw() const
 {
@@ -484,8 +484,8 @@ f32 Maya::pitch() const
 }
 void Maya::setPitchLimit(f32 degrees)
 {
-    mPitchLimit = glm::clamp(degrees, 0.0f, 89.9f);
-    mPitch = glm::clamp(mPitch, -mPitchLimit, mPitchLimit);
+    mPitchLimit = Math::clamp(degrees, 0.0f, 89.9f);
+    mPitch = Math::clamp(mPitch, -mPitchLimit, mPitchLimit);
 }
 f32 Maya::pitchLimit() const
 {
@@ -493,7 +493,7 @@ f32 Maya::pitchLimit() const
 }
 void Maya::setOrbitSpeed(f32 speed)
 {
-    mOrbitSpeed = glm::max(0.0f, speed);
+    mOrbitSpeed = Math::max(0.0f, speed);
 }
 f32 Maya::orbitSpeed() const
 {
@@ -501,7 +501,7 @@ f32 Maya::orbitSpeed() const
 }
 void Maya::setPanSpeed(f32 speed)
 {
-    mPanSpeed = glm::max(0.0f, speed);
+    mPanSpeed = Math::max(0.0f, speed);
 }
 f32 Maya::panSpeed() const
 {
@@ -509,7 +509,7 @@ f32 Maya::panSpeed() const
 }
 void Maya::setZoomSpeed(f32 speed)
 {
-    mZoomSpeed = glm::max(0.0f, speed);
+    mZoomSpeed = Math::max(0.0f, speed);
 }
 f32 Maya::zoomSpeed() const
 {
@@ -555,13 +555,13 @@ bool Maya::invertY() const
 {
     return mInvertY;
 }
-glm::vec3 Maya::currentTarget() const
+Math::vec3 Maya::currentTarget() const
 {
     return mTarget ? mTarget->globalPosition() : mTargetPoint;
 }
 void Maya::clampDistance()
 {
-    mDistance = glm::clamp(mDistance, mMinDistance, mMaxDistance);
+    mDistance = Math::clamp(mDistance, mMinDistance, mMaxDistance);
 }
 
 ThirdPerson::ThirdPerson() : Component(Type, ComponentEventUpdate)
@@ -583,15 +583,15 @@ void ThirdPerson::onUpdate(f32 deltaTime)
     // pitch rises, which looks DOWN, the opposite of FreeFly's own pitch()
     // call. Matching FreeFly's raw sign here (as an earlier pass did) matched
     // the input math but inverted the actual view.
-    const glm::vec2 delta = Input::getMouseDelta();
+    const Math::vec2 delta = Input::getMouseDelta();
     mYaw -= delta.x * mLookSpeed;
-    mPitch = glm::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mLookSpeed, mMinPitch, mMaxPitch);
-    mDistance = glm::clamp(mDistance - Input::getMouseWheelMoveV() * mZoomSpeed, mMinDistance,
+    mPitch = Math::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mLookSpeed, mMinPitch, mMaxPitch);
+    mDistance = Math::clamp(mDistance - Input::getMouseWheelMoveV() * mZoomSpeed, mMinDistance,
                            mMaxDistance);
 
-    const glm::vec3 anchor = aimPoint();
-    const glm::vec3 target = mCollisionOctree ? collide(anchor, desiredPosition()) : desiredPosition();
-    const glm::vec3 current = owner()->globalPosition();
+    const Math::vec3 anchor = aimPoint();
+    const Math::vec3 target = mCollisionOctree ? collide(anchor, desiredPosition()) : desiredPosition();
+    const Math::vec3 current = owner()->globalPosition();
     owner()->setGlobalPosition(springDamp(current, target, mVelocity, mSmoothTime, deltaTime));
     owner()->lookAt(aimPoint());
 }
@@ -605,7 +605,7 @@ GameObject* ThirdPerson::target() const
 }
 void ThirdPerson::setLookSpeed(f32 speed)
 {
-    mLookSpeed = glm::max(0.0f, speed);
+    mLookSpeed = Math::max(0.0f, speed);
 }
 f32 ThirdPerson::lookSpeed() const
 {
@@ -613,9 +613,9 @@ f32 ThirdPerson::lookSpeed() const
 }
 void ThirdPerson::setPitchLimits(f32 minDegrees, f32 maxDegrees)
 {
-    mMinPitch = glm::min(minDegrees, maxDegrees);
-    mMaxPitch = glm::max(minDegrees, maxDegrees);
-    mPitch = glm::clamp(mPitch, mMinPitch, mMaxPitch);
+    mMinPitch = Math::min(minDegrees, maxDegrees);
+    mMaxPitch = Math::max(minDegrees, maxDegrees);
+    mPitch = Math::clamp(mPitch, mMinPitch, mMaxPitch);
 }
 f32 ThirdPerson::minPitch() const
 {
@@ -627,7 +627,7 @@ f32 ThirdPerson::maxPitch() const
 }
 void ThirdPerson::setDistance(f32 distance)
 {
-    mDistance = glm::max(0.0f, distance);
+    mDistance = Math::max(0.0f, distance);
 }
 f32 ThirdPerson::distance() const
 {
@@ -635,7 +635,7 @@ f32 ThirdPerson::distance() const
 }
 void ThirdPerson::setZoomSpeed(f32 speed)
 {
-    mZoomSpeed = glm::max(0.0f, speed);
+    mZoomSpeed = Math::max(0.0f, speed);
 }
 f32 ThirdPerson::zoomSpeed() const
 {
@@ -643,9 +643,9 @@ f32 ThirdPerson::zoomSpeed() const
 }
 void ThirdPerson::setDistanceLimits(f32 minDistance, f32 maxDistance)
 {
-    mMinDistance = glm::max(0.0f, glm::min(minDistance, maxDistance));
-    mMaxDistance = glm::max(mMinDistance, maxDistance);
-    mDistance = glm::clamp(mDistance, mMinDistance, mMaxDistance);
+    mMinDistance = Math::max(0.0f, Math::min(minDistance, maxDistance));
+    mMaxDistance = Math::max(mMinDistance, maxDistance);
+    mDistance = Math::clamp(mDistance, mMinDistance, mMaxDistance);
 }
 f32 ThirdPerson::minDistance() const
 {
@@ -673,7 +673,7 @@ f32 ThirdPerson::shoulderOffset() const
 }
 void ThirdPerson::setSmoothTime(f32 seconds)
 {
-    mSmoothTime = glm::max(0.0001f, seconds);
+    mSmoothTime = Math::max(0.0001f, seconds);
 }
 f32 ThirdPerson::smoothTime() const
 {
@@ -690,7 +690,7 @@ bool ThirdPerson::invertY() const
 void ThirdPerson::setYawPitch(f32 yawDegrees, f32 pitchDegrees)
 {
     mYaw = yawDegrees;
-    mPitch = glm::clamp(pitchDegrees, mMinPitch, mMaxPitch);
+    mPitch = Math::clamp(pitchDegrees, mMinPitch, mMaxPitch);
 }
 f32 ThirdPerson::yaw() const
 {
@@ -702,18 +702,18 @@ f32 ThirdPerson::pitch() const
 }
 void ThirdPerson::snap()
 {
-    const glm::vec3 anchor = aimPoint();
+    const Math::vec3 anchor = aimPoint();
     owner()->setGlobalPosition(mCollisionOctree ? collide(anchor, desiredPosition())
                                                 : desiredPosition());
-    mVelocity = glm::vec3(0.0f);
+    mVelocity = Math::vec3(0.0f);
 }
-glm::vec3 ThirdPerson::desiredPosition() const
+Math::vec3 ThirdPerson::desiredPosition() const
 {
     return aimPoint() + orbitOffset(mYaw, mPitch) * mDistance + shoulderRight(mYaw) * mShoulderOffset;
 }
-glm::vec3 ThirdPerson::aimPoint() const
+Math::vec3 ThirdPerson::aimPoint() const
 {
-    return mTarget ? mTarget->globalPosition() + glm::vec3(0.0f, mHeightOffset, 0.0f) : glm::vec3(0.0f);
+    return mTarget ? mTarget->globalPosition() + Math::vec3(0.0f, mHeightOffset, 0.0f) : Math::vec3(0.0f);
 }
 
 // One swept sphere from the anchor to the desired position - same shape as
@@ -724,17 +724,17 @@ glm::vec3 ThirdPerson::aimPoint() const
 // camera stays at the anchor. The contact normal points away from the
 // surface, so nudging along it by the margin keeps the sphere clear instead
 // of grazing it.
-glm::vec3 ThirdPerson::collide(const glm::vec3& anchor, const glm::vec3& desired) const
+Math::vec3 ThirdPerson::collide(const Math::vec3& anchor, const Math::vec3& desired) const
 {
-    const glm::vec3 delta = desired - anchor;
-    if (glm::dot(delta, delta) < 1.0e-6f)
+    const Math::vec3 delta = desired - anchor;
+    if (Math::dot(delta, delta) < 1.0e-6f)
         return desired;
 
     TriangleOctree::SweepHit hit;
     if (mCollisionOctree->sweepSphere(anchor, mCollisionRadius, delta, hit))
     {
-        const f32 t = glm::clamp(hit.t, 0.0f, 1.0f);
-        glm::vec3 position = anchor + delta * t;
+        const f32 t = Math::clamp(hit.t, 0.0f, 1.0f);
+        Math::vec3 position = anchor + delta * t;
         if (mCollisionMargin > 0.0f)
             position += hit.normal * mCollisionMargin;
         return position;
@@ -752,7 +752,7 @@ const TriangleOctree* ThirdPerson::collisionOctree() const
 }
 void ThirdPerson::setCollisionRadius(f32 radius)
 {
-    mCollisionRadius = glm::max(0.01f, radius);
+    mCollisionRadius = Math::max(0.01f, radius);
 }
 f32 ThirdPerson::collisionRadius() const
 {
@@ -760,7 +760,7 @@ f32 ThirdPerson::collisionRadius() const
 }
 void ThirdPerson::setCollisionMargin(f32 margin)
 {
-    mCollisionMargin = glm::max(0.0f, margin);
+    mCollisionMargin = Math::max(0.0f, margin);
 }
 f32 ThirdPerson::collisionMargin() const
 {

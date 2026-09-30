@@ -3,8 +3,7 @@
 
 #include "Types.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include "Math.h"
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -17,8 +16,8 @@ namespace Radion
 // here - the "bone" is the frame index.
 struct MorphKeyframes
 {
-    std::vector<std::vector<glm::vec3>> framePositions;
-    std::vector<std::vector<glm::vec3>> frameNormals;
+    std::vector<std::vector<Math::vec3>> framePositions;
+    std::vector<std::vector<Math::vec3>> frameNormals;
 
     u32 frameCount() const
     {
@@ -35,8 +34,8 @@ struct MorphKeyframes
 // a weapon onto a hand.
 struct MorphTagFrame
 {
-    glm::vec3 origin{0.0f};
-    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    Math::vec3 origin{0.0f};
+    Math::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 };
 
 struct MorphTags
@@ -105,12 +104,12 @@ public:
     // Blends the keyframes into `positions` and `normals`, which must
     // already be sized to keyframes.vertexCount(). Only those two: uvs,
     // tangents and colours are the base mesh's and are never touched.
-    void writeVertices(const MorphKeyframes& keyframes, std::vector<glm::vec3>& positions,
-                       std::vector<glm::vec3>& normals) const;
+    void writeVertices(const MorphKeyframes& keyframes, std::vector<Math::vec3>& positions,
+                       std::vector<Math::vec3>& normals) const;
 
     // Local transform of tag `tagIndex` at the current blended pose.
     // Identity when the tag set has no frames.
-    glm::mat4 tagTransform(const MorphTags& tags, s32 tagIndex) const;
+    Math::mat4 tagTransform(const MorphTags& tags, s32 tagIndex) const;
 
 private:
     struct PlayState

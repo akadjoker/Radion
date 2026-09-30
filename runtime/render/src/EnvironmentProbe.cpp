@@ -5,7 +5,7 @@
 #include "AssetManager.h"
 #include "Log.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -18,7 +18,7 @@ namespace
 // Y or its equivalent. These are the conventional capture matrices; whether
 // the result lands mirrored is not something to reason about, it is what
 // Content::FaceColors is for.
-// Plain floats rather than glm::vec3: this glm's vector constructors are not
+// Plain floats rather than Math::vec3: this math routine does not need vectors.
 // constexpr, so a constexpr table has to be built out of scalars.
 struct FaceBasis
 {
@@ -35,9 +35,9 @@ constexpr FaceBasis kFaces[EnvironmentProbe::FaceCount] = {
     {{0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}}, // -Z
 };
 
-glm::vec3 toVector(const f32 (&values)[3])
+Math::vec3 toVector(const f32 (&values)[3])
 {
-    return glm::vec3(values[0], values[1], values[2]);
+    return Math::vec3(values[0], values[1], values[2]);
 }
 
 // +X/+Y/+Z red/green/blue, and their opposites the complementary colours, so
@@ -202,8 +202,8 @@ bool EnvironmentProbe::consumeCapture(f32 deltaTime, bool deferred)
     bool timedDue = false;
     if (refresh == Refresh::Timed)
     {
-        mAccumulator += glm::max(deltaTime, 0.0f);
-        if (mAccumulator >= glm::max(interval, 0.0f))
+        mAccumulator += Math::max(deltaTime, 0.0f);
+        if (mAccumulator >= Math::max(interval, 0.0f))
         {
             mAccumulator = 0.0f;
             timedDue = true;
@@ -258,16 +258,16 @@ u32 EnvironmentProbe::mipCount() const
     return mMipCount;
 }
 
-void EnvironmentProbe::faceViewProjections(glm::mat4 out[6]) const
+void EnvironmentProbe::faceViewProjections(Math::mat4 out[6]) const
 {
     // 90 degrees, square aspect: six of them tile the whole sphere of
     // directions exactly, which is the entire point of a cube.
-    const glm::mat4 projection =
-        glm::perspective(glm::half_pi<f32>(), 1.0f, glm::max(nearPlane, 0.0001f),
-                         glm::max(farPlane, nearPlane + 0.001f));
+    const Math::mat4 projection =
+        Math::perspective(Math::half_pi<f32>(), 1.0f, Math::max(nearPlane, 0.0001f),
+                         Math::max(farPlane, nearPlane + 0.001f));
     for (u32 face = 0; face < FaceCount; ++face)
     {
-        const glm::mat4 view = glm::lookAt(position, position + toVector(kFaces[face].forward),
+        const Math::mat4 view = Math::lookAt(position, position + toVector(kFaces[face].forward),
                                            toVector(kFaces[face].up));
         out[face] = projection * view;
     }

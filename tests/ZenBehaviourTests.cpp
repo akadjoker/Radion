@@ -66,7 +66,7 @@ void testScriptRotatesObjectOnPlay()
     CHECK(behaviour->loadSource(script));
     CHECK(!behaviour->hasError());
 
-    const glm::quat startRotation = object->rotation();
+    const Math::quat startRotation = object->rotation();
 
     scene.setRunningInEditor(false);
     for (int i = 0; i < 10; ++i)
@@ -92,7 +92,7 @@ void testMoveScriptUsesScriptComponentContract()
     if (!object)
         return;
 
-    object->setPosition(glm::vec3(4.0f, 2.0f, -1.0f));
+    object->setPosition(Math::vec3(4.0f, 2.0f, -1.0f));
     ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
     CHECK(behaviour != nullptr);
     if (!behaviour)
@@ -100,11 +100,11 @@ void testMoveScriptUsesScriptComponentContract()
 
     CHECK(behaviour->loadFile(path.string()));
 
-    const glm::quat startRotation = object->rotation();
+    const Math::quat startRotation = object->rotation();
     scene.setRunningInEditor(false);
     scene.update(0.5f);
 
-    const glm::vec3 position = object->position();
+    const Math::vec3 position = object->position();
     const f32 dx = position.x - 4.0f;
     const f32 dz = position.z + 1.0f;
     CHECK(!behaviour->hasError());
@@ -127,7 +127,7 @@ void testScriptDoesNotRunInEditorMode()
         "        self.owner.yaw(90.0 * dt)\n";
     CHECK(behaviour->loadSource(script));
 
-    const glm::quat startRotation = object->rotation();
+    const Math::quat startRotation = object->rotation();
     scene.setRunningInEditor(true);
     for (int i = 0; i < 10; ++i)
         scene.update(1.0f / 60.0f);
@@ -224,10 +224,10 @@ void testGameObjectTransformAndVec3Arithmetic()
     scene.update(1.0f / 60.0f);
 
     CHECK(!behaviour->hasError());
-    CHECK(object->position() == glm::vec3(1.0f, 2.0f, 3.0f));
-    CHECK(object->scale() == glm::vec3(2.0f, 2.0f, 4.0f));
+    CHECK(object->position() == Math::vec3(1.0f, 2.0f, 3.0f));
+    CHECK(object->scale() == Math::vec3(2.0f, 2.0f, 4.0f));
 
-    const glm::vec3 rotationDegrees = glm::degrees(glm::eulerAngles(object->rotation()));
+    const Math::vec3 rotationDegrees = Math::degrees(Math::eulerAngles(object->rotation()));
     CHECK(std::abs(rotationDegrees.y - 6.0f) < 0.01f);
 }
 
@@ -261,7 +261,7 @@ void testSceneFindAndCreateBindings()
     GameObject* spawned = scene.findGameObject("Spawned");
     CHECK(spawned != nullptr);
     if (spawned)
-        CHECK(spawned->position() == glm::vec3(4.0f, 5.0f, 6.0f));
+        CHECK(spawned->position() == Math::vec3(4.0f, 5.0f, 6.0f));
 }
 
 // A full collection between every frame, with a script that allocates on
@@ -297,7 +297,7 @@ void testCollectionBetweenFramesKeepsBindingsAlive()
     }
 
     CHECK(!behaviour->hasError());
-    CHECK(object->position() == glm::vec3(32.0f, 64.0f, 96.0f));
+    CHECK(object->position() == Math::vec3(32.0f, 64.0f, 96.0f));
     CHECK(anchor->position() == object->position());
     CHECK(anchor->name() == "Anchor");
 }
@@ -348,9 +348,9 @@ void testSharedScriptCompilesOnceAndKeepsPerInstanceState()
     CHECK(!behaviourB->hasError());
     CHECK(!behaviourC->hasError());
 
-    const f32 yawA = glm::degrees(glm::eulerAngles(a->rotation())).y;
-    const f32 yawB = glm::degrees(glm::eulerAngles(b->rotation())).y;
-    const f32 yawC = glm::degrees(glm::eulerAngles(c->rotation())).y;
+    const f32 yawA = Math::degrees(Math::eulerAngles(a->rotation())).y;
+    const f32 yawB = Math::degrees(Math::eulerAngles(b->rotation())).y;
+    const f32 yawC = Math::degrees(Math::eulerAngles(c->rotation())).y;
 
     CHECK(std::abs(yawA - 30.0f * dt * frames) < 0.05f);
     CHECK(std::abs(yawB - 60.0f * dt * frames) < 0.05f);
@@ -425,8 +425,8 @@ void testReloadPropagatesToAllSharingComponents()
     const f32 dt = 1.0f / 60.0f;
     scene.update(dt);
 
-    const f32 yawFirstBefore = glm::degrees(glm::eulerAngles(first->rotation())).y;
-    const f32 yawSecondBefore = glm::degrees(glm::eulerAngles(second->rotation())).y;
+    const f32 yawFirstBefore = Math::degrees(Math::eulerAngles(first->rotation())).y;
+    const f32 yawSecondBefore = Math::degrees(Math::eulerAngles(second->rotation())).y;
     CHECK(std::abs(yawFirstBefore - 30.0f * dt) < 0.01f);
     CHECK(std::abs(yawSecondBefore - 30.0f * dt) < 0.01f);
 
@@ -437,8 +437,8 @@ void testReloadPropagatesToAllSharingComponents()
 
     scene.update(dt);
 
-    const f32 yawFirstAfter = glm::degrees(glm::eulerAngles(first->rotation())).y;
-    const f32 yawSecondAfter = glm::degrees(glm::eulerAngles(second->rotation())).y;
+    const f32 yawFirstAfter = Math::degrees(Math::eulerAngles(first->rotation())).y;
+    const f32 yawSecondAfter = Math::degrees(Math::eulerAngles(second->rotation())).y;
     CHECK(std::abs((yawFirstAfter - yawFirstBefore) - 300.0f * dt) < 0.05f);
     CHECK(std::abs((yawSecondAfter - yawSecondBefore) - 300.0f * dt) < 0.05f);
 
@@ -489,7 +489,7 @@ void testZenBehaviourSurvivesSerializerRoundTrip()
         const f32 dt = 1.0f / 60.0f;
         reloaded.update(dt);
         CHECK(!reBehaviour->hasError());
-        CHECK(std::abs(glm::degrees(glm::eulerAngles(reObject->rotation())).y - 45.0f * dt) < 0.01f);
+        CHECK(std::abs(Math::degrees(Math::eulerAngles(reObject->rotation())).y - 45.0f * dt) < 0.01f);
     }
 
     std::error_code removeError;
@@ -651,7 +651,7 @@ void testClassBodyPropertiesComeFromTheCompiledClass()
     const f32 dt = 1.0f / 60.0f;
     scene.update(dt);
     CHECK(!behaviour->hasError());
-    CHECK(std::abs(glm::degrees(glm::eulerAngles(object->rotation())).y - 180.0f * dt) < 0.01f);
+    CHECK(std::abs(Math::degrees(Math::eulerAngles(object->rotation())).y - 180.0f * dt) < 0.01f);
 
     // The bindings' own fields are added to the class when an instance is
     // bound; they must never turn into properties.
@@ -727,8 +727,8 @@ void testInitRunsAndOverrideWinsOverIt()
 
     // The plain one runs the script's own default, the tuned one three
     // times that - one script, one compile, two different objects.
-    const f32 plainYaw = glm::degrees(glm::eulerAngles(plain->rotation())).y;
-    const f32 tunedYaw = glm::degrees(glm::eulerAngles(tuned->rotation())).y;
+    const f32 plainYaw = Math::degrees(Math::eulerAngles(plain->rotation())).y;
+    const f32 tunedYaw = Math::degrees(Math::eulerAngles(tuned->rotation())).y;
     CHECK(std::abs(plainYaw - 60.0f * dt) < 0.01f);
     CHECK(std::abs(tunedYaw - 180.0f * dt) < 0.01f);
 }
@@ -752,14 +752,14 @@ void testClearOverrideRestoresTheDeclaredDefault()
     scene.setRunningInEditor(false);
     const f32 dt = 1.0f / 60.0f;
     scene.update(dt);
-    const f32 overriddenStep = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    const f32 overriddenStep = Math::degrees(Math::eulerAngles(object->rotation())).y;
     CHECK(std::abs(overriddenStep - 600.0f * dt) < 0.05f);
 
     behaviour->clearOverride("speed");
     CHECK(behaviour->overrideCount() == 0);
 
     scene.update(dt);
-    const f32 after = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    const f32 after = Math::degrees(Math::eulerAngles(object->rotation())).y;
     CHECK(std::abs((after - overriddenStep) - 60.0f * dt) < 0.05f);
     CHECK(!behaviour->hasError());
 }
@@ -836,7 +836,7 @@ void testOverridesSurviveSerializerRoundTrip()
     const f32 dt = 1.0f / 60.0f;
     reloaded.update(dt);
     CHECK(!reBehaviour->hasError());
-    CHECK(std::abs(glm::degrees(glm::eulerAngles(reObject->rotation())).y - 45.0f * dt) < 0.01f);
+    CHECK(std::abs(Math::degrees(Math::eulerAngles(reObject->rotation())).y - 45.0f * dt) < 0.01f);
 
     std::error_code removeError;
     std::filesystem::remove(path, removeError);
@@ -852,7 +852,7 @@ void testOnCollisionSeesOtherObjectName()
     Scene scene;
     GameObject* watcher = scene.createGameObject("Watcher");
     GameObject* bumper = scene.createGameObject("Bumper");
-    bumper->setPosition(glm::vec3(0.5f, 0.0f, 0.0f));
+    bumper->setPosition(Math::vec3(0.5f, 0.0f, 0.0f));
 
     Collider* watcherCollider = watcher->addComponent<Collider>();
     watcherCollider->setSphere(1.0f);
@@ -978,7 +978,7 @@ void testScriptDrivesRigidBody()
     CHECK(body != nullptr);
     if (!body)
         return;
-    body->setBox(glm::vec3(0.5f));
+    body->setBox(Math::vec3(0.5f));
     body->setMass(4.0f);
 
     ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
@@ -1018,18 +1018,18 @@ void testScriptCommandsAJointServo()
     // Small enough not to touch the arm a metre away: two half-metre boxes
     // exactly a metre apart rest against each other, and the contact holds
     // the joint still however hard the motor pushes.
-    baseBody->setBox(glm::vec3(0.2f));
+    baseBody->setBox(Math::vec3(0.2f));
     baseBody->setBodyType(Physics::BodyType::Static);
 
     GameObject* arm = scene.createGameObject("Arm");
-    arm->setPosition(glm::vec3(1.0f, 0.0f, 0.0f));
+    arm->setPosition(Math::vec3(1.0f, 0.0f, 0.0f));
     Physics::RigidBody* armBody = arm->addComponent<Physics::RigidBody>();
-    armBody->setBox(glm::vec3(0.5f));
+    armBody->setBox(Math::vec3(0.5f));
     armBody->setMass(2.0f);
-    armBody->setInertiaTensor(Physics::Inertia::box(2.0f, glm::vec3(0.5f)));
+    armBody->setInertiaTensor(Physics::Inertia::box(2.0f, Math::vec3(0.5f)));
     Physics::HingeJoint* hinge = arm->addComponent<Physics::HingeJoint>();
     hinge->setConnectedBody(base);
-    hinge->setAuthoredAxis(glm::vec3(0.0f, 0.0f, 1.0f));
+    hinge->setAuthoredAxis(Math::vec3(0.0f, 0.0f, 1.0f));
 
     ZenBehaviour* behaviour = arm->addComponent<ZenBehaviour>();
     const char* script =
@@ -1436,7 +1436,7 @@ void testVec3ArgumentTypeIsChecked()
 {
     Scene scene;
     GameObject* object = scene.createGameObject("BadArgument");
-    object->setPosition(glm::vec3(5.0f, 6.0f, 7.0f));
+    object->setPosition(Math::vec3(5.0f, 6.0f, 7.0f));
     object->addComponent<CharacterController>();
     ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
 
@@ -1455,7 +1455,7 @@ void testVec3ArgumentTypeIsChecked()
 
     CHECK(!behaviour->hasError());
     CHECK(object->name() == "Survived");
-    CHECK(object->position() == glm::vec3(5.0f, 6.0f, 7.0f));
+    CHECK(object->position() == Math::vec3(5.0f, 6.0f, 7.0f));
 }
 
 // Same fixture as SceneTests.cpp's testAnimatedPlayers (SceneTests.cpp:266-295):
@@ -1463,8 +1463,8 @@ void testVec3ArgumentTypeIsChecked()
 AnimationSetHandle makeMoveAnimationSet()
 {
     Skeleton skeleton;
-    skeleton.addBone("root", -1, glm::mat4(1.0f), glm::mat4(1.0f));
-    skeleton.addBone("hand", 0, glm::mat4(1.0f), glm::mat4(1.0f));
+    skeleton.addBone("root", -1, Math::mat4(1.0f), Math::mat4(1.0f));
+    skeleton.addBone("hand", 0, Math::mat4(1.0f), Math::mat4(1.0f));
     skeleton.finalize();
 
     AnimationClip clip;
@@ -1473,9 +1473,9 @@ AnimationSetHandle makeMoveAnimationSet()
     BoneTrack track;
     track.bone = 0;
     track.times = {0.0f, 2.0f};
-    track.positions = {glm::vec3(0.0f), glm::vec3(2.0f, 0.0f, 0.0f)};
-    track.rotations = {glm::quat(1, 0, 0, 0), glm::quat(1, 0, 0, 0)};
-    track.scales = {glm::vec3(1.0f), glm::vec3(1.0f)};
+    track.positions = {Math::vec3(0.0f), Math::vec3(2.0f, 0.0f, 0.0f)};
+    track.rotations = {Math::quat(1, 0, 0, 0), Math::quat(1, 0, 0, 0)};
+    track.scales = {Math::vec3(1.0f), Math::vec3(1.0f)};
     clip.tracks().push_back(track);
 
     const std::vector<AnimationClip> clips = {clip};
@@ -1792,9 +1792,9 @@ void testGameObjectGlobalTransform()
 {
     Scene scene;
     GameObject* parent = scene.createGameObject("Parent");
-    parent->setPosition(glm::vec3(10.0f, 0.0f, 0.0f));
+    parent->setPosition(Math::vec3(10.0f, 0.0f, 0.0f));
     GameObject* child = scene.createGameObject("Child", parent);
-    child->setPosition(glm::vec3(1.0f, 2.0f, 3.0f));
+    child->setPosition(Math::vec3(1.0f, 2.0f, 3.0f));
 
     ZenBehaviour* behaviour = child->addComponent<ZenBehaviour>();
     const char* script =
@@ -1811,8 +1811,8 @@ void testGameObjectGlobalTransform()
 
     CHECK(!behaviour->hasError());
     CHECK(child->name() == "TransformsDiffer");
-    CHECK(child->position() == glm::vec3(1.0f, 2.0f, 3.0f));
-    CHECK(child->globalPosition() == glm::vec3(11.0f, 2.0f, 3.0f));
+    CHECK(child->position() == Math::vec3(1.0f, 2.0f, 3.0f));
+    CHECK(child->globalPosition() == Math::vec3(11.0f, 2.0f, 3.0f));
 }
 
 // scene.create(name, parent) - the child is born under the right parent,
@@ -1919,13 +1919,13 @@ void testCallEventInvokesOnEventHook()
     CHECK(behaviour->callEvent("Jump", 45.0));
     CHECK(!behaviour->hasError());
     CHECK(object->name() == "Jump");
-    const f32 yawAfterJump = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    const f32 yawAfterJump = Math::degrees(Math::eulerAngles(object->rotation())).y;
     CHECK(std::abs(yawAfterJump - 45.0f) < 0.01f);
 
     CHECK(behaviour->callEvent("Idle"));
     CHECK(!behaviour->hasError());
     CHECK(object->name() == "Idle");
-    const f32 yawAfterIdle = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    const f32 yawAfterIdle = Math::degrees(Math::eulerAngles(object->rotation())).y;
     CHECK(std::abs(yawAfterIdle - yawAfterJump) < 0.01f);
 }
 
@@ -1974,7 +1974,7 @@ void testCallFunctionInvokesNamedMethodAndHasFunctionSeesIt()
     scene.update(0.0f);
     CHECK(behaviour->callFunction("take_damage", 30.0));
     CHECK(!behaviour->hasError());
-    const f32 yaw = glm::degrees(glm::eulerAngles(object->rotation())).y;
+    const f32 yaw = Math::degrees(Math::eulerAngles(object->rotation())).y;
     CHECK(std::abs(yaw - 30.0f) < 0.01f);
 }
 
@@ -2034,7 +2034,7 @@ void testReloadIfChangedDetectsDiskEditAndSourceTimestampTracksIt()
     const f32 dt = 1.0f / 60.0f;
     scene.update(dt);
     CHECK(!behaviour->hasError());
-    CHECK(std::abs(glm::degrees(glm::eulerAngles(object->rotation())).y - 300.0f * dt) < 0.05f);
+    CHECK(std::abs(Math::degrees(Math::eulerAngles(object->rotation())).y - 300.0f * dt) < 0.05f);
 
     std::error_code removeError;
     std::filesystem::remove(path, removeError);

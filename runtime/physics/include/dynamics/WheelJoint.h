@@ -17,8 +17,8 @@ public:
     // rolling axis. They do not need to start perpendicular - only linearly
     // independent - the perpendicularity constraint pulls the spin axis
     // square to the suspension axis as soon as the joint starts solving.
-    WheelJoint(RigidBody& chassis, RigidBody& wheel, const glm::vec3& worldAnchor,
-              const glm::vec3& worldSuspensionAxis, const glm::vec3& worldSpinAxis);
+    WheelJoint(RigidBody& chassis, RigidBody& wheel, const Math::vec3& worldAnchor,
+              const Math::vec3& worldSuspensionAxis, const Math::vec3& worldSpinAxis);
 
     // Empty, for the component path: the editor adds one of these to an
     // object and rebuild() wires it to the connected body, the same way
@@ -26,8 +26,8 @@ public:
     // and setAuthoredSpinAxis() instead of from the constructor.
     WheelJoint();
 
-    void configure(RigidBody& chassis, RigidBody& wheel, const glm::vec3& worldAnchor,
-                   const glm::vec3& worldSuspensionAxis, const glm::vec3& worldSpinAxis);
+    void configure(RigidBody& chassis, RigidBody& wheel, const Math::vec3& worldAnchor,
+                   const Math::vec3& worldSuspensionAxis, const Math::vec3& worldSpinAxis);
 
     RigidBody* bodyA() const override;
     RigidBody* bodyB() const override;
@@ -39,13 +39,13 @@ public:
 
     // Both in the owner's own local space. Suspension points from the
     // chassis mount towards the ground; spin is the axle.
-    void setAuthoredSuspensionAxis(const glm::vec3& axis);
-    const glm::vec3& authoredSuspensionAxis() const
+    void setAuthoredSuspensionAxis(const Math::vec3& axis);
+    const Math::vec3& authoredSuspensionAxis() const
     {
         return mAuthoredSuspensionAxis;
     }
-    void setAuthoredSpinAxis(const glm::vec3& axis);
-    const glm::vec3& authoredSpinAxis() const
+    void setAuthoredSpinAxis(const Math::vec3& axis);
+    const Math::vec3& authoredSpinAxis() const
     {
         return mAuthoredSpinAxis;
     }
@@ -105,13 +105,13 @@ public:
         return mSteeringLimitsMax;
     }
 
-    glm::vec3 anchorWorldA() const override;
-    glm::vec3 anchorWorldB() const override;
+    Math::vec3 anchorWorldA() const override;
+    Math::vec3 anchorWorldB() const override;
     bool hasAxis() const override
     {
         return true;
     }
-    glm::vec3 axisWorld() const override;
+    Math::vec3 axisWorld() const override;
 
     // Spring-damper along the suspension axis. `restLength` is the anchor
     // separation (in the suspension direction) where the spring applies no
@@ -126,8 +126,8 @@ public:
     void setSuspension(f32 restLength, f32 stiffness, f32 damping)
     {
         mSuspensionRestLength = restLength;
-        mSuspensionStiffness = glm::max(stiffness, 0.0f);
-        mSuspensionDamping = glm::max(damping, 0.0f);
+        mSuspensionStiffness = Math::max(stiffness, 0.0f);
+        mSuspensionDamping = Math::max(damping, 0.0f);
     }
     f32 suspensionTravel() const
     {
@@ -153,38 +153,38 @@ private:
     void calculateSteeringMotorProperties();
     void calculateSpinMotorProperties();
     void calculateSuspensionProperties(f32 duration);
-    void applyLinearImpulse(const glm::vec3& impulse);
-    void applyAngularImpulse(const glm::vec3& impulse);
+    void applyLinearImpulse(const Math::vec3& impulse);
+    void applyAngularImpulse(const Math::vec3& impulse);
 
     RigidBody* mChassis = nullptr;
     RigidBody* mWheel = nullptr;
-    glm::vec3 mLocalAnchorChassis{0.0f};
-    glm::vec3 mLocalAnchorWheel{0.0f};
-    glm::vec3 mLocalSuspensionAxis{0.0f, -1.0f, 0.0f};
-    glm::vec3 mLocalSpinAxis{1.0f, 0.0f, 0.0f};
-    glm::vec3 mLocalNormalAxis{1.0f, 0.0f, 0.0f};
-    glm::quat mInverseInitialOrientation{1.0f, 0.0f, 0.0f, 0.0f};
+    Math::vec3 mLocalAnchorChassis{0.0f};
+    Math::vec3 mLocalAnchorWheel{0.0f};
+    Math::vec3 mLocalSuspensionAxis{0.0f, -1.0f, 0.0f};
+    Math::vec3 mLocalSpinAxis{1.0f, 0.0f, 0.0f};
+    Math::vec3 mLocalNormalAxis{1.0f, 0.0f, 0.0f};
+    Math::quat mInverseInitialOrientation{1.0f, 0.0f, 0.0f, 0.0f};
     // What the editor edits, before the joint is wired to a body - down and
     // along the axle, in the owner's local space.
-    glm::vec3 mAuthoredSuspensionAxis{0.0f, -1.0f, 0.0f};
-    glm::vec3 mAuthoredSpinAxis{1.0f, 0.0f, 0.0f};
+    Math::vec3 mAuthoredSuspensionAxis{0.0f, -1.0f, 0.0f};
+    Math::vec3 mAuthoredSpinAxis{1.0f, 0.0f, 0.0f};
 
-    glm::vec3 mArmA{0.0f};
-    glm::vec3 mArmB{0.0f};
-    glm::vec3 mOffset{0.0f};
+    Math::vec3 mArmA{0.0f};
+    Math::vec3 mArmB{0.0f};
+    Math::vec3 mOffset{0.0f};
 
     // Suspension axis in world space, and the two lateral directions locked
     // rigidly against it.
-    glm::vec3 mAxisA{0.0f, -1.0f, 0.0f};
-    glm::vec3 mN1{1.0f, 0.0f, 0.0f};
-    glm::vec3 mN2{0.0f, 0.0f, 1.0f};
-    glm::mat2 mPositionLockEffectiveMass{0.0f};
-    glm::vec2 mTotalPositionLockImpulse{0.0f};
+    Math::vec3 mAxisA{0.0f, -1.0f, 0.0f};
+    Math::vec3 mN1{1.0f, 0.0f, 0.0f};
+    Math::vec3 mN2{0.0f, 0.0f, 1.0f};
+    Math::mat2 mPositionLockEffectiveMass{0.0f};
+    Math::vec2 mTotalPositionLockImpulse{0.0f};
 
     // Spin axis in world space and the perpendicularity row that keeps it
     // square to the suspension axis.
-    glm::vec3 mAxisB{1.0f, 0.0f, 0.0f};
-    glm::vec3 mPerpendicularAxis{0.0f, 0.0f, 1.0f};
+    Math::vec3 mAxisB{1.0f, 0.0f, 0.0f};
+    Math::vec3 mPerpendicularAxis{0.0f, 0.0f, 1.0f};
     f32 mPerpendicularity = 0.0f;
     f32 mPerpendicularEffectiveMass = 0.0f;
     f32 mTotalPerpendicularImpulse = 0.0f;
@@ -200,8 +200,8 @@ private:
     f32 mSuspensionEffectiveMass = 0.0f;
     f32 mTotalSuspensionImpulse = 0.0f;
 
-    f32 mSteeringLimitsMin = -glm::pi<f32>();
-    f32 mSteeringLimitsMax = glm::pi<f32>();
+    f32 mSteeringLimitsMin = -Math::pi<f32>();
+    f32 mSteeringLimitsMax = Math::pi<f32>();
     bool mHasSteeringLimits = false;
     bool mSteeringLimitActive = false;
     f32 mSteeringLimitEffectiveMass = 0.0f;

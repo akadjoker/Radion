@@ -75,8 +75,8 @@ private:
     // recomputed on each one.
     struct PointMass
     {
-        glm::vec3 armA{0.0f};
-        glm::vec3 armB{0.0f};
+        Math::vec3 armA{0.0f};
+        Math::vec3 armB{0.0f};
         f32 tangentMass[2] = {0.0f, 0.0f};
         f32 normalMass = 0.0f;
     };

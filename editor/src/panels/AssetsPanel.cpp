@@ -3,6 +3,7 @@
 #include "panels/AssetsPanel.h"
 
 #include "AssetManager.h"
+#include "Color.h"
 #include "EditorApplication.h"
 #include "Engine.h"
 #include "FileSystem.h"
@@ -214,14 +215,17 @@ bool exportRmeshToObj(const std::string& sourceFile, const std::string& objFile)
     for (usize index = 0; index < materialCount; ++index)
     {
         const Material* material = index < mesh.materials.size() ? &mesh.materials[index] : nullptr;
-        const glm::vec4 base = material ? material->params.baseColor : glm::vec4(0.75f, 0.78f, 0.82f, 1.0f);
-        const glm::vec4 emissive = material ? material->params.emissive : glm::vec4(0.0f);
+        const Math::vec4 base = material ? material->params.baseColor : Math::vec4(0.75f, 0.78f, 0.82f, 1.0f);
+        const Math::vec4 emissive = material ? material->params.emissive : Math::vec4(0.0f);
+        const Color baseColor = Color::fromRGBFloat(base.x, base.y, base.z, base.w);
+        const Color emissiveColor = Color::fromRGBFloat(emissive.x, emissive.y, emissive.z,
+                                                         emissive.w);
         mtl << "newmtl " << materialNames[index] << "\n"
              << "Ka 0.000000 0.000000 0.000000\n"
-             << "Kd " << base.r << ' ' << base.g << ' ' << base.b << "\n"
+             << "Kd " << baseColor.red() << ' ' << baseColor.green() << ' ' << baseColor.blue() << "\n"
              << "Ks 0.000000 0.000000 0.000000\n"
-             << "Ke " << emissive.r << ' ' << emissive.g << ' ' << emissive.b << "\n"
-             << "d " << base.a << "\n";
+             << "Ke " << emissiveColor.red() << ' ' << emissiveColor.green() << ' ' << emissiveColor.blue() << "\n"
+             << "d " << baseColor.alpha() << "\n";
 
         const auto textureFile = [&](MaterialSlot slot, usize fallbackIndex) -> std::string
         {
@@ -262,11 +266,11 @@ bool exportRmeshToObj(const std::string& sourceFile, const std::string& objFile)
     obj << "# Exported from " << sourcePath.filename().generic_string() << "\n"
         << "mtllib " << mtlPath.filename().generic_string() << "\n"
         << "o " << objPath.stem().generic_string() << "\n";
-    for (const glm::vec3& position : mesh.positions)
+    for (const Math::vec3& position : mesh.positions)
         obj << "v " << position.x << ' ' << position.y << ' ' << position.z << "\n";
-    for (const glm::vec2& uv : mesh.uvs)
+    for (const Math::vec2& uv : mesh.uvs)
         obj << "vt " << uv.x << ' ' << (1.0f - uv.y) << "\n";
-    for (const glm::vec3& normal : mesh.normals)
+    for (const Math::vec3& normal : mesh.normals)
         obj << "vn " << normal.x << ' ' << normal.y << ' ' << normal.z << "\n";
 
     const bool hasUV = mesh.uvs.size() == mesh.positions.size();
@@ -360,8 +364,8 @@ AssetsPanel::AssetsPanel(EditorApplication& app) : EditorPanel("Assets", app)
 {
     const EditorSettings& settings = app.settings();
     mCurrentDirectory = settings.assetsDirectory;
-    mViewMode = static_cast<ViewMode>(glm::clamp(settings.assetsViewMode, 0, 2));
-    mThumbnailSize = glm::clamp(settings.assetsThumbnailSize, 48.0f, 256.0f);
+    mViewMode = static_cast<ViewMode>(Math::clamp(settings.assetsViewMode, 0, 2));
+    mThumbnailSize = Math::clamp(settings.assetsThumbnailSize, 48.0f, 256.0f);
     mHistory.clear();
     mHistory.push_back(mCurrentDirectory);
     mHistoryPosition = 0;
@@ -910,8 +914,8 @@ void AssetsPanel::drawImportPopup()
                 if (object)
                 {
                     object->setPosition(app().cursor3D() + mImportTranslation);
-                    object->setRotation(glm::quat(glm::radians(mImportRotationEuler)));
-                    object->setScale(glm::vec3(mImportScale));
+                    object->setRotation(Math::quat(Math::radians(mImportRotationEuler)));
+                    object->setScale(Math::vec3(mImportScale));
                     MeshRenderer* renderer = object->addComponent<MeshRenderer>();
                     renderer->setMesh(mesh);
                     app().scene().update(0.0f);
@@ -1538,8 +1542,8 @@ void AssetsPanel::onImGui()
             {
                 mImportPath = relPath;
                 mImportName = stem;
-                mImportTranslation = glm::vec3(0.0f);
-                mImportRotationEuler = glm::vec3(0.0f);
+                mImportTranslation = Math::vec3(0.0f);
+                mImportRotationEuler = Math::vec3(0.0f);
                 mImportScale = 1.0f;
                 mImportPending = true;
             }

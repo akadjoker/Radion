@@ -1,6 +1,6 @@
 // Obstacle.cpp - obstacle avoidance math.
 //
-// The vehicles are Radion::Agent; all math uses glm.
+// The vehicles are Radion::Agent; all math uses Math::.
 
 #include "PCH.h"
 
@@ -18,7 +18,7 @@ using Radion::Agent;
 
 // --- Obstacle ---------------------------------------------------------------
 
-glm::vec3 Obstacle::steerToAvoid(const Agent& vehicle, float minTimeToCollision) const
+Math::vec3 Obstacle::steerToAvoid(const Agent& vehicle, float minTimeToCollision) const
 {
     // Find the nearest intersection with this obstacle along the vehicle's path.
     PathIntersection pi;
@@ -28,7 +28,7 @@ glm::vec3 Obstacle::steerToAvoid(const Agent& vehicle, float minTimeToCollision)
     return pi.steerToAvoidIfNeeded(vehicle, minTimeToCollision);
 }
 
-glm::vec3 Obstacle::steerToAvoidObstacles(const Agent& vehicle, float minTimeToCollision,
+Math::vec3 Obstacle::steerToAvoidObstacles(const Agent& vehicle, float minTimeToCollision,
                                           const ObstacleGroup& obstacles)
 {
     PathIntersection nearest, next;
@@ -63,7 +63,7 @@ void Obstacle::firstPathIntersectionWithObstacleGroup(const Agent& vehicle,
     }
 }
 
-glm::vec3 PathIntersection::steerToAvoidIfNeeded(const Agent& vehicle,
+Math::vec3 PathIntersection::steerToAvoidIfNeeded(const Agent& vehicle,
                                                  float minTimeToCollision) const
 {
     // If a nearby intersection was found, steer away from it, otherwise no
@@ -74,7 +74,7 @@ glm::vec3 PathIntersection::steerToAvoidIfNeeded(const Agent& vehicle,
         // Compute the avoidance force: take the component of steerHint that is
         // lateral (perpendicular to the vehicle's forward), set its length to
         // the vehicle's maxForce.
-        glm::vec3 lateral = perpendicularComponent(steerHint, vehicle.forward());
+        Math::vec3 lateral = perpendicularComponent(steerHint, vehicle.forward());
 
         // Dead ahead, the hint has no lateral component at all: aimed at the
         // centre the radial term is zero, leaving only the surface normal,
@@ -83,13 +83,13 @@ glm::vec3 PathIntersection::steerToAvoidIfNeeded(const Agent& vehicle,
         // it was certain to hit. Any sideways direction avoids it, so pick
         // the vehicle's own - deterministic, and the same one every frame,
         // which is what keeps it from dithering between left and right.
-        if (glm::dot(lateral, lateral) < 1.0e-8f)
+        if (Math::dot(lateral, lateral) < 1.0e-8f)
             lateral = vehicle.side();
         return safeNormalize(lateral) * vehicle.maxForce();
     }
     else
     {
-        return glm::vec3(0.0f);
+        return Math::vec3(0.0f);
     }
 }
 
@@ -102,14 +102,14 @@ void SphereObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
     // Sphere", but computed in the vehicle's local space, where the line in
     // question is the Z (forward) axis - which simplifies the math.
     float b, c, d, p, q, s;
-    glm::vec3 lc;
+    Math::vec3 lc;
 
     // Initialize to "no intersection found".
     pi.intersect = false;
 
     // Find the sphere's "local center" (lc) in the vehicle's coordinate space.
     lc = vehicle.localizePosition(center);
-    pi.vehicleOutside = glm::length(lc) > radius;
+    pi.vehicleOutside = Math::length(lc) > radius;
 
     // If the obstacle is seen from inside, but the vehicle is outside, it must
     // be avoided (a vehicle outside would otherwise ignore it).
@@ -173,8 +173,8 @@ void PlaneObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
     // Initialize to "no intersection found".
     pi.intersect = false;
 
-    const glm::vec3 lp = localizePosition(vehicle.position());
-    const glm::vec3 ld = localizeDirection(vehicle.forward());
+    const Math::vec3 lp = localizePosition(vehicle.position());
+    const Math::vec3 ld = localizeDirection(vehicle.forward());
 
     // No obstacle intersection if the path is parallel to the XY (side/up) plane.
     if (ld.z == 0.0f)
@@ -195,20 +195,20 @@ void PlaneObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
     // Find the intersection of the path with the rectangle's plane (XY plane).
     const float ix = lp.x - (ld.x * lp.z / ld.z);
     const float iy = lp.y - (ld.y * lp.z / ld.z);
-    const glm::vec3 planeIntersection(ix, iy, 0.0f);
+    const Math::vec3 planeIntersection(ix, iy, 0.0f);
 
     // No obstacle intersection if the plane intersection is outside the 2D shape.
     if (!xyPointInsideShape(planeIntersection, vehicle.radius()))
         return;
 
     // Otherwise the vehicle path DOES intersect this plane.
-    const glm::vec3 localXYradial = safeNormalize(planeIntersection);
-    const glm::vec3 radial = globalizeDirection(localXYradial);
+    const Math::vec3 localXYradial = safeNormalize(planeIntersection);
+    const Math::vec3 radial = globalizeDirection(localXYradial);
     const float sideSign = (lp.z > 0.0f) ? +1.0f : -1.0f;
-    const glm::vec3 opposingNormal = forward() * sideSign;
+    const Math::vec3 opposingNormal = forward() * sideSign;
     pi.intersect = true;
     pi.obstacle = this;
-    pi.distance = glm::length(lp - planeIntersection);
+    pi.distance = Math::length(lp - planeIntersection);
     pi.steerHint = opposingNormal + radial; // should have "toward edge" term?
     pi.surfacePoint = globalizePosition(planeIntersection);
     pi.surfaceNormal = opposingNormal;
@@ -217,7 +217,7 @@ void PlaneObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
 
 // --- RectangleObstacle ------------------------------------------------------
 
-bool RectangleObstacle::xyPointInsideShape(const glm::vec3& point, float radius) const
+bool RectangleObstacle::xyPointInsideShape(const Math::vec3& point, float radius) const
 {
     const float w = radius + (width * 0.5f);
     const float h = radius + (height * 0.5f);
@@ -229,13 +229,13 @@ bool RectangleObstacle::xyPointInsideShape(const glm::vec3& point, float radius)
 void BoxObstacle::findIntersectionWithVehiclePath(const Agent& vehicle, PathIntersection& pi) const
 {
     // Abbreviations.
-    const glm::vec3 s = side(); // local axes
-    const glm::vec3 u = up();
-    const glm::vec3 f = forward();
-    const glm::vec3 p = position();
-    const glm::vec3 hw = s * (0.5f * width); // offsets for face centers
-    const glm::vec3 hh = u * (0.5f * height);
-    const glm::vec3 hd = f * (0.5f * depth);
+    const Math::vec3 s = side(); // local axes
+    const Math::vec3 u = up();
+    const Math::vec3 f = forward();
+    const Math::vec3 p = position();
+    const Math::vec3 hw = s * (0.5f * width); // offsets for face centers
+    const Math::vec3 hh = u * (0.5f * height);
+    const Math::vec3 hd = f * (0.5f * depth);
     const ObstacleSeenFrom sf = seenFrom();
 
     // The box's six rectangular faces.
@@ -270,27 +270,27 @@ void BoxObstacle::findIntersectionWithVehiclePath(const Agent& vehicle, PathInte
 
 // --- PlaneObstacle local-space transforms -----------------------------------
 
-glm::vec3 PlaneObstacle::localizeDirection(const glm::vec3& gd) const
+Math::vec3 PlaneObstacle::localizeDirection(const Math::vec3& gd) const
 {
-    const glm::mat3 basis(mSide, mUp, mForward);
-    return glm::transpose(basis) * gd;
+    const Math::mat3 basis(mSide, mUp, mForward);
+    return Math::transpose(basis) * gd;
 }
 
-glm::vec3 PlaneObstacle::localizePosition(const glm::vec3& gp) const
+Math::vec3 PlaneObstacle::localizePosition(const Math::vec3& gp) const
 {
-    const glm::mat3 basis(mSide, mUp, mForward);
-    return glm::transpose(basis) * (gp - mPosition);
+    const Math::mat3 basis(mSide, mUp, mForward);
+    return Math::transpose(basis) * (gp - mPosition);
 }
 
-glm::vec3 PlaneObstacle::globalizePosition(const glm::vec3& lp) const
+Math::vec3 PlaneObstacle::globalizePosition(const Math::vec3& lp) const
 {
-    const glm::mat3 basis(mSide, mUp, mForward);
+    const Math::mat3 basis(mSide, mUp, mForward);
     return mPosition + (basis * lp);
 }
 
-glm::vec3 PlaneObstacle::globalizeDirection(const glm::vec3& ld) const
+Math::vec3 PlaneObstacle::globalizeDirection(const Math::vec3& ld) const
 {
-    const glm::mat3 basis(mSide, mUp, mForward);
+    const Math::mat3 basis(mSide, mUp, mForward);
     return basis * ld;
 }
 

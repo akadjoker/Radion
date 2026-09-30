@@ -15,17 +15,17 @@ namespace
 // agree - see the warning in that file.
 struct alignas(16) GPUParticle
 {
-    glm::vec3 position;
+    Math::vec3 position;
     f32 mass;
-    glm::vec3 velocity;
+    Math::vec3 velocity;
     f32 life;
-    glm::vec3 force;
+    Math::vec3 force;
     f32 maxLife;
-    glm::vec2 sizeBeginEnd;
+    Math::vec2 sizeBeginEnd;
     f32 rotation;
     f32 rotationVelocity;
-    glm::vec4 color;
-    glm::vec4 colorEnd;
+    Math::vec4 color;
+    Math::vec4 colorEnd;
 };
 static_assert(sizeof(GPUParticle) == 96, "must match the shader's std430 layout");
 
@@ -46,12 +46,12 @@ struct alignas(16) GPUIndirect
 // Mirrors EmitBlock in particle_emit.comp.
 struct alignas(16) EmitBlock
 {
-    glm::vec4 positionSpread;
-    glm::vec4 directionRadius;
-    glm::vec4 speedLife;
-    glm::vec4 sizeMassRotation;
-    glm::vec4 colorBegin;
-    glm::vec4 colorEnd;
+    Math::vec4 positionSpread;
+    Math::vec4 directionRadius;
+    Math::vec4 speedLife;
+    Math::vec4 sizeMassRotation;
+    Math::vec4 colorBegin;
+    Math::vec4 colorEnd;
     s32 emitCount = 0;
     s32 seed = 0;
     s32 pad0 = 0;
@@ -61,16 +61,16 @@ struct alignas(16) EmitBlock
 // Mirrors SimulateBlock in particle_simulate.comp.
 struct alignas(16) SimulateBlock
 {
-    glm::vec4 gravityDt;
-    glm::vec4 drag;
+    Math::vec4 gravityDt;
+    Math::vec4 drag;
 };
 
 // Mirrors DrawBlock in particle.vert/particle.frag.
 struct alignas(16) DrawBlock
 {
-    glm::mat4 viewProjection = glm::mat4(1.0f);
-    glm::vec4 cameraRight = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
-    glm::vec4 cameraUp = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f); // w = additive flag
+    Math::mat4 viewProjection = Math::mat4(1.0f);
+    Math::vec4 cameraRight = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+    Math::vec4 cameraUp = Math::vec4(0.0f, 1.0f, 0.0f, 0.0f); // w = additive flag
 };
 
 // Storage bindings, identical across every particle shader - the reference's
@@ -378,15 +378,15 @@ void ParticleSystem::update(f32 deltaTime)
         for (usize i = 0; i < mPending.size(); ++i)
         {
             const PendingEmit& pending = mPending[i];
-            const u32 count = glm::min(pending.count, mMax);
+            const u32 count = Math::min(pending.count, mMax);
             const Emitter& e = pending.emitter;
 
             EmitBlock block;
-            block.positionSpread = glm::vec4(e.position, e.spread);
-            block.directionRadius = glm::vec4(e.direction, e.startRadius);
-            block.speedLife = glm::vec4(e.speedMin, e.speedMax, e.lifeMin, e.lifeMax);
+            block.positionSpread = Math::vec4(e.position, e.spread);
+            block.directionRadius = Math::vec4(e.direction, e.startRadius);
+            block.speedLife = Math::vec4(e.speedMin, e.speedMax, e.lifeMin, e.lifeMax);
             block.sizeMassRotation =
-                glm::vec4(e.sizeBegin, e.sizeEnd, e.mass, e.rotationVelocity);
+                Math::vec4(e.sizeBegin, e.sizeEnd, e.mass, e.rotationVelocity);
             block.colorBegin = e.colorBegin;
             block.colorEnd = e.colorEnd;
             block.emitCount = static_cast<s32>(count);
@@ -415,8 +415,8 @@ void ParticleSystem::update(f32 deltaTime)
     // ---- 3. SIMULATE (indirect) ----
     gpu.setPipeline(mSimulatePipeline);
     SimulateBlock simulateBlock;
-    simulateBlock.gravityDt = glm::vec4(gravity, deltaTime);
-    simulateBlock.drag = glm::vec4(drag, 0.0f, 0.0f, 0.0f);
+    simulateBlock.gravityDt = Math::vec4(gravity, deltaTime);
+    simulateBlock.drag = Math::vec4(drag, 0.0f, 0.0f, 0.0f);
     gpu.updateBuffer(mSimulateBlockBuffer, 0, sizeof(simulateBlock), &simulateBlock);
     gpu.bindUniform(kUniformBinding, mSimulateBlockBuffer);
     gpu.dispatchIndirect(mIndirectBuffer, offsetof(GPUIndirect, dispatchX));
@@ -433,8 +433,8 @@ void ParticleSystem::update(f32 deltaTime)
     mCurrent = next;
 }
 
-void ParticleSystem::render(const glm::mat4& viewProjection, const glm::vec3& cameraRight,
-                            const glm::vec3& cameraUp, bool additive)
+void ParticleSystem::render(const Math::mat4& viewProjection, const Math::vec3& cameraRight,
+                            const Math::vec3& cameraUp, bool additive)
 {
     if (!mValid || !mPipelinesReady)
         return;
@@ -443,8 +443,8 @@ void ParticleSystem::render(const glm::mat4& viewProjection, const glm::vec3& ca
 
     DrawBlock block;
     block.viewProjection = viewProjection;
-    block.cameraRight = glm::vec4(cameraRight, 0.0f);
-    block.cameraUp = glm::vec4(cameraUp, additive ? 1.0f : 0.0f);
+    block.cameraRight = Math::vec4(cameraRight, 0.0f);
+    block.cameraUp = Math::vec4(cameraUp, additive ? 1.0f : 0.0f);
     gpu.updateBuffer(mDrawBlockBuffer, 0, sizeof(block), &block);
     gpu.bindUniform(kUniformBinding, mDrawBlockBuffer);
 

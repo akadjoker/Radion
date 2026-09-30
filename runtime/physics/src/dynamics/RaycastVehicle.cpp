@@ -13,15 +13,15 @@ namespace Radion::Physics
 namespace
 {
 
-const glm::vec3 kUpAxis(0.0f, 1.0f, 0.0f);
-const glm::vec3 kForwardAxis(0.0f, 0.0f, 1.0f);
+const Math::vec3 kUpAxis(0.0f, 1.0f, 0.0f);
+const Math::vec3 kForwardAxis(0.0f, 0.0f, 1.0f);
 
-f32 impulseDenominator(const RigidBody& body, const glm::vec3& pos, const glm::vec3& normal)
+f32 impulseDenominator(const RigidBody& body, const Math::vec3& pos, const Math::vec3& normal)
 {
-    const glm::vec3 r0 = pos - body.position();
-    const glm::vec3 c0 = glm::cross(r0, normal);
-    const glm::vec3 vec = glm::cross(body.inverseInertiaTensorWorld() * c0, r0);
-    return body.inverseMass() + glm::dot(normal, vec);
+    const Math::vec3 r0 = pos - body.position();
+    const Math::vec3 c0 = Math::cross(r0, normal);
+    const Math::vec3 vec = Math::cross(body.inverseInertiaTensorWorld() * c0, r0);
+    return body.inverseMass() + Math::dot(normal, vec);
 }
 
 // The friction pair is always resolved against an immovable ground point:
@@ -30,33 +30,33 @@ f32 impulseDenominator(const RigidBody& body, const glm::vec3& pos, const glm::v
 // second body in every one of these formulas always has zero velocity and
 // infinite mass. Specialising the two-body versions for that case is what
 // removes the ground body's terms below rather than approximating them.
-f32 resolveSingleBilateral(RigidBody& chassis, const glm::vec3& pos, const glm::vec3& normal)
+f32 resolveSingleBilateral(RigidBody& chassis, const Math::vec3& pos, const Math::vec3& normal)
 {
-    const f32 normalLenSqr = glm::dot(normal, normal);
+    const f32 normalLenSqr = Math::dot(normal, normal);
     if (normalLenSqr > 1.1f)
         return 0.0f;
 
-    const glm::vec3 vel = chassis.velocityAtPoint(pos);
+    const Math::vec3 vel = chassis.velocityAtPoint(pos);
     const f32 jacDiagAB = impulseDenominator(chassis, pos, normal);
     if (jacDiagAB <= 0.0f)
         return 0.0f;
     const f32 jacDiagABInv = 1.0f / jacDiagAB;
 
-    const f32 relVel = glm::dot(normal, vel);
+    const f32 relVel = Math::dot(normal, vel);
     constexpr f32 contactDamping = 0.2f;
     return -contactDamping * relVel * jacDiagABInv;
 }
 
-f32 calcRollingFriction(RigidBody& chassis, const glm::vec3& contactPos, const glm::vec3& forwardDir,
+f32 calcRollingFriction(RigidBody& chassis, const Math::vec3& contactPos, const Math::vec3& forwardDir,
                         f32 maxImpulse, u32 numWheelsOnGround)
 {
-    const glm::vec3 vel = chassis.velocityAtPoint(contactPos);
-    const f32 vrel = glm::dot(forwardDir, vel);
+    const Math::vec3 vel = chassis.velocityAtPoint(contactPos);
+    const f32 vrel = Math::dot(forwardDir, vel);
     const f32 jacDiagABInv = 1.0f / impulseDenominator(chassis, contactPos, forwardDir);
 
     f32 j1 = -vrel * jacDiagABInv / static_cast<f32>(numWheelsOnGround);
-    j1 = glm::min(j1, maxImpulse);
-    j1 = glm::max(j1, -maxImpulse);
+    j1 = Math::min(j1, maxImpulse);
+    j1 = Math::max(j1, -maxImpulse);
     return j1;
 }
 
@@ -69,8 +69,8 @@ RaycastVehicle::RaycastVehicle(RigidBody& chassis, const Radion::Scene* scene)
 {
 }
 
-u32 RaycastVehicle::addWheel(const glm::vec3& connectionPointLocal, const glm::vec3& directionLocal,
-                             const glm::vec3& axleLocal, f32 suspensionRestLength, f32 wheelRadius,
+u32 RaycastVehicle::addWheel(const Math::vec3& connectionPointLocal, const Math::vec3& directionLocal,
+                             const Math::vec3& axleLocal, f32 suspensionRestLength, f32 wheelRadius,
                              const Tuning& tuning, bool isFrontWheel)
 {
     Wheel wheel;
@@ -117,28 +117,28 @@ void RaycastVehicle::updateWheelTransform(Wheel& wheel)
 {
     updateWheelTransformWS(wheel);
 
-    const glm::vec3 up = -wheel.directionWorld;
-    const glm::vec3& right = wheel.axleWorld;
+    const Math::vec3 up = -wheel.directionWorld;
+    const Math::vec3& right = wheel.axleWorld;
     // A wheel configured with its suspension direction along its own axle has
     // no forward: the cross product is zero and normalising it is NaN, which
     // goes straight into the wheel's world transform and from there into
     // anything drawn or queried from it. Bad configuration, but it should
     // cost that wheel a sane default, not the whole vehicle.
-    const glm::vec3 forwardRaw = glm::cross(up, right);
-    const f32 forwardLength = glm::length(forwardRaw);
-    const glm::vec3 fwd =
-        forwardLength > 1.0e-6f ? forwardRaw / forwardLength : glm::vec3(0.0f, 0.0f, 1.0f);
+    const Math::vec3 forwardRaw = Math::cross(up, right);
+    const f32 forwardLength = Math::length(forwardRaw);
+    const Math::vec3 fwd =
+        forwardLength > 1.0e-6f ? forwardRaw / forwardLength : Math::vec3(0.0f, 0.0f, 1.0f);
 
-    const glm::quat steeringOrientation = glm::angleAxis(wheel.steering, up);
-    const glm::quat rotatingOrientation = glm::angleAxis(-wheel.rotation, right);
+    const Math::quat steeringOrientation = Math::angleAxis(wheel.steering, up);
+    const Math::quat rotatingOrientation = Math::angleAxis(-wheel.rotation, right);
 
-    const glm::mat3 basis2(-right, up, fwd);
-    const glm::mat3 basis =
-        glm::mat3_cast(steeringOrientation) * glm::mat3_cast(rotatingOrientation) * basis2;
+    const Math::mat3 basis2(-right, up, fwd);
+    const Math::mat3 basis =
+        Math::mat3_cast(steeringOrientation) * Math::mat3_cast(rotatingOrientation) * basis2;
 
-    wheel.worldTransform = glm::mat4(basis);
+    wheel.worldTransform = Math::mat4(basis);
     wheel.worldTransform[3] =
-        glm::vec4(wheel.hardPointWorld + wheel.directionWorld * wheel.suspensionLength, 1.0f);
+        Math::vec4(wheel.hardPointWorld + wheel.directionWorld * wheel.suspensionLength, 1.0f);
 }
 
 f32 RaycastVehicle::rayCast(Wheel& wheel)
@@ -171,13 +171,13 @@ f32 RaycastVehicle::rayCast(Wheel& wheel)
 
         const f32 minSuspensionLength = wheel.restLength - wheel.maxSuspensionTravelCm * 0.01f;
         const f32 maxSuspensionLength = wheel.restLength + wheel.maxSuspensionTravelCm * 0.01f;
-        wheel.suspensionLength = glm::clamp(wheel.suspensionLength, minSuspensionLength, maxSuspensionLength);
+        wheel.suspensionLength = Math::clamp(wheel.suspensionLength, minSuspensionLength, maxSuspensionLength);
 
         wheel.contactPoint = hit.point;
 
-        const f32 denominator = glm::dot(wheel.contactNormal, wheel.directionWorld);
-        const glm::vec3 chassisVelocityAtContact = mChassis.velocityAtPoint(wheel.contactPoint);
-        const f32 projVel = glm::dot(wheel.contactNormal, chassisVelocityAtContact);
+        const f32 denominator = Math::dot(wheel.contactNormal, wheel.directionWorld);
+        const Math::vec3 chassisVelocityAtContact = mChassis.velocityAtPoint(wheel.contactPoint);
+        const f32 projVel = Math::dot(wheel.contactNormal, chassisVelocityAtContact);
 
         if (denominator >= -0.1f)
         {
@@ -226,7 +226,7 @@ void RaycastVehicle::updateSuspension()
             force -= damping * projectedRelVel;
         }
 
-        wheel.suspensionForce = glm::max(force * chassisMass, 0.0f);
+        wheel.suspensionForce = Math::max(force * chassisMass, 0.0f);
     }
 }
 
@@ -259,11 +259,11 @@ void RaycastVehicle::updateFriction(f32 step)
         if (!wheel.inContact)
             continue;
 
-        const glm::mat3 wheelBasis(wheel.worldTransform);
+        const Math::mat3 wheelBasis(wheel.worldTransform);
         mAxleWS[i] = -wheelBasis[0];
 
-        const glm::vec3& surfaceNormal = wheel.contactNormal;
-        const f32 proj = glm::dot(mAxleWS[i], surfaceNormal);
+        const Math::vec3& surfaceNormal = wheel.contactNormal;
+        const f32 proj = Math::dot(mAxleWS[i], surfaceNormal);
         mAxleWS[i] -= surfaceNormal * proj;
 
         // With the axle square to the surface - a car on its side against a
@@ -272,7 +272,7 @@ void RaycastVehicle::updateFriction(f32 step)
         // side impulse into the chassis. There is no lateral direction to
         // speak of in that pose, so the wheel simply takes no side force
         // this step instead of poisoning the vehicle.
-        const f32 axleLength = glm::length(mAxleWS[i]);
+        const f32 axleLength = Math::length(mAxleWS[i]);
         if (axleLength < 1.0e-6f)
         {
             mSideImpulse[i] = 0.0f;
@@ -280,7 +280,7 @@ void RaycastVehicle::updateFriction(f32 step)
         }
         mAxleWS[i] /= axleLength;
 
-        mForwardWS[i] = glm::normalize(glm::cross(surfaceNormal, mAxleWS[i]));
+        mForwardWS[i] = Math::normalize(Math::cross(surfaceNormal, mAxleWS[i]));
 
         mSideImpulse[i] = resolveSingleBilateral(mChassis, wheel.contactPoint, mAxleWS[i]);
         mSideImpulse[i] *= kSideFrictionStiffness;
@@ -356,17 +356,17 @@ void RaycastVehicle::updateFriction(f32 step)
 
         wheel.appliedSideImpulse = mSideImpulse[i];
         wheel.lateralWorld = mAxleWS[i];
-        glm::vec3 relPos = wheel.contactPoint - mChassis.position();
+        Math::vec3 relPos = wheel.contactPoint - mChassis.position();
 
         if (mForwardImpulse[i] != 0.0f)
             mChassis.applyImpulseAtPoint(mForwardWS[i] * mForwardImpulse[i], wheel.contactPoint);
 
         if (mSideImpulse[i] != 0.0f)
         {
-            const glm::vec3 sideImpulse = mAxleWS[i] * mSideImpulse[i];
+            const Math::vec3 sideImpulse = mAxleWS[i] * mSideImpulse[i];
 
-            const glm::vec3 chassisWorldUp = mChassis.directionToWorld(kUpAxis);
-            relPos -= chassisWorldUp * (glm::dot(chassisWorldUp, relPos) * (1.0f - wheel.rollInfluence));
+            const Math::vec3 chassisWorldUp = mChassis.directionToWorld(kUpAxis);
+            relPos -= chassisWorldUp * (Math::dot(chassisWorldUp, relPos) * (1.0f - wheel.rollInfluence));
 
             mChassis.applyImpulseAtPoint(sideImpulse, mChassis.position() + relPos);
         }
@@ -378,10 +378,10 @@ void RaycastVehicle::update(f32 step)
     for (Wheel& wheel : mWheels)
         updateWheelTransform(wheel);
 
-    mCurrentSpeedKmHour = 3.6f * glm::length(mChassis.velocity());
+    mCurrentSpeedKmHour = 3.6f * Math::length(mChassis.velocity());
 
-    const glm::vec3 forwardW = mChassis.directionToWorld(kForwardAxis);
-    if (glm::dot(forwardW, mChassis.velocity()) < 0.0f)
+    const Math::vec3 forwardW = mChassis.directionToWorld(kForwardAxis);
+    if (Math::dot(forwardW, mChassis.velocity()) < 0.0f)
         mCurrentSpeedKmHour *= -1.0f;
 
     for (Wheel& wheel : mWheels)
@@ -396,7 +396,7 @@ void RaycastVehicle::update(f32 step)
             suspensionForce = wheel.maxSuspensionForce;
 
         wheel.appliedSuspensionImpulse = suspensionForce * step;
-        const glm::vec3 impulse = wheel.contactNormal * wheel.appliedSuspensionImpulse;
+        const Math::vec3 impulse = wheel.contactNormal * wheel.appliedSuspensionImpulse;
         mChassis.applyImpulseAtPoint(impulse, wheel.contactPoint);
     }
 
@@ -404,15 +404,15 @@ void RaycastVehicle::update(f32 step)
 
     for (Wheel& wheel : mWheels)
     {
-        const glm::vec3 vel = mChassis.velocityAtPoint(wheel.hardPointWorld);
+        const Math::vec3 vel = mChassis.velocityAtPoint(wheel.hardPointWorld);
 
         if (wheel.inContact)
         {
-            glm::vec3 fwd = mChassis.directionToWorld(kForwardAxis);
-            const f32 proj = glm::dot(fwd, wheel.contactNormal);
+            Math::vec3 fwd = mChassis.directionToWorld(kForwardAxis);
+            const f32 proj = Math::dot(fwd, wheel.contactNormal);
             fwd -= wheel.contactNormal * proj;
 
-            const f32 proj2 = glm::dot(fwd, vel);
+            const f32 proj2 = Math::dot(fwd, vel);
             wheel.deltaRotation = (proj2 * step) / wheel.radius;
             wheel.rotation += wheel.deltaRotation;
         }

@@ -110,22 +110,22 @@ struct FrameContext
 {
     const RenderList* list = nullptr;
 
-    glm::mat4 view = glm::mat4(1.0f);
-    glm::mat4 projection = glm::mat4(1.0f);
-    glm::mat4 viewProjection = glm::mat4(1.0f);
-    glm::mat4 projectionNoJitter = glm::mat4(1.0f);
-    glm::mat4 viewProjectionNoJitter = glm::mat4(1.0f);
-    glm::mat4 prevView = glm::mat4(1.0f);
-    glm::mat4 prevProjectionNoJitter = glm::mat4(1.0f);
-    glm::mat4 prevViewProjectionNoJitter = glm::mat4(1.0f);
-    glm::vec2 jitter = glm::vec2(0.0f);
-    glm::vec2 prevJitter = glm::vec2(0.0f);
-    glm::vec3 cameraPosition = glm::vec3(0.0f);
+    Math::mat4 view = Math::mat4(1.0f);
+    Math::mat4 projection = Math::mat4(1.0f);
+    Math::mat4 viewProjection = Math::mat4(1.0f);
+    Math::mat4 projectionNoJitter = Math::mat4(1.0f);
+    Math::mat4 viewProjectionNoJitter = Math::mat4(1.0f);
+    Math::mat4 prevView = Math::mat4(1.0f);
+    Math::mat4 prevProjectionNoJitter = Math::mat4(1.0f);
+    Math::mat4 prevViewProjectionNoJitter = Math::mat4(1.0f);
+    Math::vec2 jitter = Math::vec2(0.0f);
+    Math::vec2 prevJitter = Math::vec2(0.0f);
+    Math::vec3 cameraPosition = Math::vec3(0.0f);
 
     // (0,0,0,0) = no clip: a world point is kept when
     // dot(vec4(pos,1), clipPlane) >= 0. Set by whoever builds this camera - a
     // planar reflection's mirrored one, e.g. - never toggled elsewhere.
-    glm::vec4 clipPlane = glm::vec4(0.0f);
+    Math::vec4 clipPlane = Math::vec4(0.0f);
 
     // Where the technique should draw, and how much of it. An invalid target
     // is the screen. Each technique binds this itself - viewport is not
@@ -173,8 +173,8 @@ struct FrameContext
     // reflection is treated as infinitely distant (no parallax correction).
     TextureHandle environmentCube;
     SamplerHandle environmentCubeSampler;
-    glm::vec3 environmentProbePosition = glm::vec3(0.0f);
-    glm::vec3 environmentProbeExtents = glm::vec3(0.0f);
+    Math::vec3 environmentProbePosition = Math::vec3(0.0f);
+    Math::vec3 environmentProbeExtents = Math::vec3(0.0f);
     u32 environmentProbeMips = 1;
     f32 environmentProbeIntensity = 1.0f;
 
@@ -194,7 +194,7 @@ struct FrameContext
     // through the reflection camera too (see water.vert), which has its own
     // projection unrelated to `viewProjection` above. Whoever renders the
     // reflection target sets this to that camera's matrix.
-    glm::mat4 reflectionViewProj = glm::mat4(1.0f);
+    Math::mat4 reflectionViewProj = Math::mat4(1.0f);
 };
 
 } // namespace Radion

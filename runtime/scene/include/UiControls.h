@@ -6,7 +6,6 @@
 #include "GPU.h"
 #include "Math.h"
 
-#include <glm/glm.hpp>
 
 #include <string>
 #include <vector>
@@ -107,10 +106,10 @@ private:
 class UiControl : public Component
 {
 public:
-    const glm::vec4& anchors() const;
-    const glm::vec4& offsets() const;
-    void setAnchors(const glm::vec4& value);
-    void setOffsets(const glm::vec4& value);
+    const Math::vec4& anchors() const;
+    const Math::vec4& offsets() const;
+    void setAnchors(const Math::vec4& value);
+    void setOffsets(const Math::vec4& value);
     // Anchors are reset to 0 (fully offset-driven) and offsets become the
     // exact pixel rect (x, y, x + width, y + height).
     void setRect(f32 x, f32 y, f32 width, f32 height);
@@ -154,8 +153,8 @@ private:
     void resetInput();
     void handleInput(f32 x, f32 y, bool down, bool pressed, bool released);
 
-    glm::vec4 mAnchors{0.0f, 0.0f, 0.0f, 0.0f};
-    glm::vec4 mOffsets{0.0f, 0.0f, 120.0f, 32.0f};
+    Math::vec4 mAnchors{0.0f, 0.0f, 0.0f, 0.0f};
+    Math::vec4 mOffsets{0.0f, 0.0f, 120.0f, 32.0f};
     FloatRect mRect;
     s32 mLayer = 0;
     s32 mOrder = 0;

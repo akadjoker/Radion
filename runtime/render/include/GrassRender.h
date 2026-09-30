@@ -12,9 +12,9 @@ namespace Radion
 // A tuft. Three vec4 in std430, matching GrassClump in grass_common.glsl.
 struct GrassClump
 {
-    glm::vec4 positionScale = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    glm::vec4 normalRotation = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
-    glm::vec4 rect = glm::vec4(0.0f);
+    Math::vec4 positionScale = Math::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    Math::vec4 normalRotation = Math::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+    Math::vec4 rect = Math::vec4(0.0f);
 };
 
 // A region of the vegetation atlas. `size` multiplies the tuft's height, so a
@@ -23,15 +23,15 @@ struct GrassClump
 // and a wide bush would both come out square.
 struct GrassAtlasRect
 {
-    glm::vec4 texMulAdd = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f);
-    glm::vec4 sizeAspect = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f);
+    Math::vec4 texMulAdd = Math::vec4(1.0f, 1.0f, 0.0f, 0.0f);
+    Math::vec4 sizeAspect = Math::vec4(1.0f, 1.0f, 0.0f, 0.0f);
 };
 
 // A sphere that pushes the grass out of its way. Cleared and re-added each
 // frame by whoever moves through the field.
 struct GrassInfluencer
 {
-    glm::vec3 centre = glm::vec3(0.0f);
+    Math::vec3 centre = Math::vec3(0.0f);
     f32 radius = 3.0f;
     f32 force = 30.0f;
 };
@@ -68,9 +68,9 @@ struct GrassDrawCommand
 
     // Defaults match the fake sun in unlit.frag, so grass and the ground it
     // stands on are lit by the same light.
-    glm::vec3 lightDirection = -glm::normalize(glm::vec3(0.4f, 0.8f, 0.3f));
-    glm::vec3 lightColor = glm::vec3(1.0f);
-    glm::vec3 ambient = glm::vec3(0.35f);
+    Math::vec3 lightDirection = -Math::normalize(Math::vec3(0.4f, 0.8f, 0.3f));
+    Math::vec3 lightColor = Math::vec3(1.0f);
+    Math::vec3 ambient = Math::vec3(0.35f);
 
     const GrassInfluencer* influencers = nullptr;
     u32 influencerCount = 0;

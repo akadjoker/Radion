@@ -3,7 +3,7 @@
 
 #include "VoxelWorld.h"
 
-#include <glm/vec3.hpp>
+#include "Math.h"
 
 namespace Radion
 {
@@ -20,8 +20,8 @@ struct VoxelRaycastHit
 
 // Traverses the voxel grid and returns the first solid block along the ray.
 // Transparent or non-solid blocks do not stop the traversal.
-bool raycast(const VoxelWorld& world, const BlockRegistry& blocks, glm::vec3 origin,
-             glm::vec3 direction, f32 maxDistance, VoxelRaycastHit& hit);
+bool raycast(const VoxelWorld& world, const BlockRegistry& blocks, Math::vec3 origin,
+             Math::vec3 direction, f32 maxDistance, VoxelRaycastHit& hit);
 
 } // namespace Voxel
 } // namespace Radion

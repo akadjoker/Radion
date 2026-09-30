@@ -18,35 +18,35 @@ namespace
 
 struct alignas(16) HairUniforms
 {
-    glm::mat4 viewProjection = glm::mat4(1.0f);
-    glm::mat4 viewProjectionNoJitter = glm::mat4(1.0f);
-    glm::mat4 previousViewProjectionNoJitter = glm::mat4(1.0f);
-    glm::mat4 model = glm::mat4(1.0f);
-    glm::mat4 previousModel = glm::mat4(1.0f);
-    glm::vec4 colorRoughness = glm::vec4(1.0f);
-    glm::vec4 cameraTime = glm::vec4(0.0f);
-    glm::vec4 cameraUp = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
-    glm::vec4 lightDirectionWind = glm::vec4(0.0f);
-    glm::vec4 lightColorGravity = glm::vec4(1.0f);
-    glm::vec4 ambientDeltaTime = glm::vec4(0.0f);
-    glm::vec4 physics = glm::vec4(0.0f);
-    glm::vec4 appearance = glm::vec4(0.0f);
-    glm::ivec4 counts = glm::ivec4(0);
-    glm::ivec4 state = glm::ivec4(0);
+    Math::mat4 viewProjection = Math::mat4(1.0f);
+    Math::mat4 viewProjectionNoJitter = Math::mat4(1.0f);
+    Math::mat4 previousViewProjectionNoJitter = Math::mat4(1.0f);
+    Math::mat4 model = Math::mat4(1.0f);
+    Math::mat4 previousModel = Math::mat4(1.0f);
+    Math::vec4 colorRoughness = Math::vec4(1.0f);
+    Math::vec4 cameraTime = Math::vec4(0.0f);
+    Math::vec4 cameraUp = Math::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+    Math::vec4 lightDirectionWind = Math::vec4(0.0f);
+    Math::vec4 lightColorGravity = Math::vec4(1.0f);
+    Math::vec4 ambientDeltaTime = Math::vec4(0.0f);
+    Math::vec4 physics = Math::vec4(0.0f);
+    Math::vec4 appearance = Math::vec4(0.0f);
+    Math::ivec4 counts = Math::ivec4(0);
+    Math::ivec4 state = Math::ivec4(0);
     HairCollider colliders[kHairMaxColliders];
 };
 
 struct HairSimulationState
 {
-    glm::vec4 current = glm::vec4(0.0f);
-    glm::vec4 previous = glm::vec4(0.0f);
+    Math::vec4 current = Math::vec4(0.0f);
+    Math::vec4 previous = Math::vec4(0.0f);
 };
 
 struct HairPose
 {
-    glm::vec4 positionLength = glm::vec4(0.0f);
-    glm::vec4 normalWidth = glm::vec4(0.0f);
-    glm::vec4 previousPosition = glm::vec4(0.0f);
+    Math::vec4 positionLength = Math::vec4(0.0f);
+    Math::vec4 normalWidth = Math::vec4(0.0f);
+    Math::vec4 previousPosition = Math::vec4(0.0f);
 };
 
 struct HairIndirectArgs
@@ -283,24 +283,24 @@ private:
     bool ensurePalettes(GPU& gpu, HairResources& resources, const HairDrawCommand& command,
                         u32& paletteCount, u32& previousPaletteCount)
     {
-        static const std::vector<glm::mat4> identity(1, glm::mat4(1.0f));
-        const std::vector<glm::mat4>& palette = command.palette && !command.palette->empty()
+        static const std::vector<Math::mat4> identity(1, Math::mat4(1.0f));
+        const std::vector<Math::mat4>& palette = command.palette && !command.palette->empty()
                                                     ? *command.palette : identity;
-        const std::vector<glm::mat4>& previous =
+        const std::vector<Math::mat4>& previous =
             command.previousPalette && !command.previousPalette->empty()
                 ? *command.previousPalette : palette;
         paletteCount = static_cast<u32>(palette.size());
         previousPaletteCount = static_cast<u32>(previous.size());
-        const u32 required = glm::max(paletteCount, previousPaletteCount);
+        const u32 required = Math::max(paletteCount, previousPaletteCount);
         if (!resources.palette.valid() || !resources.previousPalette.valid() ||
             required > resources.paletteCapacity)
         {
             const u32 capacity = growCapacity(resources.paletteCapacity, required, 64);
             BufferDesc desc;
-            desc.size = static_cast<u64>(capacity) * sizeof(glm::mat4);
+            desc.size = static_cast<u64>(capacity) * sizeof(Math::mat4);
             desc.usage = BufferStorage;
             desc.residency = Residency::Stream;
-            desc.stride = sizeof(glm::mat4);
+            desc.stride = sizeof(Math::mat4);
             desc.debugName = "hair.palette";
             BufferHandle current = gpu.createBuffer(desc);
             desc.debugName = "hair.previous_palette";
@@ -316,9 +316,9 @@ private:
             resources.paletteCapacity = capacity;
         }
         gpu.updateBuffer(resources.palette, 0,
-                         static_cast<u64>(paletteCount) * sizeof(glm::mat4), palette.data());
+                         static_cast<u64>(paletteCount) * sizeof(Math::mat4), palette.data());
         gpu.updateBuffer(resources.previousPalette, 0,
-                         static_cast<u64>(previousPaletteCount) * sizeof(glm::mat4), previous.data());
+                         static_cast<u64>(previousPaletteCount) * sizeof(Math::mat4), previous.data());
         return true;
     }
 
@@ -341,20 +341,20 @@ private:
         uniforms.previousViewProjectionNoJitter = frame.prevViewProjectionNoJitter;
         uniforms.model = command.model;
         uniforms.previousModel = command.previousModel;
-        uniforms.colorRoughness = glm::vec4(command.color, command.roughness);
-        uniforms.cameraTime = glm::vec4(frame.cameraPosition, frame.time);
-        uniforms.cameraUp = glm::vec4(frame.view[0][1], frame.view[1][1], frame.view[2][1], 0.0f);
+        uniforms.colorRoughness = Math::vec4(command.color, command.roughness);
+        uniforms.cameraTime = Math::vec4(frame.cameraPosition, frame.time);
+        uniforms.cameraUp = Math::vec4(frame.view[0][1], frame.view[1][1], frame.view[2][1], 0.0f);
         const EnvironmentBlock environment = environmentForFrame(frame);
-        uniforms.lightDirectionWind = glm::vec4(glm::vec3(environment.sunDirection), command.wind);
-        uniforms.lightColorGravity = glm::vec4(glm::vec3(environment.sunColor), command.gravity);
-        uniforms.ambientDeltaTime = glm::vec4(glm::vec3(environment.ambient), command.deltaTime);
-        uniforms.physics = glm::vec4(command.stiffness, command.drag, command.drawDistance,
+        uniforms.lightDirectionWind = Math::vec4(Math::vec3(environment.sunDirection), command.wind);
+        uniforms.lightColorGravity = Math::vec4(Math::vec3(environment.sunColor), command.gravity);
+        uniforms.ambientDeltaTime = Math::vec4(Math::vec3(environment.ambient), command.deltaTime);
+        uniforms.physics = Math::vec4(command.stiffness, command.drag, command.drawDistance,
                                      command.alphaCut);
-        uniforms.appearance = glm::vec4(command.specularStrength, command.specularTint,
+        uniforms.appearance = Math::vec4(command.specularStrength, command.specularTint,
                                         command.transmission, 0.0f);
-        uniforms.counts = glm::ivec4(command.rootCount, command.segments, command.followers,
-                                     glm::min(command.colliderCount, kHairMaxColliders));
-        uniforms.state = glm::ivec4(reset ? 1 : 0, paletteCount, previousPaletteCount, 0);
+        uniforms.counts = Math::ivec4(command.rootCount, command.segments, command.followers,
+                                     Math::min(command.colliderCount, kHairMaxColliders));
+        uniforms.state = Math::ivec4(reset ? 1 : 0, paletteCount, previousPaletteCount, 0);
         for (u32 i = 0; i < static_cast<u32>(uniforms.counts.w); ++i)
             uniforms.colliders[i] = command.colliders[i];
 

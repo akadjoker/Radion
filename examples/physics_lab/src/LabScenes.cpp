@@ -41,8 +41,8 @@ namespace
 // Every body in here is a primitive, and the visual is built to match the
 // collider rather than loaded - so anything that looks wrong is the physics
 // and not an asset.
-GameObject* makeBox(Scene& scene, const char* name, const glm::vec3& position,
-                    const glm::vec3& halfExtents, f32 mass)
+GameObject* makeBox(Scene& scene, const char* name, const Math::vec3& position,
+                    const Math::vec3& halfExtents, f32 mass)
 {
     GameObject* object = scene.createGameObject(name);
     object->setPosition(position);
@@ -61,7 +61,7 @@ GameObject* makeBox(Scene& scene, const char* name, const glm::vec3& position,
     return object;
 }
 
-GameObject* makeSphere(Scene& scene, const char* name, const glm::vec3& position, f32 radius,
+GameObject* makeSphere(Scene& scene, const char* name, const Math::vec3& position, f32 radius,
                        f32 mass)
 {
     GameObject* object = scene.createGameObject(name);
@@ -81,14 +81,14 @@ GameObject* makeSphere(Scene& scene, const char* name, const glm::vec3& position
     return object;
 }
 
-void addGroundAndSky(Scene& scene, const glm::vec3& cameraPosition, const glm::vec3& lookAt)
+void addGroundAndSky(Scene& scene, const Math::vec3& cameraPosition, const Math::vec3& lookAt)
 {
     GameObject* ground = scene.createGameObject("Ground");
-    ground->setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
+    ground->setPosition(Math::vec3(0.0f, -0.5f, 0.0f));
     if (MeshRenderer* renderer = ground->addComponent<MeshRenderer>())
-        renderer->setMesh(Assets().createMesh(MeshDesc::box(glm::vec3(120.0f, 1.0f, 120.0f))));
+        renderer->setMesh(Assets().createMesh(MeshDesc::box(Math::vec3(120.0f, 1.0f, 120.0f))));
     Physics::RigidBody* groundBody = ground->addComponent<Physics::RigidBody>();
-    groundBody->setBox(glm::vec3(60.0f, 0.5f, 60.0f));
+    groundBody->setBox(Math::vec3(60.0f, 0.5f, 60.0f));
     groundBody->setBodyType(Physics::BodyType::Static);
     groundBody->setFriction(0.9f);
 
@@ -103,10 +103,10 @@ void addGroundAndSky(Scene& scene, const glm::vec3& cameraPosition, const glm::v
 
     GameObject* sunObject = scene.createGameObject("Sun");
     DirectionalLight* sun = sunObject->addComponent<DirectionalLight>();
-    sun->setColor(glm::vec3(1.0f, 0.96f, 0.9f));
+    sun->setColor(Math::vec3(1.0f, 0.96f, 0.9f));
     sun->setIntensity(1.2f);
-    sunObject->setPosition(glm::vec3(-20.0f, 30.0f, -20.0f));
-    sunObject->lookAt(glm::vec3(0.0f));
+    sunObject->setPosition(Math::vec3(-20.0f, 30.0f, -20.0f));
+    sunObject->lookAt(Math::vec3(0.0f));
     scene.setSunLight(sun);
 }
 
@@ -114,107 +114,107 @@ void addGroundAndSky(Scene& scene, const glm::vec3& cameraPosition, const glm::v
 
 void buildJointGallery(Scene& scene)
 {
-    addGroundAndSky(scene, glm::vec3(0.0f, 8.0f, 22.0f), glm::vec3(0.0f, 3.0f, 0.0f));
+    addGroundAndSky(scene, Math::vec3(0.0f, 8.0f, 22.0f), Math::vec3(0.0f, 3.0f, 0.0f));
 
     // A door on a hinge, with stops: swings, and cannot pass its frame.
-    GameObject* frame = makeBox(scene, "DoorFrame", glm::vec3(-12.0f, 3.0f, 0.0f),
-                                glm::vec3(0.15f, 1.5f, 0.15f), 0.0f);
-    GameObject* door = makeBox(scene, "Door", glm::vec3(-11.0f, 3.0f, 0.0f),
-                               glm::vec3(0.9f, 1.4f, 0.08f), 12.0f);
+    GameObject* frame = makeBox(scene, "DoorFrame", Math::vec3(-12.0f, 3.0f, 0.0f),
+                                Math::vec3(0.15f, 1.5f, 0.15f), 0.0f);
+    GameObject* door = makeBox(scene, "Door", Math::vec3(-11.0f, 3.0f, 0.0f),
+                               Math::vec3(0.9f, 1.4f, 0.08f), 12.0f);
     HingeJoint* hinge = door->addComponent<HingeJoint>();
     hinge->setConnectedBody(frame);
-    hinge->setAuthoredAxis(glm::vec3(0.0f, 1.0f, 0.0f));
-    hinge->setLimits(0.0f, glm::radians(110.0f));
+    hinge->setAuthoredAxis(Math::vec3(0.0f, 1.0f, 0.0f));
+    hinge->setLimits(0.0f, Math::radians(110.0f));
 
     // A lift on a slider, held at a floor by a servo.
-    GameObject* shaft = makeBox(scene, "LiftShaft", glm::vec3(-7.0f, 0.2f, 0.0f),
-                                glm::vec3(0.2f, 0.2f, 0.2f), 0.0f);
-    GameObject* platform = makeBox(scene, "LiftPlatform", glm::vec3(-7.0f, 0.6f, 0.0f),
-                                   glm::vec3(1.2f, 0.1f, 1.2f), 60.0f);
+    GameObject* shaft = makeBox(scene, "LiftShaft", Math::vec3(-7.0f, 0.2f, 0.0f),
+                                Math::vec3(0.2f, 0.2f, 0.2f), 0.0f);
+    GameObject* platform = makeBox(scene, "LiftPlatform", Math::vec3(-7.0f, 0.6f, 0.0f),
+                                   Math::vec3(1.2f, 0.1f, 1.2f), 60.0f);
     SliderJoint* lift = platform->addComponent<SliderJoint>();
     lift->setConnectedBody(shaft);
-    lift->setAuthoredAxis(glm::vec3(0.0f, 1.0f, 0.0f));
+    lift->setAuthoredAxis(Math::vec3(0.0f, 1.0f, 0.0f));
     lift->setLimits(0.0f, 6.0f);
     lift->setServo(4.0f, 40000.0f, 1.2f);
     // Something to carry, so the servo has real work to do.
-    makeBox(scene, "LiftCargo", glm::vec3(-7.0f, 1.2f, 0.0f), glm::vec3(0.4f, 0.4f, 0.4f), 40.0f);
+    makeBox(scene, "LiftCargo", Math::vec3(-7.0f, 1.2f, 0.0f), Math::vec3(0.4f, 0.4f, 0.4f), 40.0f);
 
     // A pendulum on a ball joint: free in every direction.
-    GameObject* pivot = makeBox(scene, "PendulumPivot", glm::vec3(-2.5f, 6.0f, 0.0f),
-                                glm::vec3(0.15f), 0.0f);
+    GameObject* pivot = makeBox(scene, "PendulumPivot", Math::vec3(-2.5f, 6.0f, 0.0f),
+                                Math::vec3(0.15f), 0.0f);
     GameObject* bob =
-        makeSphere(scene, "PendulumBob", glm::vec3(-1.0f, 4.5f, 0.0f), 0.45f, 15.0f);
+        makeSphere(scene, "PendulumBob", Math::vec3(-1.0f, 4.5f, 0.0f), 0.45f, 15.0f);
     PointJoint* ball = bob->addComponent<PointJoint>();
     ball->setConnectedBody(pivot);
 
     // A crane cable: a distance joint holding a load that swings.
     GameObject* boom =
-        makeBox(scene, "CraneBoom", glm::vec3(2.5f, 6.5f, 0.0f), glm::vec3(0.2f), 0.0f);
-    GameObject* load = makeBox(scene, "CraneLoad", glm::vec3(2.5f, 3.0f, 0.0f),
-                               glm::vec3(0.5f, 0.5f, 0.5f), 80.0f);
+        makeBox(scene, "CraneBoom", Math::vec3(2.5f, 6.5f, 0.0f), Math::vec3(0.2f), 0.0f);
+    GameObject* load = makeBox(scene, "CraneLoad", Math::vec3(2.5f, 3.0f, 0.0f),
+                               Math::vec3(0.5f, 0.5f, 0.5f), 80.0f);
     DistanceJoint* cable = load->addComponent<DistanceJoint>();
     cable->setConnectedBody(boom);
     cable->setAuthoredDistance(3.0f, 3.5f);
 
     // A piston: slides and spins on the same axis.
-    GameObject* rail = makeBox(scene, "PistonRail", glm::vec3(7.0f, 3.0f, 0.0f),
-                               glm::vec3(0.2f), 0.0f);
-    GameObject* rod = makeBox(scene, "PistonRod", glm::vec3(7.0f, 3.0f, 0.0f),
-                              glm::vec3(0.25f, 0.25f, 1.0f), 20.0f);
+    GameObject* rail = makeBox(scene, "PistonRail", Math::vec3(7.0f, 3.0f, 0.0f),
+                               Math::vec3(0.2f), 0.0f);
+    GameObject* rod = makeBox(scene, "PistonRod", Math::vec3(7.0f, 3.0f, 0.0f),
+                              Math::vec3(0.25f, 0.25f, 1.0f), 20.0f);
     PistonJoint* piston = rod->addComponent<PistonJoint>();
     piston->setConnectedBody(rail);
-    piston->setAuthoredAxis(glm::vec3(0.0f, 0.0f, 1.0f));
+    piston->setAuthoredAxis(Math::vec3(0.0f, 0.0f, 1.0f));
     piston->setLinearLimits(-1.5f, 1.5f);
     piston->setLinearMotor(1.5f, 4000.0f);
 
     // A universal joint: two axes, like a hip.
     GameObject* yoke =
-        makeBox(scene, "UniversalYoke", glm::vec3(11.0f, 4.0f, 0.0f), glm::vec3(0.2f), 0.0f);
-    GameObject* shaftBody = makeBox(scene, "UniversalShaft", glm::vec3(11.0f, 3.0f, 0.0f),
-                                    glm::vec3(0.18f, 1.0f, 0.18f), 10.0f);
+        makeBox(scene, "UniversalYoke", Math::vec3(11.0f, 4.0f, 0.0f), Math::vec3(0.2f), 0.0f);
+    GameObject* shaftBody = makeBox(scene, "UniversalShaft", Math::vec3(11.0f, 3.0f, 0.0f),
+                                    Math::vec3(0.18f, 1.0f, 0.18f), 10.0f);
     UniversalJoint* universal = shaftBody->addComponent<UniversalJoint>();
     universal->setConnectedBody(yoke);
-    universal->setAuthoredAxis(glm::vec3(1.0f, 0.0f, 0.0f));
+    universal->setAuthoredAxis(Math::vec3(1.0f, 0.0f, 0.0f));
 
     // A stack, to watch contacts settle and sleep.
     for (u32 i = 0; i < 6; ++i)
-        makeBox(scene, "StackBox", glm::vec3(15.0f, 0.35f + static_cast<f32>(i) * 0.72f, 0.0f),
-                glm::vec3(0.35f), 8.0f);
+        makeBox(scene, "StackBox", Math::vec3(15.0f, 0.35f + static_cast<f32>(i) * 0.72f, 0.0f),
+                Math::vec3(0.35f), 8.0f);
 }
 
 // ---------------------------------------------------------------- robot arm
 
 void buildRobotArm(Scene& scene)
 {
-    addGroundAndSky(scene, glm::vec3(6.0f, 4.0f, 8.0f), glm::vec3(0.0f, 2.0f, 0.0f));
+    addGroundAndSky(scene, Math::vec3(6.0f, 4.0f, 8.0f), Math::vec3(0.0f, 2.0f, 0.0f));
 
-    GameObject* base = makeBox(scene, "ArmBase", glm::vec3(0.0f, 0.3f, 0.0f),
-                               glm::vec3(0.6f, 0.3f, 0.6f), 0.0f);
+    GameObject* base = makeBox(scene, "ArmBase", Math::vec3(0.0f, 0.3f, 0.0f),
+                               Math::vec3(0.6f, 0.3f, 0.6f), 0.0f);
 
     // Axis 1: the whole arm turns about vertical.
-    GameObject* column = makeBox(scene, "ArmColumn", glm::vec3(0.0f, 1.0f, 0.0f),
-                                 glm::vec3(0.25f, 0.5f, 0.25f), 30.0f);
+    GameObject* column = makeBox(scene, "ArmColumn", Math::vec3(0.0f, 1.0f, 0.0f),
+                                 Math::vec3(0.25f, 0.5f, 0.25f), 30.0f);
     HingeJoint* axis1 = column->addComponent<HingeJoint>();
     axis1->setConnectedBody(base);
-    axis1->setAuthoredAxis(glm::vec3(0.0f, 1.0f, 0.0f));
+    axis1->setAuthoredAxis(Math::vec3(0.0f, 1.0f, 0.0f));
     axis1->setServo(0.0f, 6000.0f, 1.2f);
 
     // Axis 2: the shoulder.
-    GameObject* upperArm = makeBox(scene, "ArmUpper", glm::vec3(0.0f, 2.0f, 0.0f),
-                                   glm::vec3(0.18f, 0.7f, 0.18f), 18.0f);
+    GameObject* upperArm = makeBox(scene, "ArmUpper", Math::vec3(0.0f, 2.0f, 0.0f),
+                                   Math::vec3(0.18f, 0.7f, 0.18f), 18.0f);
     HingeJoint* axis2 = upperArm->addComponent<HingeJoint>();
     axis2->setConnectedBody(column);
-    axis2->setAuthoredAxis(glm::vec3(0.0f, 0.0f, 1.0f));
-    axis2->setLimits(glm::radians(-60.0f), glm::radians(90.0f));
+    axis2->setAuthoredAxis(Math::vec3(0.0f, 0.0f, 1.0f));
+    axis2->setLimits(Math::radians(-60.0f), Math::radians(90.0f));
     axis2->setServo(0.0f, 6000.0f, 1.5f);
 
     // Axis 3: the elbow.
-    GameObject* foreArm = makeBox(scene, "ArmFore", glm::vec3(0.0f, 3.2f, 0.0f),
-                                  glm::vec3(0.15f, 0.6f, 0.15f), 10.0f);
+    GameObject* foreArm = makeBox(scene, "ArmFore", Math::vec3(0.0f, 3.2f, 0.0f),
+                                  Math::vec3(0.15f, 0.6f, 0.15f), 10.0f);
     HingeJoint* axis3 = foreArm->addComponent<HingeJoint>();
     axis3->setConnectedBody(upperArm);
-    axis3->setAuthoredAxis(glm::vec3(0.0f, 0.0f, 1.0f));
-    axis3->setLimits(0.0f, glm::radians(150.0f));
+    axis3->setAuthoredAxis(Math::vec3(0.0f, 0.0f, 1.0f));
+    axis3->setLimits(0.0f, Math::radians(150.0f));
     axis3->setServo(0.0f, 4000.0f, 1.5f);
 
     // Two fingers on sliders: the gripper.
@@ -223,29 +223,29 @@ void buildRobotArm(Scene& scene)
         const f32 sign = side == 0 ? -1.0f : 1.0f;
         GameObject* finger =
             makeBox(scene, side == 0 ? "GripperLeft" : "GripperRight",
-                    glm::vec3(sign * 0.12f, 3.95f, 0.0f), glm::vec3(0.05f, 0.18f, 0.05f), 1.0f);
+                    Math::vec3(sign * 0.12f, 3.95f, 0.0f), Math::vec3(0.05f, 0.18f, 0.05f), 1.0f);
         SliderJoint* slide = finger->addComponent<SliderJoint>();
         slide->setConnectedBody(foreArm);
-        slide->setAuthoredAxis(glm::vec3(sign, 0.0f, 0.0f));
+        slide->setAuthoredAxis(Math::vec3(sign, 0.0f, 0.0f));
         slide->setLimits(0.0f, 0.25f);
         slide->setServo(0.2f, 400.0f, 0.4f);
     }
 
     // Something to reach for.
-    makeBox(scene, "WorkPiece", glm::vec3(1.4f, 0.2f, 0.0f), glm::vec3(0.12f, 0.12f, 0.12f), 1.5f);
+    makeBox(scene, "WorkPiece", Math::vec3(1.4f, 0.2f, 0.0f), Math::vec3(0.12f, 0.12f, 0.12f), 1.5f);
 }
 
 // ------------------------------------------------------------------ vehicle
 
 void buildVehicle(Scene& scene)
 {
-    addGroundAndSky(scene, glm::vec3(8.0f, 4.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    addGroundAndSky(scene, Math::vec3(8.0f, 4.0f, 10.0f), Math::vec3(0.0f, 1.0f, 0.0f));
 
-    GameObject* chassis = makeBox(scene, "Chassis", glm::vec3(0.0f, 1.2f, 0.0f),
-                                  glm::vec3(0.9f, 0.35f, 1.9f), 1200.0f);
+    GameObject* chassis = makeBox(scene, "Chassis", Math::vec3(0.0f, 1.2f, 0.0f),
+                                  Math::vec3(0.9f, 0.35f, 1.9f), 1200.0f);
 
-    const glm::vec3 corners[4] = {glm::vec3(-0.95f, 0.75f, 1.4f), glm::vec3(0.95f, 0.75f, 1.4f),
-                                  glm::vec3(-0.95f, 0.75f, -1.4f), glm::vec3(0.95f, 0.75f, -1.4f)};
+    const Math::vec3 corners[4] = {Math::vec3(-0.95f, 0.75f, 1.4f), Math::vec3(0.95f, 0.75f, 1.4f),
+                                  Math::vec3(-0.95f, 0.75f, -1.4f), Math::vec3(0.95f, 0.75f, -1.4f)};
     const bool isFront[4] = {true, true, false, false};
     const char* names[4] = {"WheelFL", "WheelFR", "WheelRL", "WheelRR"};
 
@@ -254,15 +254,15 @@ void buildVehicle(Scene& scene)
         GameObject* wheel = makeSphere(scene, names[i], corners[i], 0.35f, 20.0f);
         WheelJoint* joint = wheel->addComponent<WheelJoint>();
         joint->setConnectedBody(chassis);
-        joint->setAuthoredSuspensionAxis(glm::vec3(0.0f, -1.0f, 0.0f));
-        joint->setAuthoredSpinAxis(glm::vec3(1.0f, 0.0f, 0.0f));
+        joint->setAuthoredSuspensionAxis(Math::vec3(0.0f, -1.0f, 0.0f));
+        joint->setAuthoredSpinAxis(Math::vec3(1.0f, 0.0f, 0.0f));
         // 300 kg a corner settling 20 cm is about 15 kN/m; damping a tenth
         // of that. Stable at any stiffness now that the spring is solved in
         // the constraint rather than pushed in as a force.
         joint->setSuspension(0.45f, 15000.0f, 1500.0f);
         if (isFront[i])
         {
-            joint->setSteeringLimits(glm::radians(-35.0f), glm::radians(35.0f));
+            joint->setSteeringLimits(Math::radians(-35.0f), Math::radians(35.0f));
             joint->setSteeringServo(0.0f, 900.0f, 4.0f);
         }
         else
@@ -271,26 +271,26 @@ void buildVehicle(Scene& scene)
     }
 
     // A ramp and a few obstacles, so the suspension has something to do.
-    GameObject* ramp = makeBox(scene, "Ramp", glm::vec3(0.0f, 0.35f, -14.0f),
-                               glm::vec3(4.0f, 0.2f, 3.0f), 0.0f);
-    ramp->setRotation(glm::angleAxis(glm::radians(-12.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
+    GameObject* ramp = makeBox(scene, "Ramp", Math::vec3(0.0f, 0.35f, -14.0f),
+                               Math::vec3(4.0f, 0.2f, 3.0f), 0.0f);
+    ramp->setRotation(Math::angleAxis(Math::radians(-12.0f), Math::vec3(1.0f, 0.0f, 0.0f)));
     for (u32 i = 0; i < 5; ++i)
         makeBox(scene, "Kerb",
-                glm::vec3(-6.0f + static_cast<f32>(i) * 3.0f, 0.15f, -6.0f),
-                glm::vec3(0.6f, 0.15f, 0.6f), 0.0f);
+                Math::vec3(-6.0f + static_cast<f32>(i) * 3.0f, 0.15f, -6.0f),
+                Math::vec3(0.6f, 0.15f, 0.6f), 0.0f);
 }
 
 // -------------------------------------------------------------- agent crowd
 
 void buildAgentCrowd(Scene& scene)
 {
-    addGroundAndSky(scene, glm::vec3(0.0f, 26.0f, 26.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+    addGroundAndSky(scene, Math::vec3(0.0f, 26.0f, 26.0f), Math::vec3(0.0f, 0.0f, 0.0f));
 
     // Pillars to walk around, each one an Obstacle the avoidance reads from
     // the scene - no group assembled by hand.
-    const glm::vec3 pillars[5] = {glm::vec3(0.0f, 1.5f, 0.0f), glm::vec3(6.0f, 1.5f, -4.0f),
-                                  glm::vec3(-6.0f, 1.5f, -4.0f), glm::vec3(4.0f, 1.5f, 6.0f),
-                                  glm::vec3(-4.0f, 1.5f, 6.0f)};
+    const Math::vec3 pillars[5] = {Math::vec3(0.0f, 1.5f, 0.0f), Math::vec3(6.0f, 1.5f, -4.0f),
+                                  Math::vec3(-6.0f, 1.5f, -4.0f), Math::vec3(4.0f, 1.5f, 6.0f),
+                                  Math::vec3(-4.0f, 1.5f, 6.0f)};
     for (u32 i = 0; i < 5; ++i)
     {
         GameObject* pillar = scene.createGameObject("Pillar");
@@ -303,9 +303,9 @@ void buildAgentCrowd(Scene& scene)
 
     // The goal every agent walks toward.
     GameObject* goal = scene.createGameObject("Goal");
-    goal->setPosition(glm::vec3(0.0f, 0.5f, -16.0f));
+    goal->setPosition(Math::vec3(0.0f, 0.5f, -16.0f));
     if (MeshRenderer* renderer = goal->addComponent<MeshRenderer>())
-        renderer->setMesh(Assets().createMesh(MeshDesc::box(glm::vec3(1.0f, 1.0f, 1.0f))));
+        renderer->setMesh(Assets().createMesh(MeshDesc::box(Math::vec3(1.0f, 1.0f, 1.0f))));
 
     Agent::Settings settings;
     settings.type = 1;
@@ -320,7 +320,7 @@ void buildAgentCrowd(Scene& scene)
         const f32 lane = static_cast<f32>(i % 6) * 2.2f - 5.5f;
         const f32 row = static_cast<f32>(i / 6) * 2.0f;
         GameObject* object = scene.createGameObject("Agent");
-        object->setPosition(glm::vec3(lane, 0.4f, 14.0f + row));
+        object->setPosition(Math::vec3(lane, 0.4f, 14.0f + row));
         if (MeshRenderer* renderer = object->addComponent<MeshRenderer>())
             renderer->setMesh(Assets().createMesh(MeshDesc::capsule(0.35f, 1.2f, 8, 12)));
 
@@ -328,12 +328,12 @@ void buildAgentCrowd(Scene& scene)
         agent->applySettings(settings);
         agent->setGroupId(1);
         agent->setPosition(object->position());
-        agent->setGoal(glm::vec3(0.0f, 0.4f, -16.0f));
+        agent->setGoal(Math::vec3(0.0f, 0.4f, -16.0f));
         agent->setGoalRadius(1.5f);
         // Separation keeps them out of each other; obstacle avoidance reads
         // the scene's own obstacle list.
         agent->addBehavior<AI::SeparationBehavior>(1.6f, 0.2f, 1.0f);
-        agent->addBehavior<AI::SeekBehavior>(glm::vec3(0.0f, 0.4f, -16.0f));
+        agent->addBehavior<AI::SeekBehavior>(Math::vec3(0.0f, 0.4f, -16.0f));
         agent->addBehavior<AI::ObstacleAvoidanceBehavior>(2.5f);
     }
 }
@@ -381,11 +381,11 @@ void updateScene(Scene& scene, LabScene which, f32 elapsed)
                 axis->setServo(std::sin(elapsed * 0.5f) * 1.2f, 6000.0f, 1.2f);
         if (upper)
             if (HingeJoint* axis = upper->getComponent<HingeJoint>())
-                axis->setServo(glm::radians(30.0f) + std::sin(elapsed * 0.7f) * 0.5f, 6000.0f,
+                axis->setServo(Math::radians(30.0f) + std::sin(elapsed * 0.7f) * 0.5f, 6000.0f,
                                1.5f);
         if (fore)
             if (HingeJoint* axis = fore->getComponent<HingeJoint>())
-                axis->setServo(glm::radians(60.0f) + std::sin(elapsed * 0.9f) * 0.6f, 4000.0f,
+                axis->setServo(Math::radians(60.0f) + std::sin(elapsed * 0.9f) * 0.6f, 4000.0f,
                                1.5f);
 
         const f32 opening = 0.05f + (std::sin(elapsed * 1.3f) * 0.5f + 0.5f) * 0.18f;
@@ -399,7 +399,7 @@ void updateScene(Scene& scene, LabScene which, f32 elapsed)
     {
         // Gentle throttle with the wheel weaving, which is what makes the
         // suspension and the steering servo visible.
-        const f32 steer = std::sin(elapsed * 0.4f) * glm::radians(22.0f);
+        const f32 steer = std::sin(elapsed * 0.4f) * Math::radians(22.0f);
         const char* front[2] = {"WheelFL", "WheelFR"};
         for (const char* name : front)
             if (GameObject* wheel = scene.findGameObject(name))
