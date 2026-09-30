@@ -93,3 +93,5 @@ ver [doc/API.md](doc/API.md). File > Export também tem "glTF Binary (.glb)".
 ---
 
 **Status**: Estrutura base pronta. Aguardando implementação do Mini Renderer.
+
+**Chat com LLM**: `client/` (Python + Qt) — ver `client/README.md`.
