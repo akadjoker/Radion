@@ -117,6 +117,16 @@ bool BlenderSettings::load(const std::string& path)
         readBool(*animation, "autoLoop", mAnimation.autoLoop);
     }
 
+    const auto api = root.find("api");
+    if (api != root.end() && api->is_object())
+    {
+        readBool(*api, "enabled", mApi.enabled);
+        const auto port = api->find("port");
+        if (port != api->end() && port->is_number_integer() && port->get<int>() >= 1 &&
+            port->get<int>() <= 65535)
+            mApi.port = port->get<int>();
+    }
+
     const auto general = root.find("general");
     if (general != root.end() && general->is_object())
     {
@@ -183,6 +193,11 @@ bool BlenderSettings::save(const std::string& path)
     animation["playbackSpeed"] = mAnimation.playbackSpeed;
     animation["autoLoop"] = mAnimation.autoLoop;
     root["animation"] = animation;
+
+    nlohmann::json api;
+    api["enabled"] = mApi.enabled;
+    api["port"] = mApi.port;
+    root["api"] = api;
 
     nlohmann::json general;
     general["lastOpenedMesh"] = mGeneral.lastOpenedMesh;

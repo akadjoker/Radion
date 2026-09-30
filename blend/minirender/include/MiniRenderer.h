@@ -19,7 +19,10 @@ constexpr u32 kMiniRendererMaxBones = 128;
 struct MiniRendererConfig
 {
     f32 lightIntensity = 1.0f;
-    glm::vec3 lightDirection = glm::normalize(glm::vec3(0.5f, 1.0f, 0.5f));
+    // The direction the light travels - the shader lights a surface by its
+    // dot with the opposite. Down and a little across, so the tops of things are
+    // the lit side; the old (+Y) value lit a model from underneath.
+    glm::vec3 lightDirection = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.5f));
     glm::vec3 ambientColor = glm::vec3(0.3f, 0.3f, 0.3f);
     f32 ambientIntensity = 0.3f;
 };

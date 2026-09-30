@@ -547,37 +547,7 @@ void ViewportPanel::computeMatrices(const CameraState& camera, ViewMode mode, f3
                                     glm::mat4& view, glm::mat4& projection,
                                     glm::vec3& cameraPos) const
 {
-    constexpr f32 kNear = 0.05f;
-    constexpr f32 kFar = 1000.0f;
-
-    if (mode == ViewMode::Perspective)
-    {
-        const glm::vec3 forward(glm::sin(camera.yaw) * glm::cos(camera.pitch),
-                                glm::sin(camera.pitch),
-                                -glm::cos(camera.yaw) * glm::cos(camera.pitch));
-        cameraPos = camera.target - forward * camera.distance;
-        view = glm::lookAt(cameraPos, camera.target, glm::vec3(0.0f, 1.0f, 0.0f));
-        projection = glm::perspective(glm::radians(60.0f), aspect, kNear, kFar);
-        return;
-    }
-
-    glm::vec3 offset(0.0f);
-    glm::vec3 up(0.0f, 1.0f, 0.0f);
-    switch (mode)
-    {
-    case ViewMode::Top: offset = glm::vec3(0.0f, camera.distance, 0.0f); up = glm::vec3(0.0f, 0.0f, -1.0f); break;
-    case ViewMode::Bottom: offset = glm::vec3(0.0f, -camera.distance, 0.0f); up = glm::vec3(0.0f, 0.0f, 1.0f); break;
-    case ViewMode::Front: offset = glm::vec3(0.0f, 0.0f, camera.distance); break;
-    case ViewMode::Back: offset = glm::vec3(0.0f, 0.0f, -camera.distance); break;
-    case ViewMode::Left: offset = glm::vec3(-camera.distance, 0.0f, 0.0f); break;
-    case ViewMode::Right: offset = glm::vec3(camera.distance, 0.0f, 0.0f); break;
-    default: break;
-    }
-    cameraPos = camera.target + offset;
-    view = glm::lookAt(cameraPos, camera.target, up);
-    const f32 halfHeight = camera.distance * 0.5f;
-    const f32 halfWidth = halfHeight * aspect;
-    projection = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, kNear, kFar);
+    computeCameraMatrices(camera, mode, aspect, view, projection, cameraPos);
 }
 
 void ViewportPanel::drawViewportWindow(usize index, const char* name, ViewMode mode)

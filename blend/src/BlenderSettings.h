@@ -69,6 +69,24 @@ public:
         std::vector<std::string> recentFiles;
     };
 
+    // The local HTTP API. `enabled` starts it with the editor; the secret is
+    // deliberately not kept here - it comes from the command line or the
+    // environment, so it never lands in a file.
+    struct ApiSettings
+    {
+        bool enabled = false;
+        int port = 7420;
+    };
+
+    ApiSettings& api()
+    {
+        return mApi;
+    }
+    const ApiSettings& api() const
+    {
+        return mApi;
+    }
+
     ViewportSettings& viewport()
     {
         return mViewport;
@@ -111,6 +129,7 @@ private:
     ViewportSettings mViewport;
     AnimationSettings mAnimation;
     GeneralSettings mGeneral;
+    ApiSettings mApi;
 };
 
 } // namespace Radion

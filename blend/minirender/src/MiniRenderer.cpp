@@ -99,6 +99,10 @@ uniform vec3 uCameraPos;
 uniform int uShadingMode; // 0 = solid (N.L only), 1 = textured (full PBR)
 uniform float uAlpha;
 uniform vec3 uTint;
+// Scalars the material contributes where it has no map for them (x = roughness,
+// y = metallic). A map, when there is one, already says everything, so the
+// factor is 1 there and imported textured assets look as they always did.
+uniform vec2 uSurfaceFactor;
 
 uniform bool uPointPass; // the GL_POINTS overlay: flat colour, selection aware
 uniform vec3 uPointColor;
@@ -177,8 +181,8 @@ void main()
     else
     {
         vec3 albedo = pow(texture(uAlbedoMap, fs_in.texCoord).rgb, vec3(2.2)) * uTint;
-        float roughness = clamp(texture(uRoughnessMap, fs_in.texCoord).r, 0.05, 1.0);
-        float metallic = texture(uMetallicMap, fs_in.texCoord).r;
+        float roughness = clamp(texture(uRoughnessMap, fs_in.texCoord).r * uSurfaceFactor.x, 0.05, 1.0);
+        float metallic = texture(uMetallicMap, fs_in.texCoord).r * uSurfaceFactor.y;
 
         vec3 normalSample = texture(uNormalMap, fs_in.texCoord).rgb * 2.0 - 1.0;
         vec3 N = normalize(fs_in.TBN * normalSample);
@@ -259,6 +263,27 @@ void bindMaterialTextures(const Material* material, GLuint whiteTexture, GLuint 
     glBindTexture(GL_TEXTURE_2D, resolveSlotTexture(material, SlotSurface, whiteTexture));
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, resolveSlotTexture(material, SlotEmissive, whiteTexture));
+}
+
+// Base colour factor of a submesh's material. The glTF/PBR rule: it multiplies
+// the albedo texture, and alone it is the colour of an untextured surface - so
+// a procedurally built part with only a colour set shows that colour instead of
+// the default white.
+glm::vec3 baseColorFactor(const Material* material)
+{
+    return material ? glm::vec3(material->params.baseColor) : glm::vec3(1.0f);
+}
+
+// Roughness/metallic scalars for the slots that have no texture behind them;
+// 1 where a texture decides. A submesh with no material at all is a plain matte
+// surface - not the fully metallic black a white "metallic map" would make it.
+glm::vec2 surfaceFactor(const Material* material)
+{
+    static const Material kDefault;
+    const Material& source = material ? *material : kDefault;
+    const f32 roughness = source.textures[SlotSurface].texture.valid() ? 1.0f : source.params.surface.x;
+    const f32 metallic = source.textures[SlotEmissive].texture.valid() ? 1.0f : source.params.surface.y;
+    return glm::vec2(roughness, metallic);
 }
 
 const Material* materialForSubmesh(const MeshData& mesh, u32 submeshIndex)
@@ -562,7 +587,15 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
     const int shadingMode = params.mode == MiniRenderMode::Textured ? 1 : 0;
     glUniform1i(glGetUniformLocation(mShaderProgram, "uShadingMode"), shadingMode);
     glUniform1f(glGetUniformLocation(mShaderProgram, "uAlpha"), effectiveAlpha);
-    glUniform3fv(glGetUniformLocation(mShaderProgram, "uTint"), 1, glm::value_ptr(params.tint));
+    // Only the textured look reads material colour; solid stays the neutral
+    // modelling view it has always been.
+    const bool useMaterialColor = shadingMode == 1;
+    const glm::vec3 firstTint =
+        useMaterialColor ? params.tint * baseColorFactor(materialForSubmesh(*mesh, 0)) : params.tint;
+    glUniform3fv(glGetUniformLocation(mShaderProgram, "uTint"), 1, glm::value_ptr(firstTint));
+    const GLint surfaceLocation = glGetUniformLocation(mShaderProgram, "uSurfaceFactor");
+    const glm::vec2 firstSurface = useMaterialColor ? surfaceFactor(materialForSubmesh(*mesh, 0)) : glm::vec2(1.0f);
+    glUniform2fv(surfaceLocation, 1, glm::value_ptr(firstSurface));
     glUniform1i(glGetUniformLocation(mShaderProgram, "uDebugView"), static_cast<int>(params.debugView));
     glUniform1i(glGetUniformLocation(mShaderProgram, "uFacetedShading"), params.facetedShading ? 1 : 0);
     glUniform1i(glGetUniformLocation(mShaderProgram, "uUnlit"), params.unlit ? 1 : 0);
@@ -613,7 +646,13 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
             const SubMesh& submesh = mesh->submeshes[i];
             if (texturedPerSubmesh)
                 bindMaterialTextures(materialForSubmesh(*mesh, i), mWhiteTexture, mFlatNormalTexture);
-            const glm::vec3 tint = colorPerSubmesh ? params.tint * colorForSubmesh(i) : params.tint;
+            glm::vec3 tint = colorPerSubmesh ? params.tint * colorForSubmesh(i) : params.tint;
+            if (useMaterialColor)
+            {
+                const Material* material = materialForSubmesh(*mesh, i);
+                tint *= baseColorFactor(material);
+                glUniform2fv(surfaceLocation, 1, glm::value_ptr(surfaceFactor(material)));
+            }
             glUniform3fv(tintLocation, 1, glm::value_ptr(tint));
             glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(submesh.indexCount), GL_UNSIGNED_INT,
                           reinterpret_cast<const void*>(static_cast<uintptr_t>(submesh.indexOffset) *

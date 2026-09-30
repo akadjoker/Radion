@@ -3,6 +3,7 @@
 
 #include "../BlenderPanel.h"
 #include "MiniRenderer.h"
+#include "ViewportCamera.h"
 #include "Types.h"
 
 #include <glm/mat4x4.hpp>
@@ -25,16 +26,7 @@ public:
 
     void onImGui() override;
 
-    enum class ViewMode : u8
-    {
-        Perspective,
-        Top,
-        Bottom,
-        Front,
-        Back,
-        Left,
-        Right
-    };
+    using ViewMode = CameraView;
 
     enum class LayoutMode : u8
     {
@@ -68,17 +60,7 @@ private:
     void drawViewModeMenu(usize viewportIndex);
     void drawToolbar();
 
-    // Camera orbiting mOrbitTarget at (mYaw, mPitch, mDistance) - same
-    // spherical-offset math ViewportPanel.cpp's own updateNavigation() ports
-    // from EditorApplication's editor/src/panels/ViewportPanel.cpp, without
-    // the GameObject/Scene it is normally read out of there.
-    struct CameraState
-    {
-        glm::vec3 target = glm::vec3(0.0f);
-        f32 yaw = 0.0f;   // radians
-        f32 pitch = 0.3f; // radians
-        f32 distance = 6.0f;
-    };
+    using CameraState = ::Radion::CameraState;
 
     // One offscreen colour+depth target per viewport - MiniRenderer draws
     // into this, ImGui::Image() then displays it inside the docked panel.

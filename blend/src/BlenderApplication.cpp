@@ -1,6 +1,7 @@
 #include "PCH.h"
 #include "BlenderApplication.h"
 #include "BlenderPanel.h"
+#include "api/BlenderApiHost.h"
 #include "BlenderTheme.h"
 #include "Engine.h"
 #include "FileSystem.h"
@@ -20,6 +21,7 @@
 
 #include <glm/common.hpp>
 #include <imgui.h>
+#include <imgui_stdlib.h>
 #include <imgui_internal.h> // DockBuilder* - building the first-run default layout
 #include <utility>
 
@@ -45,6 +47,8 @@ BlenderApplication::BlenderApplication(Engine& engine)
     mMeshData = new MeshData();
     mSettingsPath = FileSystem::getSingleton().prefPath("Radion", "Blender") + "blender_editor_settings.json";
     mSettings.load(mSettingsPath);
+    mApiPortField = mSettings.api().port;
+    mApi = std::make_unique<BlenderApi::BlenderApiHost>(*this);
     buildPanels();
     mRenderer.initialize();
     mBatch.initialize();
@@ -52,6 +56,9 @@ BlenderApplication::BlenderApplication(Engine& engine)
 
 BlenderApplication::~BlenderApplication()
 {
+    // First: a request still waiting on the frame loop must be released before
+    // anything it could touch goes away.
+    mApi.reset();
     mSettings.save(mSettingsPath);
     mBatch.shutdown();
     mRenderer.shutdown();
@@ -66,6 +73,9 @@ void BlenderApplication::run()
     while (mEngine.update())
     {
         const f32 deltaTime = glm::min(mEngine.getWindow().getDeltaTime(), 0.1f);
+        // Before anything draws: API commands change the document the rest of
+        // the frame then shows.
+        mApi->pump();
         runFrame(deltaTime);
         handleShortcuts();
         drawDockspace();
@@ -87,6 +97,49 @@ void BlenderApplication::run()
 
         mEngine.flip();
     }
+}
+
+bool BlenderApplication::startApi(const std::string& host, int port, const std::string& token,
+                                  std::string* error)
+{
+    BlenderApi::ApiServerConfig config;
+    config.host = host;
+    config.port = port;
+    config.token = token;
+
+    std::string why;
+    if (!mApi->start(config, &why))
+    {
+        Log::error("BlenderApplication: API not started: %s", why.c_str());
+        mApiError = why;
+        if (error)
+            *error = why;
+        return false;
+    }
+    mApiError.clear();
+    mSettings.api().port = mApi->port();
+    mApiPortField = mApi->port();
+    return true;
+}
+
+void BlenderApplication::stopApi()
+{
+    mApi->stop();
+}
+
+bool BlenderApplication::apiRunning() const
+{
+    return mApi->running();
+}
+
+int BlenderApplication::apiPort() const
+{
+    return mApi->port();
+}
+
+bool BlenderApplication::apiHasToken() const
+{
+    return mApi->hasToken();
 }
 
 MeshData* BlenderApplication::currentMeshData()
@@ -1052,7 +1105,7 @@ void BlenderApplication::handleShortcuts()
         deleteSelected();
 
     if (ImGui::IsKeyPressed(ImGuiKey_E, false))
-        extrudeSelectedFaces();
+        extrudeFaces(mExtrudeDistance);
 
     if (ImGui::IsKeyPressed(ImGuiKey_L, false))
         selectLinked();
@@ -1089,7 +1142,7 @@ void BlenderApplication::drawFaceMenu()
     ImGui::SliderFloat("Extrude Distance", &mExtrudeDistance, -10.0f, 10.0f);
     ImGui::BeginDisabled(!mMeshData || mSelection.selectedFaceCount() == 0);
     if (ImGui::MenuItem("Extrude", "E"))
-        extrudeSelectedFaces();
+        extrudeFaces(mExtrudeDistance);
     ImGui::EndDisabled();
 
     ImGui::BeginDisabled(!mMeshData);
@@ -1148,19 +1201,19 @@ void BlenderApplication::applyFaceUVTransform(const glm::vec2& scale, f32 rotati
     applyMeshEdit();
 }
 
-void BlenderApplication::extrudeSelectedFaces()
+bool BlenderApplication::extrudeFaces(f32 distance)
 {
     if (!mMeshData || mSelection.selectedFaceCount() == 0)
-        return;
+        return false;
 
     recordUndo();
 
     const usize before = mMeshData->indices.size() / 3;
     std::vector<u32> raised;
-    if (!Assets().extrudeFaces(*mMeshData, mSelection.selectedFaces(), mExtrudeDistance, &raised))
+    if (!Assets().extrudeFaces(*mMeshData, mSelection.selectedFaces(), distance, &raised))
     {
         discardUndo();
-        return;
+        return false;
     }
 
     // The index buffer was rebuilt, so the old face numbers mean nothing now.
@@ -1172,8 +1225,9 @@ void BlenderApplication::extrudeSelectedFaces()
 
     Assets().recalculateNormals(*mMeshData, mSmoothNormals, mAngleWeightedNormals);
     Log::info("BlenderApplication: extruded %zu faces by %.3f (%zu -> %zu triangles)",
-              raised.size(), mExtrudeDistance, before, mMeshData->indices.size() / 3);
+              raised.size(), distance, before, mMeshData->indices.size() / 3);
     applyMeshEdit();
+    return true;
 }
 
 glm::vec3 BlenderApplication::transformPivot() const
@@ -1402,14 +1456,19 @@ void BlenderApplication::drawBisectPopup()
 
 bool BlenderApplication::bisectMesh()
 {
-    if (!mMeshData || mMeshData->positions.empty())
+    return bisectMesh(mBisectAxis, mBisectOffset, mBisectKeepPositive);
+}
+
+bool BlenderApplication::bisectMesh(s32 axis, f32 offset, bool keepPositive)
+{
+    if (!mMeshData || mMeshData->positions.empty() || axis < 0 || axis > 2)
         return false;
 
     glm::vec3 normal(0.0f);
-    normal[mBisectAxis] = 1.0f;
+    normal[axis] = 1.0f;
 
     MeshData cut;
-    if (!clipMeshByPlane(*mMeshData, normal, mBisectOffset, mBisectKeepPositive, cut))
+    if (!clipMeshByPlane(*mMeshData, normal, offset, keepPositive, cut))
     {
         Log::warning("BlenderApplication: bisect left nothing - the plane misses the mesh, or "
                      "everything is on the discarded side");
@@ -1508,13 +1567,23 @@ void BlenderApplication::drawUnwrapPopup()
 
 bool BlenderApplication::unwrapUVs()
 {
+    UnwrapParams params;
+    params.resolution = static_cast<u32>(glm::max(mUnwrapResolution, 0));
+    params.padding = static_cast<u32>(glm::max(mUnwrapPadding, 0));
+    params.texelsPerUnit = glm::max(mUnwrapTexelsPerUnit, 0.0f);
+    params.target = mUnwrapTarget;
+    return unwrapUVs(params);
+}
+
+bool BlenderApplication::unwrapUVs(const UnwrapParams& params)
+{
     if (!mMeshData || mMeshData->positions.empty())
         return false;
 
     LightmapUnwrapSettings settings;
-    settings.resolution = static_cast<u32>(glm::max(mUnwrapResolution, 0));
-    settings.padding = static_cast<u32>(glm::max(mUnwrapPadding, 0));
-    settings.texelsPerUnit = glm::max(mUnwrapTexelsPerUnit, 0.0f);
+    settings.resolution = params.resolution;
+    settings.padding = params.padding;
+    settings.texelsPerUnit = params.texelsPerUnit;
 
     MeshData unwrapped;
     LightmapUnwrapResult result;
@@ -1527,7 +1596,7 @@ bool BlenderApplication::unwrapUVs()
 
     recordUndo();
 
-    if (mUnwrapTarget == 0)
+    if (params.target == 0)
         unwrapped.uvs = unwrapped.uvs2;
 
     const usize beforeVertexCount = mMeshData->positions.size();
@@ -1536,7 +1605,7 @@ bool BlenderApplication::unwrapUVs()
     // xatlas splits vertices at the seams, so the tangents no longer match
     // the UVs they were built from - and the ordinary UVs are what tangents
     // come from, so only the case that touched them needs redoing.
-    if (mUnwrapTarget == 0 && !mMeshData->tangents.empty())
+    if (params.target == 0 && !mMeshData->tangents.empty())
         Assets().recalculateTangents(*mMeshData);
 
     mSelection.clearAll();
@@ -1695,53 +1764,127 @@ void BlenderApplication::drawPrimitivePopup()
     ImGui::EndPopup();
 }
 
+BlenderApplication::PrimitiveParams BlenderApplication::primitiveParamsFromUi() const
+{
+    PrimitiveParams params;
+    params.type = mPrimitiveType;
+    params.size = mPrimitiveSize;
+    params.radius = mPrimitiveRadius;
+    params.minorRadius = mPrimitiveMinorRadius;
+    params.height = mPrimitiveHeight;
+    params.rings = mPrimitiveRings;
+    params.slices = mPrimitiveSlices;
+    params.segmentsX = mPrimitiveSegmentsX;
+    params.segmentsZ = mPrimitiveSegmentsZ;
+    params.uvTiles = mPrimitiveUvTiles;
+    params.heightScale = mPrimitiveHeightScale;
+    params.heightmap = mPrimitiveHeightmap;
+    return params;
+}
+
+bool BlenderApplication::primitiveTypeFromName(const std::string& name, PrimitiveType& out)
+{
+    static const struct
+    {
+        const char* name;
+        PrimitiveType type;
+    } kNames[] = {
+        {"box", PrimitiveType::Box},         {"cube", PrimitiveType::Box},
+        {"plane", PrimitiveType::Plane},     {"sphere", PrimitiveType::Sphere},
+        {"cylinder", PrimitiveType::Cylinder}, {"cone", PrimitiveType::Cone},
+        {"capsule", PrimitiveType::Capsule}, {"torus", PrimitiveType::Torus},
+        {"hills", PrimitiveType::Hills},
+    };
+    for (const auto& entry : kNames)
+    {
+        if (name == entry.name)
+        {
+            out = entry.type;
+            return true;
+        }
+    }
+    return false;
+}
+
+namespace
+{
+// The recipe for a primitive. Plane/Hills take their extent from size.x/size.z
+// and Box from all three, as the Add popup presents them.
+bool describePrimitive(const BlenderApplication::PrimitiveParams& p, MeshDesc& desc)
+{
+    using Type = BlenderApplication::PrimitiveType;
+    switch (p.type)
+    {
+    case Type::Box:
+        desc = MeshDesc::box(p.size);
+        return true;
+    case Type::Plane:
+        desc = MeshDesc::plane(p.size.x, p.size.z, static_cast<u32>(p.segmentsX),
+                               static_cast<u32>(p.segmentsZ), p.uvTiles);
+        return true;
+    case Type::Sphere:
+        desc = MeshDesc::sphere(p.radius, static_cast<u32>(p.rings), static_cast<u32>(p.slices));
+        return true;
+    case Type::Cylinder:
+        desc = MeshDesc::cylinder(p.radius, p.height, static_cast<u32>(p.slices));
+        return true;
+    case Type::Cone:
+        desc = MeshDesc::cone(p.radius, p.height, static_cast<u32>(p.slices));
+        return true;
+    case Type::Capsule:
+        desc = MeshDesc::capsule(p.radius, p.height, static_cast<u32>(p.rings),
+                                 static_cast<u32>(p.slices));
+        return true;
+    case Type::Torus:
+        desc = MeshDesc::torus(p.radius, p.minorRadius, static_cast<u32>(p.slices),
+                               static_cast<u32>(p.rings));
+        return true;
+    case Type::Hills:
+        if (p.heightmap.empty())
+            return false;
+        desc = MeshDesc::hillsPlane(p.size.x, p.size.z, static_cast<u32>(p.segmentsX),
+                                    static_cast<u32>(p.segmentsZ), p.heightmap, p.heightScale,
+                                    p.uvTiles);
+        return true;
+    }
+    return false;
+}
+
+// Gives every material of `part` the style's overrides, naming the first one.
+void applyPartStyle(MeshData& part, const BlenderApplication::PartStyle& style)
+{
+    if (part.materials.empty())
+        part.materials.push_back(Material());
+    for (SubMesh& submesh : part.submeshes)
+    {
+        if (submesh.materialSlot >= part.materials.size())
+            submesh.materialSlot = 0;
+    }
+
+    for (usize i = 0; i < part.materials.size(); ++i)
+    {
+        Material& material = part.materials[i];
+        if (!style.name.empty())
+            material.name = style.name;
+        if (style.hasColor)
+            material.params.baseColor = style.color;
+        if (style.hasRoughness)
+            material.params.surface.x = style.roughness;
+        if (style.hasMetallic)
+            material.params.surface.y = style.metallic;
+        material.paramsDirty = true;
+    }
+}
+} // namespace
+
 bool BlenderApplication::createPrimitive(bool replace)
 {
     if (!mMeshData)
         return false;
 
     MeshDesc desc;
-    switch (mPrimitiveType)
-    {
-    case PrimitiveType::Box:
-        desc = MeshDesc::box(mPrimitiveSize);
-        break;
-    case PrimitiveType::Plane:
-        desc = MeshDesc::plane(mPrimitiveSize.x, mPrimitiveSize.z,
-                               static_cast<u32>(mPrimitiveSegmentsX),
-                               static_cast<u32>(mPrimitiveSegmentsZ), mPrimitiveUvTiles);
-        break;
-    case PrimitiveType::Sphere:
-        desc = MeshDesc::sphere(mPrimitiveRadius, static_cast<u32>(mPrimitiveRings),
-                                static_cast<u32>(mPrimitiveSlices));
-        break;
-    case PrimitiveType::Cylinder:
-        desc = MeshDesc::cylinder(mPrimitiveRadius, mPrimitiveHeight,
-                                  static_cast<u32>(mPrimitiveSlices));
-        break;
-    case PrimitiveType::Cone:
-        desc = MeshDesc::cone(mPrimitiveRadius, mPrimitiveHeight,
-                              static_cast<u32>(mPrimitiveSlices));
-        break;
-    case PrimitiveType::Capsule:
-        desc = MeshDesc::capsule(mPrimitiveRadius, mPrimitiveHeight,
-                                 static_cast<u32>(mPrimitiveRings),
-                                 static_cast<u32>(mPrimitiveSlices));
-        break;
-    case PrimitiveType::Torus:
-        desc = MeshDesc::torus(mPrimitiveRadius, mPrimitiveMinorRadius,
-                               static_cast<u32>(mPrimitiveSlices),
-                               static_cast<u32>(mPrimitiveRings));
-        break;
-    case PrimitiveType::Hills:
-        if (mPrimitiveHeightmap.empty())
-            return false;
-        desc = MeshDesc::hillsPlane(mPrimitiveSize.x, mPrimitiveSize.z,
-                                    static_cast<u32>(mPrimitiveSegmentsX),
-                                    static_cast<u32>(mPrimitiveSegmentsZ), mPrimitiveHeightmap,
-                                    mPrimitiveHeightScale, mPrimitiveUvTiles);
-        break;
-    }
+    if (!describePrimitive(primitiveParamsFromUi(), desc))
+        return false;
 
     MeshData built;
     if (!Assets().buildMeshData(desc, built))
@@ -1786,6 +1929,191 @@ bool BlenderApplication::createPrimitive(bool replace)
     Log::info("BlenderApplication: %s a %s (%zu vertices, %zu triangles)",
               replace ? "created" : "added", primitiveName(mPrimitiveType),
               mMeshData->positions.size(), mMeshData->indices.size() / 3);
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::createPrimitive(const PrimitiveParams& params, const glm::mat4& placement,
+                                         const PartStyle& style, bool replace, s32* submeshOut)
+{
+    MeshDesc desc;
+    if (!describePrimitive(params, desc))
+        return false;
+
+    MeshData built;
+    if (!Assets().buildMeshData(desc, built))
+    {
+        Log::error("BlenderApplication: could not build a %s", primitiveName(params.type));
+        return false;
+    }
+    return appendPart(std::move(built), placement, style, primitiveName(params.type), replace,
+                      submeshOut);
+}
+
+bool BlenderApplication::appendPart(MeshData part, const glm::mat4& placement,
+                                    const PartStyle& style, const char* sourceName, bool replace,
+                                    s32* submeshOut)
+{
+    if (!mMeshData || part.positions.empty() || part.indices.empty())
+        return false;
+
+    if (part.submeshes.empty())
+    {
+        SubMesh whole;
+        whole.indexCount = static_cast<u32>(part.indices.size());
+        part.submeshes.push_back(whole);
+    }
+    applyPartStyle(part, style);
+    Assets().transform(part, placement);
+
+    recordUndo();
+
+    if (replace || mMeshData->positions.empty())
+    {
+        *mMeshData = std::move(part);
+        mSelection.clearAll();
+        mSubmeshVisible.clear();
+        mSelectedSubmesh = -1;
+    }
+    else
+    {
+        MeshMergeInput current;
+        current.mesh = mMeshData;
+        current.sourceName = "current";
+        MeshMergeInput incoming;
+        incoming.mesh = &part;
+        incoming.sourceName = sourceName;
+
+        // Every part stays its own submesh even when two share a material, so
+        // each can still be moved, restyled or deleted on its own.
+        MeshMergeOptions options;
+        options.preserveSubmeshBoundaries = true;
+
+        MeshData merged;
+        std::string error;
+        if (!Assets().mergeMeshes({current, incoming}, options, merged, &error))
+        {
+            Log::error("BlenderApplication: could not add a %s: %s", sourceName, error.c_str());
+            discardUndo();
+            return false;
+        }
+
+        *mMeshData = std::move(merged);
+        // The vertices that were there keep their numbers, so the selection
+        // and every submesh's visibility stay valid.
+        Assets().computeBounds(*mMeshData);
+        Assets().computeSubMeshBounds(*mMeshData);
+    }
+
+    if (submeshOut)
+        *submeshOut = static_cast<s32>(mMeshData->submeshes.size()) - 1;
+    Log::info("BlenderApplication: added part '%s' (%zu vertices, %zu triangles)",
+              style.name.empty() ? sourceName : style.name.c_str(), mMeshData->positions.size(),
+              mMeshData->indices.size() / 3);
+    applyMeshEdit();
+    return true;
+}
+
+std::vector<u32> BlenderApplication::submeshVertices(u32 index) const
+{
+    std::vector<u32> vertices;
+    if (!mMeshData || index >= mMeshData->submeshes.size())
+        return vertices;
+
+    const SubMesh& submesh = mMeshData->submeshes[index];
+    const u64 end = glm::min<u64>(static_cast<u64>(submesh.indexOffset) + submesh.indexCount,
+                                  mMeshData->indices.size());
+    for (u64 i = submesh.indexOffset; i < end; ++i)
+        vertices.push_back(mMeshData->indices[static_cast<usize>(i)]);
+
+    std::sort(vertices.begin(), vertices.end());
+    vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
+    return vertices;
+}
+
+bool BlenderApplication::transformSubmesh(u32 index, const glm::mat4& matrix, const glm::vec3& pivot)
+{
+    const std::vector<u32> vertices = submeshVertices(index);
+    if (vertices.empty())
+        return false;
+
+    recordUndo();
+    Assets().transformVerticesAbout(*mMeshData, matrix, pivot, vertices);
+    // transformVertices leaves winding alone (it cannot know what a part of the
+    // mesh means); a mirrored part would be left inside out.
+    if (glm::determinant(glm::mat3(matrix)) < 0.0f)
+        Assets().flipWinding(*mMeshData, index);
+    Assets().computeSubMeshBounds(*mMeshData);
+    applyMeshEdit();
+    return true;
+}
+
+bool BlenderApplication::duplicateSubmesh(u32 index, const glm::mat4& placement, s32* newIndex)
+{
+    if (!mMeshData || index >= mMeshData->submeshes.size())
+        return false;
+
+    MeshData copy;
+    if (!Assets().extractSubmesh(*mMeshData, index, copy))
+        return false;
+
+    PartStyle keep;
+    return appendPart(std::move(copy), placement, keep, "duplicate", false, newIndex);
+}
+
+bool BlenderApplication::styleSubmesh(u32 index, const PartStyle& style)
+{
+    if (!mMeshData || index >= mMeshData->submeshes.size())
+        return false;
+
+    recordUndo();
+
+    SubMesh& submesh = mMeshData->submeshes[index];
+
+    // Restyling a material that other submeshes use would repaint them too; a
+    // part is meant to be styled on its own, so it gets a private copy first.
+    bool shared = false;
+    for (usize i = 0; i < mMeshData->submeshes.size(); ++i)
+    {
+        if (i != index && mMeshData->submeshes[i].materialSlot == submesh.materialSlot)
+            shared = true;
+    }
+    if (shared || submesh.materialSlot >= mMeshData->materials.size())
+    {
+        const Material source = submesh.materialSlot < mMeshData->materials.size()
+                                    ? mMeshData->materials[submesh.materialSlot]
+                                    : Material();
+        const usize oldSlot = submesh.materialSlot;
+        const usize slot = mMeshData->materials.size();
+        mMeshData->materials.push_back(source);
+        // The per-material file-name arrays run parallel to `materials` when
+        // they are in use at all; the copy starts with the same textures.
+        auto duplicatePath = [oldSlot, slot](std::vector<std::string>& paths)
+        {
+            if (paths.empty())
+                return;
+            paths.resize(slot);
+            paths.push_back(oldSlot < slot ? paths[oldSlot] : std::string());
+        };
+        duplicatePath(mMeshData->materialTextureFiles);
+        duplicatePath(mMeshData->materialNormalFiles);
+        duplicatePath(mMeshData->materialSurfaceFiles);
+        duplicatePath(mMeshData->materialEmissiveFiles);
+        duplicatePath(mMeshData->materialHeightFiles);
+        submesh.materialSlot = static_cast<u32>(slot);
+    }
+
+    Material& material = mMeshData->materials[submesh.materialSlot];
+    if (!style.name.empty())
+        material.name = style.name;
+    if (style.hasColor)
+        material.params.baseColor = style.color;
+    if (style.hasRoughness)
+        material.params.surface.x = style.roughness;
+    if (style.hasMetallic)
+        material.params.surface.y = style.metallic;
+    material.paramsDirty = true;
+
     applyMeshEdit();
     return true;
 }
@@ -2219,6 +2547,12 @@ void BlenderApplication::drawStatusBar()
         ImGui::Text("Select: %s", modeName);
     }
 
+    if (apiRunning())
+    {
+        ImGui::SameLine(0.0f, 24.0f);
+        ImGui::TextColored(ImVec4(0.4f, 0.85f, 0.5f, 1.0f), "API :%d", apiPort());
+    }
+
     ImGui::SameLine(0.0f, 24.0f);
     if (mDirty)
         ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "* Modified");
@@ -2274,6 +2608,33 @@ void BlenderApplication::drawPreferencesPopup()
     ImGui::ColorEdit3("Normal Debug Vector", &viewport.normalVectorColor.x);
     ImGui::ColorEdit3("Tangent Debug Vector", &viewport.tangentVectorColor.x);
     ImGui::DragFloat("Debug Vector Length", &viewport.debugVectorLength, 0.01f, 0.01f, 5.0f);
+
+    ImGui::Separator();
+    ImGui::TextDisabled("API (HTTP, for scripts and AI tools)");
+    const bool apiIsRunning = apiRunning();
+    ImGui::BeginDisabled(apiIsRunning);
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::InputInt("Port", &mApiPortField, 0, 0);
+    ImGui::InputText("Token", &mApiTokenField, ImGuiInputTextFlags_Password);
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Optional. When set, every request must send 'Authorization: Bearer <token>'.\n"
+                          "Not saved - set RADION_BLENDER_API_TOKEN or --api-token to have it at startup.");
+    if (!apiIsRunning)
+    {
+        if (ImGui::Button("Start API"))
+            startApi("127.0.0.1", glm::clamp(mApiPortField, 1, 65535), mApiTokenField);
+    }
+    else
+    {
+        ImGui::Text("Listening on http://127.0.0.1:%d%s", apiPort(),
+                    apiHasToken() ? " (token required)" : "");
+        if (ImGui::Button("Stop API"))
+            stopApi();
+    }
+    if (!mApiError.empty())
+        ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.3f, 1.0f), "%s", mApiError.c_str());
+    ImGui::Checkbox("Start with the editor", &mSettings.api().enabled);
 
     ImGui::Separator();
     if (ImGui::Button("Close", ImVec2(120.0f, 0.0f)))

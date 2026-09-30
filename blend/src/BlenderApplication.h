@@ -9,9 +9,11 @@
 #include "Log.h"
 #include "MiniBatch.h"
 #include "MiniRenderer.h"
+#include "ViewportCamera.h"
 #include "Types.h"
 
 #include <glm/vec3.hpp>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -20,6 +22,11 @@ namespace Radion
 class Engine;
 class BlenderPanel;
 struct MeshData;
+
+namespace BlenderApi
+{
+class BlenderApiHost;
+}
 
 class BlenderApplication
 {
@@ -96,6 +103,14 @@ public:
     void discardUndo();
     void undo();
     void redo();
+    bool canUndo() const
+    {
+        return !mUndoStates.empty();
+    }
+    bool canRedo() const
+    {
+        return !mRedoStates.empty();
+    }
 
     // Animation timeline
     u32 currentFrame() const
@@ -221,38 +236,15 @@ public:
     void buildSelectableMask(std::vector<bool>& faceSelectable,
                              std::vector<bool>& vertexSelectable);
 
-private:
-    // logSink() is a plain function pointer with no `this` to route through -
-    // see BlenderApplication.cpp.
-    static void logSink(LogLevel level, const char* message);
+    // -- Modelling operations
+    //
+    // Everything below is what the menus call and what the HTTP API calls:
+    // one implementation, parameters passed in rather than read from widget
+    // state, one undo step per call, and a false return (with the document
+    // untouched) when there was nothing to do.
 
-    void buildPanels();
-    void runFrame(f32 deltaTime);
-    void drawDockspace();
-    void drawMainMenuBar();
-    void drawSelectMenu();
-    void drawVertexMenu();
-    void drawEdgeMenu();
-    void drawFaceMenu();
-    void deleteSelectedVertices();
-    void deleteSelectedFaces();
-    void extrudeSelectedFaces();
-    void trimUndoStates();
-    void handleShortcuts();
-    void selectAllElements();
-    void invertElementSelection();
-    void deleteSelected();
-    // Deselects whatever the last operation reached inside a hidden submesh.
-    // Cheaper and far harder to get wrong than teaching every selection
-    // operation the visibility rules of its own accord.
-    void dropHiddenFromSelection();
-    void growSelection();
-    void shrinkSelection();
-    void selectLinked();
-    void selectSubmeshFaces(u32 submeshIndex);
-    void groupSelectedFacesIntoSubmesh();
-    // The primitives the engine already builds. Kept in the order the Add
-    // menu lists them, and used to pick which parameters the popup shows.
+    // The primitives the engine already builds, in the order the Add menu
+    // lists them.
     enum class PrimitiveType : u8
     {
         Box,
@@ -267,26 +259,166 @@ private:
         Hills
     };
 
-    // Throws the whole document away: mesh, skeleton, clips, selection and
-    // both undo stacks. Not undoable, which is why anything unsaved asks
-    // first.
-    void newDocument();
-    void drawNewConfirmPopup();
+    static const char* primitiveName(PrimitiveType type);
+    static bool primitiveTypeFromName(const std::string& name, PrimitiveType& out);
 
-    void drawUnwrapPopup();
-    void drawBisectPopup();
+    // What a primitive is built from. Which fields matter depends on `type`
+    // (a Box reads `size`, a Sphere `radius`/`rings`/`slices`, ...) - the same
+    // split the Add popup already shows.
+    struct PrimitiveParams
+    {
+        PrimitiveType type = PrimitiveType::Box;
+        glm::vec3 size = glm::vec3(1.0f);
+        f32 radius = 0.5f;
+        f32 minorRadius = 0.2f;
+        f32 height = 1.0f;
+        s32 rings = 16;
+        s32 slices = 24;
+        s32 segmentsX = 8;
+        s32 segmentsZ = 8;
+        f32 uvTiles = 1.0f;
+        f32 heightScale = 1.0f;
+        std::string heightmap;
+    };
+
+    // How a new part looks. The material name doubles as the part's name - a
+    // SubMesh has none of its own. Fields left unset keep the material default.
+    struct PartStyle
+    {
+        std::string name;
+        bool hasColor = false;
+        glm::vec4 color = glm::vec4(1.0f);
+        bool hasRoughness = false;
+        f32 roughness = 0.5f;
+        bool hasMetallic = false;
+        f32 metallic = 0.0f;
+    };
+
+    // Builds a primitive, places it with `placement` and adds it as its own
+    // submesh (or starts a new mesh with it when `replace` or the mesh is
+    // empty). `submeshOut` receives the new submesh's index.
+    bool createPrimitive(const PrimitiveParams& params, const glm::mat4& placement,
+                         const PartStyle& style, bool replace, s32* submeshOut = nullptr);
+    // The same for geometry that did not come from a primitive - a part built
+    // vertex by vertex. Takes the part by value: it is placed and styled in
+    // place before it is merged.
+    bool appendPart(MeshData part, const glm::mat4& placement, const PartStyle& style,
+                    const char* sourceName, bool replace, s32* submeshOut = nullptr);
+
+    // Moves/rotates/scales one submesh's vertices. `matrix` acts about `pivot`.
+    // A mirroring matrix turns the submesh's winding back the right way out.
+    bool transformSubmesh(u32 index, const glm::mat4& matrix, const glm::vec3& pivot);
+    // Copies a submesh (and its material) with `placement` applied to the copy.
+    bool duplicateSubmesh(u32 index, const glm::mat4& placement, s32* newIndex = nullptr);
+    // Restyles the material of one submesh. Other submeshes that share that
+    // material slot are given their own copy first, so only this one changes.
+    bool styleSubmesh(u32 index, const PartStyle& style);
+    // The vertices a submesh's triangles reference, ascending.
+    std::vector<u32> submeshVertices(u32 index) const;
+
+    // Bakes `matrix` into the selected vertices, or the whole mesh when
+    // nothing is selected, around their own median point.
+    void applyTransform(const glm::mat4& matrix, const char* verb);
+    bool extrudeFaces(f32 distance);
+    void deleteSelectedVertices();
+    void deleteSelectedFaces();
+    void deleteSelected();
+    void selectAllElements();
+    void invertElementSelection();
+    void growSelection();
+    void shrinkSelection();
+    void selectLinked();
+    void selectSubmeshFaces(u32 submeshIndex);
+    void groupSelectedFacesIntoSubmesh();
+    // Deselects whatever the last operation reached inside a hidden submesh.
+    // Cheaper and far harder to get wrong than teaching every selection
+    // operation the visibility rules of its own accord.
+    void dropHiddenFromSelection();
+
     // Replaces the mesh with the convex hull of its own points. What a
     // collision proxy is built from, and it is not reversible except by undo.
     bool makeConvexHull();
     // Keeps one side of a plane, cutting the triangles that cross it. Unlike
     // the CSG path this preserves the mesh and its UVs on the side that stays.
-    bool bisectMesh();
+    bool bisectMesh(s32 axis, f32 offset, bool keepPositive);
     bool extractSelectedSubmesh();
+
     // xatlas: a non-overlapping atlas, splitting vertices at chart seams, so
     // the mesh comes back with a different vertex count than it went in with.
-    bool unwrapUVs();
+    struct UnwrapParams
+    {
+        u32 resolution = 0;
+        u32 padding = 4;
+        f32 texelsPerUnit = 0.0f;
+        // 0 writes the result into the ordinary UVs, 1 into UV2.
+        s32 target = 0;
+    };
+    bool unwrapUVs(const UnwrapParams& params);
 
-    static const char* primitiveName(PrimitiveType type);
+    // Throws the whole document away: mesh, skeleton, clips, selection and
+    // both undo stacks. Not undoable, which is why anything unsaved asks
+    // first.
+    void newDocument();
+
+    // -- Local HTTP API
+    //
+    // Commands arriving over HTTP are queued and run here, on the frame loop,
+    // so they see and change exactly what the panels do.
+    bool startApi(const std::string& host, int port, const std::string& token,
+                  std::string* error = nullptr);
+    void stopApi();
+    bool apiRunning() const;
+    int apiPort() const;
+    bool apiHasToken() const;
+
+    // -- Offscreen capture
+    //
+    // Renders the document the way a viewport would, into a private target, and
+    // returns the pixels top row first, RGBA8. Must run on the thread that owns
+    // the GL context (the frame loop).
+    struct CaptureParams
+    {
+        s32 width = 960;
+        s32 height = 540;
+        CameraView view = CameraView::Perspective;
+        // Frame the whole mesh when true; otherwise use `camera` as given.
+        bool frame = true;
+        CameraState camera;
+        MiniRenderMode shading = MiniRenderMode::Textured;
+        bool wireframeOverlay = false;
+        bool colorBySubmesh = false;
+        bool grid = true;
+    };
+    bool captureViewport(const CaptureParams& params, std::vector<u8>& rgba);
+
+private:
+    // logSink() is a plain function pointer with no `this` to route through -
+    // see BlenderApplication.cpp.
+    static void logSink(LogLevel level, const char* message);
+
+    void buildPanels();
+    void runFrame(f32 deltaTime);
+    void drawDockspace();
+    void drawMainMenuBar();
+    void drawSelectMenu();
+    void drawVertexMenu();
+    void drawEdgeMenu();
+    void drawFaceMenu();
+    void trimUndoStates();
+    void handleShortcuts();
+    // Throws the whole document away: mesh, skeleton, clips, selection and
+    // both undo stacks. Not undoable, which is why anything unsaved asks
+    // first.
+    void drawNewConfirmPopup();
+
+    void drawUnwrapPopup();
+    void drawBisectPopup();
+    // The popup's own forms of the public operations below, fed from the
+    // parameters it keeps between frames.
+    bool bisectMesh();
+    bool unwrapUVs();
+    PrimitiveParams primitiveParamsFromUi() const;
+
     void drawAddMenu();
     void drawPrimitivePopup();
     // `replace` starts a new mesh from the primitive; otherwise it is merged
@@ -294,9 +426,6 @@ private:
     bool createPrimitive(bool replace);
 
     void drawTransformMenu();
-    // Bakes `matrix` into the selected vertices, or the whole mesh when
-    // nothing is selected, around their own median point.
-    void applyTransform(const glm::mat4& matrix, const char* verb);
     void drawMeshMenu();
     void drawToolPopups();
     void drawSaveInfoPopup();
@@ -331,6 +460,11 @@ private:
     BlenderSelection mSelection;
     BlenderSettings mSettings;
     std::vector<BlenderPanel*> mPanels; // owned
+    std::unique_ptr<BlenderApi::BlenderApiHost> mApi;
+    // The preferences' own copy of the port and token while they are edited.
+    s32 mApiPortField = 7420;
+    std::string mApiTokenField;
+    std::string mApiError;
 
     // Current mesh
     MeshHandle mCurrentMesh;
