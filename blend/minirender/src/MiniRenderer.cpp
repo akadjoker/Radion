@@ -23,6 +23,7 @@ layout(location = 3) in vec4 aTangent;
 layout(location = 4) in vec4 aJoints;
 layout(location = 5) in vec4 aWeights;
 layout(location = 6) in float aSelected;
+layout(location = 7) in vec4 aColor;
 
 uniform mat4 uModel;
 uniform mat4 uView;
@@ -37,6 +38,7 @@ out VS_OUT {
     vec2 texCoord;
     mat3 TBN;
     flat float selected;
+    vec4 color;
 } vs_out;
 
 void main()
@@ -62,6 +64,7 @@ void main()
     vec3 B = cross(N, T) * aTangent.w;
     vs_out.TBN = mat3(T, B, N);
     vs_out.selected = aSelected;
+    vs_out.color = aColor;
 
     gl_Position = uProjection * uView * vec4(vs_out.positionWS, 1.0);
 }
@@ -77,6 +80,7 @@ in VS_OUT {
     vec2 texCoord;
     mat3 TBN;
     flat float selected;
+    vec4 color;
 } fs_in;
 
 out vec4 outColor;
@@ -84,6 +88,7 @@ out vec4 outColor;
 uniform int uDebugView; // 0 = off, 1 = normals, 2 = tangents, 3 = uvs
 uniform bool uFacetedShading;
 uniform bool uUnlit;
+uniform bool uVertexColors; // multiply the surface by the mesh's per-vertex colour (linear)
 
 layout(binding = 0) uniform sampler2D uAlbedoMap;
 layout(binding = 1) uniform sampler2D uNormalMap;
@@ -99,6 +104,10 @@ uniform vec3 uCameraPos;
 uniform int uShadingMode; // 0 = solid (N.L only), 1 = textured (full PBR)
 uniform float uAlpha;
 uniform vec3 uTint;
+// Scalars the material contributes where it has no map for them (x = roughness,
+// y = metallic). A map, when there is one, already says everything, so the
+// factor is 1 there and imported textured assets look as they always did.
+uniform vec2 uSurfaceFactor;
 
 uniform bool uPointPass; // the GL_POINTS overlay: flat colour, selection aware
 uniform vec3 uPointColor;
@@ -139,6 +148,9 @@ void main()
 {
     if (uPointPass)
     {
+        // 2 marks a hidden vertex: it is still in the buffer, it just is not drawn.
+        if (fs_in.selected > 1.5)
+            discard;
         outColor = vec4(fs_in.selected > 0.5 ? uSelectedPointColor : uPointColor, 1.0);
         return;
     }
@@ -161,24 +173,25 @@ void main()
         return;
     }
 
+    vec3 tint = uVertexColors ? uTint * fs_in.color.rgb : uTint;
     vec3 color;
 
     if (uUnlit)
     {
-        color = uTint;
+        color = tint;
     }
     else if (uShadingMode == 0)
     {
         // Solid preview: face/vertex normal lit with N.L only, no texture
         // fetches and no BRDF - the cheap path multi-viewport playback wants.
         float NdotL = max(dot(shadingNormal, normalize(-uLightDirection)), 0.0);
-        color = uTint * (uAmbientColor * uAmbientIntensity + NdotL * uLightIntensity);
+        color = tint * (uAmbientColor * uAmbientIntensity + NdotL * uLightIntensity);
     }
     else
     {
-        vec3 albedo = pow(texture(uAlbedoMap, fs_in.texCoord).rgb, vec3(2.2)) * uTint;
-        float roughness = clamp(texture(uRoughnessMap, fs_in.texCoord).r, 0.05, 1.0);
-        float metallic = texture(uMetallicMap, fs_in.texCoord).r;
+        vec3 albedo = pow(texture(uAlbedoMap, fs_in.texCoord).rgb, vec3(2.2)) * tint;
+        float roughness = clamp(texture(uRoughnessMap, fs_in.texCoord).r * uSurfaceFactor.x, 0.05, 1.0);
+        float metallic = texture(uMetallicMap, fs_in.texCoord).r * uSurfaceFactor.y;
 
         vec3 normalSample = texture(uNormalMap, fs_in.texCoord).rgb * 2.0 - 1.0;
         vec3 N = normalize(fs_in.TBN * normalSample);
@@ -219,6 +232,7 @@ struct MiniVertex
     glm::vec4 tangent;
     glm::vec4 joints;
     glm::vec4 weights;
+    glm::vec4 color;
 };
 
 glm::vec3 colorForSubmesh(u32 index)
@@ -259,6 +273,27 @@ void bindMaterialTextures(const Material* material, GLuint whiteTexture, GLuint 
     glBindTexture(GL_TEXTURE_2D, resolveSlotTexture(material, SlotSurface, whiteTexture));
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, resolveSlotTexture(material, SlotEmissive, whiteTexture));
+}
+
+// Base colour factor of a submesh's material. The glTF/PBR rule: it multiplies
+// the albedo texture, and alone it is the colour of an untextured surface - so
+// a procedurally built part with only a colour set shows that colour instead of
+// the default white.
+glm::vec3 baseColorFactor(const Material* material)
+{
+    return material ? glm::vec3(material->params.baseColor) : glm::vec3(1.0f);
+}
+
+// Roughness/metallic scalars for the slots that have no texture behind them;
+// 1 where a texture decides. A submesh with no material at all is a plain matte
+// surface - not the fully metallic black a white "metallic map" would make it.
+glm::vec2 surfaceFactor(const Material* material)
+{
+    static const Material kDefault;
+    const Material& source = material ? *material : kDefault;
+    const f32 roughness = source.textures[SlotSurface].texture.valid() ? 1.0f : source.params.surface.x;
+    const f32 metallic = source.textures[SlotEmissive].texture.valid() ? 1.0f : source.params.surface.y;
+    return glm::vec2(roughness, metallic);
 }
 
 const Material* materialForSubmesh(const MeshData& mesh, u32 submeshIndex)
@@ -435,6 +470,17 @@ void MiniRenderer::uploadMesh(const MeshData& mesh)
         vertices[v].uv = v < mesh.uvs.size() ? mesh.uvs[v] : glm::vec2(0.0f);
         vertices[v].tangent = v < mesh.tangents.size() ? mesh.tangents[v] : glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
 
+        if (v < mesh.colors.size())
+        {
+            const u32 packed = mesh.colors[v];
+            vertices[v].color = glm::vec4(static_cast<f32>(packed & 0xFF), static_cast<f32>((packed >> 8) & 0xFF),
+                                          static_cast<f32>((packed >> 16) & 0xFF),
+                                          static_cast<f32>((packed >> 24) & 0xFF)) /
+                                255.0f;
+        }
+        else
+            vertices[v].color = glm::vec4(1.0f);
+
         if (v < mesh.skin.size())
         {
             const MeshSkinVertex& skin = mesh.skin[v];
@@ -468,6 +514,8 @@ void MiniRenderer::uploadMesh(const MeshData& mesh)
     glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(MiniVertex), (void*)offsetof(MiniVertex, joints));
     glEnableVertexAttribArray(5);
     glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(MiniVertex), (void*)offsetof(MiniVertex, weights));
+    glEnableVertexAttribArray(7);
+    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(MiniVertex), (void*)offsetof(MiniVertex, color));
 
     // A stream of its own, so selecting a vertex re-uploads one byte per
     // vertex instead of the whole interleaved geometry. Sized and zeroed with
@@ -486,6 +534,69 @@ void MiniRenderer::uploadMesh(const MeshData& mesh)
     mVertexCount = static_cast<u32>(vertexCount);
     mUploadedMesh = &mesh;
     ++mUploadRevision;
+}
+
+void MiniRenderer::setHiddenFaces(const u8* faceHidden, u32 faceCount)
+{
+    mHiddenFaces.clear();
+    mHasHiddenFaces = false;
+    if (!faceHidden || faceCount == 0)
+        return;
+
+    mHiddenFaces.assign(faceHidden, faceHidden + faceCount);
+    for (const u8 hidden : mHiddenFaces)
+    {
+        if (hidden)
+        {
+            mHasHiddenFaces = true;
+            break;
+        }
+    }
+}
+
+void MiniRenderer::drawTriangleRange(u32 indexOffset, u32 indexCount)
+{
+    const u32 firstFace = indexOffset / 3;
+    const u32 faceCount = indexCount / 3;
+    // A mask made for some other mesh is worse than none: ignore it rather than
+    // hide the wrong triangles.
+    const bool masked = mHasHiddenFaces && mHiddenFaces.size() == mIndexCount / 3;
+    if (!masked)
+    {
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT,
+                       reinterpret_cast<const void*>(static_cast<uintptr_t>(indexOffset) * sizeof(u32)));
+        return;
+    }
+
+    // One draw per run of visible triangles.
+    std::vector<GLsizei> counts;
+    std::vector<const void*> offsets;
+    u32 runStart = 0;
+    u32 runLength = 0;
+    auto flush = [&]()
+    {
+        if (runLength == 0)
+            return;
+        counts.push_back(static_cast<GLsizei>(runLength * 3));
+        offsets.push_back(reinterpret_cast<const void*>(static_cast<uintptr_t>(runStart) * 3 * sizeof(u32)));
+        runLength = 0;
+    };
+    for (u32 face = firstFace; face < firstFace + faceCount; ++face)
+    {
+        if (mHiddenFaces[face])
+        {
+            flush();
+            continue;
+        }
+        if (runLength == 0)
+            runStart = face;
+        ++runLength;
+    }
+    flush();
+
+    if (!counts.empty())
+        glMultiDrawElements(GL_TRIANGLES, counts.data(), GL_UNSIGNED_INT, offsets.data(),
+                            static_cast<GLsizei>(counts.size()));
 }
 
 void MiniRenderer::setVertexSelection(const u8* selected, u32 count)
@@ -562,10 +673,19 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
     const int shadingMode = params.mode == MiniRenderMode::Textured ? 1 : 0;
     glUniform1i(glGetUniformLocation(mShaderProgram, "uShadingMode"), shadingMode);
     glUniform1f(glGetUniformLocation(mShaderProgram, "uAlpha"), effectiveAlpha);
-    glUniform3fv(glGetUniformLocation(mShaderProgram, "uTint"), 1, glm::value_ptr(params.tint));
+    // Only the textured look reads material colour; solid stays the neutral
+    // modelling view it has always been.
+    const bool useMaterialColor = shadingMode == 1;
+    const glm::vec3 firstTint =
+        useMaterialColor ? params.tint * baseColorFactor(materialForSubmesh(*mesh, 0)) : params.tint;
+    glUniform3fv(glGetUniformLocation(mShaderProgram, "uTint"), 1, glm::value_ptr(firstTint));
+    const GLint surfaceLocation = glGetUniformLocation(mShaderProgram, "uSurfaceFactor");
+    const glm::vec2 firstSurface = useMaterialColor ? surfaceFactor(materialForSubmesh(*mesh, 0)) : glm::vec2(1.0f);
+    glUniform2fv(surfaceLocation, 1, glm::value_ptr(firstSurface));
     glUniform1i(glGetUniformLocation(mShaderProgram, "uDebugView"), static_cast<int>(params.debugView));
     glUniform1i(glGetUniformLocation(mShaderProgram, "uFacetedShading"), params.facetedShading ? 1 : 0);
     glUniform1i(glGetUniformLocation(mShaderProgram, "uUnlit"), params.unlit ? 1 : 0);
+    glUniform1i(glGetUniformLocation(mShaderProgram, "uVertexColors"), params.vertexColors ? 1 : 0);
 
     if (shadingMode == 1)
         bindMaterialTextures(materialForSubmesh(*mesh, 0), mWhiteTexture, mFlatNormalTexture);
@@ -613,16 +733,20 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
             const SubMesh& submesh = mesh->submeshes[i];
             if (texturedPerSubmesh)
                 bindMaterialTextures(materialForSubmesh(*mesh, i), mWhiteTexture, mFlatNormalTexture);
-            const glm::vec3 tint = colorPerSubmesh ? params.tint * colorForSubmesh(i) : params.tint;
+            glm::vec3 tint = colorPerSubmesh ? params.tint * colorForSubmesh(i) : params.tint;
+            if (useMaterialColor)
+            {
+                const Material* material = materialForSubmesh(*mesh, i);
+                tint *= baseColorFactor(material);
+                glUniform2fv(surfaceLocation, 1, glm::value_ptr(surfaceFactor(material)));
+            }
             glUniform3fv(tintLocation, 1, glm::value_ptr(tint));
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(submesh.indexCount), GL_UNSIGNED_INT,
-                          reinterpret_cast<const void*>(static_cast<uintptr_t>(submesh.indexOffset) *
-                                                        sizeof(u32)));
+            drawTriangleRange(submesh.indexOffset, submesh.indexCount);
         }
     }
     else
     {
-        glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, nullptr);
+        drawTriangleRange(0, mIndexCount);
     }
 
     // Overlay passes: same shader/program, drawn as flat-tinted debug marks
@@ -640,7 +764,7 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glEnable(GL_POLYGON_OFFSET_LINE);
         glPolygonOffset(-1.0f, -1.0f);
-        glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, nullptr);
+        drawTriangleRange(0, mIndexCount);
         glDisable(GL_POLYGON_OFFSET_LINE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }

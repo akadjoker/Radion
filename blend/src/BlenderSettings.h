@@ -31,6 +31,9 @@ public:
         f32 submeshHighlightAlpha = 0.35f;
         glm::vec3 boxSelectColor = glm::vec3(1.0f, 0.65f, 0.0f);
         bool colorBySubmesh = false;
+        // Multiply the surface by the mesh's painted vertex colours - what the
+        // exported .glb will look like in a viewer that honours COLOR_0.
+        bool showVertexColors = true;
 
         // Normals/Tangents debug view: line length drawn from each vertex,
         // and the two colors - the shader's own color-coded surface is hard
@@ -68,6 +71,43 @@ public:
         // directly, so the cap and the promote-to-top rule always hold.
         std::vector<std::string> recentFiles;
     };
+
+    // Steps the gizmo snaps to while Snap is on, and how close (in pixels) a
+    // vertex must be for Ctrl-drag to snap onto it.
+    struct SnapSettings
+    {
+        f32 moveStep = 1.0f;
+        f32 rotateStepDegrees = 15.0f;
+        f32 scaleStep = 0.1f;
+        f32 vertexRadiusPixels = 14.0f;
+    };
+
+    SnapSettings& snap()
+    {
+        return mSnap;
+    }
+    const SnapSettings& snap() const
+    {
+        return mSnap;
+    }
+
+    // The local HTTP API. `enabled` starts it with the editor; the secret is
+    // deliberately not kept here - it comes from the command line or the
+    // environment, so it never lands in a file.
+    struct ApiSettings
+    {
+        bool enabled = false;
+        int port = 7420;
+    };
+
+    ApiSettings& api()
+    {
+        return mApi;
+    }
+    const ApiSettings& api() const
+    {
+        return mApi;
+    }
 
     ViewportSettings& viewport()
     {
@@ -111,6 +151,8 @@ private:
     ViewportSettings mViewport;
     AnimationSettings mAnimation;
     GeneralSettings mGeneral;
+    ApiSettings mApi;
+    SnapSettings mSnap;
 };
 
 } // namespace Radion

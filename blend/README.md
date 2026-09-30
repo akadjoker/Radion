@@ -63,6 +63,12 @@ make radion_blender
 - [ ] Export animação como sequence
 - [ ] Import no editor Radion
 
+## API para scripts e LLM
+
+`radion_blender --api` liga uma API HTTP local (porta 7420) com ~40 comandos para
+criar e editar meshes, tirar screenshots e exportar para glTF (`.glb`), OBJ ou `.rmesh` —
+ver [doc/API.md](doc/API.md). File > Export também tem "glTF Binary (.glb)".
+
 ## Integração com Radion
 
 - Usa `Engine` do Radion para renderização
@@ -87,3 +93,7 @@ make radion_blender
 ---
 
 **Status**: Estrutura base pronta. Aguardando implementação do Mini Renderer.
+
+**API HTTP** (um LLM/MCP comanda o editor): `doc/API.md` — cada ferramenta do editor é também um comando.
+**Ferramentas de modelação, texturas e cor**: menus Vertex/Edge/Face/Mesh/Paint, painel **UV Editor**; plano e estado em `doc/PLANO_EDICAO_E_CHAT.md`.
+**Chat com LLM**: `client/` (Python + Qt) — ver `client/README.md`.

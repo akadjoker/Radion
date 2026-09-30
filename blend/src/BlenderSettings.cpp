@@ -105,6 +105,7 @@ bool BlenderSettings::load(const std::string& path)
         readFloat(*viewport, "submeshHighlightAlpha", mViewport.submeshHighlightAlpha);
         readVec3(*viewport, "boxSelectColor", mViewport.boxSelectColor);
         readBool(*viewport, "colorBySubmesh", mViewport.colorBySubmesh);
+        readBool(*viewport, "showVertexColors", mViewport.showVertexColors);
         readFloat(*viewport, "debugVectorLength", mViewport.debugVectorLength);
         readVec3(*viewport, "normalVectorColor", mViewport.normalVectorColor);
         readVec3(*viewport, "tangentVectorColor", mViewport.tangentVectorColor);
@@ -115,6 +116,30 @@ bool BlenderSettings::load(const std::string& path)
     {
         readFloat(*animation, "playbackSpeed", mAnimation.playbackSpeed);
         readBool(*animation, "autoLoop", mAnimation.autoLoop);
+    }
+
+    const auto snap = root.find("snap");
+    if (snap != root.end() && snap->is_object())
+    {
+        readFloat(*snap, "moveStep", mSnap.moveStep);
+        readFloat(*snap, "rotateStepDegrees", mSnap.rotateStepDegrees);
+        readFloat(*snap, "scaleStep", mSnap.scaleStep);
+        readFloat(*snap, "vertexRadiusPixels", mSnap.vertexRadiusPixels);
+        // A zero or negative step would make the snap divide by nothing.
+        mSnap.moveStep = std::max(mSnap.moveStep, 0.0001f);
+        mSnap.rotateStepDegrees = std::max(mSnap.rotateStepDegrees, 0.01f);
+        mSnap.scaleStep = std::max(mSnap.scaleStep, 0.0001f);
+        mSnap.vertexRadiusPixels = std::max(mSnap.vertexRadiusPixels, 1.0f);
+    }
+
+    const auto api = root.find("api");
+    if (api != root.end() && api->is_object())
+    {
+        readBool(*api, "enabled", mApi.enabled);
+        const auto port = api->find("port");
+        if (port != api->end() && port->is_number_integer() && port->get<int>() >= 1 &&
+            port->get<int>() <= 65535)
+            mApi.port = port->get<int>();
     }
 
     const auto general = root.find("general");
@@ -172,6 +197,7 @@ bool BlenderSettings::save(const std::string& path)
     viewport["boxSelectColor"] = {mViewport.boxSelectColor.x, mViewport.boxSelectColor.y,
                                   mViewport.boxSelectColor.z};
     viewport["colorBySubmesh"] = mViewport.colorBySubmesh;
+    viewport["showVertexColors"] = mViewport.showVertexColors;
     viewport["debugVectorLength"] = mViewport.debugVectorLength;
     viewport["normalVectorColor"] = {mViewport.normalVectorColor.x, mViewport.normalVectorColor.y,
                                      mViewport.normalVectorColor.z};
@@ -183,6 +209,18 @@ bool BlenderSettings::save(const std::string& path)
     animation["playbackSpeed"] = mAnimation.playbackSpeed;
     animation["autoLoop"] = mAnimation.autoLoop;
     root["animation"] = animation;
+
+    nlohmann::json snap;
+    snap["moveStep"] = mSnap.moveStep;
+    snap["rotateStepDegrees"] = mSnap.rotateStepDegrees;
+    snap["scaleStep"] = mSnap.scaleStep;
+    snap["vertexRadiusPixels"] = mSnap.vertexRadiusPixels;
+    root["snap"] = snap;
+
+    nlohmann::json api;
+    api["enabled"] = mApi.enabled;
+    api["port"] = mApi.port;
+    root["api"] = api;
 
     nlohmann::json general;
     general["lastOpenedMesh"] = mGeneral.lastOpenedMesh;

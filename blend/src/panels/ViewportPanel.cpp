@@ -14,6 +14,23 @@
 
 using namespace Radion;
 
+namespace
+{
+glm::vec2 projectToScreen(const glm::vec3& worldPos, const glm::mat4& viewProjection,
+                          const glm::vec2& imageMin, const glm::vec2& imageSize, bool& inFront);
+
+// Distance from `point` to the segment a-b, all in screen space.
+f32 distanceToSegment(const glm::vec2& point, const glm::vec2& a, const glm::vec2& b)
+{
+    const glm::vec2 ab = b - a;
+    const f32 lengthSquared = glm::dot(ab, ab);
+    if (lengthSquared <= 1.0e-6f)
+        return glm::length(point - a);
+    const f32 t = glm::clamp(glm::dot(point - a, ab) / lengthSquared, 0.0f, 1.0f);
+    return glm::length(point - (a + ab * t));
+}
+} // namespace
+
 ViewportPanel::ViewportPanel(BlenderApplication& app)
     : BlenderPanel("Viewport", app)
 {
@@ -319,6 +336,19 @@ void ViewportPanel::drawToolbar()
     }
 
     ImGui::SameLine();
+    {
+        const bool wasShown = viewportSettings.showVertexColors;
+        if (wasShown)
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+        if (ImGui::Button(ICON_MDI_BRUSH))
+            viewportSettings.showVertexColors = !viewportSettings.showVertexColors;
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Show Painted Vertex Colors");
+        if (wasShown)
+            ImGui::PopStyleColor();
+    }
+
+    ImGui::SameLine();
     ImGui::Dummy(ImVec2(10.0f, 0.0f));
     ImGui::SameLine();
 
@@ -375,7 +405,7 @@ void ViewportPanel::drawToolbar()
         if (ImGui::Button(ICON_MDI_MAGNET))
             mSnap = !mSnap;
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Snap (not wired to a transform yet)");
+            ImGui::SetTooltip("Snap the gizmo to the steps in Preferences > Snap.\nHold Ctrl while moving to snap onto the nearest vertex.");
         if (wasSnap)
             ImGui::PopStyleColor();
     }
@@ -547,37 +577,7 @@ void ViewportPanel::computeMatrices(const CameraState& camera, ViewMode mode, f3
                                     glm::mat4& view, glm::mat4& projection,
                                     glm::vec3& cameraPos) const
 {
-    constexpr f32 kNear = 0.05f;
-    constexpr f32 kFar = 1000.0f;
-
-    if (mode == ViewMode::Perspective)
-    {
-        const glm::vec3 forward(glm::sin(camera.yaw) * glm::cos(camera.pitch),
-                                glm::sin(camera.pitch),
-                                -glm::cos(camera.yaw) * glm::cos(camera.pitch));
-        cameraPos = camera.target - forward * camera.distance;
-        view = glm::lookAt(cameraPos, camera.target, glm::vec3(0.0f, 1.0f, 0.0f));
-        projection = glm::perspective(glm::radians(60.0f), aspect, kNear, kFar);
-        return;
-    }
-
-    glm::vec3 offset(0.0f);
-    glm::vec3 up(0.0f, 1.0f, 0.0f);
-    switch (mode)
-    {
-    case ViewMode::Top: offset = glm::vec3(0.0f, camera.distance, 0.0f); up = glm::vec3(0.0f, 0.0f, -1.0f); break;
-    case ViewMode::Bottom: offset = glm::vec3(0.0f, -camera.distance, 0.0f); up = glm::vec3(0.0f, 0.0f, 1.0f); break;
-    case ViewMode::Front: offset = glm::vec3(0.0f, 0.0f, camera.distance); break;
-    case ViewMode::Back: offset = glm::vec3(0.0f, 0.0f, -camera.distance); break;
-    case ViewMode::Left: offset = glm::vec3(-camera.distance, 0.0f, 0.0f); break;
-    case ViewMode::Right: offset = glm::vec3(camera.distance, 0.0f, 0.0f); break;
-    default: break;
-    }
-    cameraPos = camera.target + offset;
-    view = glm::lookAt(cameraPos, camera.target, up);
-    const f32 halfHeight = camera.distance * 0.5f;
-    const f32 halfWidth = halfHeight * aspect;
-    projection = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, kNear, kFar);
+    computeCameraMatrices(camera, mode, aspect, view, projection, cameraPos);
 }
 
 void ViewportPanel::drawViewportWindow(usize index, const char* name, ViewMode mode)
@@ -617,6 +617,7 @@ void ViewportPanel::drawViewportWindow(usize index, const char* name, ViewMode m
         params.colorBySubmesh = app().settings().viewport().colorBySubmesh;
         params.debugView = mDebugView;
         params.unlit = mUnlit;
+        params.vertexColors = app().settings().viewport().showVertexColors;
         if (app().hasSkeleton() && !app().bonePalette().empty())
         {
             params.bonePalette = app().bonePalette().data();
@@ -754,7 +755,10 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
     if (!mGizmoDragging)
         mGizmoMatrix = glm::translate(glm::mat4(1.0f), app().transformPivot());
 
-    const f32 snapAmount = mTool == Tool::Move ? 1.0f : mTool == Tool::Rotate ? 15.0f : 0.1f;
+    const BlenderSettings::SnapSettings& snapSettings = app().settings().snap();
+    const f32 snapAmount = mTool == Tool::Move     ? snapSettings.moveStep
+                           : mTool == Tool::Rotate ? snapSettings.rotateStepDegrees
+                                                   : snapSettings.scaleStep;
     f32 snapValues[3] = {snapAmount, snapAmount, snapAmount};
 
     glm::mat4 manipulated = mGizmoMatrix;
@@ -779,6 +783,55 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
         mGizmoDragging = true;
         mGizmoViewport = static_cast<s32>(index);
         mGizmoStartMatrix = mGizmoMatrix;
+
+        // What is moving, so the vertex snap never offers a vertex as its own target.
+        mSnapMoving.assign(mesh->positions.size(), 0);
+        for (const u32 vertex : app().gizmoVertices())
+            if (vertex < mSnapMoving.size())
+                mSnapMoving[vertex] = 1;
+        // Nothing selected drags the whole mesh.
+        if (app().gizmoVertices().empty())
+            std::fill(mSnapMoving.begin(), mSnapMoving.end(), 1);
+    }
+
+    // Ctrl while moving: drop the pivot onto the nearest vertex that is not
+    // moving, if one is close on screen - the way to land a vertex exactly on
+    // another (weld afterwards to join them).
+    if (mTool == Tool::Move && ImGui::GetIO().KeyCtrl && mSnapMoving.size() == mesh->positions.size())
+    {
+        const glm::mat4 viewProjection = projection * view;
+        bool pivotInFront = false;
+        const glm::vec2 pivotScreen =
+            projectToScreen(glm::vec3(manipulated[3]), viewProjection, imageMin, imageSize, pivotInFront);
+        if (pivotInFront)
+        {
+            const f32 radius = snapSettings.vertexRadiusPixels;
+            f32 best = radius;
+            s32 bestVertex = -1;
+            glm::vec2 bestScreen(0.0f);
+            for (u32 v = 0; v < static_cast<u32>(mesh->positions.size()); ++v)
+            {
+                if (mSnapMoving[v])
+                    continue;
+                bool inFront = false;
+                const glm::vec2 screen = projectToScreen(mesh->positions[v], viewProjection, imageMin, imageSize, inFront);
+                if (!inFront)
+                    continue;
+                const f32 distance = glm::length(screen - pivotScreen);
+                if (distance <= best)
+                {
+                    best = distance;
+                    bestVertex = static_cast<s32>(v);
+                    bestScreen = screen;
+                }
+            }
+            if (bestVertex >= 0)
+            {
+                manipulated[3] = glm::vec4(mesh->positions[static_cast<usize>(bestVertex)], 1.0f);
+                ImGui::GetWindowDrawList()->AddCircle(ImVec2(bestScreen.x, bestScreen.y), radius * 0.6f,
+                                                      IM_COL32(255, 230, 60, 255), 24, 2.0f);
+            }
+        }
     }
 
     mGizmoMatrix = manipulated;
@@ -798,13 +851,22 @@ void ViewportPanel::uploadVertexSelection(const MeshData& mesh, const BlenderSel
     MiniRenderer& renderer = app().renderer();
     if (&mesh == mUploadedSelectionMesh && selection.revision() == mUploadedSelectionRevision &&
         renderer.meshUploadRevision() == mUploadedMeshRevision &&
-        mVertexSelectionFlags.size() == vertexCount)
+        app().hiddenRevision() == mUploadedHiddenRevision && mVertexSelectionFlags.size() == vertexCount)
         return;
 
     mVertexSelectionFlags.resize(vertexCount);
     selection.fillVertexFlags(mVertexSelectionFlags.data(), vertexCount);
+    // 2 tells the point pass to skip the vertex: it is hidden.
+    const std::vector<u8>& hidden = app().hiddenVertexFlags();
+    if (hidden.size() == vertexCount)
+    {
+        for (u32 i = 0; i < vertexCount; ++i)
+            if (hidden[i])
+                mVertexSelectionFlags[i] = 2;
+    }
     renderer.setVertexSelection(mVertexSelectionFlags.data(), vertexCount);
 
+    mUploadedHiddenRevision = app().hiddenRevision();
     mUploadedSelectionRevision = selection.revision();
     mUploadedMeshRevision = renderer.meshUploadRevision();
     mUploadedSelectionMesh = &mesh;
@@ -821,9 +883,10 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& 
 
     const bool drawVertexFace = selection.mode() == BlenderSelection::SelectionMode::Vertex ||
                                 selection.mode() == BlenderSelection::SelectionMode::Face;
+    const bool drawEdges = selection.mode() == BlenderSelection::SelectionMode::Edge;
     const bool drawSubmesh =
         selectedSubmesh >= 0 && static_cast<usize>(selectedSubmesh) < mesh->submeshes.size();
-    if (!drawVertexFace && !drawSubmesh)
+    if (!drawVertexFace && !drawEdges && !drawSubmesh)
         return;
 
     MiniBatch& batch = app().batch();
@@ -876,6 +939,32 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const glm::mat4& 
             batch.line(p0, p1, edgeHighlight);
             batch.line(p1, p2, edgeHighlight);
             batch.line(p2, p0, edgeHighlight);
+        }
+    }
+
+    if (drawEdges)
+    {
+        // Every edge of the model, faintly, so there is something to aim at, and
+        // the selected ones over them in the selection colour.
+        constexpr usize kMaxDrawnEdges = 400000;
+        const MeshTopology& topology = app().topology();
+        const glm::vec4 plain(0.72f, 0.74f, 0.78f, 1.0f);
+        const glm::vec4 chosen(viewportSettings.selectedVertexColor, 1.0f);
+        const bool drawAll = topology.edges().size() <= kMaxDrawnEdges;
+        for (const MeshTopology::Edge& edge : topology.edges())
+        {
+            if (app().hasHidden())
+            {
+                bool shown = false;
+                for (const u32 face : edge.faces)
+                    shown = shown || !app().isFaceHidden(face);
+                if (!shown)
+                    continue;
+            }
+            const bool picked = selection.isEdgeSelected(MeshTopology::edgeKey(edge.a, edge.b));
+            if (!picked && !drawAll)
+                continue;
+            batch.line(mesh->positions[edge.a], mesh->positions[edge.b], picked ? chosen : plain);
         }
     }
 
@@ -1049,8 +1138,6 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
         return;
 
     BlenderSelection& selection = app().selection();
-    if (selection.mode() == BlenderSelection::SelectionMode::Edge)
-        return;
 
     ImGuiIO& io = ImGui::GetIO();
     const bool hovered = ImGui::IsWindowHovered();
@@ -1115,6 +1202,77 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
         const glm::vec2 readMax =
             isBox ? rectMax - imageMin : current - imageMin + glm::vec2(kPickRadius);
         readDepthRect(target, readMin, readMax, depthRect);
+    }
+
+    if (selection.mode() == BlenderSelection::SelectionMode::Edge)
+    {
+        const MeshTopology& topology = app().topology();
+        constexpr f32 kEdgePickRadius = 8.0f;
+
+        u64 bestKey = 0;
+        f32 bestDistance = 1e9f;
+        glm::vec3 bestMiddle(0.0f);
+        glm::vec2 bestMiddleScreen(0.0f);
+        bool found = false;
+
+        for (const MeshTopology::Edge& edge : topology.edges())
+        {
+            // Reachable when at least one triangle on it is (a hidden part's
+            // edges stay out of the way, like its faces and vertices).
+            bool selectable = false;
+            for (const u32 face : edge.faces)
+            {
+                if (face < faceSelectable.size() && faceSelectable[face])
+                {
+                    selectable = true;
+                    break;
+                }
+            }
+            if (!selectable)
+                continue;
+
+            const glm::vec3& pa = mesh->positions[edge.a];
+            const glm::vec3& pb = mesh->positions[edge.b];
+            bool frontA = false;
+            bool frontB = false;
+            const glm::vec2 sa = projectToScreen(pa, viewProjection, imageMin, imageSize, frontA);
+            const glm::vec2 sb = projectToScreen(pb, viewProjection, imageMin, imageSize, frontB);
+            if (!frontA || !frontB)
+                continue;
+
+            const glm::vec3 middle = (pa + pb) * 0.5f;
+            const glm::vec2 middleScreen = (sa + sb) * 0.5f;
+
+            if (isBox)
+            {
+                const bool insideA = sa.x >= rectMin.x && sa.x <= rectMax.x && sa.y >= rectMin.y && sa.y <= rectMax.y;
+                const bool insideB = sb.x >= rectMin.x && sb.x <= rectMax.x && sb.y >= rectMin.y && sb.y <= rectMax.y;
+                if (insideA && insideB &&
+                    (!mSelectVisibleOnly ||
+                     isScreenPointVisible(depthRect, middleScreen - imageMin, middle,
+                                          inverseViewProjection, cameraPos, target)))
+                    selection.selectEdge(MeshTopology::edgeKey(edge.a, edge.b));
+            }
+            else
+            {
+                const f32 distance = distanceToSegment(current, sa, sb);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    bestKey = MeshTopology::edgeKey(edge.a, edge.b);
+                    bestMiddle = middle;
+                    bestMiddleScreen = middleScreen;
+                    found = true;
+                }
+            }
+        }
+
+        if (!isBox && found && bestDistance <= kEdgePickRadius &&
+            (!mSelectVisibleOnly ||
+             isScreenPointVisible(depthRect, bestMiddleScreen - imageMin, bestMiddle,
+                                  inverseViewProjection, cameraPos, target)))
+            selection.selectEdge(bestKey);
+        return;
     }
 
     if (selection.mode() == BlenderSelection::SelectionMode::Vertex)

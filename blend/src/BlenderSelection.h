@@ -2,6 +2,7 @@
 #define RADION_BLENDER_SELECTION_H
 
 #include "Types.h"
+#include <set>
 #include <vector>
 
 namespace Radion
@@ -50,6 +51,19 @@ public:
     bool isFaceSelected(u32 index) const;
     const std::vector<u32>& selectedFaces() const;
 
+    // Edge selection. An edge is named by MeshTopology::edgeKey() - the pair of
+    // canonical vertex ids packed into one number - so the selection survives
+    // anything that leaves the mesh itself alone, and needs no index into a
+    // structure that has to be rebuilt.
+    void selectEdge(u64 key);
+    void deselectEdge(u64 key);
+    void toggleEdge(u64 key);
+    bool isEdgeSelected(u64 key) const;
+    // Ascending.
+    const std::vector<u64>& selectedEdges() const;
+    // Replaces the edge selection.
+    void setEdges(const std::vector<u64>& keys);
+
     // Clear selection
     void clearAll();
     void selectAll(u32 vertexCount, u32 faceCount);
@@ -63,6 +77,10 @@ public:
     u32 selectedFaceCount() const
     {
         return mFaceCount;
+    }
+    u32 selectedEdgeCount() const
+    {
+        return static_cast<u32>(mEdges.size());
     }
 
     // Bumped by every change. Lets a viewport tell in constant time whether
@@ -95,6 +113,10 @@ private:
     mutable std::vector<u32> mFaceList;
     mutable u64 mVertexListRevision = 0;
     mutable u64 mFaceListRevision = 0;
+
+    std::set<u64> mEdges;
+    mutable std::vector<u64> mEdgeList;
+    mutable u64 mEdgeListRevision = 0;
 };
 
 } // namespace Radion

@@ -261,10 +261,55 @@ void testFacesAreIndependent()
     CHECK(selection.selectedFaceCount() == 1);
 }
 
+void testEdges()
+{
+    BlenderSelection selection;
+    CHECK(selection.selectedEdgeCount() == 0);
+    CHECK(selection.selectedEdges().empty());
+
+    const u64 a = (u64(3) << 32) | 9;
+    const u64 b = (u64(1) << 32) | 2;
+    selection.selectEdge(a);
+    selection.selectEdge(b);
+    selection.selectEdge(a); // twice: still one
+    CHECK(selection.selectedEdgeCount() == 2);
+    CHECK(selection.isEdgeSelected(a));
+    CHECK(!selection.isEdgeSelected(a + 1));
+
+    // Ascending, whatever order they arrived in.
+    const std::vector<u64>& list = selection.selectedEdges();
+    CHECK(list.size() == 2 && list[0] == b && list[1] == a);
+
+    const u64 before = selection.revision();
+    selection.deselectEdge(12345); // not selected: nothing changes
+    CHECK(selection.revision() == before);
+    selection.deselectEdge(a);
+    CHECK(selection.revision() != before);
+    CHECK(selection.selectedEdgeCount() == 1);
+    CHECK(selection.selectedEdges().size() == 1);
+
+    selection.toggleEdge(a);
+    CHECK(selection.isEdgeSelected(a));
+    selection.toggleEdge(a);
+    CHECK(!selection.isEdgeSelected(a));
+
+    selection.setEdges({a, a, b});
+    CHECK(selection.selectedEdgeCount() == 2);
+
+    // Edges are independent of vertices and faces, and clearAll() takes them too.
+    selection.selectVertex(4);
+    selection.selectFace(1);
+    CHECK(selection.selectedEdgeCount() == 2);
+    selection.clearAll();
+    CHECK(selection.selectedEdgeCount() == 0);
+    CHECK(selection.selectedVertexCount() == 0 && selection.selectedFaceCount() == 0);
+}
+
 } // namespace
 
 int main()
 {
+    testEdges();
     testSelectAndDeselect();
     testDoubleSelectKeepsCount();
     testSelectAllMasksTheTail();

@@ -19,7 +19,10 @@ constexpr u32 kMiniRendererMaxBones = 128;
 struct MiniRendererConfig
 {
     f32 lightIntensity = 1.0f;
-    glm::vec3 lightDirection = glm::normalize(glm::vec3(0.5f, 1.0f, 0.5f));
+    // The direction the light travels - the shader lights a surface by its
+    // dot with the opposite. Down and a little across, so the tops of things are
+    // the lit side; the old (+Y) value lit a model from underneath.
+    glm::vec3 lightDirection = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.5f));
     glm::vec3 ambientColor = glm::vec3(0.3f, 0.3f, 0.3f);
     f32 ambientIntensity = 0.3f;
 };
@@ -63,6 +66,9 @@ struct MiniDrawParams
     // tint colorBySubmesh already multiplies it by), the "flat color, no
     // shadow" solid look.
     bool unlit = false;
+    // Multiplies the surface by MeshData::colors (linear, as glTF's COLOR_0), so
+    // painted vertex colours show. A mesh without colours is unaffected.
+    bool vertexColors = false;
     // Extra GL_POINTS pass over the mesh, drawn straight from the static
     // vertex buffer - one draw call, nothing uploaded per frame. Which points
     // come out selected is whatever setVertexSelection() last stored.
@@ -134,6 +140,12 @@ public:
     // viewport has BlenderSelection::revision() to tell.
     void setVertexSelection(const u8* selected, u32 count);
 
+    // Triangles to leave out of every draw, one byte per triangle, nonzero =
+    // hidden. Nothing is uploaded: the draw skips those index ranges. Ignored
+    // unless it has exactly one entry per triangle of the mesh being drawn.
+    // nullptr (or a count of 0) shows everything.
+    void setHiddenFaces(const u8* faceHidden, u32 faceCount);
+
     // Bumped every time the mesh is uploaded, which is also every time the
     // selection buffer is recreated and zeroed. A caller that caches what it
     // last sent has to watch this as well as its own state: editing a mesh
@@ -164,6 +176,8 @@ private:
     u32 mIndexCount = 0;
     u32 mVertexCount = 0;
     const MeshData* mUploadedMesh = nullptr;
+    std::vector<u8> mHiddenFaces;
+    bool mHasHiddenFaces = false;
 
     u32 mWhiteTexture = 0;
     u32 mFlatNormalTexture = 0;
@@ -172,6 +186,9 @@ private:
     bool createDefaultTextures();
     void destroyBuffers();
     void uploadMesh(const MeshData& mesh);
+    // glDrawElements over [indexOffset, indexOffset + indexCount), skipping the
+    // hidden triangles inside it.
+    void drawTriangleRange(u32 indexOffset, u32 indexCount);
 };
 
 } // namespace Radion
