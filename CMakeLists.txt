@@ -20,7 +20,9 @@ endif()
 #
 # Static libraries deliberately stay behind: they are not runnable, and mixing
 # them in is what made it unclear which files in here mattered.
-set(RADION_BINARY_DIR "${PROJECT_SOURCE_DIR}/bin")
+if(NOT DEFINED RADION_BINARY_DIR)
+    set(RADION_BINARY_DIR "${PROJECT_SOURCE_DIR}/bin")
+endif()
 
 # The check above misses `cmake -B bin`: bin/ is a subdirectory, not the
 # project root, so it slips through and mixes CMake's own files in with the

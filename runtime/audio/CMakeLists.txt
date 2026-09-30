@@ -2,14 +2,14 @@
 # Depends only on radion_core, for FileSystem, ByteArray and Log - it does
 # not touch render/gpu/scene/engine.
 
-set(MINIAUDIO_ROOT ${CMAKE_SOURCE_DIR}/vendor/miniaudio)
+set(MINIAUDIO_ROOT ${PROJECT_SOURCE_DIR}/vendor/miniaudio)
 
 # Built as C on purpose: compiling the implementation as C++ mangles the
 # names miniaudio's own backends resolve at runtime.
 add_library(radion_miniaudio STATIC
     ${MINIAUDIO_ROOT}/miniaudio_impl.c
 )
-target_include_directories(radion_miniaudio SYSTEM PUBLIC ${CMAKE_SOURCE_DIR}/vendor)
+target_include_directories(radion_miniaudio SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/vendor)
 
 if(UNIX AND NOT APPLE)
     find_package(Threads REQUIRED)

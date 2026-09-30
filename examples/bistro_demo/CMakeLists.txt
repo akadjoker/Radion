@@ -8,7 +8,7 @@ target_precompile_headers(radion_bistro_demo PRIVATE
 
 target_link_libraries(radion_bistro_demo PRIVATE radion_engine radion_scene)
 target_compile_definitions(radion_bistro_demo PRIVATE
-    RADION_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets"
+    RADION_ASSET_DIR="${PROJECT_SOURCE_DIR}/assets"
 )
 
 if(TARGET SDL2::SDL2main)

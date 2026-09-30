@@ -9,7 +9,7 @@ target_precompile_headers(radion_physics_lab PRIVATE
 
 target_link_libraries(radion_physics_lab PRIVATE radion_engine radion_scene)
 target_compile_definitions(radion_physics_lab PRIVATE
-    RADION_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets"
+    RADION_ASSET_DIR="${PROJECT_SOURCE_DIR}/assets"
 )
 
 if(TARGET SDL2::SDL2main)

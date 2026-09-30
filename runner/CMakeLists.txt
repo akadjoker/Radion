@@ -4,7 +4,7 @@ add_executable(radion_runner
 
 target_link_libraries(radion_runner PRIVATE radion_engine radion_scene)
 target_compile_definitions(radion_runner PRIVATE
-    RADION_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets"
+    RADION_ASSET_DIR="${PROJECT_SOURCE_DIR}/assets"
 )
 
 if(TARGET SDL2::SDL2main)

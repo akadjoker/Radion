@@ -1,5 +1,5 @@
 add_executable(radion_editor
-    ${CMAKE_SOURCE_DIR}/vendor/imgui/editor/TextEditor.cpp
+    ${PROJECT_SOURCE_DIR}/vendor/imgui/editor/TextEditor.cpp
     src/main.cpp
     src/EditorApplication.cpp
     src/EditorSelection.cpp
@@ -21,21 +21,21 @@ add_executable(radion_editor
     src/panels/MeshToolsPanel.cpp
     src/panels/TilePainterPanel.cpp
     src/panels/VolumePanel.cpp
-    ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets/ImGuiFileDialog.cpp
-    ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets/ImGuizmo.cpp
-    ${CMAKE_SOURCE_DIR}/vendor/imgui/imgui_stdlib.cpp
+    ${PROJECT_SOURCE_DIR}/vendor/imgui/widgets/ImGuiFileDialog.cpp
+    ${PROJECT_SOURCE_DIR}/vendor/imgui/widgets/ImGuizmo.cpp
+    ${PROJECT_SOURCE_DIR}/vendor/imgui/imgui_stdlib.cpp
 )
 target_link_libraries(radion_editor PRIVATE radion_engine radion_scene radion_geometry)
 target_compile_definitions(radion_editor PRIVATE
-    RADION_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets"
+    RADION_ASSET_DIR="${PROJECT_SOURCE_DIR}/assets"
 
     IMGUI_DEFINE_MATH_OPERATORS
 )
 target_include_directories(radion_editor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/vendor/icons
-    ${CMAKE_SOURCE_DIR}/vendor/imgui/editor
-    ${CMAKE_SOURCE_DIR}/vendor/imgui/widgets
+    ${PROJECT_SOURCE_DIR}/vendor/imgui/editor
+    ${PROJECT_SOURCE_DIR}/vendor/imgui/widgets
 )
 
 if(TARGET SDL2::SDL2main)

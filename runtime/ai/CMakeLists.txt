@@ -4,7 +4,7 @@
 # step lives on Scene, so the two can no longer be linked apart - the same
 # move runtime/physics/CMakeLists.txt made for RigidBody.
 
-set(RECAST_ROOT ${CMAKE_SOURCE_DIR}/vendor/recastnavigation)
+set(RECAST_ROOT ${PROJECT_SOURCE_DIR}/vendor/recastnavigation)
 
 # Recast (navmesh generation) + Detour (queries on it). Source list mirrors
 # the one in BuGL/BuRecast; DetourCrowd/DetourTileCache are left out until
