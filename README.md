@@ -26,8 +26,8 @@ GL ES support — deliberately.
 - **Editor with docking panels** built on ImGui: viewport, game view,
   hierarchy, inspector, assets, animation, lightmaps, mesh tools, volume
   editing, profiler, and more.
-- **Blender-style mini mesh editor** (`radion_blender`) for mesh editing and
-  keyframe animation.
+- The Blender-style mesh editor (`radion_blender`) lives on the `blender` branch
+  (it still uses GLM; it is no longer part of this tree).
 - **Physics** — rigid-body dynamics, joints, vehicles, soft bodies, character
   controllers, and convex-hull collision.
 - **AI** — navigation meshes (Recast), pathfinding, steering behaviors, state
@@ -81,7 +81,6 @@ graph BT
 
 ```
 assets/          shaders and textures
-blend/           Blender-style mini mesh editor (radion_blender)
 build/           out-of-source CMake build tree
 cmake/           shared CMake helpers and options
 docs/            internal design docs and references (mostly PT, not user-facing)
@@ -141,7 +140,6 @@ Executables are written to `bin/`.
 |---|---|
 | `bin/radion_editor` | The main editor — scene authoring, materials, lightmaps, animation |
 | `bin/radion_runner <scene or project>` | Standalone runner that loads and executes a scene |
-| `bin/radion_blender` | Blender-style mini mesh editor (mesh editing + keyframes) |
 | `bin/radion_lightmapbake <settings.json>` | Headless lightmap baker CLI |
 | `bin/radion_pack` | Builds the compiled asset pack embedded into the engine |
 
