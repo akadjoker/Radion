@@ -1,0 +1,3 @@
+PySide6>=6.5
+# Optional: lets the app read API keys from the system keyring.
+# keyring
