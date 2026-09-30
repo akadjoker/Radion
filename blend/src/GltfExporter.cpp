@@ -16,7 +16,6 @@ namespace
 {
 using Json = nlohmann::json;
 
-// glTF constants.
 constexpr int kFloat = 5126;
 constexpr int kUnsignedInt = 5125;
 constexpr int kUnsignedByte = 5121;
@@ -55,7 +54,6 @@ void appendU32(std::vector<unsigned char>& bytes, u32 value)
         bytes.push_back(static_cast<unsigned char>((value >> shift) & 0xFF));
 }
 
-// A buffer view onto the binary chunk, returning its index.
 int addView(Json& views, std::vector<unsigned char>& bin, const void* data, usize size, int target)
 {
     pad(bin, 0);
@@ -79,9 +77,7 @@ int addAccessor(Json& accessors, int view, usize byteOffset, int componentType, 
     return static_cast<int>(accessors.size()) - 1;
 }
 
-// Hands out glTF texture indices for image files: an image that two materials
-// share is embedded once. Anything it cannot embed becomes a warning and the
-// material keeps only its factors.
+// Hands out texture indices for image files, embedding a shared image once; one it cannot embed becomes a warning.
 class TextureTable
 {
 public:
@@ -231,7 +227,6 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
     {
         if (static_cast<u64>(submesh.indexOffset) + submesh.indexCount > mesh.indices.size())
             return fail(error, "a submesh reaches past the end of the index list");
-        // glTF triangles come in threes.
         submesh.indexCount -= submesh.indexCount % 3;
     }
 
@@ -239,7 +234,6 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
     Json accessors = Json::array();
     std::vector<unsigned char> bin;
 
-    // Positions need their extent declared.
     Math::vec3 low(3.402823466e+38f);
     Math::vec3 high(-3.402823466e+38f);
     for (const Math::vec3& position : mesh.positions)
@@ -281,8 +275,7 @@ bool GltfExporter::build(const MeshData& mesh, const std::string& name,
     const int indexView = addView(views, bin, mesh.indices.data(), mesh.indices.size() * sizeof(u32),
                                   kElementArrayBuffer);
 
-    // Only the materials some submesh uses, renumbered, so the file carries no
-    // dead entries.
+    // Only the materials some submesh uses, renumbered, so the file has no dead entries.
     Json materials = Json::array();
     TextureTable textureTable(views, bin, warnings);
     std::vector<int> materialOf(mesh.materials.size(), -1);

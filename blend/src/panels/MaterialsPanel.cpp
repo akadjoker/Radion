@@ -51,8 +51,7 @@ bool isImageAsset(const std::string& extension)
     return extension == "png" || extension == "jpg" || extension == "jpeg" ||
           extension == "tga" || extension == "bmp" || extension == "dds" || extension == "hdr" ||
           extension == "webp";
-    // .exr left out on purpose, same reason as the editor's AssetsPanel: the
-    // loader does not read it, so this would just fail every frame.
+    // .exr left out: the loader does not read it.
 }
 
 const char* iconForEntry(const FileSystem::DirEntry& entry)
@@ -377,9 +376,7 @@ TextureHandle MaterialsPanel::thumbnailFor(const std::string& path)
     if (it != mThumbnailCache.end())
         return it->second;
 
-    // sRGB: a browser thumbnail is judged by eye like any other colour
-    // image, never sampled as data - there is no material slot yet to ask
-    // Material::colorSpaceFor() about.
+    // sRGB: thumbnails are judged by eye, and there is no material slot to ask colorSpaceFor().
     const TextureHandle texture = Assets().loadTexture(path, ColorSpace::sRGB);
     mThumbnailCache.emplace(path, texture);
     return texture;
@@ -452,8 +449,6 @@ void MaterialsPanel::drawGrid()
                                                 IM_COL32(255, 165, 0, 255), 0.0f, 0, 2.0f);
         }
 
-        // Drop target is drawTextureSlot() below, in this same panel's
-        // Inspector.
         if (isImage && ImGui::BeginDragDropSource())
         {
             ImGui::SetDragDropPayload(MaterialEditor::kTextureDragPayload, path.c_str(), path.size());
@@ -515,11 +510,7 @@ void MaterialsPanel::drawContextMenu(const FileSystem::DirEntry& entry)
             app().importMesh(path);
     }
 
-    // One entry regardless of what the file turns out to carry: against an
-    // already-loaded skeleton it appends an animation clip, otherwise it
-    // merges the file's own geometry into the current mesh - appendAsset()
-    // is the one that decides which, the same way Load/Import above already
-    // decide by extension rather than asking first.
+    // One entry either way: appendAsset() decides between appending an animation clip (skeleton loaded) and merging geometry.
     const bool hasMesh = app().currentMeshData() && !app().currentMeshData()->positions.empty();
     if (ImGui::MenuItem(ICON_MDI_PLUS " Append", nullptr, false, hasMesh))
         app().appendAsset(path);

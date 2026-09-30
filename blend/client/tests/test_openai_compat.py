@@ -124,7 +124,7 @@ def test_refusing_stream_with_tools_falls_back_to_non_streaming(llm_server):
     assert provider.complete(USER, []).tool_calls[0].name == "get_status"
     assert [r["body"]["stream"] for r in llm_server.requests] == [True, False]
     provider.complete(USER, [])
-    assert llm_server.requests[2]["body"]["stream"] is False  # remembered
+    assert llm_server.requests[2]["body"]["stream"] is False
 
 
 def test_other_400_errors_are_not_retried(llm_server):
@@ -163,7 +163,7 @@ def test_cancel_interrupts_a_stalled_stream(llm_server):
 
     thread = threading.Thread(target=run)
     thread.start()
-    assert seen.wait(5)  # streaming has started and the server is now silent
+    assert seen.wait(5)
     pressed = time.monotonic()
     cancel.cancel()
     thread.join(5)
@@ -178,8 +178,6 @@ def test_already_cancelled_token_sends_nothing(llm_server):
         provider_for(llm_server).complete(USER, [], cancel=cancel)
     assert llm_server.requests == []
 
-
-# -- wire messages ---------------------------------------------------------------------
 
 IMAGE = {"mimeType": "image/png", "data": "QUJD"}
 
@@ -202,7 +200,7 @@ def test_vision_profile_gets_the_image_as_a_user_message_after_all_tool_messages
     parts = wire[4]["content"]
     assert parts[0]["type"] == "text" and parts[0]["text"].count("\n") == 0
     assert parts[1] == {"type": "image_url", "image_url": {"url": "data:image/png;base64,QUJD"}}
-    assert wire[1]["content"] is None  # empty text next to tool calls
+    assert wire[1]["content"] is None
 
 
 def test_non_vision_profile_gets_text_only():

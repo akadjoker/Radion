@@ -28,7 +28,7 @@
 #include <unordered_map>
 #include <imgui.h>
 #include <imgui_stdlib.h>
-#include <imgui_internal.h> // DockBuilder* - building the first-run default layout
+#include <imgui_internal.h>
 #include <utility>
 
 using namespace Radion;
@@ -62,8 +62,7 @@ BlenderApplication::BlenderApplication(Engine& engine)
 
 BlenderApplication::~BlenderApplication()
 {
-    // First: a request still waiting on the frame loop must be released before
-    // anything it could touch goes away.
+    // A request still waiting on the frame loop must be released before anything it could touch goes away.
     mApi.reset();
     mSettings.save(mSettingsPath);
     mBatch.shutdown();
@@ -79,8 +78,7 @@ void BlenderApplication::run()
     while (mEngine.update())
     {
         const f32 deltaTime = Math::min(mEngine.getWindow().getDeltaTime(), 0.1f);
-        // Before anything draws: API commands change the document the rest of
-        // the frame then shows.
+        // Before anything draws: API commands change the document the frame then shows.
         mApi->pump();
         runFrame(deltaTime);
         handleShortcuts();
@@ -123,8 +121,7 @@ bool BlenderApplication::startApi(const std::string& host, int port, const std::
         return false;
     }
     mApiError.clear();
-    // Not written to the settings here: a port given on the command line is for
-    // this run only. The Preferences' Start button is what saves one.
+    // Not written to settings: a command-line port is for this run only; the Preferences' Start button saves one.
     mApiPortField = mApi->port();
     return true;
 }
@@ -184,11 +181,8 @@ bool BlenderApplication::loadMesh(const std::string& path)
     mGlobalPose.clear();
     mBonePalette.clear();
 
-    // A rig's skeleton and its bind-pose mesh routinely live in the same
-    // file (an FBX export, most often) - try it on whatever was just loaded
-    // before asking the user to point at anything separately. No skin data,
-    // no point looking: a static mesh's own file is never going to resolve
-    // to bones.
+    // A rig's skeleton usually lives in the same file as its mesh (FBX); try it before asking separately. No skin data
+    // means no bones.
     if (!mMeshData->skin.empty() && Assets().importSkeleton(path, mSkeleton) && mSkeleton.finalize())
     {
         mHasSkeleton = true;
@@ -337,16 +331,10 @@ void BlenderApplication::updateAnimationPose()
     if (!mHasSkeleton)
         return;
 
-    // bindPose() both sizes mLocalPose to the skeleton's own bone count and
-    // fills every bone's rest offset - sample() below only overwrites the
-    // bones its own clip actually has a track for (see its own comment: a
-    // bone with no track is left untouched, not reset), so this has to run
-    // first every time. Skipping it whenever a clip is active left
-    // mLocalPose sized 0 on the very first pose ever built (no bindPose()
-    // call had ever run yet), which fails evaluate()'s size check silently -
-    // mBonePalette stayed empty, MiniRenderer fell back to binding only
-    // uBonePalette[0], and every vertex weighted to any other joint read
-    // whatever garbage sat in the rest of that uniform array.
+    // bindPose() sizes mLocalPose and fills rest offsets; sample() only overwrites bones with tracks, so this must run
+    // first every time.
+    // Otherwise the first pose leaves mLocalPose empty, evaluate() fails silently and MiniRenderer reads garbage for
+    // joints > 0.
     mSkeleton.bindPose(mLocalPose);
     if (mActiveClip >= 0 && static_cast<usize>(mActiveClip) < mAnimationClips.size())
     {
@@ -509,8 +497,8 @@ u32 BlenderApplication::snapSelectionToVertices(f32 tolerance)
     for (const u32 vertex : selected)
         isSelectedPoint[topo.canonical(vertex)] = true;
 
-    // Targets: one per point that is not selected, found through a grid of
-    // tolerance-sized cells so each lookup only meets its neighbours.
+    // Targets: one per unselected point, found through a grid of tolerance-sized cells so a lookup only meets its
+    // neighbours.
     struct Cell
     {
         s64 x, y, z;
@@ -536,8 +524,7 @@ u32 BlenderApplication::snapSelectionToVertices(f32 tolerance)
             targets[cellOf(positions[v])].push_back(v);
     }
 
-    // Decide every move before making any, so one point snapping cannot change
-    // where the next one finds its target.
+    // Decide every move before making any, so one snap cannot change where the next finds its target.
     std::unordered_map<u32, Math::vec3> destination;
     for (const u32 vertex : selected)
     {
@@ -849,7 +836,6 @@ bool BlenderApplication::subdivideSelection(u32 levels, bool smooth, std::string
     }
     else if (mHasHidden)
     {
-        // Everything that is showing.
         for (u32 face = 0; face < mMeshData->indices.size() / 3; ++face)
             if (!isFaceHidden(face))
                 faces.push_back(face);
@@ -932,8 +918,7 @@ u32 BlenderApplication::splitSelectedEdges(f32 t, std::string* error)
         return 0;
     }
 
-    // The new vertices sit on the old edges: select them, so the cut can be moved
-    // or extruded straight away.
+    // Select the new vertices so the cut can be moved or extruded straight away.
     mSelection.clearAll();
     mSelection.setMode(BlenderSelection::SelectionMode::Vertex);
     for (const MeshEdit::RefineResult::Midpoint& m : result.midpoints)
@@ -1118,7 +1103,6 @@ const std::vector<u8>& BlenderApplication::hiddenVertexFlags()
     if (!mHasHidden || !mMeshData || mHiddenFaces.size() != mMeshData->indices.size() / 3)
         return mHiddenVertices;
 
-    // Hidden when it has triangles and every one of them is hidden.
     const usize vertexCount = mMeshData->positions.size();
     std::vector<u8> used(vertexCount, 0);
     std::vector<u8> shown(vertexCount, 0);
@@ -1145,8 +1129,8 @@ void BlenderApplication::deleteSelectedEdges()
     if (!mMeshData || mSelection.selectedEdgeCount() == 0)
         return;
 
-    // An edge cannot be removed and leave the triangles on either side of it, so
-    // deleting one takes them with it - Blender's "Edges" delete does the same.
+    // An edge cannot be removed and leave the triangles beside it, so deleting one takes them with it (as Blender's
+    // "Edges" delete).
     const MeshTopology& topo = topology();
     std::set<u32> faces;
     for (const u64 key : mSelection.selectedEdges())
@@ -1433,8 +1417,7 @@ std::vector<u32> BlenderApplication::symmetryPartners(const std::vector<u32>& ve
         return p;
     };
 
-    // Every vertex, by the cell it stands in, so a mirrored point finds what is at
-    // it without walking the whole mesh.
+    // Every vertex by the cell it stands in, so a mirrored point finds what is at it without walking the mesh.
     struct Cell
     {
         s64 x, y, z;
@@ -1511,7 +1494,6 @@ void BlenderApplication::transformVerticesWorld(const Math::mat4& world, const s
         Math::mat4 reflect = Math::translate(Math::mat4(1.0f), Math::vec3(0.0f));
         Math::vec3 shift(0.0f);
         shift[mSymmetryAxis] = 2.0f * mSymmetryOffset;
-        // x -> 2*offset - x along the axis.
         reflect = Math::translate(Math::mat4(1.0f), shift) * Math::scale(Math::mat4(1.0f), flip);
         // M * W * M, with M its own inverse: what the partner must do to mirror the move.
         Assets().transformVerticesAbout(*mMeshData, reflect * world * reflect, Math::vec3(0.0f), partners);
@@ -1527,12 +1509,9 @@ void BlenderApplication::recordUndo()
     trimUndoStates();
 }
 
-// A step is a whole copy of the mesh, so what the stack costs depends on what
-// is loaded, not on how many edits were made: the same twenty steps are
-// nothing on a crate and most of a gigabyte on a scanned model. The budget is
-// in bytes for that reason, and the oldest steps go first. One step always
-// survives, however big the mesh - a single undo is the least the tool can
-// offer, and dropping it would make an edit on a large model unrecoverable.
+// A step is a whole mesh copy, so the stack's cost depends on the mesh, not the edit count: the budget is in bytes and
+// the oldest steps go first.
+// One step always survives, so an edit on a large model stays recoverable.
 void BlenderApplication::trimUndoStates()
 {
     usize total = 0;
@@ -1614,9 +1593,8 @@ void BlenderApplication::stop()
 
 void BlenderApplication::insertKeyframe()
 {
-    // Nothing records a keyframe yet. Taking an undo snapshot and marking the
-    // file dirty for an edit that never happened costs a whole mesh copy and
-    // asks the user to save work that does not exist.
+    // Nothing records a keyframe yet: a snapshot and dirty mark would copy the whole mesh and ask to save work that does
+    // not exist.
 }
 
 void BlenderApplication::deleteKeyframe(u32 frame)
@@ -1640,12 +1618,8 @@ bool BlenderApplication::saveAs(const std::string& path)
     if (!mMeshData || mMeshData->positions.empty())
         return false;
 
-    // saveMesh() always writes the engine's own .rmesh format regardless of
-    // the extension it is handed - forcing it here keeps "Save" on a mesh
-    // imported from .obj/.fbx from overwriting that original file with
-    // .rmesh bytes under its old extension. Every import is already fully
-    // converted to MeshData in memory the moment it loads; this just makes
-    // where it lands on disk match what it already is.
+    // saveMesh() always writes .rmesh whatever the extension; forcing it keeps Save on an imported .obj/.fbx from
+    // overwriting the original with .rmesh bytes.
     const std::string nativePath = FileSystem::withoutExtension(path) + ".rmesh";
     if (nativePath != path)
         Log::info("BlenderApplication: saving as native mesh '%s' (was '%s')", nativePath.c_str(),
@@ -1727,10 +1701,8 @@ void BlenderApplication::buildPanels()
     mPanels.push_back(new ConsolePanel(*this));
 }
 
-// Same shape as EditorApplication::drawDockspace() (editor/src/EditorApplication.cpp):
-// a fullscreen, undockable host window carries the DockSpace, and the split
-// is built once - after the user redocks anything, ImGui's own .ini
-// persistence takes over and DockBuilderGetNode() stops seeing an empty node.
+// Same shape as EditorApplication::drawDockspace(): the split is built once; after a redock ImGui's .ini takes over and
+// DockBuilderGetNode() stops seeing an empty node.
 void BlenderApplication::drawDockspace()
 {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -1764,11 +1736,8 @@ void BlenderApplication::drawDockspace()
             ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
             ImGui::DockBuilderSetNodeSize(dockspaceId, dockSize);
 
-            // Blender's own default: a big centre viewport, and the right
-            // edge stacked Properties over Hierarchy instead of splitting
-            // them left/right - one object at a time to inspect, not two
-            // panels competing for the same width. Timeline/mesh-edit/
-            // console share the bottom strip as tabs.
+            // Big centre viewport, Properties over Hierarchy on the right edge, Timeline/mesh-edit/console as tabs in
+            // the bottom strip.
             ImGuiID center, right, centerTop, bottom, propertiesTop, hierarchyBottom, viewportArea, uvArea;
             ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Right, 0.22f, &right, &center);
             ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.28f, &bottom, &centerTop);
@@ -1877,8 +1846,7 @@ void BlenderApplication::drawMainMenuBar()
         ImGui::EndMenu();
     }
 
-    // Outside the block below: Add is how a mesh comes into being, so gating
-    // it on there already being one locks the tool shut after File > New.
+    // Outside the block below: Add creates the mesh, so gating it on one existing locks the tool shut after File > New.
     drawAddMenu();
 
     ImGui::BeginDisabled(!hasMesh);
@@ -1965,15 +1933,12 @@ void BlenderApplication::drawSelectMenu()
     {
         for (u32 i = 0; i < static_cast<u32>(mMeshData->submeshes.size()); ++i)
         {
-            // Named by its material, the way the Properties panel labels the
-            // same rows; a submesh carries no name of its own.
             const u32 slot = mMeshData->submeshes[i].materialSlot;
             const bool named = slot < mMeshData->materials.size() &&
                                !mMeshData->materials[slot].name.empty();
             const std::string label = named ? mMeshData->materials[slot].name
                                             : ("Submesh " + std::to_string(i));
-            // A hidden submesh is unreachable by every other route, so
-            // offering it here would mean clicking it and nothing happening.
+            // A hidden submesh is unreachable by every other route; offering it here would be a dead click.
             const bool visible = isSubmeshVisible(i);
             ImGui::PushID(static_cast<int>(i));
             ImGui::BeginDisabled(!visible);
@@ -1997,7 +1962,6 @@ void BlenderApplication::growSelection()
 
     if (mSelection.mode() == BlenderSelection::SelectionMode::Edge)
     {
-        // Every edge that touches an end of a selected one.
         const MeshTopology& topo = topology();
         std::set<u32> ends;
         for (const u64 key : mSelection.selectedEdges())
@@ -2055,7 +2019,6 @@ void BlenderApplication::selectLinked()
 
     if (mSelection.mode() == BlenderSelection::SelectionMode::Edge)
     {
-        // Flood along edges that share an end, from the selected ones.
         const MeshTopology& topo = topology();
         std::unordered_map<u32, std::vector<u64>> byVertex;
         for (const MeshTopology::Edge& edge : topo.edges())
@@ -2131,8 +2094,7 @@ void BlenderApplication::buildSelectableMask(std::vector<bool>& faceSelectable,
     const usize faceCount = mesh.indices.size() / 3;
     const usize vertexCount = mesh.positions.size();
 
-    // No submeshes and nothing hidden means nothing to hide behind: the mesh is
-    // one piece.
+    // No submeshes and nothing hidden: nothing to hide behind, the mesh is one piece.
     const bool everythingVisible = mesh.submeshes.empty() && !mHasHidden;
     faceSelectable.assign(faceCount, everythingVisible);
     vertexSelectable.assign(vertexCount, everythingVisible);
@@ -2262,10 +2224,7 @@ void BlenderApplication::deleteSelected()
         deleteSelectedEdges();
 }
 
-// Keyboard is how a modelling tool is actually driven; every one of these was
-// already advertised next to its menu item with nothing bound behind it.
-// WantCaptureKeyboard is what keeps X from deleting the selection while the
-// user is typing an X into a file name.
+// WantCaptureKeyboard keeps X from deleting the selection while the user types an X into a file name.
 void BlenderApplication::handleShortcuts()
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -2364,7 +2323,6 @@ void BlenderApplication::drawEdgeMenu()
 {
     const bool anyEdge = mSelection.selectedEdgeCount() > 0;
     std::string why;
-    // A failed edit says why in the console, once.
     auto report = [&why]()
     {
         if (!why.empty())
@@ -2450,10 +2408,8 @@ void BlenderApplication::drawFaceMenu()
     if (ImGui::MenuItem("Flip Normals"))
     {
         recordUndo();
-        // Winding and normals together: reversing the triangles alone leaves
-        // every vertex normal pointing the way it did, and the surface lights
-        // as though it never turned. Same pair AssetManager::scale() applies
-        // when a negative factor mirrors a mesh.
+        // Reverse winding and normals together, or the surface lights as though it never turned (as
+        // AssetManager::scale() does for a negative factor).
         Assets().flipWinding(*mMeshData);
         Assets().recalculateNormals(*mMeshData, mSmoothNormals, mAngleWeightedNormals);
         applyMeshEdit();
@@ -2542,8 +2498,7 @@ std::vector<u32> BlenderApplication::editVertices()
     if (seeds.empty())
         return vertices;
 
-    // Widen every seed to its canonical point, then collect everything standing
-    // at a selected point in one pass over the mesh.
+    // Widen every seed to its canonical point, then collect everything at a selected point in one pass.
     std::vector<bool> selectedPoint(vertexCount, false);
     for (const u32 seed : seeds)
     {
@@ -2584,9 +2539,8 @@ bool BlenderApplication::extrudeFaces(f32 distance)
         return false;
     }
 
-    // The index buffer was rebuilt, so the old face numbers mean nothing now.
-    // Selecting what came out is also what lets a second Extrude carry on
-    // from the first instead of acting on whatever inherited those numbers.
+    // The index buffer was rebuilt so old face numbers mean nothing; selecting the result lets a second Extrude continue
+    // from the first.
     mSelection.clearAll();
     for (usize i = 0; i < raised.size(); ++i)
         mSelection.selectFace(raised[i]);
@@ -2645,9 +2599,8 @@ bool BlenderApplication::beginGizmoDrag()
     mGizmoPositions = mMeshData->positions;
     mGizmoNormals = mMeshData->normals;
     mGizmoTangents = mMeshData->tangents;
-    // A mirrored drag reverses the winding, and the drag re-applies its whole
-    // transform every frame: without the original indices to come back to,
-    // crossing zero scale would flip the faces again on each one.
+    // A mirrored drag reverses winding and re-applies its whole transform every frame; without the original indices,
+    // crossing zero scale would flip faces each time.
     mGizmoWinding = mMeshData->indices;
 
     mGizmoDragging = true;
@@ -2664,8 +2617,7 @@ void BlenderApplication::updateGizmoDrag(const Math::mat4& worldDelta)
     mMeshData->tangents = mGizmoTangents;
     mMeshData->indices = mGizmoWinding;
 
-    // The gizmo's matrix already sits at the pivot, so the delta is applied
-    // in world space rather than around the median a second time.
+    // The gizmo's matrix already sits at the pivot, so apply the delta in world space, not around the median again.
     Assets().transformVerticesAbout(*mMeshData, worldDelta, Math::vec3(0.0f), mGizmoIndices);
     if (!mGizmoPartners.empty())
     {
@@ -2685,7 +2637,6 @@ void BlenderApplication::endGizmoDrag()
         return;
 
     mGizmoDragging = false;
-    // The drag moved positions a frame at a time; what stands where is settled now.
     ++mMeshRevision;
     mGizmoIndices.clear();
     mGizmoIndices.shrink_to_fit();
@@ -2709,8 +2660,6 @@ void BlenderApplication::applyTransform(const Math::mat4& matrix, const char* ve
     const std::vector<u32> vertices = editVertices();
     if (mSymmetryAxis >= 0 && !vertices.empty())
     {
-        // About the selection's own median, like transformVertices, but through the
-        // symmetric path so the opposite side follows.
         Math::dvec3 sum(0.0);
         for (const u32 v : vertices)
             sum += Math::dvec3(mMeshData->positions[v]);
@@ -2748,16 +2697,13 @@ void BlenderApplication::newDocument()
     mSelectedSubmesh = -1;
     mSubmeshVisible.clear();
 
-    // shrink_to_fit, not just clear: the whole point of discarding is to give
-    // the memory back, and an undo stack over a large mesh is most of it.
+    // shrink_to_fit, not just clear: an undo stack over a large mesh is most of the memory.
     mUndoStates.clear();
     mUndoStates.shrink_to_fit();
     mRedoStates.clear();
     mRedoStates.shrink_to_fit();
 
-    // Save writes to this path without asking. Leaving the old document's
-    // path behind would make the first Save overwrite the file that was open
-    // before, with an empty mesh.
+    // Save writes to this path without asking; a stale path would overwrite the previously open file with an empty mesh.
     mSettings.general().lastOpenedMesh.clear();
 
     mDirty = false;
@@ -2999,9 +2945,8 @@ bool BlenderApplication::unwrapUVs(const UnwrapParams& params)
     const usize beforeVertexCount = mMeshData->positions.size();
     *mMeshData = std::move(unwrapped);
 
-    // xatlas splits vertices at the seams, so the tangents no longer match
-    // the UVs they were built from - and the ordinary UVs are what tangents
-    // come from, so only the case that touched them needs redoing.
+    // xatlas splits vertices at seams, so tangents no longer match the UVs; only the case that touched ordinary UVs
+    // needs redoing.
     if (params.target == 0 && !mMeshData->tangents.empty())
         Assets().recalculateTangents(*mMeshData);
 
@@ -3057,8 +3002,7 @@ void BlenderApplication::drawAddMenu()
 
 void BlenderApplication::drawPrimitivePopup()
 {
-    // OpenPopup() has to run outside the menu's own id stack, the same way
-    // drawSaveInfoPopup() already handles it.
+    // OpenPopup() has to run outside the menu's id stack, as drawSaveInfoPopup() does.
     if (mPrimitivePopupRequested)
     {
         ImGui::OpenPopup("PrimitivePopup");
@@ -3132,8 +3076,7 @@ void BlenderApplication::drawPrimitivePopup()
 
     ImGui::Separator();
 
-    // Hills is a plane displaced by an image; without one there is nothing to
-    // displace it by, so both buttons stay off until it has been picked.
+    // Hills is a plane displaced by an image; both buttons stay off until one is picked.
     const bool ready = mPrimitiveType != PrimitiveType::Hills || !mPrimitiveHeightmap.empty();
     ImGui::BeginDisabled(!ready);
     const bool hasMesh = mMeshData && !mMeshData->positions.empty();
@@ -3205,8 +3148,7 @@ bool BlenderApplication::primitiveTypeFromName(const std::string& name, Primitiv
 
 namespace
 {
-// The recipe for a primitive. Plane/Hills take their extent from size.x/size.z
-// and Box from all three, as the Add popup presents them.
+// Plane/Hills take their extent from size.x/size.z, Box from all three, as the Add popup presents them.
 bool describePrimitive(const BlenderApplication::PrimitiveParams& p, MeshDesc& desc)
 {
     using Type = BlenderApplication::PrimitiveType;
@@ -3247,7 +3189,6 @@ bool describePrimitive(const BlenderApplication::PrimitiveParams& p, MeshDesc& d
     return false;
 }
 
-// Gives every material of `part` the style's overrides, naming the first one.
 void applyPartStyle(MeshData& part, const BlenderApplication::PartStyle& style)
 {
     if (part.materials.empty())
@@ -3388,8 +3329,8 @@ bool BlenderApplication::appendPart(MeshData part, const Math::mat4& placement,
         incoming.mesh = &part;
         incoming.sourceName = sourceName;
 
-        // Every part stays its own submesh even when two share a material, so
-        // each can still be moved, restyled or deleted on its own.
+        // Every part stays its own submesh even when two share a material, so each can be moved, restyled or deleted on
+        // its own.
         MeshMergeOptions options;
         options.preserveSubmeshBoundaries = true;
 
@@ -3404,8 +3345,7 @@ bool BlenderApplication::appendPart(MeshData part, const Math::mat4& placement,
         }
 
         *mMeshData = std::move(merged);
-        // The vertices that were there keep their numbers, so the selection
-        // and every submesh's visibility stay valid.
+        // The old vertices keep their numbers, so the selection and submesh visibility stay valid.
         Assets().computeBounds(*mMeshData);
         Assets().computeSubMeshBounds(*mMeshData);
     }
@@ -3444,8 +3384,7 @@ bool BlenderApplication::transformSubmesh(u32 index, const Math::mat4& matrix, c
 
     recordUndo();
     Assets().transformVerticesAbout(*mMeshData, matrix, pivot, vertices);
-    // transformVertices leaves winding alone (it cannot know what a part of the
-    // mesh means); a mirrored part would be left inside out.
+    // transformVertices leaves winding alone; a mirrored part would be left inside out.
     if (Math::determinant(Math::mat3(matrix)) < 0.0f)
         Assets().flipWinding(*mMeshData, index);
     Assets().computeSubMeshBounds(*mMeshData);
@@ -3768,14 +3707,11 @@ bool BlenderApplication::hasVertexColors() const
     return mMeshData && MeshPaint::hasColors(*mMeshData);
 }
 
-// A part is styled on its own: when its material slot is shared with another
-// part (or missing) it is given a private copy first.
 void BlenderApplication::ownMaterial(u32 index)
 {
     SubMesh& submesh = mMeshData->submeshes[index];
 
-    // Restyling a material that other submeshes use would repaint them too; a
-    // part is meant to be styled on its own, so it gets a private copy first.
+    // Restyling a shared material would repaint other submeshes, so the part gets a private copy first.
     bool shared = false;
     for (usize i = 0; i < mMeshData->submeshes.size(); ++i)
     {
@@ -3790,8 +3726,8 @@ void BlenderApplication::ownMaterial(u32 index)
         const usize oldSlot = submesh.materialSlot;
         const usize slot = mMeshData->materials.size();
         mMeshData->materials.push_back(source);
-        // The per-material file-name arrays run parallel to `materials` when
-        // they are in use at all; the copy starts with the same textures.
+        // The per-material file-name arrays run parallel to `materials` when in use; the copy starts with the same
+        // textures.
         auto duplicatePath = [oldSlot, slot](std::vector<std::string>& paths)
         {
             if (paths.empty())
@@ -3918,8 +3854,8 @@ void BlenderApplication::drawTransformMenu()
 {
     ImGui::BeginDisabled(!mMeshData);
 
-    // Which vertices this is about to move. Without it there is no way to
-    // tell a selection edit from one that reshapes the whole model.
+    // Which vertices this is about to move; otherwise a selection edit cannot be told from one reshaping the whole
+    // model.
     if (mSelection.selectedVertexCount() > 0)
         ImGui::TextDisabled("%u selected vertices", mSelection.selectedVertexCount());
     else
@@ -3928,8 +3864,7 @@ void BlenderApplication::drawTransformMenu()
 
     ImGui::SetNextItemWidth(150.0f);
     ImGui::SliderFloat("Scale Factor", &mScaleFactor, 0.1f, 10.0f);
-    // No shortcut on these two: S and R put the interactive gizmo into scale
-    // and rotate, and these apply a typed amount instead.
+    // No shortcut: S and R put the gizmo into scale/rotate, and these apply a typed amount.
     if (ImGui::MenuItem("Scale"))
         applyTransform(Math::scale(Math::mat4(1.0f), Math::vec3(mScaleFactor)), "scaled");
 
@@ -3984,8 +3919,7 @@ void BlenderApplication::drawMeshMenu()
         ImGui::SetNextItemWidth(150.0f);
         ImGui::DragFloat("V Tiles", &mUvResolutionV, 0.01f, 0.001f, 100.0f);
     }
-    // Projection is the cheap answer; this is the one that gives charts that
-    // do not overlap.
+    // Projection is cheap; this gives charts that do not overlap.
     if (ImGui::MenuItem("Unwrap (xatlas)..."))
         mUnwrapPopupRequested = true;
 
@@ -4210,9 +4144,8 @@ void BlenderApplication::drawToolPopups()
 
 void BlenderApplication::drawSaveInfoPopup()
 {
-    // OpenPopup() runs here, outside the File menu's own window/ID stack -
-    // called from inside a BeginMenu about to EndMenu() the same frame, it
-    // never actually opened (see drawPreferencesPopup()'s own note).
+    // OpenPopup() runs here, outside the File menu's window/ID stack; from inside BeginMenu it never opened (see
+    // drawPreferencesPopup()).
     if (mSaveInfoRequested)
     {
         ImGui::OpenPopup("SaveInfoPopup");
@@ -4259,17 +4192,13 @@ void BlenderApplication::drawOpenRecentMenu()
     if (!ImGui::BeginMenu("Open Recent", !recentFiles.empty()))
         return;
 
-    // Snapshot the path before the click: loadMesh()/removeRecentFile() may
-    // shuffle or shrink mSettings.general().recentFiles while this loop is
-    // still walking it.
+    // Snapshot the path before the click: loadMesh()/removeRecentFile() may change recentFiles while this loop walks it.
     std::string clicked;
     for (usize i = 0; i < recentFiles.size(); ++i)
     {
         const std::string& path = recentFiles[i];
-        // ImGui takes an item's identity from its label, and two recent files
-        // in different folders routinely share a base name - assets/city and
-        // assets/city_bsxlm both hold a city.rmesh. Without an id of its own
-        // per row, clicking the second opens the first.
+        // ImGui takes an item's identity from its label, and recent files in different folders share base names; without
+        // a per-row id the second row opens the first.
         ImGui::PushID(static_cast<int>(i));
         if (ImGui::MenuItem(FileSystem::baseName(path).c_str()))
             clicked = path;
@@ -4335,8 +4264,7 @@ void BlenderApplication::drawFileDialog()
     else if (action == FileDialogHeightmap)
     {
         mPrimitiveHeightmap = result.path.string();
-        // The popup closed when the dialog took over; bring it back with the
-        // image now filled in rather than making the user find Add again.
+        // The popup closed when the dialog took over; reopen it with the image filled in.
         mPrimitivePopupRequested = true;
     }
 }
@@ -4424,22 +4352,16 @@ void BlenderApplication::drawStatusBar()
 
 void BlenderApplication::drawPreferencesPopup()
 {
-    // "Preferences..." is the last item before Windows menu's EndMenu(),
-    // which tears down that menu's popup-stack entry the same frame - an
-    // OpenPopup() called from in there requested a popup the closing menu
-    // then immediately cancelled, so it never actually opened (no dimmed
-    // background, nothing). Deferred through a plain flag and opened here
-    // instead, at the top level, outside any menu's own stack.
+    // "Preferences..." is the last item before the Windows menu's EndMenu(), which cancels an OpenPopup() called from in
+    // there; defer via a flag and open here at top level.
     if (mPreferencesRequested)
     {
         ImGui::OpenPopup("PreferencesPopup");
         mPreferencesRequested = false;
     }
 
-    // Without an explicit position a freshly opened modal cascades from
-    // wherever ImGui's window-position bookkeeping last left off - inside
-    // this app's full-window DockSpace that can land it off to one side,
-    // behind a docked panel, or clipped under the menu bar.
+    // Without an explicit position a modal cascades from ImGui's last window position, which in the full-window
+    // DockSpace can land behind a docked panel or under the menu bar.
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));
     if (!ImGui::BeginPopupModal("PreferencesPopup", nullptr, ImGuiWindowFlags_AlwaysAutoResize))

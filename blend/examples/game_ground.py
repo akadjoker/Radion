@@ -1,12 +1,9 @@
-"""Ground models for the helicopter game, built through the Radion Blender API:
-a missile truck, a radar station and two kinds of barracks. Each is saved as
-glTF (.glb) and .rmesh with a screenshot.
+"""Ground models for the helicopter game, built through the Radion Blender API.
 
     radion_blender --api &
     python3 game_ground.py [output_dir]
 
-Models face +Z, +Y is up, and each rests on y = 0 with its footprint centred
-(metres). Reuses the helpers of game_shapes.py.
+Models face +Z, +Y is up, and each rests on y = 0 with its footprint centred (metres).
 """
 
 import math
@@ -26,7 +23,6 @@ CONCRETE = "#9a9a94"
 
 
 def rotate_x(theta_degrees, point):
-    """`point` turned about the X axis, as the API's `rotation` does."""
     t = math.radians(theta_degrees)
     x, y, z = point
     return [x, y * math.cos(t) - z * math.sin(t), y * math.sin(t) + z * math.cos(t)]
@@ -34,7 +30,6 @@ def rotate_x(theta_degrees, point):
 
 def missile_truck(api):
     api.call("new_document")
-    # Chassis, deck and cab.
     api.call("add_primitive", type="box", name="chassis", color=DARK_OLIVE, roughness=0.8,
              size=[2.3, 0.4, 8.2], position=[0, 0.95, 0])
     api.call("add_primitive", type="box", name="deck", color=OLIVE, roughness=0.8,
@@ -48,7 +43,6 @@ def missile_truck(api):
     api.call("add_primitive", type="box", name="bumper", color=STEEL, metallic=0.6, roughness=0.5,
              size=[2.4, 0.25, 0.25], position=[0, 0.95, 5.35])
 
-    # Three axles; build the left wheels and mirror them.
     left = []
     for index, z in enumerate((3.9, -0.2, -2.9)):
         name = f"wheel{index}_L"
@@ -97,8 +91,6 @@ def radar(api):
     api.call("add_primitive", type="box", name="arm", color="#b8bcc2", metallic=0.5, roughness=0.5,
              size=[0.3, 1.2, 0.3], position=[0, 4.9, -0.1])
 
-    # The dish is a thin paraboloid shell, an outer and an inner surface, tipped
-    # up and toward +Z.
     tip = 60
     centre = [0.0, 5.6, 0.2]
     depth = lambda r: 0.25 * r * r
@@ -144,7 +136,6 @@ def tent_barracks(api):
     for end, z in (("front", length), ("rear", -length)):
         api.call("add_primitive", type="cylinder", name=f"pole_{end}", color="#6b4a2b",
                  roughness=0.9, radius=0.05, height=0.6, slices=8, position=[0, ridge + 0.1, z])
-    # A low wall of sandbags on each side of the door.
     bag = 0
     for side in (-1, 1):
         for step in range(4):
@@ -161,7 +152,6 @@ def tent_barracks(api):
 
 
 def hut_barracks(api):
-    """A corrugated half-cylinder (Nissen/Quonset) hut on a concrete slab."""
     api.call("new_document")
     radius, length, segments = 3.0, 6.4, 18
 
@@ -205,7 +195,6 @@ def hut_barracks(api):
              metallic=0.5, radius=0.14, height=1.3, slices=12, position=[1.4, 3.05, -2.5])
     api.call("add_primitive", type="cylinder", name="chimney_cap", color="#2a2a2a", roughness=0.7,
              radius=0.2, height=0.08, slices=12, position=[1.4, 3.75, -2.5])
-    # Ribs around the arch give the corrugated look.
     for index in range(7):
         z = -length + 1.0 + index * (2 * length - 2.0) / 6
         rib = [[(radius + 0.06) * math.cos(math.pi * j / segments),

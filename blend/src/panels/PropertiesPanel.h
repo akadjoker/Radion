@@ -22,9 +22,7 @@ private:
     void drawFaceUVTools();
     void drawSubmeshList();
 
-    // Held between frames so the amounts can be dialled in before anything
-    // touches the mesh: every apply is a fresh edit on top of the last, and
-    // an undo step of its own.
+    // Held between frames so amounts can be dialled in first; each apply is a fresh edit and its own undo step.
     Math::vec2 mUVScale = Math::vec2(1.0f);
     Math::vec2 mUVOffset = Math::vec2(0.0f);
     f32 mUVRotation = 0.0f;

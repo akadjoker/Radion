@@ -1,20 +1,9 @@
-"""Keeps the conversation sent to the model bounded.
-
-Modelling a vehicle takes dozens of tool calls; without limits a few `get_mesh_data`
-dumps and screenshots would overflow any context window.
-"""
 
 OMITTED = "[...omitted from history]"
 
 
 def prune_history(messages, *, keep_images, recent_results, old_result_chars, max_chars):
-    """Shrinks `messages` in place.
-
-    - Only the last `keep_images` tool results keep their screenshot.
-    - Tool results older than the last `recent_results` are cut to `old_result_chars`.
-    - If the whole thing still exceeds `max_chars`, the oldest turns (a user message and
-      everything up to the next one) are dropped; the current turn is always kept.
-    """
+    """Shrinks `messages` in place; the current turn is always kept."""
     _drop_old_images(messages, keep_images)
     _shorten_old_results(messages, recent_results, old_result_chars)
     while _size(messages) > max_chars:
@@ -25,7 +14,6 @@ def prune_history(messages, *, keep_images, recent_results, old_result_chars, ma
 
 
 def truncate(text, limit):
-    """`text` cut to `limit` characters with a note saying how much was lost."""
     if len(text) <= limit:
         return text
     return f"{text[:limit]}\n[truncated: {len(text) - limit} more characters]"
@@ -60,6 +48,5 @@ def _size(messages):
 
 
 def _next_user_index(messages):
-    """Index of the second user message, i.e. where the oldest turn ends."""
     users = [i for i, m in enumerate(messages) if m["role"] == "user"]
     return users[1] if len(users) > 1 else None

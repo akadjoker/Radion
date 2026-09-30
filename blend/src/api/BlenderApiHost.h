@@ -16,9 +16,8 @@ class BlenderApplication;
 namespace Radion::BlenderApi
 {
 
-// The editor's side of the API: the command table, the hand-off queue and the
-// HTTP server, tied together. The application owns one, calls pump() once per
-// frame, and starts/stops the server from the preferences or the command line.
+// The editor's side of the API: command table, hand-off queue and HTTP server; the application calls pump() once per
+// frame.
 class BlenderApiHost
 {
 public:
@@ -42,8 +41,7 @@ public:
         return mHasToken;
     }
 
-    // Frame-loop thread, once per frame: runs the commands that arrived since
-    // the last one.
+    // Frame-loop thread, once per frame: runs the commands that arrived since the last one.
     void pump();
 
 private:

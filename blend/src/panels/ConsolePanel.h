@@ -18,9 +18,7 @@ public:
 
     void onImGui() override;
 
-    // Log has one sink and both editor and blend need it - BlenderApplication
-    // owns the registration and calls this, same split as EditorApplication's
-    // own logSink()/ConsolePanel::pushEntry().
+    // Log has one sink; BlenderApplication owns the registration and calls this.
     static void pushEntry(LogLevel level, const char* message);
 
 private:
@@ -30,9 +28,7 @@ private:
         std::string text;
     };
 
-    // Shared across every ConsolePanel instance (there is only ever one) -
-    // the sink has no `this` to route through. Capped in pushEntry() so a
-    // session left running for hours does not grow this without bound.
+    // Shared by all instances (the sink has no `this`); capped in pushEntry().
     static std::vector<Entry> sEntries;
     static constexpr usize kMaxEntries = 2000;
 

@@ -1,4 +1,3 @@
-"""The conversation transcript: bubbles, streaming text and collapsible tool-call entries."""
 
 import json
 
@@ -30,8 +29,6 @@ class Bubble(QLabel):
 
 
 class ToolEntry(QFrame):
-    """One tool call: header with name and result summary; click to see the JSON."""
-
     def __init__(self, name, arguments):
         super().__init__()
         self.name = name
@@ -87,9 +84,8 @@ def _pretty(arguments):
 
 
 class _Transcript(QWidget):
-    """The scrolled content. Its own minimum size hint is 0: a layout of word-wrapped labels
-    reports the height it would need at the *narrowest* width, which left a tall blank area
-    under the last message. The scroll area then sizes it with height-for-width instead."""
+    """The scrolled content. Its minimum size hint is 0: word-wrapped labels would otherwise report
+    the height needed at the narrowest width, leaving a blank area under the last message."""
 
     def minimumSizeHint(self):
         return QSize(0, 0)
@@ -105,10 +101,10 @@ class ChatView(QScrollArea):
         self._layout = QVBoxLayout(body)
         self._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.setWidget(body)
-        self.items = []             # every widget in the transcript, in order
-        self._rows = []             # the widgets that actually sit in the layout
-        self.tool_entries = {}      # tool call id -> ToolEntry
-        self._assistant = None      # the bubble currently receiving streamed text
+        self.items = []
+        self._rows = []
+        self.tool_entries = {}
+        self._assistant = None
         self._at_bottom = True
         bar = self.verticalScrollBar()
         bar.valueChanged.connect(lambda value: setattr(self, "_at_bottom", value >= bar.maximum() - 4))
@@ -125,7 +121,6 @@ class ChatView(QScrollArea):
         self._assistant.append(text)
 
     def end_assistant(self):
-        """The next streamed text starts a new bubble (after a tool call, say)."""
         self._assistant = None
 
     def add_tool_call(self, call_id, name, arguments):
@@ -157,7 +152,6 @@ class ChatView(QScrollArea):
         self._assistant = None
 
     def _add(self, widget, side=None):
-        """Adds a widget as a new row. Bubbles take 80% of the width, pushed to `side`."""
         self.items.append(widget)
         if side is None:
             row = widget

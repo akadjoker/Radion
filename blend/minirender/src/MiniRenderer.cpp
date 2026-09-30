@@ -253,9 +253,6 @@ Math::vec3 colorForSubmesh(u32 index)
     return Math::vec3(1.0f, 0.0f, x);
 }
 
-// The GL id to bind for one material slot, or `fallback` when there is no
-// material (mesh has no submeshes/materials at all) or the slot itself was
-// never assigned a texture.
 GLuint resolveSlotTexture(const Material* material, MaterialSlot slot, GLuint fallback)
 {
     if (!material || !material->textures[slot].texture.valid())
@@ -275,18 +272,13 @@ void bindMaterialTextures(const Material* material, GLuint whiteTexture, GLuint 
     glBindTexture(GL_TEXTURE_2D, resolveSlotTexture(material, SlotEmissive, whiteTexture));
 }
 
-// Base colour factor of a submesh's material. The glTF/PBR rule: it multiplies
-// the albedo texture, and alone it is the colour of an untextured surface - so
-// a procedurally built part with only a colour set shows that colour instead of
-// the default white.
+// glTF/PBR rule: the factor multiplies the albedo texture, and alone colours an untextured surface.
 Math::vec3 baseColorFactor(const Material* material)
 {
     return material ? Math::vec3(material->params.baseColor) : Math::vec3(1.0f);
 }
 
-// Roughness/metallic scalars for the slots that have no texture behind them;
-// 1 where a texture decides. A submesh with no material at all is a plain matte
-// surface - not the fully metallic black a white "metallic map" would make it.
+// A submesh with no material is plain matte, not the fully metallic black a white metallic map would give.
 Math::vec2 surfaceFactor(const Material* material)
 {
     static const Material kDefault;
@@ -517,9 +509,7 @@ void MiniRenderer::uploadMesh(const MeshData& mesh)
     glEnableVertexAttribArray(7);
     glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(MiniVertex), (void*)offsetof(MiniVertex, color));
 
-    // A stream of its own, so selecting a vertex re-uploads one byte per
-    // vertex instead of the whole interleaved geometry. Sized and zeroed with
-    // the mesh: a fresh mesh starts with nothing selected.
+    // Own stream so a vertex selection re-uploads one byte per vertex, not the interleaved geometry.
     glBindBuffer(GL_ARRAY_BUFFER, mSelectionVBO);
     const std::vector<u8> cleared(vertexCount, 0);
     glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertexCount), cleared.data(),
@@ -558,8 +548,7 @@ void MiniRenderer::drawTriangleRange(u32 indexOffset, u32 indexCount)
 {
     const u32 firstFace = indexOffset / 3;
     const u32 faceCount = indexCount / 3;
-    // A mask made for some other mesh is worse than none: ignore it rather than
-    // hide the wrong triangles.
+    // A mask made for another mesh is worse than none: ignore it.
     const bool masked = mHasHiddenFaces && mHiddenFaces.size() == mIndexCount / 3;
     if (!masked)
     {
@@ -568,7 +557,6 @@ void MiniRenderer::drawTriangleRange(u32 indexOffset, u32 indexCount)
         return;
     }
 
-    // One draw per run of visible triangles.
     std::vector<GLsizei> counts;
     std::vector<const void*> offsets;
     u32 runStart = 0;
@@ -673,8 +661,7 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
     const int shadingMode = params.mode == MiniRenderMode::Textured ? 1 : 0;
     glUniform1i(glGetUniformLocation(mShaderProgram, "uShadingMode"), shadingMode);
     glUniform1f(glGetUniformLocation(mShaderProgram, "uAlpha"), effectiveAlpha);
-    // Only the textured look reads material colour; solid stays the neutral
-    // modelling view it has always been.
+    // Only the textured look reads material colour.
     const bool useMaterialColor = shadingMode == 1;
     const Math::vec3 firstTint =
         useMaterialColor ? params.tint * baseColorFactor(materialForSubmesh(*mesh, 0)) : params.tint;
@@ -690,17 +677,14 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
     if (shadingMode == 1)
         bindMaterialTextures(materialForSubmesh(*mesh, 0), mWhiteTexture, mFlatNormalTexture);
 
-    // X-ray: depth test off entirely, front and back geometry both reach the
-    // blend stage - the "see through the mesh" look, not just a translucent
-    // front face over an occluded back one.
+    // X-ray: depth test off so front and back geometry both reach blending.
     if (params.xray)
         glDisable(GL_DEPTH_TEST);
     else
         glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
-    // A blended draw (onion-skin ghost, or X-ray) never writes depth: it must
-    // never occlude what is behind it, only tint over it.
+    // Blended draws never write depth so they do not occlude what is behind.
     const bool blended = effectiveAlpha < 1.0f;
     glDepthMask(blended ? GL_FALSE : GL_TRUE);
     if (blended)
@@ -717,9 +701,7 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
 
     glBindVertexArray(mVAO);
     const bool colorPerSubmesh = params.colorBySubmesh && mesh->submeshes.size() > 1;
-    // Textured needs its own per-submesh pass too: two submeshes with
-    // different materials cannot share one glDrawElements when each wants a
-    // different Albedo/Normal/Surface/Emissive bound.
+    // Two submeshes with different materials cannot share one glDrawElements.
     const bool texturedPerSubmesh = shadingMode == 1 && mesh->submeshes.size() > 1;
     const bool perSubmesh =
         (colorPerSubmesh || texturedPerSubmesh || params.submeshVisible) && !mesh->submeshes.empty();
@@ -749,9 +731,7 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
         drawTriangleRange(0, mIndexCount);
     }
 
-    // Overlay passes: same shader/program, drawn as flat-tinted debug marks
-    // over the shaded result rather than a second pipeline - Blender's own
-    // "Wireframe"/vertex overlays are exactly this, geometry drawn twice.
+    // Overlay passes reuse the program, drawn as flat-tinted marks over the shaded result.
     if (params.showWireframeOverlay && params.mode != MiniRenderMode::Wireframe)
     {
         glUniform1i(glGetUniformLocation(mShaderProgram, "uDebugView"), 0);
@@ -777,11 +757,8 @@ void MiniRenderer::renderViewport(const MeshData* mesh,
                      Math::value_ptr(params.vertexColor));
         glUniform3fv(glGetUniformLocation(mShaderProgram, "uSelectedPointColor"), 1,
                      Math::value_ptr(params.selectedVertexColor));
-        // A vertex sits exactly on the surface it belongs to: under the main
-        // pass's GL_LESS it would fail its own mesh's depth and never appear.
-        // Depth writes stay off so the points do not occlude the overlays
-        // drawn after this - the same pair of rules the batch used when it
-        // still drew them.
+        // Points sit on their own surface and would fail GL_LESS; depth writes stay off so they do not occlude later
+        // overlays.
         glDepthFunc(GL_LEQUAL);
         glDepthMask(GL_FALSE);
         glPointSize(params.vertexPointSize); // fixed-function size - GL_PROGRAM_POINT_SIZE stays off, the shader sets no gl_PointSize

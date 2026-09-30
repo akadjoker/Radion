@@ -1,15 +1,9 @@
-"""Builds the models for a helicopter-vs-jets game through the Radion Blender API
-and saves each as glTF (.glb) and as the engine's own .rmesh.
+"""Builds the models for a helicopter-vs-jets game through the Radion Blender API.
 
     radion_blender --api &
     python3 game_shapes.py [output_dir]
 
-Models (all face +Z, +Y up, origin at the middle of the body, metres):
-  player_helicopter  the player's helicopter
-  enemy_helicopter   dark attack helicopter with weapon pods
-  enemy_jet          delta-wing fighter that chases the player
-  rocket             the player's rocket
-Each gets a screenshot next to the model.
+Models all face +Z, +Y up, origin at the middle of the body, metres.
 """
 
 import math
@@ -35,9 +29,7 @@ def orient(triangle, vertices, outward):
 
 
 def convex_solid(api, name, vertices, faces, **style):
-    """A closed convex solid from polygon faces (lists of vertex indices, any
-    winding). Each face is fanned into triangles and turned to face away from the
-    middle of the solid, so the faces need not be listed carefully."""
+    """A closed convex solid from polygon faces; triangles are turned to face away from the middle of the solid."""
     centre = [sum(v[i] for v in vertices) / len(vertices) for i in range(3)]
     triangles = []
     for face in faces:
@@ -49,8 +41,6 @@ def convex_solid(api, name, vertices, faces, **style):
 
 
 def prism(api, name, outline, half_thickness_root, half_thickness_tip, **style):
-    """A flat swept slab: `outline` is four (x, z) corners, the first two at the
-    root and the last two at the tip. Used for wings and stabilisers."""
     vertices = []
     for sign in (1, -1):
         for index, (x, z) in enumerate(outline):
@@ -61,7 +51,6 @@ def prism(api, name, outline, half_thickness_root, half_thickness_tip, **style):
 
 
 def helicopter(api, body, trim, glass, weapons=False):
-    """Shared airframe; the enemy differs in paint and in carrying weapons."""
     api.call("new_document")
     api.call("add_loft", name="fuselage", color=body, roughness=0.45, axis="z", segments=32,
              sections=[
@@ -101,7 +90,6 @@ def helicopter(api, body, trim, glass, weapons=False):
     api.call("add_primitive", type="box", name="tail_blade_b", color="#1c1c1c",
              size=[0.03, 0.11, 0.9], position=[0.2, 0.78, -4.75])
 
-    # One side of the landing gear, mirrored for the other.
     left = []
     api.call("add_primitive", type="cylinder", name="skid_L", color="#555555", metallic=0.7,
              roughness=0.35, radius=0.045, height=2.6, slices=12, rotation=[90, 0, 0],
@@ -114,7 +102,6 @@ def helicopter(api, body, trim, glass, weapons=False):
         left.append(name)
 
     if weapons:
-        # Stub wings carry a rocket pod each; pod and wing are mirrored together.
         api.call("add_primitive", type="box", name="stub_wing_L", color=body, size=[1.3, 0.06, 0.45],
                  position=[1.25, -0.25, 0.2])
         api.call("add_primitive", type="cylinder", name="pod_L", color=trim, metallic=0.5,
@@ -161,7 +148,6 @@ def jet(api):
              ])
     api.call("add_primitive", type="sphere", name="cockpit", color="#1f3a4d", roughness=0.05,
              metallic=0.3, radius=0.5, scale=[0.62, 0.5, 1.6], position=[0, 0.42, 1.6])
-    # Delta wing, right side; mirrored below.
     prism(api, "wing_R", [(0.5, 0.6), (0.5, -2.6), (3.2, -2.9), (3.2, -2.3)], 0.09, 0.03,
           color="#7f8c8d", roughness=0.4, metallic=0.4)
     prism(api, "tailplane_R", [(0.35, -2.6), (0.35, -3.3), (1.5, -3.5), (1.5, -3.15)], 0.05, 0.02,
@@ -176,8 +162,6 @@ def jet(api):
 
 
 def save(api, out, name, ground=False):
-    """Writes the model and a screenshot. `ground` rests it on y = 0 (buildings,
-    vehicles); otherwise it is centred on the origin (things that fly)."""
     os.makedirs(out, exist_ok=True)
     api.call("center_mesh", ground=ground)
     status = api.call("get_status")

@@ -19,20 +19,13 @@ bool fail(std::string* error, const std::string& message)
 
 namespace
 {
-// The mesher hands back triangles wound however each cell happened to come out
-// and normals from a gradient that is unreliable where a grid point lands
-// exactly on an input surface. Put the winding right from the geometry itself:
-// make neighbouring triangles agree, then for each connected shell test, against
-// the field, which side its normals point to and flip the shell if that is into
-// the solid. Shading is rebuilt from the triangles, with corners kept sharp where
-// the surface turns more than a threshold.
+// Mesher winding and normals are unreliable: fix winding per shell against the field, then rebuild shading with creases.
 void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
 {
     const f32 probe = voxel * 0.75f;
     const usize faceCount = mesh.indices.size() / 3;
     auto key = [](u32 a, u32 b) { return a < b ? (static_cast<u64>(a) << 32) | b : (static_cast<u64>(b) << 32) | a; };
 
-    // Triangles by edge.
     std::unordered_map<u64, std::vector<u32>> byEdge;
     byEdge.reserve(faceCount * 2);
     for (u32 f = 0; f < faceCount; ++f)
@@ -68,11 +61,10 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
                 const u32 to = mesh.indices[f * 3 + (c + 1) % 3];
                 const std::vector<u32>& sharing = byEdge[key(from, to)];
                 if (sharing.size() != 2)
-                    continue; // a border or a pinch: nothing to agree with
+                    continue;
                 const u32 other = sharing[0] == f ? sharing[1] : sharing[0];
                 if (shell[other] >= 0)
                     continue;
-                // The neighbour must walk the shared edge the other way round.
                 if (walks(other, from, to))
                     std::swap(mesh.indices[other * 3 + 1], mesh.indices[other * 3 + 2]);
                 shell[other] = id;
@@ -81,9 +73,7 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
         }
     }
 
-    // A shell no bigger than a few cells is noise in the field - a speck where a
-    // grid point fell on an input's edge or face and the inside/outside test
-    // tipped the wrong way - not geometry anyone asked for. Drop it.
+    // A shell of a few cells is field noise (inside/outside test tipped at an input's edge); drop it.
     std::vector<u8> dropped(faceCount, 0);
     for (const std::vector<u32>& members : shells)
     {
@@ -101,7 +91,6 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
                 dropped[f] = 1;
     }
 
-    // Which way does each shell face? Ask the field just off its largest triangle.
     for (const std::vector<u32>& members : shells)
     {
         if (dropped[members.front()])
@@ -130,8 +119,6 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
                 std::swap(mesh.indices[f * 3 + 1], mesh.indices[f * 3 + 2]);
     }
 
-    // Shading: a normal per corner from the neighbouring triangles that do not
-    // turn away too sharply, so flat faces stay flat and curves stay round.
     {
         std::vector<u32> kept;
         kept.reserve(mesh.indices.size());
@@ -147,7 +134,7 @@ void orientAndShade(MeshData& mesh, const Volume::Source& field, f32 voxel)
         const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
         const Math::vec3& b = mesh.positions[mesh.indices[f * 3 + 1]];
         const Math::vec3& c = mesh.positions[mesh.indices[f * 3 + 2]];
-        faceNormal[f] = Math::cross(b - a, c - a); // area weighted
+        faceNormal[f] = Math::cross(b - a, c - a);
     }
     std::vector<std::vector<u32>> around(mesh.positions.size());
     for (u32 f = 0; f < shadedFaceCount; ++f)
@@ -209,7 +196,6 @@ bool MeshEdit::booleanMeshes(const MeshData& a, const MeshData& b, BooleanOp op,
     if (!right.build(b))
         return fail(error, "the second shape has no triangles");
 
-    // Room for the surface on every side, or it sits on the edge of the grid.
     AABB box = left.bounds();
     box.merge(right.bounds());
     const Math::vec3 size = box.max - box.min;
@@ -217,9 +203,7 @@ bool MeshEdit::booleanMeshes(const MeshData& a, const MeshData& b, BooleanOp op,
     if (!(longest > 1.0e-6f))
         return fail(error, "the shapes have no extent");
     const f32 voxel = longest / static_cast<f32>(resolution);
-    // The grid is shifted by an odd fraction of a cell: models are full of faces
-    // on round coordinates, and a grid plane that lands exactly on one makes
-    // the inside/outside test flip on the very samples the surface passes through.
+    // Offset the grid by an odd fraction of a cell: a plane on round coordinates makes the inside test flip on the surface.
     box.min -= Math::vec3(voxel * 2.0f) + Math::vec3(voxel * 0.3711f, voxel * 0.2719f, voxel * 0.4831f);
     box.max += Math::vec3(voxel * 2.0f);
 

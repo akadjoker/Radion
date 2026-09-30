@@ -1,4 +1,3 @@
-"""Builds a ready-to-run Agent from a profile (shared by the UI and headless scripts)."""
 
 from .agent import Agent, AgentConfig, AgentListener
 from .api_client import RadionApiClient

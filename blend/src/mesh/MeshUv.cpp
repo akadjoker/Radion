@@ -65,7 +65,6 @@ std::vector<u32> islands(const MeshData& mesh, u32* count)
     std::vector<u32> parent(triangleCount);
     std::iota(parent.begin(), parent.end(), 0u);
 
-    // The first triangle seen at each vertex; every later one joins it.
     std::vector<s64> firstAt(mesh.positions.size(), -1);
     for (u32 triangle = 0; triangle < triangleCount; ++triangle)
     {
@@ -176,7 +175,6 @@ u32 fit(MeshData& mesh, const std::vector<u32>& vertices, const std::vector<u8>*
     if (keepAspect)
         scale = Math::vec2(std::min(scale.x, scale.y));
 
-    // A rectangle of zero width or height has nothing to stretch.
     if (rect.size().x < 1e-8f)
         scale.x = keepAspect ? scale.x : 1.0f;
     if (rect.size().y < 1e-8f)
@@ -220,7 +218,6 @@ u32 boxMap(MeshData& mesh, const std::vector<u32>& triangles, f32 tile, const Ma
         }
     }
 
-    // (vertex, plane) -> the vertex that carries that plane's UV for it.
     std::map<std::pair<u32, u32>, u32> carrier;
     std::vector<bool> claimed(mesh.positions.size(), false);
     const u32 originalVertices = static_cast<u32>(mesh.positions.size());
@@ -295,7 +292,6 @@ std::vector<u8> renderLayout(const MeshData& mesh, const std::vector<u32>& trian
     size = std::max(size, 16u);
     std::vector<u8> image(static_cast<usize>(size) * size * 4);
 
-    // A dark checker, or the texture stretched over the square.
     const bool haveBackground = backgroundSize > 0 && background.size() >= static_cast<usize>(backgroundSize) * backgroundSize * 4;
     for (u32 y = 0; y < size; ++y)
     {
@@ -307,7 +303,6 @@ std::vector<u8> renderLayout(const MeshData& mesh, const std::vector<u32>& trian
                 const u32 sx = std::min(backgroundSize - 1, x * backgroundSize / size);
                 const u32 sy = std::min(backgroundSize - 1, y * backgroundSize / size);
                 const u8* source = &background[(static_cast<usize>(sy) * backgroundSize + sx) * 4];
-                // Dimmed so the wire stays readable.
                 for (int c = 0; c < 3; ++c)
                     pixel[c] = static_cast<u8>(source[c] * 0.6f);
             }
@@ -346,7 +341,6 @@ std::vector<u8> renderLayout(const MeshData& mesh, const std::vector<u32>& trian
         return Math::vec2(uv.x * static_cast<f32>(size - 1), uv.y * static_cast<f32>(size - 1));
     };
 
-    // The 0..1 frame.
     const Math::vec2 corner00 = toPixel(Math::vec2(0, 0)), corner10 = toPixel(Math::vec2(1, 0));
     const Math::vec2 corner11 = toPixel(Math::vec2(1, 1)), corner01 = toPixel(Math::vec2(0, 1));
     line(corner00, corner10, 120, 120, 120);

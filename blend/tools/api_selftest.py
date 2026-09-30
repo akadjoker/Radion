@@ -1,12 +1,8 @@
 """End-to-end checks of the editor's HTTP API, against a real running editor.
 
     python3 api_selftest.py                      # editor already running with --api
-    python3 api_selftest.py --launch ../../bin/radion_blender   # start one (headless if no display)
+    python3 api_selftest.py --launch ../../bin/radion_blender   # start one
     python3 api_selftest.py --only edges,hide    # run some groups
-
-Each group builds something small, acts on it through the API and checks numbers
-(counts, bounds, part names) - not pictures. Exits non-zero on the first group
-that fails, after running the others.
 """
 
 import argparse
@@ -52,8 +48,6 @@ def status(api):
     return api.call("get_status")
 
 
-# ------------------------------------------------------------------ groups
-
 def group_edges(api):
     fresh_box(api)
     s = api.call("select", mode="edge", action="all")
@@ -69,7 +63,6 @@ def group_edges(api):
     s = api.call("select", action="linked")
     check(s["edgeCount"] == 18, "linked floods the whole connected cube")
 
-    # An edge picked by two vertex indices, and the error paths.
     api.call("select", mode="edge", action="set", edges=[[0, 1]])
     check(api.call("get_selection")["edgeCount"] == 1, "one edge by [a, b]")
     expect_error(api, "invalid_params", "select", mode="edge", edges=[[0, 999]])
@@ -145,27 +138,22 @@ def group_subdivide(api):
     check(r["triangles"] == 192, f"two smooth levels: 12 x 16 = 192, got {r['triangles']}")
     check(r["bounds"]["size"][0] < 2.0, "smooth subdivision pulls a cube's corners in")
 
-    # One face only: its neighbours are cut just enough to stay watertight.
     fresh_box(api)
     api.call("select", mode="face", action="set", box={"min": [-1.1, 0.9, -1.1], "max": [1.1, 1.1, 1.1]})
     r = api.call("subdivide")
     check(12 < r["triangles"] < 48, f"partial subdivide adds some triangles, got {r['triangles']}")
     api.call("select", mode="edge", action="all")
     before = status(api)["triangles"]
-    # Every edge still has two triangles (closed surface): collapsing/turning is what
-    # tells us; here just make sure undo round-trips.
     api.call("undo")
     check(status(api)["triangles"] == 12, "undo restores the cube")
     expect_error(api, "invalid_params", "subdivide", levels=9)
 
-    # Turn the one diagonal of a two-triangle plane; the border edges refuse.
     api.call("new_document")
     api.call("add_primitive", type="plane", size=[2, 1, 2], segments_x=1, segments_z=1)
     api.call("select", mode="edge", action="all")
     r = api.call("turn_edge")
     check(r["turned"] == 1, f"only the diagonal can turn, got {r['turned']}")
 
-    # Split: new vertices appear and become the selection.
     fresh_box(api)
     api.call("select", mode="edge", action="set", edges=[[0, 1]])
     r = api.call("split_edge", t=0.5)
@@ -173,7 +161,6 @@ def group_subdivide(api):
     check(r["selection"]["vertexCount"] >= 1, "the new vertices are selected")
     expect_error(api, "invalid_params", "split_edge", t=1.5)
 
-    # Collapse removes the triangles on the edge.
     fresh_box(api)
     api.call("select", mode="edge", action="set", edges=[[0, 1]])
     r = api.call("collapse_edge")
@@ -183,7 +170,6 @@ def group_subdivide(api):
 
 
 def vertical_edge_of_cylinder(api):
-    """An edge of the cylinder's side that runs from the bottom ring to the top ring."""
     data = api.call("get_mesh_data", max_vertices=2000)
     pos, ids = data["positions"], data["vertexIds"]
     for tri in data["triangles"]:
@@ -197,7 +183,6 @@ def vertical_edge_of_cylinder(api):
 
 
 def group_cuts(api):
-    # Knife: the cut line becomes the selection.
     fresh_box(api)
     r = api.call("knife", axis="x", offset=0.5)
     check(r["triangles"] > 12, "the knife splits triangles")
@@ -207,7 +192,6 @@ def group_cuts(api):
     expect_error(api, "failed", "knife", axis="x", offset=10)
     expect_error(api, "invalid_params", "knife")
 
-    # Loop cut: a ring round a cylinder, by one vertical edge.
     api.call("new_document")
     api.call("add_primitive", type="cylinder", radius=1, height=2, slices=12)
     edge = vertical_edge_of_cylinder(api)
@@ -222,7 +206,6 @@ def group_cuts(api):
     api.call("select", action="clear")
     expect_error(api, "failed", "loop_cut")
 
-    # Bevel one vertical edge of a box, picked by where it is.
     fresh_box(api)
     s = api.call("select", mode="edge", action="set", box={"min": [0.9, -1.1, 0.9], "max": [1.1, 1.1, 1.1]})
     check(s["edgeCount"] == 1, f"one vertical edge in the box, got {s['edgeCount']}")
@@ -236,7 +219,6 @@ def group_cuts(api):
     api.call("select", mode="edge", action="set", box={"min": [0.9, -1.1, 0.9], "max": [1.1, 1.1, 1.1]})
     expect_error(api, "failed", "bevel", width=5)
 
-    # Inset a face, then raise it with extrude.
     fresh_box(api)
     api.call("select", mode="face", action="set", box={"min": [-1.1, 0.9, -1.1], "max": [1.1, 1.1, 1.1]})
     r = api.call("inset", thickness=0.3, depth=0.2)
@@ -249,25 +231,22 @@ def group_cuts(api):
 
 
 def group_assemble(api):
-    # Fill: a box missing its top face.
     fresh_box(api)
     api.call("select", mode="face", action="set", box={"min": [-1.1, 0.9, -1.1], "max": [1.1, 1.1, 1.1]})
     api.call("delete_selection")
     check(status(api)["triangles"] == 10, "the top face (2 triangles) is gone")
     r = api.call("fill_holes")
     check(r["filled"] == 1 and r["triangles"] == 12, f"the hole is closed again: {r}")
-    expect_error(api, "failed", "fill_holes")  # closed now
+    expect_error(api, "failed", "fill_holes")
 
-    # Bridge: two separate quads joined by a strip.
     api.call("new_document")
     api.call("add_primitive", type="plane", size=[2, 1, 2], segments_x=1, segments_z=1, name="lower")
     api.call("add_primitive", type="plane", size=[2, 1, 2], segments_x=1, segments_z=1, name="upper", position=[0, 2, 0])
     r = api.call("bridge")  # the mesh has exactly two open borders
     check(r["trianglesAdded"] == 8 and r["triangles"] == 12, f"4 + 4 strip triangles between the planes: {r}")
-    expect_error(api, "failed", "fill_holes")  # the strip closed both borders
-    expect_error(api, "failed", "bridge")      # and there is nothing left to bridge
+    expect_error(api, "failed", "fill_holes")
+    expect_error(api, "failed", "bridge")
 
-    # Mirror: half a box, opened at the mirror plane, mirrored into a whole one.
     api.call("new_document")
     api.call("add_primitive", type="box", size=[1, 1, 1], position=[0.5, 0, 0])
     api.call("select", mode="face", action="set", box={"min": [-0.1, -1, -1], "max": [0.1, 1, 1]})
@@ -275,10 +254,9 @@ def group_assemble(api):
     r = api.call("mirror", axis="x")
     check(r["triangles"] == 20, f"10 + 10 triangles, got {r['triangles']}")
     check(approx(r["bounds"]["min"][0], -1.0) and approx(r["bounds"]["max"][0], 1.0), "the box is now 2 wide")
-    expect_error(api, "failed", "fill_holes")  # the welded halves leave no border
+    expect_error(api, "failed", "fill_holes")
     expect_error(api, "invalid_params", "mirror", axis="w")
 
-    # Symmetry: moving vertices on one side moves the mirror ones too.
     fresh_box(api)
     api.call("subdivide")
     api.call("set_symmetry", axis="x")
@@ -292,7 +270,6 @@ def group_assemble(api):
     api.call("set_symmetry", axis="none")
     check(status(api)["symmetry"] is None, "symmetry off")
 
-    # Merge and separate parts.
     api.call("new_document")
     for index in range(3):
         api.call("add_primitive", type="box", size=[1, 1, 1], position=[index * 2, 0, 0], name=f"box{index}")
@@ -312,7 +289,6 @@ def group_assemble(api):
 
 
 def group_solids(api):
-    # Every primitive type builds, and 'origin' decides where the part's origin sits.
     for kind in ["box", "plane", "sphere", "cylinder", "cone", "capsule", "torus", "disc", "tube", "prism", "stairs", "arch"]:
         api.call("new_document")
         api.call("add_primitive", type=kind, name=kind)
@@ -326,7 +302,6 @@ def group_solids(api):
     check(approx(b["min"][1], -b["max"][1], 1e-2), f"a cylinder is centred by default: {b}")
     expect_error(api, "invalid_params", "add_primitive", type="box", origin="corner")
 
-    # Booleans.
     def two_boxes():
         api.call("new_document")
         api.call("add_primitive", type="box", size=[2, 2, 2], name="a")
@@ -483,7 +458,6 @@ def group_uv(api):
     check(b["max"][0] - b["min"][0] >= 1.99 and b["max"][1] - b["min"][1] >= 1.99, f"undistorted scale: {b}")
     check(data["islands"] >= 1, "islands are counted")
 
-    # Fit to 0..1, per part.
     api.call("box_map_uv", target="all", tile=1.0)
     r = api.call("fit_uv", target="all", per_part=True, margin=0.0)
     for name in ["hull", "crate"]:
@@ -491,7 +465,6 @@ def group_uv(api):
         check(d["insideUnitSquare"], f"{name} fits the unit square: {d['bounds']}")
         check(approx(d["bounds"]["min"][0], 0.0) or approx(d["bounds"]["min"][1], 0.0), f"{name} touches the frame")
 
-    # Transform: tile twice, then slide.
     before = api.call("get_uv_data", part="crate")["bounds"]
     api.call("transform_uv", target="part", part="crate", scale=2, pivot=[0, 0])
     after = api.call("get_uv_data", part="crate")["bounds"]
@@ -503,7 +476,6 @@ def group_uv(api):
     api.call("undo")
     check(approx(api.call("get_uv_data", part="crate")["bounds"]["min"][0], moved["min"][0]), "undo restores the flip")
 
-    # Pins.
     api.call("select", mode="vertex", action="all")
     r = api.call("pin_uv", target="part", part="crate")
     check(r["pinnedVertices"] > 0, "vertices are pinned")
@@ -511,7 +483,6 @@ def group_uv(api):
     api.call("pin_uv", target="part", part="crate", pinned=False)
     api.call("transform_uv", target="part", part="crate", translate=[0.0, 0.0], rotate=90)
 
-    # Selection and island targets.
     api.call("select", action="clear")
     expect_error(api, "failed", "transform_uv", target="selection", translate=[0.1, 0])
     expect_error(api, "failed", "transform_uv", target="island", translate=[0.1, 0])
@@ -521,7 +492,6 @@ def group_uv(api):
     r = api.call("transform_uv", target="island", translate=[0.0, 0.0])
     check(r["moved"] >= r["moved"], "island target works")
 
-    # Layout image; with and without a texture.
     api.call("set_texture", part="hull", file=png)
     r = api.call_raw("uv_layout", part="hull", size=128)
     check(r is not None, "the layout image is returned")
@@ -536,7 +506,6 @@ def group_uv(api):
 
 
 def group_misc(api):
-    """Runs the commands the other groups do not, so the undo accounting covers all of them."""
     import tempfile
     folder = tempfile.mkdtemp(prefix="radion_selftest_")
 
@@ -567,9 +536,8 @@ def group_misc(api):
     api.call("convex_hull")
     api.call("optimize")
     api.call("simplify", ratio=0.9)
-    expect_error(api, "failed", "set_animation", frame=0)  # no skeleton
+    expect_error(api, "failed", "set_animation", frame=0)
 
-    # Files.
     obj = os.path.join(folder, "m.obj")
     rmesh = os.path.join(folder, "m.rmesh")
     api.call("export_obj", path=obj)
@@ -589,11 +557,8 @@ def group_misc(api):
 GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids, "textures": group_textures, "paint": group_paint, "uv": group_uv, "misc": group_misc}
 
 
-# ------------------------------------------------------------------- driver
-
 class CheckedApi:
-    """Wraps the client: after every successful command that changes the document, checks
-    that the undo stack grew by exactly what the command listing's `undoable` flag says."""
+    """After every successful document-changing command, checks the undo stack grew as the command's `undoable` flag says."""
 
     SKIP = {"undo", "redo", "new_document", "load_mesh"}
 

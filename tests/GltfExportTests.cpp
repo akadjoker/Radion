@@ -29,8 +29,6 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// Two quads (four triangles) as two submeshes with different materials: the
-// smallest mesh that exercises primitives, materials and shared vertex data.
 MeshData twoParts()
 {
     MeshData mesh;
@@ -66,7 +64,6 @@ MeshData twoParts()
     return mesh;
 }
 
-// Parses the bytes with an independent reader and validates the result.
 cgltf_data* parse(const std::vector<unsigned char>& glb)
 {
     cgltf_options options = {};
@@ -100,7 +97,6 @@ void testStructure()
     CHECK(data->meshes[0].primitives_count == 2);
     CHECK(std::string(data->meshes[0].name) == "parts");
 
-    // Only the two materials in use, renumbered in order of first use.
     CHECK(data->materials_count == 2);
     const cgltf_primitive& a = data->meshes[0].primitives[0];
     const cgltf_primitive& b = data->meshes[0].primitives[1];
@@ -117,11 +113,9 @@ void testStructure()
     CHECK(!a.material->double_sided);
     CHECK(a.material->alpha_mode == cgltf_alpha_mode_opaque);
 
-    // The second primitive reads the second half of the shared index buffer.
     cgltf_size index = cgltf_accessor_read_index(b.indices, 0);
     CHECK(index == 4);
 
-    // Attributes are there and shared.
     const cgltf_accessor* position = nullptr;
     const cgltf_accessor* normal = nullptr;
     const cgltf_accessor* uv = nullptr;
@@ -188,8 +182,7 @@ void testRejectsBadMeshes()
 
 void testTrailingIndicesAreDropped()
 {
-    // A submesh whose count is not a multiple of three would make an invalid
-    // file; the loose indices are dropped.
+    // A submesh count that is not a multiple of three would make an invalid file; loose indices are dropped.
     MeshData mesh = twoParts();
     mesh.submeshes[0].indexCount = 5;
 
@@ -204,7 +197,6 @@ void testTrailingIndicesAreDropped()
     }
 }
 
-// A valid 1x1 PNG (an opaque red pixel).
 const unsigned char kPng[] = {
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00,
     0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49,
@@ -232,7 +224,7 @@ void testTexturesAndVertexColors()
     mesh.materials[0].textures[SlotNormal].file = png;
     mesh.materials[1].textures[SlotEmissive].file = junk;
     mesh.materials[1].textures[SlotSurface].file = "/tmp/radion_no_such_texture.png";
-    mesh.colors.assign(8, 0xFF0000FFu); // bytes r=255 g=0 b=0 a=255
+    mesh.colors.assign(8, 0xFF0000FFu);
     mesh.colors[3] = 0x80402010u;
 
     std::vector<unsigned char> glb;
@@ -257,7 +249,6 @@ void testTexturesAndVertexColors()
     CHECK(a.material->normal_texture.texture != nullptr);
     CHECK(b.material->pbr_metallic_roughness.base_color_texture.texture ==
           a.material->pbr_metallic_roughness.base_color_texture.texture);
-    // The unreadable and the non-image files left the material without those maps.
     CHECK(b.material->emissive_texture.texture == nullptr);
     CHECK(b.material->pbr_metallic_roughness.metallic_roughness_texture.texture == nullptr);
 

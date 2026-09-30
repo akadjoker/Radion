@@ -29,10 +29,7 @@ public:
 
     void triangle(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c, const Math::vec4& color);
 
-    // Same shape as DebugDraw3D::grid() (runtime/render/src/DebugDraw3D.cpp:499-514):
-    // `slices` lines each side of the origin, `spacing` apart, X line red and
-    // Z line blue through the origin when axes is set. Ported as line() calls
-    // since MiniBatch has no per-vertex-array grid primitive of its own.
+    // Same shape as DebugDraw3D::grid(): X line red, Z line blue through the origin when axes is set.
     void grid(f32 y, u32 slices, f32 spacing, bool axes = true);
  
     void flush(const Math::mat4& viewProjection);

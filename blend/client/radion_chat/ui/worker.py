@@ -1,8 +1,6 @@
 """Runs the agent and the health polling off the GUI thread.
 
-Both objects are moved to their own QThread by the main window; everything the GUI needs
-to know comes back as signals, and the only calls made *directly* from the GUI thread are
-the thread-safe ones (`submit`, `cancel`, `answer_confirm`).
+Only the thread-safe calls (`submit`, `cancel`, `answer_confirm`) are made directly from the GUI thread.
 """
 
 import threading
@@ -16,7 +14,6 @@ from ..session import make_agent
 
 
 class AgentWorker(QObject, AgentListener):
-    # Signals carrying what the agent reports (the AgentListener methods emit them).
     step = Signal(int, int)
     text_delta = Signal(str)
     tool_call = Signal(str, str, object)                     # id, name, arguments
@@ -43,8 +40,6 @@ class AgentWorker(QObject, AgentListener):
         self._undo_requested.connect(self._undo)
         self._reset_requested.connect(self._reset)
 
-    # -- called from the GUI thread ----------------------------------------------------
-
     def configure(self, profile, api_key, api_token, confirm_risky):
         self._configure_requested.emit((profile, api_key, api_token, confirm_risky))
 
@@ -68,10 +63,7 @@ class AgentWorker(QObject, AgentListener):
         self._reset_requested.emit()
 
     def conversation(self):
-        """The conversation to save; only call while no request is running."""
         return self._agent.export_conversation() if self._agent else {"system_prompt": "", "messages": []}
-
-    # -- AgentListener: forwarded as signals ------------------------------------------
 
     def on_step(self, step, max_steps):
         self.step.emit(step, max_steps)
@@ -87,8 +79,6 @@ class AgentWorker(QObject, AgentListener):
 
     def on_error(self, message):
         self.error.emit(message)
-
-    # -- on the worker thread ----------------------------------------------------------
 
     @Slot(object)
     def _configure(self, settings):
@@ -134,7 +124,6 @@ class AgentWorker(QObject, AgentListener):
             self._agent.reset()
 
     def _ask_user(self, name, arguments):
-        """Blocks the agent thread until the GUI answers (or Stop is pressed)."""
         self._confirm_event.clear()
         self.confirm_requested.emit(name, arguments)
         while not self._confirm_event.wait(0.1):
@@ -144,9 +133,7 @@ class AgentWorker(QObject, AgentListener):
 
 
 class HealthPoller(QThread):
-    """Polls `/api/health` so the status bar shows whether the editor is reachable."""
-
-    state = Signal(bool, str)   # reachable, text for the status bar
+    state = Signal(bool, str)
 
     def __init__(self, interval_s=2.0):
         super().__init__()
@@ -156,7 +143,6 @@ class HealthPoller(QThread):
         self._stopping = False
 
     def set_target(self, url, token):
-        """Points the poller at another editor and polls right away (any thread)."""
         self._client = RadionApiClient(url, token)
         self._wake.set()
 

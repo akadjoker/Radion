@@ -21,8 +21,6 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// A unit cube the way the engine builds one: every face owns its four corners,
-// so 24 vertices stand at 8 points.
 MeshData splitCube()
 {
     MeshData mesh;
@@ -40,7 +38,6 @@ MeshData splitCube()
     return mesh;
 }
 
-// An n x n grid of quads in the XZ plane, sharing its vertices.
 MeshData grid(u32 n)
 {
     MeshData mesh;
@@ -65,7 +62,6 @@ void testSplitCubeIsClosed()
     MeshTopology topology;
     topology.build(mesh);
 
-    // 24 corners, 8 points: the lowest index of each group is its id.
     std::vector<u32> ids;
     for (u32 v = 0; v < mesh.positions.size(); ++v)
         ids.push_back(topology.canonical(v));
@@ -75,7 +71,6 @@ void testSplitCubeIsClosed()
     for (u32 v = 0; v < mesh.positions.size(); ++v)
         CHECK(topology.canonical(v) <= v);
 
-    // 12 cube edges + one diagonal per face, and a closed surface has no border.
     CHECK(topology.edges().size() == 18);
     for (u32 e = 0; e < topology.edges().size(); ++e)
     {
@@ -92,8 +87,6 @@ void testNeighboursAcrossSeams()
     MeshTopology topology;
     topology.build(mesh);
 
-    // Triangle 0 is half of the -Z face; its neighbours are the other half and
-    // one triangle of each adjacent face - although no vertex index is shared.
     std::vector<u32> neighbours;
     topology.faceNeighbors(mesh, 0, neighbours);
     CHECK(neighbours.size() == 3);
@@ -105,7 +98,6 @@ void testCoincident()
     const MeshData mesh = splitCube();
     MeshTopology topology;
     topology.build(mesh);
-    // The origin corner appears once per face that touches it: -Z, -Y, -X.
     const std::vector<u32> group = topology.coincident(0);
     CHECK(group.size() == 3);
     CHECK(group.front() == 0);
@@ -128,8 +120,6 @@ void testGridBoundary()
         boundaryEdges += topology.isBoundary(e) ? 1u : 0u;
     CHECK(boundaryEdges == 8);
 
-    // The loop is walked in the faces' own direction: consecutive entries must
-    // be joined by a boundary edge whose owning face runs from one to the next.
     const std::vector<u32>& loop = loops[0];
     for (usize i = 0; i < loop.size(); ++i)
     {
@@ -153,9 +143,7 @@ void testGridBoundary()
 
 void testTwoHolesGiveTwoLoops()
 {
-    // A ring: a 3x3 grid with the centre quad removed has an outer and an inner border.
     MeshData mesh = grid(3);
-    // Quad (1,1) is triangles 2*(1*3+1) and the next one.
     const usize quad = 1 * 3 + 1;
     mesh.indices.erase(mesh.indices.begin() + static_cast<long>(quad * 6),
                        mesh.indices.begin() + static_cast<long>(quad * 6 + 6));
@@ -170,7 +158,6 @@ void testTwoHolesGiveTwoLoops()
 
 void testNonManifoldAndDegenerate()
 {
-    // Three triangles hanging off one edge.
     MeshData fan;
     fan.positions = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, -1, 0}};
     fan.indices = {0, 1, 2, 0, 1, 3, 0, 1, 4};
@@ -180,7 +167,6 @@ void testNonManifoldAndDegenerate()
     CHECK(shared >= 0);
     CHECK(topology.isNonManifold(static_cast<u32>(shared)));
     CHECK(topology.edges()[static_cast<usize>(shared)].faces.size() == 3);
-    // Not a closed loop anywhere, so there is nothing to report.
     CHECK(topology.boundaryLoops(fan).empty());
 
     // A triangle with two corners at one point has a side with no length.
@@ -202,7 +188,7 @@ void testToleranceAndDeterminism()
     MeshTopology b;
     a.build(mesh);
     b.build(mesh);
-    CHECK(a.canonical(2) == 1); // within the default 1e-5
+    CHECK(a.canonical(2) == 1);
     CHECK(a.edges().size() == b.edges().size());
     for (usize i = 0; i < a.edges().size(); ++i)
         CHECK(a.edges()[i].a == b.edges()[i].a && a.edges()[i].b == b.edges()[i].b);
@@ -218,7 +204,7 @@ void testInvalidIndicesAreSkipped()
     mesh.positions = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
     mesh.indices = {0, 1, 2, 0, 1, 99};
     MeshTopology topology;
-    topology.build(mesh); // must not read out of bounds
+    topology.build(mesh);
     CHECK(topology.faceCount() == 2);
     CHECK(topology.faceEdges(1)[0] >= 0);
     CHECK(topology.faceEdges(1)[1] == -1);

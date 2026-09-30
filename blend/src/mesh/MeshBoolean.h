@@ -12,23 +12,12 @@ namespace Radion::MeshEdit
 enum class BooleanOp : u8
 {
     Union,
-    Difference,   // a minus b
+    Difference,
     Intersection
 };
 
-// A solid-geometry combination of two closed meshes, by way of the engine's
-// density fields: each mesh becomes the distance to its surface (inside
-// positive), the two are combined, and the result is meshed again on a grid of
-// `resolution` cells along the longest side.
-//
-// It is a remesh, not an exact cut: the result is watertight and smooth-shaded
-// but its triangles are the grid's, small features finer than a cell are lost,
-// and UVs and the inputs' own triangulation do not survive. Raise `resolution`
-// for finer detail (and a slower call).
-//
-// Both inputs must be closed solids - an open mesh has no inside, and the result
-// is then meaningless. Returns false, with `error` set, for an empty input, a
-// resolution out of range, or an empty result.
+// Combines two closed meshes via density fields and re-meshes on a grid of `resolution` cells; a remesh, not an exact cut (UVs and small features are lost).
+// Inputs must be closed solids. Returns false with `error` set for an empty input, bad resolution, or empty result.
 bool booleanMeshes(const MeshData& a, const MeshData& b, BooleanOp op, u32 resolution, MeshData& out,
                    std::string* error = nullptr);
 

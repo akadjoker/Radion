@@ -11,7 +11,6 @@ using namespace Radion;
 
 namespace
 {
-// True if `material` changed - same convention drawTextureSlot() uses.
 bool drawFlagCheckbox(const char* label, MaterialFlags flag, Material& material)
 {
     bool value = (material.flags & flag) != 0;
@@ -75,10 +74,7 @@ bool MaterialEditor::drawFields(Material& material)
     ImGui::SameLine();
     changed |= drawFlagCheckbox("Receive Shadow", MaterialReceiveShadow, material);
 
-    // Mirror/Reflection/Parallax need a probe or a planar capture blend has
-    // no scene to provide, and Metallic-Roughness Map is just a different
-    // packing of the Surface slot below - none of the four belong here
-    // while blend is PBR-only, straight albedo/normal/surface/emissive.
+    // Mirror/Reflection/Parallax need probes blend lacks; Metallic-Roughness Map is another packing of Surface.
     ImGui::Spacing();
     ImGui::TextDisabled("Drag an image from Materials' grid onto a slot");
     changed |= drawTextureSlot("Albedo", SlotAlbedo, material);
@@ -109,9 +105,7 @@ bool MaterialEditor::drawTextureSlot(const char* label, u32 slot, Material& mate
             const std::string path(static_cast<const char*>(payload->Data), payload->DataSize);
             texture.texture =
                 Assets().loadTexture(path, Material::colorSpaceFor(static_cast<MaterialSlot>(slot)));
-            // Matches MaterialParserInternal's own defaults for a freshly
-            // assigned slot - otherwise it reads back as point/clamp until
-            // the sidecar is saved and reloaded.
+            // Matches MaterialParserInternal's defaults for a fresh slot, or it reads back as point/clamp after reload.
             SamplerDesc sampler;
             sampler.filter = Filter::Anisotropic;
             sampler.wrapU = Wrap::Repeat;

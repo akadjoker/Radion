@@ -22,7 +22,6 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// Five vertices on the X axis at 0, 1, 2, 3, 4.
 MeshData line()
 {
     MeshData mesh;
@@ -56,16 +55,14 @@ void testPaintVertices()
     MeshData mesh = line();
     CHECK(!MeshPaint::hasColors(mesh));
     const Math::vec4 red(1, 0, 0, 1);
-    CHECK(MeshPaint::paintVertices(mesh, {1, 3, 99}, red, 1.0f) == 2); // 99 is ignored
+    CHECK(MeshPaint::paintVertices(mesh, {1, 3, 99}, red, 1.0f) == 2);
     CHECK(mesh.colors.size() == 5);
     CHECK(mesh.colors[0] == 0xFFFFFFFFu && mesh.colors[2] == 0xFFFFFFFFu);
     CHECK(MeshPaint::unpack(mesh.colors[1]).y == 0.0f);
     CHECK(MeshPaint::hasColors(mesh));
 
-    // Half opacity from white towards black.
     CHECK(MeshPaint::paintVertices(mesh, {0}, Math::vec4(0, 0, 0, 1), 0.5f) == 1);
     CHECK(std::fabs(MeshPaint::unpack(mesh.colors[0]).x - 0.5f) < 1.0f / 255.0f);
-    // Painting the colour a vertex already has changes nothing.
     CHECK(MeshPaint::paintVertices(mesh, {1}, red, 1.0f) == 0);
 }
 
@@ -73,22 +70,19 @@ void testSphereBrush()
 {
     MeshData mesh = line();
     const Math::vec4 blue(0, 0, 1, 1);
-    // Hard brush: full colour inside, nothing outside the radius.
     CHECK(MeshPaint::paintSphere(mesh, nullptr, Math::vec3(2, 0, 0), 1.5f, 1.0f, blue, 1.0f) == 3);
     CHECK(MeshPaint::unpack(mesh.colors[2]).x == 0.0f);
     CHECK(MeshPaint::unpack(mesh.colors[1]).x == 0.0f);
     CHECK(mesh.colors[0] == 0xFFFFFFFFu && mesh.colors[4] == 0xFFFFFFFFu);
 
-    // Soft brush: the centre is full, the rim is a blend, beyond the radius untouched.
     MeshData soft = line();
     MeshPaint::paintSphere(soft, nullptr, Math::vec3(2, 0, 0), 2.0f, 0.0f, blue, 1.0f);
     const f32 centre = MeshPaint::unpack(soft.colors[2]).x;
     const f32 near = MeshPaint::unpack(soft.colors[3]).x;
     CHECK(centre == 0.0f);
     CHECK(near > 0.0f && near < 1.0f);
-    CHECK(soft.colors[0] == 0xFFFFFFFFu); // exactly at the radius: untouched
+    CHECK(soft.colors[0] == 0xFFFFFFFFu);
 
-    // A subset limits the brush.
     MeshData sub = line();
     const std::vector<u32> only = {2};
     CHECK(MeshPaint::paintSphere(sub, &only, Math::vec3(2, 0, 0), 5.0f, 1.0f, blue, 1.0f) == 1);
@@ -104,7 +98,7 @@ void testClear()
     CHECK(mesh.colors.size() == 5 && mesh.colors[1] == 0xFFFFFFFFu && mesh.colors[2] != 0xFFFFFFFFu);
     const std::vector<u32> two = {2};
     MeshPaint::clear(mesh, &two);
-    CHECK(mesh.colors.empty()); // nothing left but white: the array is dropped
+    CHECK(mesh.colors.empty());
     MeshPaint::paintVertices(mesh, {0}, Math::vec4(0, 1, 0, 1), 1.0f);
     MeshPaint::clear(mesh, nullptr);
     CHECK(mesh.colors.empty());

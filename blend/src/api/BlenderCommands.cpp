@@ -25,9 +25,8 @@ namespace Radion::BlenderApi
 
 namespace
 {
-// Bounds on what one call may ask for. Arguments arrive from outside the
-// process; none of these limits is a modelling limit, they keep a typo (or a
-// model run away with itself) from allocating gigabytes or hanging the editor.
+// Bounds on one call's arguments: not modelling limits, they keep a typo or runaway model from allocating gigabytes or
+// hanging the editor.
 constexpr size_t kMaxCustomVertices = 200000;
 constexpr size_t kMaxCustomIndices = 600000;
 constexpr double kMaxCoordinate = 100000.0;
@@ -35,8 +34,6 @@ constexpr size_t kMaxSelectionIndices = 1000000;
 constexpr size_t kMaxListedIndices = 500;
 constexpr size_t kMaxDumpVertices = 2000;
 constexpr int kMaxCaptureSize = 1920;
-
-// ---------------------------------------------------------------- errors
 
 [[noreturn]] void invalid(const std::string& message)
 {
@@ -47,8 +44,6 @@ constexpr int kMaxCaptureSize = 1920;
 {
     throw CommandError(CommandStatus::Failed, message);
 }
-
-// ------------------------------------------------------------ JSON shapes
 
 Json vec3Json(const Math::vec3& v)
 {
@@ -65,8 +60,7 @@ Json boundsJson(const AABB& box)
             {"center", vec3Json(box.center())}};
 }
 
-// Schema builders. The description of every argument is what a model reads to
-// decide how to call the command, so they are written for that reader.
+// Every argument's description is what a model reads to decide how to call the command.
 Json numberSchema(const char* description)
 {
     return {{"type", "number"}, {"description", description}};
@@ -115,7 +109,6 @@ Json partRefSchema()
             {"oneOf", Json::array({{{"type", "integer"}}, {{"type", "string"}}})}};
 }
 
-// The arguments every command that places a new part takes.
 void addPlacementProperties(Json& properties)
 {
     properties["position"] = vec3Schema("Where the part's origin goes. Default [0,0,0]. +Y is up.");
@@ -145,8 +138,6 @@ void addStyleProperties(Json& properties)
     properties["metallic"] = numberSchema("Metalness 0 (paint/plastic) to 1 (bare metal).");
 }
 
-// -------------------------------------------------------- argument helpers
-
 void requireFiniteRange(const char* name, const std::vector<double>& values, double limit)
 {
     for (const double value : values)
@@ -171,8 +162,8 @@ Math::vec3 vec3Arg(const CommandArgs& args, const char* name, const Math::vec3& 
     return toVec3(values);
 }
 
-// translate * rotateZ * rotateY * rotateX * scale: scale and rotate the part
-// about its own origin, then move it. The order the arguments are documented in.
+// translate * rotateZ * rotateY * rotateX * scale: scale and rotate about the part's own origin, then move; the
+// documented argument order.
 Math::mat4 composeTransform(const Math::vec3& position, const Math::vec3& rotationDegrees,
                            const Math::vec3& scale)
 {
@@ -189,8 +180,7 @@ Math::vec3 scaleArg(const CommandArgs& args, const char* name)
     requireFiniteRange(name, values, kMaxCoordinate);
     for (const double value : values)
     {
-        // A zero scale flattens the part to nothing and makes the normal matrix
-        // singular; a mirror is a -1, not a 0.
+        // A zero scale flattens the part and makes the normal matrix singular; a mirror is -1, not 0.
         if (std::abs(value) < 1.0e-6)
             invalid(std::string("argument '") + name + "' must not contain 0");
     }
@@ -234,8 +224,7 @@ bool parseHexColor(const std::string& text, Math::vec4& out)
     return true;
 }
 
-// Colours cross the API as sRGB - what a person (or a colour picker, or a hex
-// code) means - and are stored linear, which is what the renderer multiplies.
+// Colours cross the API as sRGB and are stored linear, which is what the renderer multiplies.
 f32 srgbToLinear(f32 c)
 {
     return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
@@ -308,8 +297,6 @@ BlenderApplication::PartStyle styleArg(const CommandArgs& args)
     }
     return style;
 }
-
-// ----------------------------------------------------------- mesh helpers
 
 MeshData& requireMesh(BlenderApplication& app)
 {
@@ -512,9 +499,6 @@ CommandResult result(Json data)
     return out;
 }
 
-// What a geometry-adding command reports back: enough to place the next part
-// relative to this one without a separate query.
-// [u, v] pair; `fallback` when absent.
 Math::vec2 vec2Arg(const CommandArgs& args, const char* name, const Math::vec2& fallback)
 {
     if (!args.has(name))
@@ -559,8 +543,6 @@ std::vector<u32> selectedVertexSet(BlenderApplication& app)
     return app.editVertices();
 }
 
-// ----------------------------------------------------------------- base64
-
 std::string base64(const std::string& bytes)
 {
     static const char kAlphabet[] =
@@ -581,8 +563,7 @@ std::string base64(const std::string& bytes)
     return out;
 }
 
-// PNG bytes for RGBA pixels. The image writer in the engine only knows how to
-// write to a file, so the picture takes a short trip through one.
+// The engine's image writer only writes to a file, so the picture takes a short trip through one.
 std::string encodePng(const std::vector<u8>& rgba, int width, int height)
 {
     const std::string path =
@@ -622,8 +603,6 @@ CameraView viewFromName(const std::string& name)
 
 } // namespace
 
-// ============================================================ registration
-
 void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
 {
     BlenderApplication* editor = &app;
@@ -639,8 +618,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
         def.handler = std::move(handler);
         registry.add(std::move(def));
     };
-
-    // ------------------------------------------------------------ inspect
 
     add("get_status",
         "Everything about the document in one call: mesh size and bounds, the list of parts "
@@ -720,9 +697,8 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                                {"triangleCount", triangles.size()},
                                {"truncated", truncated},
                                {"positions", positions},
-                               // Triangles index `positions`; this says which editor vertex
-                               // each entry is, for commands that take vertex indices
-                               // (select, loop_cut, ...).
+                               // Says which editor vertex each `positions` entry is, for commands that take vertex
+                               // indices.
                                {"vertexIds", vertexIds},
                                {"triangles", triangles}});
             });
@@ -781,9 +757,8 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 params.grid = args.boolean("grid", true);
                 params.frame = args.boolean("frame", true);
 
-                // The orbit camera's yaw/pitch run opposite to the way a person
-                // says "from the right, looking down": azimuth toward +X and
-                // elevation above the horizon are the natural reading.
+                // The orbit camera's yaw/pitch run opposite to how a person says it; azimuth toward +X and elevation
+                // above the horizon are the natural reading.
                 const f32 azimuth = static_cast<f32>(args.number("azimuth", 35.0, -3600.0, 3600.0));
                 const f32 elevation = static_cast<f32>(args.number("elevation", 25.0, -89.0, 89.0));
                 params.camera.yaw = -Math::radians(azimuth);
@@ -805,8 +780,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 return out;
             });
     }
-
-    // ----------------------------------------------------------- document
 
     add("new_document",
         "Discards the current mesh, skeleton, animations and undo history and starts empty. "
@@ -921,8 +894,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             });
     }
 
-    // -------------------------------------------------------- build parts
-
     {
         Json properties = {
             {"type", choiceSchema("Shape. box and plane use 'size'; sphere, cylinder, cone, capsule and "
@@ -1036,7 +1007,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     if (!buildStairs(stairs, built, &why))
                         invalid(why);
                 }
-                else // arch
+                else
                 {
                     ArchParams arch;
                     arch.width = static_cast<f32>(size[0]);
@@ -1048,9 +1019,8 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                         invalid(why);
                 }
 
-                // Where the shape's own origin sits. The engine builds some shapes
-                // centred and some standing on y = 0; a model describing a part by its
-                // middle should not have to know which.
+                // Where the shape's origin sits: some shapes are centred, some stand on y = 0; callers should not need
+                // to know.
                 AABB box;
                 for (const Math::vec3& p : built.positions)
                     box.expand(p);
@@ -1313,8 +1283,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             });
     }
 
-    // ------------------------------------------------------- edit a part
-
     {
         Json properties = {{"part", partRefSchema()},
                            {"pivot", vec3Schema("Point the rotation and scale act about. Default: the "
@@ -1479,8 +1447,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             return result(statusJson(*editor));
         });
 
-    // -------------------------------------------------------- selection
-
     {
         Json box = objectSchema({{"min", vec3Schema("Lower corner.")}, {"max", vec3Schema("Upper corner.")}},
                                 {"min", "max"});
@@ -1553,7 +1519,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                     const u32 faceCount = static_cast<u32>(mesh.indices.size() / 3);
                     const MeshTopology& topology = editor->topology();
 
-                    // What was asked for, as indices (vertex/face) or edge keys.
                     std::vector<u32> picked;
                     std::vector<u64> pickedEdges;
 
@@ -1606,7 +1571,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                         }
                         else if (edgeMode)
                         {
-                            // Edges of the part's own triangles.
                             for (const u32 face : faces)
                                 for (const s32 edge : topology.faceEdges(face))
                                     if (edge >= 0)
@@ -1718,8 +1682,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
         "few indices.",
         objectSchema(Json::object()), true,
         [editor](const CommandArgs&) { return result(selectionJson(*editor)); });
-
-    // ------------------------------------------------- edit the geometry
 
     {
         Json properties = {
@@ -2654,7 +2616,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
                 }
                 const u32 size = static_cast<u32>(args.integer("size", 512, 64, 1024));
 
-                // The albedo map, when the part has one, under the wire.
                 std::vector<u8> background;
                 u32 backgroundSize = 0;
                 if (!file.empty())
@@ -2748,8 +2709,6 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             return result({{"verticesBefore", before}, {"vertices", mesh.positions.size()}, {"welded", welded}});
         });
 
-    // --------------------------------------------------------- animation
-
     add("set_animation",
         "Chooses the animation clip and frame shown, and starts or stops playback. Only "
         "meaningful for a rigged mesh with clips (see get_status).",
@@ -2786,9 +2745,8 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             return result(statusJson(*editor)["animation"]);
         });
 
-    // Commands that leave the undo stack alone (they change the view, not the model, or
-    // write a file) or empty it. Kept in one place so the listing can tell a client;
-    // tools/api_selftest.py checks every command it runs against this table.
+    // Commands that leave the undo stack alone (view changes, file writes) or empty it; tools/api_selftest.py checks
+    // every command it runs against this table.
     for (const char* name : {"select", "hide", "unhide", "set_part_visible", "set_animation", "set_symmetry",
                              "pin_uv", "save_mesh", "export_obj", "export_gltf", "new_document", "load_mesh",
                              "undo", "redo"})

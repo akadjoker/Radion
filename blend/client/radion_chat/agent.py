@@ -1,9 +1,3 @@
-"""The agent loop: user message -> LLM -> tool calls -> editor API -> results -> LLM ...
-
-It runs on whatever thread calls `run` (the UI uses a worker thread) and reports progress
-through an AgentListener. Stop is a CancelToken, checked between steps and handed to the
-provider so that it also interrupts a streaming reply.
-"""
 
 import json
 from dataclasses import dataclass
@@ -15,13 +9,10 @@ from .llm.openai_wire import assistant_to_history
 from .prompts import build_system_prompt
 from .tools import build_tools
 
-# Commands that write files or discard work: the user confirms them by default.
 RISKY_COMMANDS = frozenset({"save_mesh", "export_obj", "export_gltf", "new_document", "load_mesh"})
 
-# `readOnly: false` commands that do NOT add an undo step in the editor (checked against the
-# real editor: selection, visibility and the file writers leave the undo stack alone).
-# Counting them would make "Undo this request" also undo the user's earlier work. A command
-# listing with an explicit `undoable` field overrides this table.
+# `readOnly: false` commands that add no editor undo step (checked against the real editor).
+# Counting them would make "Undo this request" also undo the user's earlier work.
 NOT_UNDO_STEPS = frozenset({
     "select", "set_part_visible", "set_animation", "save_mesh", "export_obj", "export_gltf",
 })
@@ -44,19 +35,16 @@ ERROR_HINTS = {
 @dataclass
 class AgentConfig:
     max_steps: int = 40
-    keep_images: int = 2          # only the latest screenshots stay attached to the history
-    recent_results: int = 6       # newest tool results kept whole ...
-    old_result_chars: int = 600   # ... older ones are cut to this many characters
-    max_result_chars: int = 8000  # hard cap for any single result sent to the model
+    keep_images: int = 2
+    recent_results: int = 6
+    old_result_chars: int = 600
+    max_result_chars: int = 8000
     max_history_chars: int = 120_000
-    simplify_schema: bool = False  # see tools.simplify_schema
+    simplify_schema: bool = False
     extra_system_prompt: str = ""
 
 
 class AgentListener:
-    """Receives everything the agent does. Override what you need; all calls happen on the
-    agent's thread."""
-
     def on_step(self, step, max_steps):
         pass
 
@@ -67,8 +55,7 @@ class AgentListener:
         pass
 
     def on_tool_result(self, call_id, name, summary, is_error, image_png, text):
-        """`summary` is one short line; `text` is what the model received; `image_png` is
-        bytes or None."""
+        """`image_png` is bytes or None; `text` is what the model received."""
 
     def on_error(self, message):
         pass
@@ -99,15 +86,12 @@ class Agent:
         self.config = config or AgentConfig()
         self.confirm = confirm
         self.messages = []
-        self.undoable_steps = 0  # editor undo steps the latest request added
+        self.undoable_steps = 0
         self._commands = {}
 
     def reset(self):
-        """Starts a new conversation."""
         self.messages.clear()
         self.undoable_steps = 0
-
-    # -- running a request -------------------------------------------------------------
 
     def run(self, user_text, cancel=None):
         cancel = cancel or CancelToken()
@@ -152,7 +136,6 @@ class Agent:
         return RunResult("max_steps", self.config.max_steps)
 
     def _run_tool_calls(self, calls, cancel):
-        """Executes one assistant turn's calls; returns 'cancelled'/'error' to end the run."""
         for position, call in enumerate(calls):
             if cancel.is_set:
                 # Every tool_call needs an answer or the next request would be invalid.
@@ -218,8 +201,6 @@ class Agent:
                       old_result_chars=config.old_result_chars,
                       max_chars=config.max_history_chars)
 
-    # -- undo --------------------------------------------------------------------------
-
     def _count_undo_steps(self, name, arguments, result):
         if name in UNDO_BARRIERS:
             self.undoable_steps = 0
@@ -234,7 +215,6 @@ class Agent:
                 self.undoable_steps += 1
 
     def undo_last_request(self):
-        """Reverts the edits the latest request made; returns how many steps were undone."""
         remaining, undone = self.undoable_steps, 0
         while remaining > 0:
             chunk = min(remaining, UNDO_LIMIT_PER_CALL)
@@ -251,10 +231,7 @@ class Agent:
                 "request were reverted. The model is back to how it was before that request.")})
         return undone
 
-    # -- saving ------------------------------------------------------------------------
-
     def export_conversation(self):
-        """The conversation as plain JSON-able data (images replaced by a placeholder)."""
         messages = []
         for message in self.messages:
             message = dict(message)
@@ -273,5 +250,4 @@ def _error_text(error):
 
 
 def _summarize(text):
-    """One line for the UI: the result JSON, shortened."""
     return text if len(text) <= 160 else text[:157] + "..."

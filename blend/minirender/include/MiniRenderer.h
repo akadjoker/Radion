@@ -10,17 +10,13 @@ namespace Radion
 class Engine;
 struct MeshData;
 
-// Upper bound on the shader's uBonePalette[] array. A preview never needs
-// the engine's own MatrixPalette budget - this only has to cover the one
-// rigged character on screen at a time.
+// Upper bound on uBonePalette[]; a preview shows one rigged character at a time.
 constexpr u32 kMiniRendererMaxBones = 128;
 
 struct MiniRendererConfig
 {
     f32 lightIntensity = 1.0f;
-    // The direction the light travels - the shader lights a surface by its
-    // dot with the opposite. Down and a little across, so the tops of things are
-    // the lit side; the old (+Y) value lit a model from underneath.
+    // Direction the light travels (the shader lights by the dot with the opposite).
     Math::vec3 lightDirection = Math::normalize(Math::vec3(-0.5f, -1.0f, -0.5f));
     Math::vec3 ambientColor = Math::vec3(0.3f, 0.3f, 0.3f);
     f32 ambientIntensity = 0.3f;
@@ -33,9 +29,6 @@ enum class MiniRenderMode : u8
     Textured,
 };
 
-// What the solid/textured pass colours the surface with, instead of lit
-// shading - a GPU-side debug view, not a separate technique to isolate in a
-// panel toggle. None runs the ordinary lighting/BRDF path.
 enum class MiniDebugView : u8
 {
     None,
@@ -50,48 +43,27 @@ struct MiniDrawParams
     f32 alpha = 1.0f; // < 1 draws blended, depth write off (onion-skin ghosts)
     Math::vec3 tint = Math::vec3(1.0f);
 
-    // Blender's X-ray: depth test off for the whole draw (main pass and any
-    // overlay), so nothing behind the mesh is occluded by it - stacked
-    // translucent layers, not a sorted blend. Defaults alpha to 0.35 when the
-    // caller left it at the opaque 1.0, since an opaque X-ray shows nothing.
+    // Depth test off for the whole draw; alpha defaults to 0.35 when left at 1.0 (opaque X-ray shows nothing).
     bool xray = false;
 
     MiniDebugView debugView = MiniDebugView::None;
-    // Flat (per-face, provoking-vertex) normal instead of the smooth one -
-    // both in shading and in the Normals debug view. Costs nothing extra:
-    // the flat varying is always written, this only picks which one reads.
     bool facetedShading = false;
-    // Skips the light/BRDF term entirely - just uTint (or the per-submesh
-    // tint colorBySubmesh already multiplies it by), the "flat color, no
-    // shadow" solid look.
     bool unlit = false;
-    // Multiplies the surface by MeshData::colors (linear, as glTF's COLOR_0), so
-    // painted vertex colours show. A mesh without colours is unaffected.
+    // Linear vertex colours, as glTF COLOR_0.
     bool vertexColors = false;
-    // Extra GL_POINTS pass over the mesh, drawn straight from the static
-    // vertex buffer - one draw call, nothing uploaded per frame. Which points
-    // come out selected is whatever setVertexSelection() last stored.
+    // GL_POINTS pass over the static vertex buffer; selected points come from setVertexSelection().
     bool showVertexPoints = false;
     Math::vec3 vertexColor = Math::vec3(1.0f, 0.8f, 0.1f);
     Math::vec3 selectedVertexColor = Math::vec3(1.0f, 0.4f, 0.0f);
     f32 vertexPointSize = 4.0f;
-    bool showWireframeOverlay = false; // extra wireframe pass over the solid one
+    bool showWireframeOverlay = false;
     bool colorBySubmesh = false;
 
-    // Per-submesh viewport visibility, index-parallel to MeshData::submeshes,
-    // nonzero meaning visible - a byte array rather than bool* since
-    // std::vector<bool> has no real storage to point into. A submesh at or
-    // past submeshVisibleCount draws as usual (missing means visible, not
-    // hidden), so a caller only needs to size this to however many entries
-    // it actually tracked. Forces the same per-submesh draw loop
-    // colorBySubmesh uses, even with colorBySubmesh off.
+    // Index-parallel to MeshData::submeshes, nonzero = visible; entries past submeshVisibleCount draw as visible.
     const u8* submeshVisible = nullptr;
     u32 submeshVisibleCount = 0;
 
-    // Skinning palette, world/model space per bone (Skeleton::evaluate()'s
-    // own palette output). Empty draws every vertex with joint 0 at identity
-    // - the same "zero when unused" convention MeshPreview's GPUInstance uses,
-    // so an unrigged mesh needs no separate vertex format or shader branch.
+    // World/model-space palette per bone; empty draws every vertex with joint 0 at identity.
     const Math::mat4* bonePalette = nullptr;
     u32 boneCount = 0;
 };
@@ -108,7 +80,6 @@ public:
     bool initialize();
     void shutdown();
 
-    // Configuration
     void setLightDirection(const Math::vec3& direction)
     {
         mConfig.lightDirection = Math::normalize(direction);
@@ -133,23 +104,13 @@ public:
 
     void invalidate();
 
-    // One byte per vertex, nonzero where selected, kept in its own buffer so
-    // a selection change costs a byte per vertex and never touches the
-    // geometry. Call it only when the selection actually changed - the
-    // viewport has BlenderSelection::revision() to tell.
+    // One byte per vertex, nonzero = selected, in its own buffer; call only when the selection changed.
     void setVertexSelection(const u8* selected, u32 count);
 
-    // Triangles to leave out of every draw, one byte per triangle, nonzero =
-    // hidden. Nothing is uploaded: the draw skips those index ranges. Ignored
-    // unless it has exactly one entry per triangle of the mesh being drawn.
-    // nullptr (or a count of 0) shows everything.
+    // One byte per triangle, nonzero = hidden; ignored unless it has exactly one entry per triangle.
     void setHiddenFaces(const u8* faceHidden, u32 faceCount);
 
-    // Bumped every time the mesh is uploaded, which is also every time the
-    // selection buffer is recreated and zeroed. A caller that caches what it
-    // last sent has to watch this as well as its own state: editing a mesh
-    // in place leaves the pointer and the selection unchanged while the
-    // buffer behind them is new and empty.
+    // Bumped on every mesh upload, which also zeroes the selection buffer; callers caching what they sent must watch it.
     u64 meshUploadRevision() const
     {
         return mUploadRevision;
@@ -185,8 +146,7 @@ private:
     bool createDefaultTextures();
     void destroyBuffers();
     void uploadMesh(const MeshData& mesh);
-    // glDrawElements over [indexOffset, indexOffset + indexCount), skipping the
-    // hidden triangles inside it.
+    // Skips hidden triangles inside the range.
     void drawTriangleRange(u32 indexOffset, u32 indexCount);
 };
 

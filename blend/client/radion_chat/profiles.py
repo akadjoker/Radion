@@ -16,7 +16,6 @@ FILE_VERSION = 1
 
 
 def config_dir():
-    """Per-user config directory (XDG on Linux, %APPDATA% on Windows, Application Support on macOS)."""
     if sys.platform == "win32":
         base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
     elif sys.platform == "darwin":
@@ -33,10 +32,10 @@ class Profile:
     base_url: str = ""
     model: str = ""
     api_key_env: str = ""          # name of the environment variable that holds the key
-    vision: bool = False           # the user says the model accepts images
+    vision: bool = False
     simplify_schema: bool = False  # for servers that choke on oneOf/minItems/...
     stream: bool = True
-    temperature: float | None = None  # None: the server's default
+    temperature: float | None = None
     max_steps: int = 40
     request_timeout: float = 300.0
     api_url: str = DEFAULT_API_URL
@@ -44,7 +43,6 @@ class Profile:
     system_prompt_extra: str = ""
 
     def problems(self):
-        """What must be fixed before this profile can be used (empty when fine)."""
         found = []
         if not self.name.strip():
             found.append("The profile needs a name.")
@@ -60,7 +58,6 @@ class Profile:
 
     @classmethod
     def from_dict(cls, data):
-        """Tolerant of a hand-edited file: unknown keys are ignored, wrong types fall back."""
         defaults = cls(name=str(data.get("name", "")))
         values = {}
         for field in fields(cls):
@@ -76,12 +73,11 @@ def _accepted_types(default):
     if isinstance(default, (int, float)):
         return (int, float)
     if default is None:
-        return (int, float)  # the only optional field is the temperature
+        return (int, float)
     return type(default)
 
 
-# Starting points offered by the "New profile" dialog; never saved on their own and never
-# carrying a key. Model names change often: check the provider's current list.
+# Starting points for the "New profile" dialog; never saved on their own, never carrying a key.
 TEMPLATES = {
     "Ollama (local)": Profile(
         name="ollama", base_url="http://localhost:11434/v1", model="", vision=False),
@@ -102,7 +98,6 @@ class ProfileStore:
         self.confirm_risky = True
 
     def load(self):
-        """Reads the file; a missing or corrupt file just means an empty store."""
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -132,7 +127,6 @@ class ProfileStore:
         temporary.replace(self.path)  # atomic: a crash never leaves half a file
 
     def put(self, profile, replacing=None):
-        """Adds or updates a profile (`replacing` is its old name when it was renamed)."""
         if replacing and replacing != profile.name:
             self.profiles.pop(replacing, None)
         self.profiles[profile.name] = profile

@@ -1,9 +1,3 @@
-"""A stand-in for the editor's HTTP API with just enough behaviour for the client tests.
-
-It serves the real command listing (tests/fixtures/commands.json, captured from the
-editor) so schemas are realistic, and implements a handful of commands over a tiny model:
-a list of part names plus an undo stack. Every call is logged in `server.calls`.
-"""
 
 import base64
 import json
@@ -18,7 +12,6 @@ PRIMITIVES = ["box", "plane", "sphere", "cylinder", "cone", "capsule", "torus"]
 
 
 def tiny_png(width=2, height=2):
-    """A valid PNG (solid colour), built by hand so tests do not need Qt or Pillow."""
     def chunk(kind, data):
         body = kind + data
         return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
@@ -37,9 +30,9 @@ class FakeRadionApi:
     def __init__(self, token=None):
         self.token = token
         self.parts = []
-        self.history = []  # snapshots of `parts` before each undoable edit
+        self.history = []
         self.redo = []
-        self.calls = []    # (name, arguments)
+        self.calls = []
         self.lock = threading.Lock()
         self._httpd = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
         self._httpd.owner = self
@@ -59,8 +52,6 @@ class FakeRadionApi:
 
     def names(self):
         return [part["name"] for part in self.parts]
-
-    # -- commands ----------------------------------------------------------------------
 
     def run(self, name, args):
         handler = getattr(self, f"cmd_{name}", None)

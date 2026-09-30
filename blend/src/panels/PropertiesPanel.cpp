@@ -96,9 +96,7 @@ void PropertiesPanel::drawFaceUVTools()
     if (ImGui::SmallButton("Flip V"))
         mUVScale.y = -mUVScale.y;
 
-    // Scaling and rotating happen around the centre of the selection's own UV
-    // bounds, so the amounts above mean the same thing wherever the island
-    // sits in the texture.
+    // Scale and rotate about the centre of the selection's UV bounds, so amounts mean the same wherever the island sits.
     const bool wholeMesh = selectedFaces == 0;
     if (ImGui::Button(wholeMesh ? "Apply to whole mesh" : "Apply to selected faces",
                       ImVec2(-1.0f, 0.0f)))
@@ -183,12 +181,7 @@ void PropertiesPanel::drawSubmeshList()
         {
             Material& material = meshData->materials[submesh.materialSlot];
             ImGui::Indent(14.0f);
-            // recordUndo() has to run before the widgets - they edit
-            // `material` directly, so by the time drawFields() reports
-            // whether anything changed, that change already landed in
-            // *mMeshData. Snapshot first, then throw the snapshot away on
-            // the "nothing changed" branch so an idle frame with the
-            // section open does not pile up no-op undo steps.
+            // recordUndo() must run before the widgets (they edit `material` directly): snapshot first, discard it when nothing changed so idle frames add no undo steps.
             app().recordUndo();
             if (MaterialEditor::drawFields(material))
                 app().applyMeshEdit();

@@ -3,8 +3,6 @@ from PySide6.QtWidgets import QPlainTextEdit
 
 
 class ChatInput(QPlainTextEdit):
-    """Multi-line input: Enter sends, Shift+Enter inserts a newline."""
-
     submitted = Signal()
 
     def __init__(self):

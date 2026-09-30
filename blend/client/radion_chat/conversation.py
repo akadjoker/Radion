@@ -1,11 +1,9 @@
-"""Saving a conversation to disk."""
 
 import json
 from datetime import datetime
 
 
 def save_conversation(path, profile_name, conversation):
-    """Writes `conversation` (Agent.export_conversation) as JSON; screenshots are not included."""
     document = {
         "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "profile": profile_name,

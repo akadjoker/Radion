@@ -28,9 +28,7 @@ Math::vec3 centerOf(const MeshData& mesh)
     return mesh.bounds.center();
 }
 
-// Every triangle of a convex shape must face away from its centre, and every
-// index must land inside the vertex arrays. That is the whole contract of the
-// winding: a shape built inside out renders black and culls from the outside.
+// Every triangle of a convex shape must face away from its centre (a shape built inside out renders black) and every index must be in range.
 void checkOutwardFacing(const MeshData& mesh, int line)
 {
     check(!mesh.positions.empty() && !mesh.indices.empty(), "has geometry", line);
@@ -67,7 +65,6 @@ void checkOutwardFacing(const MeshData& mesh, int line)
     check(degenerate == 0, "no degenerate triangle", line);
     check(inward == 0, "every triangle faces outward", line);
 
-    // Vertex normals agree with the faces: none points back into the shape.
     u32 badNormals = 0;
     for (usize i = 0; i < mesh.positions.size(); ++i)
     {
@@ -83,7 +80,6 @@ void checkOutwardFacing(const MeshData& mesh, int line)
 
 void testLatheSphere()
 {
-    // A sphere of radius 1 as a profile, pole to pole, rising.
     LatheParams params;
     params.slices = 16;
     for (int i = 0; i <= 8; ++i)
@@ -100,7 +96,6 @@ void testLatheSphere()
     CHECK(mesh.submeshes[0].indexCount == mesh.indices.size());
     CHECK(std::abs(mesh.bounds.max.y - 1.0f) < 1.0e-4f);
     CHECK(std::abs(mesh.bounds.min.y + 1.0f) < 1.0e-4f);
-    // Pole to pole has no open end, so no caps were added.
     CHECK(mesh.positions.size() == 9 * 17);
 }
 
@@ -108,7 +103,6 @@ void testLatheDescendingProfileStillFacesOutward()
 {
     LatheParams params;
     params.slices = 12;
-    // The same sphere walked from the top down.
     for (int i = 8; i >= 0; --i)
     {
         const f32 angle = 3.14159265f * static_cast<f32>(i) / 8.0f;
@@ -129,7 +123,6 @@ void testLatheCylinderCaps()
     MeshData capped;
     CHECK(buildLathe(params, capped));
     CHECK_OUTWARD(capped);
-    // 2 rings of 11 + two caps of (1 centre + 10 rim).
     CHECK(capped.positions.size() == 22 + 22);
 
     params.capStart = false;
@@ -183,7 +176,6 @@ void testLoftOnEveryAxis()
         CHECK(buildLoft(capsuleLoft(axis), mesh, &error));
         CHECK_OUTWARD(mesh);
 
-        // It runs from 0 to 2.5 along the chosen axis and is 1 across in the others.
         CHECK(std::abs(mesh.bounds.min[axis]) < 1.0e-4f);
         CHECK(std::abs(mesh.bounds.max[axis] - 2.5f) < 1.0e-4f);
         for (s32 other = 0; other < 3; ++other)
@@ -201,7 +193,6 @@ void testLoftOffsetsAndCaps()
     LoftParams params;
     params.axis = 2;
     params.segments = 12;
-    // A tapering boom that also rises: the end section is smaller and higher.
     LoftSection start;
     start.at = 0.0f;
     start.width = 2.0f;
@@ -215,11 +206,9 @@ void testLoftOffsetsAndCaps()
 
     MeshData mesh;
     CHECK(buildLoft(params, mesh));
-    // Both ends are open rings, so both get a cap.
     CHECK(mesh.positions.size() == 2 * 13 + 2 * 13);
     CHECK(std::abs(mesh.bounds.max.y - 1.25f) < 1.0e-3f);
 
-    // The far end sits around y = 1.
     f32 lowestAtEnd = 1.0e9f;
     for (const Math::vec3& position : mesh.positions)
         if (std::abs(position.z - 4.0f) < 1.0e-4f)
@@ -239,8 +228,6 @@ void testLoftSuperellipseIsBoxier()
     CHECK(buildLoft(round, roundMesh));
     CHECK(buildLoft(boxy, boxyMesh));
 
-    // On the 45-degree diagonal a circle sits 0.354 from each axis; a squarer
-    // section pushes that corner further out.
     auto farthestCorner = [](const MeshData& mesh)
     {
         f32 best = 0.0f;
@@ -278,8 +265,6 @@ void testLoftRejectsBadInput()
     CHECK(!buildLoft(badExponent, mesh));
 }
 
-// ------------------------------------------------------------- solids
-
 f32 signedVolume(const MeshData& mesh)
 {
     f32 volume = 0.0f;
@@ -293,9 +278,7 @@ f32 signedVolume(const MeshData& mesh)
     return volume;
 }
 
-// A closed solid: every edge shared by exactly two triangles that walk it in
-// opposite directions, facing out (positive volume), with flat normals that agree
-// with their triangle. `volume` is what it should enclose.
+// A closed solid: each edge shared by two triangles walking it oppositely, facing out, flat normals agreeing with their triangle.
 void checkSolid(const MeshData& mesh, f32 volume, f32 tolerance, int line)
 {
     check(!mesh.positions.empty() && mesh.indices.size() % 3 == 0, "has geometry", line);
@@ -401,7 +384,7 @@ void testDisc()
         const Math::vec3& b = mesh.positions[mesh.indices[f + 1]];
         const Math::vec3& c = mesh.positions[mesh.indices[f + 2]];
         const Math::vec3 n = Math::cross(b - a, c - a);
-        CHECK(n.y > 0.0f); // faces up
+        CHECK(n.y > 0.0f);
         area += 0.5f * Math::length(n);
     }
     CHECK(std::abs(area - polygonArea(16, 2.0f)) < 1.0e-3f);
@@ -420,12 +403,10 @@ void testStairs()
     MeshData mesh;
     std::string error;
     CHECK(buildStairs(params, mesh, &error));
-    // Volume: width x sum over steps of (i + 1) * rise * run.
     CHECK_SOLID(mesh, 2.0f * 0.2f * 0.3f * (1 + 2 + 3 + 4 + 5), 1.0e-3f);
     CHECK(std::abs(mesh.bounds.min.x + 1.0f) < 1.0e-5f && std::abs(mesh.bounds.max.x - 1.0f) < 1.0e-5f);
     CHECK(std::abs(mesh.bounds.min.y + 0.5f) < 1.0e-5f && std::abs(mesh.bounds.max.y - 0.5f) < 1.0e-5f);
     CHECK(std::abs(mesh.bounds.min.z + 0.75f) < 1.0e-5f && std::abs(mesh.bounds.max.z - 0.75f) < 1.0e-5f);
-    // The top is at the +Z end: that is where the stairs go up to.
     for (const Math::vec3& p : mesh.positions)
         if (p.y > 0.49f)
             CHECK(p.z > 0.4f);
@@ -450,7 +431,6 @@ void testArch()
     std::string error;
     CHECK(buildArch(params, mesh, &error));
 
-    // Outer minus inner, each a rectangle under a half polygon.
     const f32 spring = 1.5f;
     const f32 outer = 2.0f * spring + 0.5f * polygonArea(32, 1.0f);
     const f32 inner = 1.2f * spring + 0.5f * polygonArea(32, 0.6f);
@@ -469,16 +449,13 @@ void testArch()
 
 void testExtrusionOfAConcaveOutline()
 {
-    // An L, given clockwise: it is reversed, and still comes out a solid.
     ExtrusionParams params;
     params.depth = 2.0f;
     params.profile = {{0, 0}, {0, 3}, {1, 3}, {1, 1}, {3, 1}, {3, 0}};
     MeshData mesh;
     std::string error;
     CHECK(buildExtrusion(params, mesh, &error));
-    // Area of the L: 3x1 + 1x2 = 5.
-    // The mesh is not centred on X/Y (the outline is used as given), so measure volume
-    // by the divergence theorem, which does not care.
+    // Not centred on X/Y (the outline is used as given), so measure volume by the divergence theorem.
     CHECK_SOLID(mesh, 5.0f * 2.0f, 1.0e-3f);
     CHECK(std::abs(mesh.bounds.min.z + 1.0f) < 1.0e-5f && std::abs(mesh.bounds.max.z - 1.0f) < 1.0e-5f);
 

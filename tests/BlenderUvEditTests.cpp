@@ -28,8 +28,7 @@ bool near(const Math::vec2& a, const Math::vec2& b, f32 tolerance = 1e-4f)
     return Math::length(a - b) <= tolerance;
 }
 
-// Two quads in UV space that share no vertex: two islands of two triangles.
-// Quad A spans (0,0)-(0.25,0.25), quad B spans (0.5,0.5)-(1,1).
+// Two quads in UV space sharing no vertex: A (0,0)-(0.25,0.25), B (0.5,0.5)-(1,1).
 MeshData twoIslands()
 {
     MeshData mesh;
@@ -39,7 +38,6 @@ MeshData twoIslands()
     return mesh;
 }
 
-// A unit cube with per-face vertices (24), faces wound outward.
 MeshData cube()
 {
     MeshData mesh;
@@ -59,7 +57,6 @@ MeshData cube()
         }
         mesh.indices.insert(mesh.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
     }
-    // Wind every face so the geometric normal agrees with the stored one.
     for (usize t = 0; t < mesh.indices.size() / 3; ++t)
     {
         const Math::vec3 g = Math::cross(mesh.positions[mesh.indices[t * 3 + 1]] - mesh.positions[mesh.indices[t * 3]],
@@ -83,7 +80,6 @@ void testIslands()
     CHECK(of == std::vector<u32>({4, 5, 6, 7}));
     CHECK(MeshUv::verticesOfTriangles(mesh, {0, 99}) == std::vector<u32>({0, 1, 2}));
 
-    // One shared vertex merges two quads into one island.
     MeshData joined = mesh;
     joined.indices[6] = 2;
     MeshUv::islands(joined, &count);
@@ -102,23 +98,20 @@ void testBoundsAndTransform()
     CHECK(MeshUv::transform(mesh, {0, 1, 2, 3}, nullptr, rect.center(), move) == 4);
     CHECK(near(mesh.uvs[0], {0.1f, 0.2f}) && near(mesh.uvs[4], {0.5f, 0.5f}));
 
-    // Rotating 90 degrees about the centre: counter-clockwise as drawn with v down, so the
-    // top left corner (0,0) goes to the bottom left (0, 0.25).
+    // 90 degrees about the centre is counter-clockwise as drawn with v down: (0,0) goes to (0, 0.25).
     MeshData rot = twoIslands();
     MeshUv::Transform turn;
     turn.rotateDegrees = 90.0f;
     MeshUv::transform(rot, {0, 1, 2, 3}, nullptr, {0.125f, 0.125f}, turn);
     CHECK(near(rot.uvs[0], {0.0f, 0.25f}));
-    CHECK(near(rot.uvs[1], {0.0f, 0.0f})); // top right goes to top left
+    CHECK(near(rot.uvs[1], {0.0f, 0.0f}));
 
-    // Flip in u about the centre: the quad stays where it is, mirrored.
     MeshData flip = twoIslands();
     MeshUv::Transform mirror;
     mirror.scale = {-1.0f, 1.0f};
     MeshUv::transform(flip, {0, 1, 2, 3}, nullptr, {0.125f, 0.125f}, mirror);
     CHECK(near(flip.uvs[0], {0.25f, 0.0f}) && near(flip.uvs[1], {0.0f, 0.0f}));
 
-    // Pinned vertices stay.
     MeshData pin = twoIslands();
     std::vector<u8> pinned(8, 0);
     pinned[1] = 1;
@@ -129,11 +122,9 @@ void testBoundsAndTransform()
 void testFit()
 {
     MeshData mesh = twoIslands();
-    // The second quad is 0.5 x 0.5 at (0.5..1): fitted with no margin it fills the square.
     CHECK(MeshUv::fit(mesh, {4, 5, 6, 7}, nullptr, true, 0.0f) == 4);
     CHECK(near(mesh.uvs[4], {0, 0}) && near(mesh.uvs[6], {1, 1}));
 
-    // A wide layout keeps its aspect and is centred when asked.
     MeshData wide;
     wide.positions.assign(2, Math::vec3(0));
     wide.uvs = {{0, 0}, {2, 1}};
@@ -155,9 +146,8 @@ void testBoxMap()
         all.push_back(t);
     std::vector<u32> touched;
     const u32 added = MeshUv::boxMap(mesh, all, 1.0f, {0, 0}, &touched);
-    CHECK(added == 0); // a cube with per-face vertices needs none
+    CHECK(added == 0);
     CHECK(touched.size() == 24);
-    // Every face is mapped flat and undistorted: its UV size is 1 x 1.
     for (u32 face = 0; face < 6; ++face)
     {
         std::vector<u32> face4 = {face * 4, face * 4 + 1, face * 4 + 2, face * 4 + 3};
@@ -165,30 +155,25 @@ void testBoxMap()
         CHECK(near(rect.size(), {1, 1}));
     }
 
-    // Tiling and offset.
     MeshData tiled = cube();
     MeshUv::boxMap(tiled, all, 2.0f, {0.5f, 0.0f});
     CHECK(near(MeshUv::bounds(tiled, {0, 1, 2, 3}).size(), {2, 2}));
 
-    // Welded corners: a single triangle fan over a corner shared by faces of
-    // different planes must be split so each plane keeps its UV.
     MeshData welded;
     welded.positions = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     welded.normals.assign(4, Math::vec3(0, 0, 1));
-    welded.indices = {0, 1, 2, 0, 3, 1, 0, 2, 3}; // faces facing z, y, x
+    welded.indices = {0, 1, 2, 0, 3, 1, 0, 2, 3};
     const u32 addedWelded = MeshUv::boxMap(welded, {0, 1, 2}, 1.0f, {0, 0}, nullptr);
     CHECK(addedWelded > 0);
     CHECK(welded.positions.size() == 4 + addedWelded);
     CHECK(welded.uvs.size() == welded.positions.size() && welded.normals.size() == welded.positions.size());
-    // No triangle shares a vertex with a triangle of another plane now.
     CHECK(MeshUv::islands(welded).size() == 3);
     u32 count = 0;
     MeshUv::islands(welded, &count);
     CHECK(count == 3);
 
-    // Triangles outside the list keep their UVs.
     MeshData partial = twoIslands();
-    partial.indices[6] = 2; // triangle 2 now shares vertex 2 with triangle 0
+    partial.indices[6] = 2;
     const Math::vec2 before = partial.uvs[2];
     MeshUv::boxMap(partial, {2, 3}, 1.0f, {0, 0});
     CHECK(near(partial.uvs[2], before));
@@ -199,7 +184,6 @@ void testRenderLayout()
     const MeshData mesh = twoIslands();
     const std::vector<u8> image = MeshUv::renderLayout(mesh, {0, 1, 2, 3}, 64, {}, 0);
     CHECK(image.size() == 64u * 64u * 4u);
-    // The wire colour is in the image, and alpha is opaque everywhere.
     bool wire = false;
     bool opaque = true;
     for (usize i = 0; i < image.size(); i += 4)
@@ -211,7 +195,6 @@ void testRenderLayout()
     }
     CHECK(wire && opaque);
 
-    // With a background the pixels come from it (dimmed): a solid white 4x4 image.
     const std::vector<u8> white(4 * 4 * 4, 255);
     const std::vector<u8> over = MeshUv::renderLayout(mesh, {}, 32, white, 4);
     CHECK(over[(10 * 32 + 10) * 4] == 153);

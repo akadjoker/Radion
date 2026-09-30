@@ -70,9 +70,7 @@ int main(int, char**)
 
         renderer.renderViewport(&box, view, projection, cameraPos);
 
-        // MiniBatch smoke test: one yellow point per box vertex, and the
-        // first triangle painted in translucent red - proves the vertex/face
-        // highlight path a mesh-edit selection would use.
+        // Smoke test: yellow point per box vertex, first triangle in translucent red.
         batch.begin();
         for (const Math::vec3& p : box.positions)
             batch.point(p, Math::vec4(1.0f, 0.85f, 0.1f, 1.0f));

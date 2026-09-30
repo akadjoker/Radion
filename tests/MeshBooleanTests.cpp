@@ -21,7 +21,6 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// A closed unit-cube-shaped box from `low` to `high`, wound outward.
 MeshData box(const Math::vec3& low, const Math::vec3& high)
 {
     MeshData mesh;
@@ -50,15 +49,12 @@ f32 signedVolume(const MeshData& mesh)
 
 void testBoxesHaveTheVolumeWeExpect()
 {
-    // The fixture itself: a unit cube is 1, and faces out.
     CHECK(std::abs(signedVolume(box(Math::vec3(0.0f), Math::vec3(1.0f))) - 1.0f) < 1.0e-5f);
 }
 
 void testUnionDifferenceIntersection()
 {
-    // A unit cube and a slab 2 wide in y and z that overlaps its right half (no
-    // coplanar faces, which the field cannot tell apart). Union 1 + 4 - 0.5;
-    // the cube with the slab cut out 0.5; what they share 0.5.
+    // Cube and a slab overlapping its right half (no coplanar faces, which the field can't tell apart): union 1+4-0.5, cube minus slab 0.5, shared 0.5.
     const MeshData a = box(Math::vec3(0.0f), Math::vec3(1.0f));
     const MeshData b = box(Math::vec3(0.5f, -0.5f, -0.5f), Math::vec3(1.5f, 1.5f, 1.5f));
 
@@ -93,12 +89,10 @@ void testBoundsOfTheResult()
         low = Math::min(low, p);
         high = Math::max(high, p);
     }
-    // Within a cell of the true box (x 0..1.5, y and z -0.5..1.5).
     const f32 cell = 2.0f / 48.0f;
     CHECK(std::abs(low.x) < cell * 1.5f && std::abs(high.x - 1.5f) < cell * 1.5f);
     CHECK(std::abs(low.y + 0.5f) < cell * 1.5f && std::abs(high.y - 1.5f) < cell * 1.5f);
 
-    // A difference never reaches past the first shape.
     MeshData cut;
     CHECK(MeshEdit::booleanMeshes(a, b, MeshEdit::BooleanOp::Difference, 48, cut));
     f32 maxX = -1e9f;
@@ -113,8 +107,6 @@ void testNormalsAndWindingFaceOutward()
     const MeshData b = box(Math::vec3(0.5f, -0.5f, -0.5f), Math::vec3(1.5f, 1.5f, 1.5f));
     MeshData result;
     CHECK(MeshEdit::booleanMeshes(a, b, MeshEdit::BooleanOp::Intersection, 48, result));
-    // The intersection is the box x 0.5..1, y 0..1, z 0..1: every vertex normal
-    // points away from its centre (0.75, 0.5, 0.5), and so does every triangle.
     const Math::vec3 centre(0.75f, 0.5f, 0.5f);
     CHECK(result.normals.size() == result.positions.size());
     u32 wrongNormals = 0;
@@ -140,7 +132,6 @@ void testRefusals()
     const MeshData far = box(Math::vec3(5.0f), Math::vec3(6.0f));
     MeshData out;
     std::string error;
-    // Disjoint: nothing is shared.
     CHECK(!MeshEdit::booleanMeshes(a, far, MeshEdit::BooleanOp::Intersection, 32, out, &error));
     CHECK(error.find("overlap") != std::string::npos);
 

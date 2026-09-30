@@ -75,10 +75,7 @@ void MeshHealthPanel::onImGui()
 
     const MeshData* mesh = app().currentMeshData();
 
-    // The analysis is O(triangles) plus a hash per vertex, which is too much
-    // to spend every frame on a large mesh. Re-run it when the mesh is
-    // swapped or its size changes; an edit that keeps both counts (a
-    // transform, say) cannot introduce any of the faults below.
+    // O(triangles) plus a hash per vertex: re-run only when the mesh is swapped or its size changes (an edit keeping both counts cannot add faults).
     if (mAutoRefresh && mesh &&
         (mesh != mAnalyzedMesh || mesh->positions.size() != mAnalyzedVertexCount ||
          mesh->indices.size() != mAnalyzedIndexCount))

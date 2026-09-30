@@ -19,17 +19,14 @@ namespace Radion::BlenderApi
 
 struct ApiServerConfig
 {
-    // Loopback only by default: the commands can open and write files, so the
-    // API is not something to put on a network by accident. Any other address
-    // (e.g. "0.0.0.0") is refused unless `token` is set.
+    // Loopback only by default: the commands can open and write files. Any other address is refused unless `token` is
+    // set.
     std::string host = "127.0.0.1";
     // 0 lets the OS pick a free port; port() reports which.
     int port = 7420;
-    // When not empty every request except /api/health must carry
-    // "Authorization: Bearer <token>".
+    // When not empty every request except /api/health must carry "Authorization: Bearer <token>".
     std::string token;
     std::chrono::milliseconds commandTimeout{30000};
-    // Upper bound for one request body.
     size_t maxBodyBytes = 16u * 1024u * 1024u;
 };
 
@@ -54,8 +51,6 @@ public:
     ApiServer(const ApiServer&) = delete;
     ApiServer& operator=(const ApiServer&) = delete;
 
-    // Binds and starts serving on a background thread. False with `error`
-    // filled in when the address cannot be bound.
     bool start(std::string* error = nullptr);
     void stop();
 

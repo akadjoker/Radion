@@ -1,7 +1,3 @@
-"""Small REST client for the Radion Blender HTTP API (standard library only).
-
-The editor is started with `radion_blender --api`; see blend/doc/API.md for the protocol.
-"""
 
 import base64
 import json
@@ -33,16 +29,12 @@ class ApiError(Exception):
 
 
 class ApiConnectionError(ApiError):
-    """The editor could not be reached at all (not running, wrong port, timeout)."""
-
     def __init__(self, message, command=None):
         super().__init__(message, code="connection_failed", command=command)
 
 
 @dataclass
 class CommandReply:
-    """A successful command: its result object and, for `screenshot`, the PNG."""
-
     result: dict
     image_mime: str = ""
     image_b64: str = ""
@@ -59,15 +51,12 @@ class RadionApiClient:
         self.timeout = timeout
 
     def health(self, timeout=2.0):
-        """GET /api/health. Raises ApiConnectionError if the editor is not there."""
         return self._request("GET", "/api/health", timeout=timeout)
 
     def commands(self):
-        """Every command the editor offers: name, description, readOnly, inputSchema."""
         return self._request("GET", "/api/commands")["commands"]
 
     def call(self, name, arguments=None):
-        """Runs one command; raises ApiError when the editor refuses or fails it."""
         path = "/api/commands/" + urllib.parse.quote(name, safe="")
         reply = self._request("POST", path, arguments or {}, command=name)
         image = reply.get("image") or {}

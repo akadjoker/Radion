@@ -3,8 +3,7 @@
     radion_blender --api &
     python3 helicopter.py [output_dir]
 
-Saves four screenshots (perspective, right, top, front) into output_dir
-(default: the current directory). The nose points toward +Z, +Y is up.
+The nose points toward +Z, +Y is up.
 """
 
 import os
@@ -21,7 +20,6 @@ METAL = "#555555"
 def build(api):
     api.call("new_document")
 
-    # A fuselage and a tail boom are best described as a few cross-sections.
     api.call("add_loft", name="fuselage", color=RED, roughness=0.4, axis="z", segments=32,
              sections=[
                  {"at": -1.2, "width": 0.7, "height": 0.8, "offset": [0, 0.1]},
@@ -38,7 +36,6 @@ def build(api):
                  {"at": -1.0, "width": 0.6, "height": 0.8, "offset": [0, 0.15]},
              ])
 
-    # Everything else is a primitive, stretched and placed.
     api.call("add_primitive", type="sphere", name="canopy", color="#7fb8d8", roughness=0.05,
              metallic=0.2, radius=0.5, scale=[1.45, 1.0, 1.5], position=[0, 0.25, 1.15])
     api.call("add_primitive", type="sphere", name="engine", color="#34495e", roughness=0.5,
@@ -64,7 +61,6 @@ def build(api):
     api.call("add_primitive", type="box", name="tail_blade_b", color=BLACK,
              size=[0.03, 0.11, 0.9], position=[0.2, 0.78, -4.75])
 
-    # Landing gear: model one side, mirror it across X for the other.
     left = ["skid_L", "strut_front_L", "strut_rear_L"]
     api.call("add_primitive", type="cylinder", name="skid_L", color=METAL, metallic=0.7,
              roughness=0.35, radius=0.045, height=2.6, slices=12, rotation=[90, 0, 0],

@@ -12,7 +12,7 @@ from radion_chat.llm.openai_compat import OpenAICompatProvider
 class Recorder(AgentListener):
     def __init__(self):
         self.events = []
-        self.on_result = None  # optional hook run after each tool result
+        self.on_result = None
 
     def on_step(self, step, max_steps):
         self.events.append(("step", step))
@@ -50,7 +50,6 @@ def add_box(name="box"):
 
 
 def assert_history_is_valid(messages):
-    """Every tool call is answered, by a tool message that follows it directly."""
     pending = set()
     for message in messages:
         if message["role"] == "assistant":
@@ -63,8 +62,6 @@ def assert_history_is_valid(messages):
             assert not pending
     assert not pending
 
-
-# -- the loop --------------------------------------------------------------------------
 
 def test_full_loop_builds_checks_and_answers(make_agent, api_server, llm_server):
     llm_server.script += [
@@ -80,7 +77,7 @@ def test_full_loop_builds_checks_and_answers(make_agent, api_server, llm_server)
     assert [c[1] for c in listener.kinds("call")] == ["add_primitive", "add_loft", "get_status", "screenshot"]
     assert listener.kinds("call")[0][2] == {"type": "box", "name": "hull"}
     assert [e[2] for e in listener.kinds("result")] == [False] * 4
-    assert listener.kinds("result")[3][3] is True  # the screenshot's PNG reached the listener
+    assert listener.kinds("result")[3][3] is True
     assert "".join(e[1] for e in listener.kinds("text")).endswith("A hull and a nose.")
     assert [e[1] for e in listener.kinds("step")] == [1, 2, 3]
     assert_history_is_valid(agent.messages)
@@ -141,8 +138,6 @@ def test_editor_dying_mid_run_ends_it_and_keeps_history_valid(make_agent, api_se
     assert_history_is_valid(agent.messages)
 
 
-# -- errors go back to the model -------------------------------------------------------
-
 def test_api_error_is_told_to_the_model_which_corrects_itself(make_agent, api_server, llm_server):
     llm_server.script += [
         call_reply([("add_primitive", {"type": "teapot", "name": "pot"})]),
@@ -164,7 +159,7 @@ def test_malformed_arguments_are_reported_without_calling_the_api(make_agent, ap
     llm_server.script += [call_reply([("add_primitive", '{"type": "box",')]), text_reply("sorry")]
     agent, listener = make_agent()
     assert agent.run("box").reason == "done"
-    assert api_server.calls == []  # the listing was fetched; no command ran
+    assert api_server.calls == []
     tool_message = llm_server.requests[1]["body"]["messages"][-1]
     assert "not valid JSON" in tool_message["content"]
     assert listener.kinds("result")[0][2] is True
@@ -189,8 +184,6 @@ def test_huge_results_are_capped(make_agent, llm_server):
     assert len(content) < 600 and "truncated" in content
 
 
-# -- confirmation of risky commands ------------------------------------------------------
-
 def test_declined_risky_command_is_not_run(make_agent, api_server, llm_server):
     llm_server.script += [call_reply([("save_mesh", {"path": "/tmp/x.rmesh"})]), text_reply("ok")]
     asked = []
@@ -210,8 +203,6 @@ def test_approved_risky_command_runs_and_safe_ones_are_not_asked(make_agent, api
     assert asked == ["save_mesh"]
     assert [c[0] for c in api_server.calls if c[0] in ("save_mesh", "get_status")] == ["save_mesh", "get_status"]
 
-
-# -- cancel --------------------------------------------------------------------------
 
 def test_cancel_between_steps(make_agent, llm_server):
     llm_server.script += [call_reply([("get_status", {})]), text_reply("never asked")]
@@ -264,8 +255,6 @@ def test_the_agent_can_be_used_again_after_a_cancel(make_agent, llm_server):
     assert_history_is_valid(agent.messages)
 
 
-# -- history ---------------------------------------------------------------------------
-
 def test_old_big_results_are_truncated_and_only_latest_screenshots_stay(make_agent, llm_server):
     llm_server.script += [call_reply([("get_mesh_data", {})]) for _ in range(3)]
     llm_server.script += [call_reply([("screenshot", {})]) for _ in range(4)]
@@ -275,12 +264,12 @@ def test_old_big_results_are_truncated_and_only_latest_screenshots_stay(make_age
 
     tools = [m for m in agent.messages if m["role"] == "tool"]
     assert len(tools) == 7
-    assert all(len(m["content"]) < 200 for m in tools[:3])            # old mesh dumps cut
+    assert all(len(m["content"]) < 200 for m in tools[:3])
     assert "omitted from history" in tools[0]["content"]
     assert [bool(m.get("image")) for m in tools[3:]] == [False, False, True, True]
     last_request = llm_server.requests[-1]["body"]["messages"]
     images = [m for m in last_request if isinstance(m["content"], list)]
-    assert len(images) == 2                                           # the provider got two
+    assert len(images) == 2
     assert_history_is_valid(agent.messages)
 
 
@@ -303,7 +292,7 @@ def test_vision_off_keeps_images_out_of_the_model_context(make_agent, llm_server
     tool_message = next(m for m in agent.messages if m["role"] == "tool")
     assert "image" not in tool_message
     assert "cannot see images" in tool_message["content"]
-    assert listener.kinds("result")[0][3] is True  # the UI still gets the picture
+    assert listener.kinds("result")[0][3] is True
     assert not any(isinstance(m["content"], list) for m in llm_server.requests[1]["body"]["messages"])
 
 
@@ -316,8 +305,6 @@ def test_exported_conversation_has_no_image_data(make_agent, llm_server):
     assert agent.messages[2]["image"]["data"] not in exported
     assert json.loads(exported)["messages"][0]["content"] == "look"
 
-
-# -- undo this request -----------------------------------------------------------------
 
 def test_undo_request_counts_only_edits_that_succeeded_and_made_undo_steps(make_agent, api_server, llm_server):
     llm_server.script += [

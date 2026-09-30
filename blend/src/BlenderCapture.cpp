@@ -12,9 +12,7 @@ namespace
 constexpr s32 kMinCaptureSize = 16;
 constexpr s32 kMaxCaptureSize = 4096;
 
-// A colour+depth target that lives for one capture. The docked viewports keep
-// theirs for the life of the panel; a capture is rare enough that building a
-// fresh one is cheaper than keeping a second full-size target around.
+// Colour+depth target for one capture; cheaper than keeping a second full-size target.
 struct CaptureTarget
 {
     GLuint fbo = 0;
@@ -54,9 +52,7 @@ struct CaptureTarget
     }
 };
 
-// Distance that fits a sphere of `radius` in view: perspective from the field
-// of view, orthographic from the frustum height (which must also cover the
-// width when the image is narrower than it is tall).
+// Perspective from fov, orthographic from frustum height (which must also cover the width).
 f32 framingDistance(CameraView view, f32 radius, f32 aspect)
 {
     constexpr f32 kMargin = 1.05f;
@@ -85,9 +81,7 @@ bool BlenderApplication::captureViewport(const CaptureParams& params, std::vecto
     CameraState camera = params.camera;
     if (params.frame)
     {
-        // The farthest vertex, not the box's corner: a long thin model (a
-        // helicopter's rotor span against its height) would otherwise be framed
-        // for a sphere far bigger than anything in it.
+        // Farthest vertex, not the box corner: a long thin model would otherwise be framed too far out.
         const Math::vec3 center = mMeshData->bounds.center();
         f32 farthest = 0.0f;
         for (const Math::vec3& position : mMeshData->positions)
@@ -126,7 +120,6 @@ bool BlenderApplication::captureViewport(const CaptureParams& params, std::vecto
             draw.boneCount = static_cast<u32>(mBonePalette.size());
         }
 
-        // What is hidden in the viewport stays hidden in the picture.
         std::vector<u8> submeshVisible;
         submeshVisible.reserve(mMeshData->submeshes.size());
         for (u32 i = 0; i < static_cast<u32>(mMeshData->submeshes.size()); ++i)

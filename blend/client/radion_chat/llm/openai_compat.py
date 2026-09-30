@@ -1,12 +1,7 @@
 """Provider for OpenAI-compatible `/chat/completions` servers with `tools`.
 
-Works with whatever speaks that protocol (Ollama, DeepSeek, OpenAI, OpenRouter, LM Studio,
-vLLM...) through `base_url`, `model` and `api_key`. `base_url` is used as given, so it must
-include any version prefix the server needs (`http://localhost:11434/v1`, but
-`https://api.deepseek.com`).
-
-The socket is handled with http.client rather than urllib so that Stop can shut it down
-from another thread (see CancelToken).
+`base_url` is used as given, so it must include any version prefix (`http://localhost:11434/v1`,
+but `https://api.deepseek.com`). http.client is used so Stop can shut the socket down from another thread.
 """
 
 import http.client
@@ -33,7 +28,7 @@ class OpenAICompatProvider(LlmProvider):
         self.vision = vision
         self.temperature = temperature
         self.stream = stream
-        self.timeout = timeout  # idle time allowed without any bytes from the server
+        self.timeout = timeout
 
     @property
     def supports_images(self):
@@ -132,7 +127,6 @@ class OpenAICompatProvider(LlmProvider):
 
 
 def _shutdown(sock):
-    """Wakes a thread blocked reading this socket (safe to call from any thread)."""
     try:
         sock.shutdown(socket.SHUT_RDWR)
     except OSError:
@@ -140,7 +134,6 @@ def _shutdown(sock):
 
 
 def _error_message(status, body):
-    """Human text from an error body: {"error": {"message"}}, {"error": "text"} or raw."""
     text = body.decode("utf-8", "replace").strip()
     try:
         payload = json.loads(text)

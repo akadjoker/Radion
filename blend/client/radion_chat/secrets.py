@@ -1,8 +1,6 @@
 """Where API keys come from. They are never written to the profiles file.
 
-Order of resolution: environment variable named by the profile, then the system keyring
-(only if the optional `keyring` package is installed and has the key), then a value typed
-in the UI, which lives in memory only and is gone when the app closes.
+Order: the profile's environment variable, the system keyring (optional), then a key typed in the UI (memory only).
 """
 
 import os
@@ -20,11 +18,10 @@ def llm_key_account(profile_name):
 @dataclass
 class ResolvedSecret:
     value: str
-    source: str  # "env" | "keyring" | "memory" | "none"
+    source: str
 
 
 def _load_keyring():
-    """The keyring module, or None when it is not installed (it is optional)."""
     try:
         import keyring
     except ImportError:
@@ -51,7 +48,6 @@ class SecretStore:
         return ResolvedSecret("", "none")
 
     def set_memory(self, account, value):
-        """Keeps a typed key for this run only ('' forgets it)."""
         if value:
             self._memory[account] = value
         else:
@@ -61,7 +57,6 @@ class SecretStore:
         return self._keyring_loader() is not None
 
     def save_to_keyring(self, account, value):
-        """Stores the key in the system keyring; False when that is not possible."""
         keyring = self._keyring_loader()
         if keyring is None:
             return False

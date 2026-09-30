@@ -1,9 +1,6 @@
 """End-to-end: the agent (scripted fake LLM) against the real radion_blender editor.
 
-Skipped unless an editor is available:
-  RADION_E2E_API_URL=http://127.0.0.1:7431   use an editor that is already running, or
-  RADION_EDITOR_BIN=/path/to/radion_blender  start one headless (needs xvfb-run).
-No Qt is involved: this is the agent loop over the real HTTP API.
+Skipped unless RADION_E2E_API_URL is set (running editor) or RADION_EDITOR_BIN (started headless, needs xvfb-run).
 """
 
 import os
@@ -106,7 +103,7 @@ def scripted_agent(editor_url):
 
 def test_agent_builds_checks_and_undoes_against_the_real_editor(editor, scripted_agent):
     agent, llm, capture = scripted_agent
-    editor.call("add_primitive", {"type": "sphere", "name": "earlier_work"})  # the user's own edit
+    editor.call("add_primitive", {"type": "sphere", "name": "earlier_work"})
 
     sections = [{"at": -1.0, "width": 0.2, "height": 0.2}, {"at": 0.0, "width": 1.0, "height": 0.8},
                 {"at": 1.0, "width": 0.4, "height": 0.4}]
@@ -144,7 +141,7 @@ def test_agent_builds_checks_and_undoes_against_the_real_editor(editor, scripted
     assert agent.undoable_steps == 2
     assert agent.undo_last_request() == 2
     assert part_names(editor) == ["earlier_work"]
-    assert editor.call("get_status").result["canUndo"] is True  # the user's own edit is intact
+    assert editor.call("get_status").result["canUndo"] is True
 
 
 def test_commands_that_are_not_undo_steps_really_are_not(editor):

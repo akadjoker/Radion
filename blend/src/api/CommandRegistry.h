@@ -24,9 +24,7 @@ enum class CommandStatus
     Unavailable
 };
 
-// Thrown by a handler for a problem the caller can fix (bad or missing
-// argument) or an operation that legitimately could not be carried out. Any
-// other exception is reported as a plain failure.
+// Thrown for a problem the caller can fix or an operation that legitimately could not be done; any other exception is a plain failure.
 class CommandError : public std::runtime_error
 {
 public:
@@ -63,18 +61,13 @@ struct CommandOutcome
     std::string message;
 };
 
-// Typed, validating view over a command's arguments. Every accessor throws
-// CommandError(InvalidParams) with the argument's name in the message, so a
-// handler reads as a list of what it needs and never checks types by hand.
 class CommandArgs
 {
 public:
     explicit CommandArgs(const Json& json);
 
     bool has(const char* name) const;
-    // The raw value, for the rare argument that accepts more than one shape
-    // (a part given by index or by name, a colour given as hex or as numbers).
-    // Null when absent or null.
+    // The raw value, for arguments that accept more than one shape; null when absent.
     const Json* raw(const char* name) const
     {
         return find(name);
@@ -94,20 +87,16 @@ public:
 
     bool boolean(const char* name, bool fallback) const;
 
-    // A number, which is repeated `count` times, or an array of exactly
-    // `count` numbers - a uniform scale written as 2 or as [2, 2, 2].
+    // A scalar repeated `count` times, or an array of exactly `count` numbers.
     std::vector<double> numbersOrScalar(const char* name, size_t count,
                                         const std::vector<double>& fallback) const;
 
-    // A JSON array of exactly `count` numbers, or `fallback` when absent.
     std::vector<double> numbers(const char* name, size_t count,
                                 const std::vector<double>& fallback) const;
     std::vector<double> requireNumbers(const char* name, size_t count) const;
 
-    // A non-negative integer array; `maxCount` bounds what one call may carry.
     std::vector<unsigned> indices(const char* name, size_t maxCount) const;
 
-    // One of `allowed`; `fallback` when the argument is absent.
     std::string choice(const char* name, const std::vector<std::string>& allowed,
                        const std::string& fallback) const;
     std::string requireChoice(const char* name, const std::vector<std::string>& allowed) const;
@@ -125,16 +114,9 @@ struct CommandDef
 {
     std::string name;
     std::string description;
-    // JSON Schema for the arguments object. Advertised as-is to clients; the
-    // handler's CommandArgs calls are what actually enforce it.
     Json inputSchema = Json::object({{"type", "object"}, {"properties", Json::object()}});
-    // True when the command never changes the document.
     bool readOnly = false;
-    // True when a successful call adds exactly one step to the editor's undo stack.
-    // False for read-only commands and for the ones that leave the stack alone
-    // (selection, visibility, file writers) or empty it (new_document, load_mesh,
-    // undo, redo). A client counting steps to "undo this request" reads it from the
-    // command listing instead of keeping a table of its own.
+    // True when success adds exactly one undo step; false for read-only commands and ones that leave or empty the stack.
     bool undoable = true;
     CommandHandler handler;
 };
@@ -142,23 +124,18 @@ struct CommandDef
 class CommandRegistry
 {
 public:
-    // Replaces a command of the same name.
     void add(CommandDef def);
 
     const CommandDef* find(const std::string& name) const;
-    // Flags a registered command as not adding an undo step (see CommandDef::undoable).
-    // False when there is no such command.
     bool setUndoable(const std::string& name, bool undoable);
     const std::vector<CommandDef>& commands() const
     {
         return mCommands;
     }
 
-    // Runs the handler on the calling thread and converts everything it can
-    // throw into an outcome; never throws itself.
+    // Never throws; everything a handler throws becomes an outcome.
     CommandOutcome call(const std::string& name, const Json& args) const;
 
-    // [{name, description, readOnly, inputSchema}] - what GET /api/commands serves.
     Json describe() const;
 
 private:

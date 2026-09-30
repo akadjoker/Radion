@@ -1,4 +1,3 @@
-"""Side panel with the latest screenshot and a strip of the previous ones."""
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QPixmap
@@ -11,8 +10,6 @@ PLACEHOLDER = "No screenshot yet.\nThe model's screenshots appear here."
 
 
 class ScaledLabel(QLabel):
-    """Shows a pixmap scaled to fit the label, keeping its aspect ratio; clickable."""
-
     clicked = Signal()
 
     def __init__(self):
@@ -42,8 +39,6 @@ class ScaledLabel(QLabel):
 
 
 class ImageDialog(QDialog):
-    """A screenshot at a larger size (resizable window)."""
-
     def __init__(self, pixmap, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Screenshot {pixmap.width()}x{pixmap.height()}")
@@ -57,7 +52,7 @@ class ImageDialog(QDialog):
 class ScreenshotPanel(QWidget):
     def __init__(self):
         super().__init__()
-        self.images = []  # QPixmaps, oldest first, at most MAX_HISTORY
+        self.images = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -72,7 +67,7 @@ class ScreenshotPanel(QWidget):
         self._strip.addStretch(1)
         layout.addLayout(self._strip)
         self.thumbnails = []
-        self.dialog = None  # the open enlarged view, if any
+        self.dialog = None
 
     def add_png(self, data):
         pixmap = QPixmap()

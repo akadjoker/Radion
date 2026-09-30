@@ -20,8 +20,7 @@ bool fail(std::string* error, const std::string& message)
     return false;
 }
 
-// One ring of `columns + 1` vertices (the last repeats the first so the UV
-// seam has its own vertex), described by where each of its points sits.
+// One ring of `columns + 1` vertices; the last repeats the first so the UV seam has its own vertex.
 struct Surface
 {
     std::vector<Math::vec3> positions;
@@ -38,9 +37,8 @@ struct Surface
     }
 };
 
-// Joins neighbouring rings. A ring that is pinched contributes a single
-// triangle per column instead of a quad, so no degenerate triangle is emitted.
-// `flip` reverses the winding for shapes whose rings run the other way round.
+// Joins neighbouring rings; a pinched ring gives one triangle per column, not a degenerate quad. `flip` reverses
+// winding.
 void stitchRings(Surface& surface, bool flip)
 {
     for (u32 ring = 0; ring + 1 < surface.rings; ++ring)
@@ -81,8 +79,8 @@ void stitchRings(Surface& surface, bool flip)
     }
 }
 
-// A flat disc closing the ring `ring`, facing `outward` (+1/-1 along the ring's
-// own winding). Its vertices are its own, so its normal stays flat.
+// A flat disc closing ring `ring`, facing `outward` (+1/-1 along its winding), with its own vertices so the normal stays
+// flat.
 void addCap(Surface& surface, MeshData& out, u32 ring, bool facesBackward, bool flip)
 {
     const u32 centerIndex = static_cast<u32>(out.positions.size());
@@ -114,9 +112,7 @@ void addCap(Surface& surface, MeshData& out, u32 ring, bool facesBackward, bool 
     }
 }
 
-// Smooth normals from the triangles. The seam vertices and the points of a
-// pinched ring are separate vertices at one position, so their normals are
-// merged afterwards or a shading crack would follow the seam.
+// Seam and pinched-ring vertices share positions, so their normals are merged or a shading crack follows the seam.
 void computeNormals(const Surface& surface, MeshData& out)
 {
     out.normals.assign(out.positions.size(), Math::vec3(0.0f));
@@ -125,8 +121,7 @@ void computeNormals(const Surface& surface, MeshData& out)
         const u32 i0 = out.indices[i];
         const u32 i1 = out.indices[i + 1];
         const u32 i2 = out.indices[i + 2];
-        // Not normalised: the cross product's length is twice the area, which
-        // is exactly the weight a smooth normal wants.
+        // Not normalised: the cross product's length is twice the area, the right weight for a smooth normal.
         const Math::vec3 faceNormal = Math::cross(out.positions[i1] - out.positions[i0],
                                                 out.positions[i2] - out.positions[i0]);
         out.normals[i0] += faceNormal;
@@ -167,8 +162,7 @@ void finish(Surface& surface, MeshData& out, bool capStart, bool capEnd, bool fl
     out.uvs = surface.uvs;
     out.indices = surface.indices;
 
-    // Caps are added after the side surface so the side's ring vertices keep
-    // their numbers; the caps' own vertices come last.
+    // Caps come after the side so its ring vertices keep their numbers.
     const usize sideVertexCount = out.positions.size();
     if (capStart && !surface.pinched.front())
         addCap(surface, out, 0, true, flip);
@@ -176,9 +170,7 @@ void finish(Surface& surface, MeshData& out, bool capStart, bool capEnd, bool fl
         addCap(surface, out, surface.rings - 1, false, flip);
 
     computeNormals(surface, out);
-    // computeNormals sized `normals` to every vertex including the caps', and
-    // gave the caps whatever their triangles say - which is their flat normal,
-    // because no other triangle shares those vertices.
+    // The caps get their flat normal, since no other triangle shares their vertices.
     (void)sideVertexCount;
 
     SubMesh submesh;
@@ -206,8 +198,7 @@ bool Radion::buildLathe(const LatheParams& params, MeshData& out, std::string* e
     {
         if (!std::isfinite(point.x) || !std::isfinite(point.y))
             return fail(error, "profile points must be finite numbers");
-        // A hair below zero is rounding from computing the profile (sin(pi)),
-        // not a request for a negative radius.
+        // A hair below zero is rounding from the profile (sin(pi)), not a negative radius.
         if (point.x < -kPinchEpsilon)
             return fail(error, "profile radii must not be negative");
     }
@@ -216,8 +207,7 @@ bool Radion::buildLathe(const LatheParams& params, MeshData& out, std::string* e
     surface.columns = params.slices;
     surface.rings = static_cast<u32>(params.profile.size());
 
-    // Length along the profile drives V, so a long tapering section is not
-    // textured as if it were as short as a stubby one.
+    // Length along the profile drives V, so a long taper is not textured like a stubby section.
     std::vector<f32> along(params.profile.size(), 0.0f);
     for (usize i = 1; i < params.profile.size(); ++i)
         along[i] = along[i - 1] + Math::length(params.profile[i] - params.profile[i - 1]);
@@ -238,9 +228,8 @@ bool Radion::buildLathe(const LatheParams& params, MeshData& out, std::string* e
         }
     }
 
-    // The angle runs from +X toward +Z, which is clockwise seen from above, so
-    // a profile that rises along +Y must have its triangles turned round to face
-    // outward, and one that descends already does.
+    // The angle runs +X toward +Z (clockwise from above), so a rising profile's triangles must be turned to face
+    // outward.
     const bool risingProfile = params.profile.back().y >= params.profile.front().y;
     const bool flip = risingProfile;
     stitchRings(surface, flip);
@@ -274,7 +263,6 @@ bool Radion::buildLoft(const LoftParams& params, MeshData& out, std::string* err
             return fail(error, "sections must be listed in increasing 'at' order");
     }
 
-    // The two axes the cross-section lives in, in x-y-z order.
     const s32 firstAxis = params.axis == 0 ? 1 : 0;
     const s32 secondAxis = params.axis == 2 ? 1 : 2;
 
@@ -309,17 +297,12 @@ bool Radion::buildLoft(const LoftParams& params, MeshData& out, std::string* err
         }
     }
 
-    // Which way the rings must be stitched depends on whether (first, second,
-    // axis) is a right-handed triple: X,Y,Z and Y,Z,X are; Z,X,Y is too, but
-    // the axes above are taken in x-y-z order, so axis Y gives (X, Z, Y) - left
-    // handed.
+    // Stitch direction depends on whether (first, second, axis) is right-handed; axis Y gives (X, Z, Y), left-handed.
     const bool flip = params.axis == 1;
     stitchRings(surface, flip);
     finish(surface, out, params.capStart, params.capEnd, flip);
     return true;
 }
-
-// ------------------------------------------------------ extrusions and solids
 
 namespace
 {
@@ -336,7 +319,7 @@ void finishSingleSubmesh(MeshData& out)
     out.submeshes[0].bounds = out.bounds;
 }
 
-// Appends a flat quad a, b, c, d (counter-clockwise seen from outside) with its own vertices.
+// a, b, c, d counter-clockwise seen from outside.
 void addFlatQuad(MeshData& out, const Math::vec3& a, const Math::vec3& b, const Math::vec3& c, const Math::vec3& d,
                  const Math::vec2& uvA, const Math::vec2& uvB, const Math::vec2& uvC, const Math::vec2& uvD)
 {
@@ -400,7 +383,6 @@ bool Radion::buildExtrusion(const ExtrusionParams& params, MeshData& out, std::s
                     Math::vec2(u0, 0.0f), Math::vec2(u1, 0.0f), Math::vec2(u1, 1.0f), Math::vec2(u0, 1.0f));
     }
 
-    // The two ends: the outline triangulated, facing out along +Z and -Z.
     std::vector<Math::vec3> ring(n);
     for (usize i = 0; i < n; ++i)
         ring[i] = Math::vec3(profile[i], 0.0f);
@@ -466,8 +448,7 @@ bool Radion::buildTube(const TubeParams& params, MeshData& out, std::string* err
     if (params.slices < 3 || params.slices > 256)
         return fail(error, "slices must be between 3 and 256");
 
-    // Four bands: outer wall, inner wall, and the two rims - each a ring of quads
-    // with vertices of its own so the edges stay sharp.
+    // Four bands, each a ring of quads with its own vertices so the edges stay sharp.
     MeshData mesh;
     const f32 half = params.height * 0.5f;
     auto ring = [&](f32 radius, f32 y, f32 angle) { return Math::vec3(radius * std::cos(angle), y, radius * std::sin(angle)); };
@@ -477,18 +458,13 @@ bool Radion::buildTube(const TubeParams& params, MeshData& out, std::string* err
         const f32 a1 = 2.0f * kPi * static_cast<f32>(i + 1) / static_cast<f32>(params.slices);
         const f32 u0 = static_cast<f32>(i) / static_cast<f32>(params.slices);
         const f32 u1 = static_cast<f32>(i + 1) / static_cast<f32>(params.slices);
-        // The angle runs clockwise seen from above, which decides the order of every
-        // quad below (each was checked to face the way its comment says).
-        // Outer wall, facing away from the axis.
+        // The angle runs clockwise seen from above, which decides each quad's vertex order.
         addFlatQuad(mesh, ring(params.outerRadius, -half, a1), ring(params.outerRadius, -half, a0),
                     ring(params.outerRadius, half, a0), ring(params.outerRadius, half, a1), {u1, 0}, {u0, 0}, {u0, 1}, {u1, 1});
-        // Inner wall, facing the axis.
         addFlatQuad(mesh, ring(params.innerRadius, -half, a0), ring(params.innerRadius, -half, a1),
                     ring(params.innerRadius, half, a1), ring(params.innerRadius, half, a0), {u0, 0}, {u1, 0}, {u1, 1}, {u0, 1});
-        // Top rim, facing up.
         addFlatQuad(mesh, ring(params.innerRadius, half, a0), ring(params.innerRadius, half, a1),
                     ring(params.outerRadius, half, a1), ring(params.outerRadius, half, a0), {u0, 0}, {u1, 0}, {u1, 1}, {u0, 1});
-        // Bottom rim, facing down.
         addFlatQuad(mesh, ring(params.innerRadius, -half, a1), ring(params.innerRadius, -half, a0),
                     ring(params.outerRadius, -half, a0), ring(params.outerRadius, -half, a1), {u1, 0}, {u0, 0}, {u0, 1}, {u1, 1});
     }
@@ -506,8 +482,7 @@ bool Radion::buildPrism(const PrismParams& params, MeshData& out, std::string* e
         !std::isfinite(params.height))
         return fail(error, "radius and height must be greater than zero");
 
-    // The regular polygon is the outline in X-Y, pushed along Z; then stood up so
-    // the height runs along Y.
+    // Outline in X-Y pushed along Z, then stood up so the height runs along Y.
     ExtrusionParams extrusion;
     extrusion.depth = params.height;
     for (u32 i = 0; i < params.sides; ++i)
@@ -555,8 +530,7 @@ bool Radion::buildStairs(const StairsParams& params, MeshData& out, std::string*
     if (!buildExtrusion(extrusion, mesh, error))
         return false;
 
-    // Centre the box, then turn the run onto +Z and the width onto X: a rotation
-    // of -90 degrees about Y takes (x, y, z) to (-z, y, x).
+    // Centre the box, then rotate -90 degrees about Y, (x, y, z) -> (-z, y, x): run onto +Z, width onto X.
     const Math::vec3 centre(run * n * 0.5f, rise * n * 0.5f, 0.0f);
     for (Math::vec3& p : mesh.positions)
     {
@@ -586,11 +560,10 @@ bool Radion::buildArch(const ArchParams& params, MeshData& out, std::string* err
     if (params.height < outerRadius)
         return fail(error, "the height must be at least half the width (the arch is a semicircle on top)");
 
-    const f32 spring = params.height - outerRadius; // where the curve begins
+    const f32 spring = params.height - outerRadius;
     ExtrusionParams extrusion;
     extrusion.depth = params.depth;
     auto& profile = extrusion.profile;
-    // Up the outer left side, over the top, down the outer right side...
     profile.push_back({-outerRadius, 0.0f});
     profile.push_back({-outerRadius, spring});
     for (u32 i = 1; i < params.segments; ++i)
@@ -600,7 +573,6 @@ bool Radion::buildArch(const ArchParams& params, MeshData& out, std::string* err
     }
     profile.push_back({outerRadius, spring});
     profile.push_back({outerRadius, 0.0f});
-    // ... across the foot, up the inner right side, back under the top, down the inner left.
     profile.push_back({innerRadius, 0.0f});
     profile.push_back({innerRadius, spring});
     for (u32 i = 1; i < params.segments; ++i)
@@ -615,7 +587,6 @@ bool Radion::buildArch(const ArchParams& params, MeshData& out, std::string* err
     if (!buildExtrusion(extrusion, mesh, error))
         return false;
 
-    // Centre the bounding box on the origin.
     const Math::vec3 centre(0.0f, params.height * 0.5f, 0.0f);
     for (Math::vec3& p : mesh.positions)
         p -= centre;

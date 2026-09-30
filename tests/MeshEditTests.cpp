@@ -23,8 +23,6 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// ------------------------------------------------------------------ shapes
-
 MeshData octahedron()
 {
     MeshData mesh;
@@ -46,7 +44,6 @@ MeshData icosahedron()
     return mesh;
 }
 
-// The unit cube with shared corners: 8 vertices, 12 triangles.
 MeshData weldedCube()
 {
     MeshData mesh;
@@ -57,7 +54,6 @@ MeshData weldedCube()
     return mesh;
 }
 
-// The same cube the way the engine builds one: each face owns its corners.
 MeshData splitCube()
 {
     const MeshData welded = weldedCube();
@@ -83,16 +79,14 @@ void addAttributes(MeshData& mesh)
     }
 }
 
-// ------------------------------------------------------------------ checks
-
 struct Report
 {
-    usize vertices = 0; // canonical
+    usize vertices = 0;
     usize edges = 0;
     usize faces = 0;
-    bool closed = true;     // every edge has exactly two triangles
+    bool closed = true;
     bool consistent = true; // each directed edge appears once: all triangles agree on "out"
-    bool valid = true;      // indices in range, no collapsed triangle
+    bool valid = true;
 };
 
 Report analyse(const MeshData& mesh)
@@ -138,7 +132,6 @@ Report analyse(const MeshData& mesh)
     return report;
 }
 
-// Triangles of a convex shape face away from its centre.
 bool facesOutward(const MeshData& mesh, const Math::vec3& centre)
 {
     for (usize f = 0; f < mesh.indices.size() / 3; ++f)
@@ -181,8 +174,6 @@ u64 edgeBetween(const MeshData& mesh, const Math::vec3& a, const Math::vec3& b)
     return MeshTopology::edgeKey(ia, ib);
 }
 
-// ------------------------------------------------------------------- tests
-
 void testTestShapesAreSound()
 {
     for (const MeshData& mesh : {octahedron(), icosahedron(), weldedCube(), splitCube()})
@@ -202,7 +193,6 @@ void testRefineOneEdge()
     std::string error;
     CHECK(MeshEdit::refineEdges(mesh, {{key, 0.5f}}, &result, &error));
 
-    // The two triangles on the edge are cut in two: 12 -> 14, one new vertex.
     CHECK(mesh.indices.size() / 3 == 14);
     CHECK(mesh.positions.size() == 9);
     CHECK(result.midpoints.size() == 1);
@@ -216,10 +206,9 @@ void testRefineOneEdge()
 
 void testRefineDirectionOfT()
 {
-    // t runs from the lower canonical id to the higher one whichever way the
-    // triangles walk the edge.
+    // `t` runs from the lower canonical id to the higher whichever way the triangles walk the edge.
     MeshData mesh = weldedCube();
-    const u64 key = edgeBetween(mesh, {0, 0, 0}, {1, 0, 0}); // ids 0 and 1
+    const u64 key = edgeBetween(mesh, {0, 0, 0}, {1, 0, 0});
     MeshEdit::RefineResult result;
     CHECK(MeshEdit::refineEdges(mesh, {{key, 0.25f}}, &result));
     CHECK(mesh.positions[result.midpoints[0].vertex] == Math::vec3(0.25f, 0, 0));
@@ -228,7 +217,6 @@ void testRefineDirectionOfT()
 void testRefineTwoAndThreeEdgesOfOneTriangle()
 {
     MeshData mesh = octahedron();
-    // Two edges of triangle (+x,+y,+z): x-y and y-z.
     const u64 a = edgeBetween(mesh, {1, 0, 0}, {0, 1, 0});
     const u64 b = edgeBetween(mesh, {0, 1, 0}, {0, 0, 1});
     CHECK(MeshEdit::refineEdges(mesh, {{a, 0.5f}, {b, 0.5f}}));
@@ -242,7 +230,7 @@ void testRefineTwoAndThreeEdgesOfOneTriangle()
     for (const MeshTopology::Edge& edge : topology.edges())
         splits.push_back({MeshTopology::edgeKey(edge.a, edge.b), 0.5f});
     CHECK(MeshEdit::refineEdges(all, splits));
-    CHECK(all.indices.size() / 3 == 32); // every triangle became four
+    CHECK(all.indices.size() / 3 == 32);
     r = analyse(all);
     CHECK(r.closed && r.consistent && r.valid);
 }
@@ -259,7 +247,6 @@ void testRefineKeepsAttributesInStep()
     const u32 m = result.midpoints[0].vertex;
     CHECK(std::abs(mesh.uvs[m].x - 0.5f) < 1.0e-5f && std::abs(mesh.uvs[m].y) < 1.0e-5f);
     CHECK(std::abs(Math::length(mesh.normals[m]) - 1.0f) < 1.0e-4f);
-    // Half way between a colour of 0 and 255 is about 128.
     CHECK((mesh.colors[m] & 0xFF) >= 126 && (mesh.colors[m] & 0xFF) <= 129);
 }
 
@@ -272,7 +259,7 @@ void testRefineRejectsBadInput()
     const u64 key = edgeBetween(mesh, {0, 0, 0}, {1, 0, 0});
     CHECK(!MeshEdit::refineEdges(mesh, {{key, 0.0f}}, nullptr, &error));
     CHECK(!MeshEdit::refineEdges(mesh, {{key, 1.0f}}, nullptr, &error));
-    CHECK(mesh.indices.size() == 36); // untouched
+    CHECK(mesh.indices.size() == 36);
 }
 
 void testSubdivideFlat()
@@ -290,7 +277,6 @@ void testSubdivideFlat()
         CHECK(r.closed && r.consistent && r.valid);
         CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
 
-        // Flat subdivision does not move the surface.
         Math::vec3 low2(1e9f);
         Math::vec3 high2(-1e9f);
         for (const Math::vec3& p : mesh.positions)
@@ -313,16 +299,13 @@ void testSubdivideTwoLevels()
 
 void testSubdivideRegionStaysWatertight()
 {
-    // One face of a cube: its neighbours must be cut along the shared edges or a
-    // T-junction is left behind.
     MeshData mesh = weldedCube();
     CHECK(MeshEdit::subdivide(mesh, {0}, 1, false));
     const Report r = analyse(mesh);
     CHECK(r.closed && r.consistent && r.valid);
-    CHECK(mesh.indices.size() / 3 > 12 + 3); // the face became 4; its neighbours were cut too
+    CHECK(mesh.indices.size() / 3 > 12 + 3);
     CHECK(facesOutward(mesh, Math::vec3(0.5f)));
 
-    // A second level on the same region, then everything else untouched.
     MeshData twice = weldedCube();
     CHECK(MeshEdit::subdivide(twice, {0, 1}, 2, false));
     const Report r2 = analyse(twice);
@@ -331,9 +314,7 @@ void testSubdivideRegionStaysWatertight()
 
 void testSubdivideSmoothRoundsTheSurface()
 {
-    // Loop subdivision of an octahedron pulls its corners in and its edge
-    // points out, toward a sphere: the corners end up strictly inside the
-    // original ones, and the shape keeps its symmetry.
+    // Loop subdivision pulls an octahedron's corners inside the originals and keeps its symmetry.
     MeshData mesh = octahedron();
     CHECK(MeshEdit::subdivide(mesh, {}, 1, true));
     const Report r = analyse(mesh);
@@ -344,8 +325,6 @@ void testSubdivideSmoothRoundsTheSurface()
     CHECK(facesOutward(mesh, Math::vec3(0.0f)));
 }
 
-// The sharpest turn between two neighbouring triangles, in radians: a measure of
-// how faceted the surface still is.
 f32 sharpestFold(const MeshData& mesh)
 {
     const MeshTopology topology = topologyOf(mesh);
@@ -368,7 +347,6 @@ f32 sharpestFold(const MeshData& mesh)
 
 void testSmoothSubdivisionConvergesOnASphere()
 {
-    // Each round of Loop subdivision makes the icosahedron smoother.
     MeshData mesh = icosahedron();
     f32 before = sharpestFold(mesh);
     for (int level = 0; level < 3; ++level)
@@ -381,7 +359,6 @@ void testSmoothSubdivisionConvergesOnASphere()
     CHECK(analyse(mesh).closed);
     CHECK(facesOutward(mesh, Math::vec3(0.0f)));
 
-    // Flat subdivision adds triangles but never smooths anything.
     MeshData flat = icosahedron();
     const f32 fold = sharpestFold(flat);
     CHECK(MeshEdit::subdivide(flat, {}, 2, false));
@@ -421,7 +398,6 @@ void testSubmeshesSurviveSubdivision()
     CHECK(mesh.submeshes[0].indexCount + mesh.submeshes[1].indexCount == mesh.indices.size());
     CHECK(!mesh.submeshes[0].bounds.empty());
 
-    // A region inside one submesh only grows that one.
     MeshData partial = weldedCube();
     partial.submeshes = {a, b};
     partial.materials.resize(2);
@@ -450,11 +426,9 @@ void testSubdivideKeepsAttributesAndRejectsBadInput()
 
 void testTurnEdge()
 {
-    // A flat quad of two triangles: turning the diagonal swaps it for the other.
     MeshData mesh;
     mesh.positions = {{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1}};
-    mesh.indices = {0, 2, 1, 0, 3, 2}; // CCW seen from +Y... either way: both agree
-    // Face up: make the triangles face +Y.
+    mesh.indices = {0, 2, 1, 0, 3, 2};
     mesh.indices = {0, 3, 2, 0, 2, 1};
     const u64 diagonal = edgeBetween(mesh, {0, 0, 0}, {1, 0, 1});
 
@@ -465,7 +439,6 @@ void testTurnEdge()
     const u64 other = edgeBetween(mesh, {1, 0, 0}, {0, 0, 1});
     CHECK(after.findEdge(static_cast<u32>(other >> 32), static_cast<u32>(other & 0xFFFFFFFFu)) >= 0);
     CHECK(after.findEdge(static_cast<u32>(diagonal >> 32), static_cast<u32>(diagonal & 0xFFFFFFFFu)) < 0);
-    // Both triangles still face +Y.
     for (usize f = 0; f < 2; ++f)
     {
         const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
@@ -474,7 +447,6 @@ void testTurnEdge()
         CHECK(Math::cross(b - a, c - a).y > 0.0f);
     }
 
-    // Turning it back restores the original diagonal.
     CHECK(MeshEdit::turnEdge(mesh, other, &error));
     const MeshTopology back = topologyOf(mesh);
     CHECK(back.findEdge(static_cast<u32>(diagonal >> 32), static_cast<u32>(diagonal & 0xFFFFFFFFu)) >= 0);
@@ -484,7 +456,6 @@ void testTurnEdgeRefusals()
 {
     std::string error;
 
-    // A concave quad: flipping would fold the surface.
     MeshData dart;
     dart.positions = {{0, 0, 0}, {2, 0, 0}, {1, 0, 0.3f}, {1, 0, 2}};
     // Triangles (0,3,2) and (0,2,1) share edge 0-2; the quad 0,1,2,3 is concave at 2.
@@ -493,13 +464,11 @@ void testTurnEdgeRefusals()
     CHECK(!MeshEdit::turnEdge(dart, shared, &error));
     CHECK(error.find("convex") != std::string::npos);
 
-    // A boundary edge has one triangle.
     MeshData one;
     one.positions = {{0, 0, 0}, {1, 0, 0}, {0, 0, 1}};
     one.indices = {0, 2, 1};
     CHECK(!MeshEdit::turnEdge(one, MeshTopology::edgeKey(0, 1), &error));
 
-    // A seam (triangles that do not share vertex indices along it) is refused.
     MeshData split = weldedCube();
     split = splitCube();
     const MeshTopology topology = topologyOf(split);
@@ -524,9 +493,7 @@ void testCollapseEdge()
     const u64 key = edgeBetween(mesh, {0, 0, 0}, {1, 0, 0});
     std::string error;
     CHECK(MeshEdit::collapseEdge(mesh, key, 0.5f, &error));
-    // The two triangles on the edge are gone.
     CHECK(mesh.indices.size() / 3 == 10);
-    // Both ends now stand at the middle of where they were.
     CHECK(mesh.positions[0] == Math::vec3(0.5f, 0, 0));
     CHECK(mesh.positions[1] == Math::vec3(0.5f, 0, 0));
 
@@ -558,7 +525,6 @@ void testCollapseKeepsSubmeshes()
     CHECK(mesh.submeshes[0].indexOffset + mesh.submeshes[0].indexCount == mesh.submeshes[1].indexOffset);
 }
 
-// A flat grid of nx x nz quads, each two triangles sharing the diagonal a-c.
 MeshData quadGrid(u32 nx, u32 nz)
 {
     MeshData mesh;
@@ -580,7 +546,6 @@ MeshData quadGrid(u32 nx, u32 nz)
     return mesh;
 }
 
-// A band of n quads around the Y axis, open at both ends: a ring that closes on itself.
 MeshData band(u32 n)
 {
     MeshData mesh;
@@ -625,7 +590,6 @@ void testKnifeCutsACube()
     CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
     CHECK(facesOutward(mesh, Math::vec3(0.5f)));
 
-    // The line round the cube is a loop of edges lying in the plane.
     CHECK(cut.size() >= 4);
     const MeshTopology topology = topologyOf(mesh);
     for (const u64 key : cut)
@@ -633,10 +597,8 @@ void testKnifeCutsACube()
         CHECK(std::abs(mesh.positions[static_cast<u32>(key >> 32)].x - 0.5f) < 1.0e-4f);
         CHECK(std::abs(mesh.positions[static_cast<u32>(key & 0xFFFFFFFFu)].x - 0.5f) < 1.0e-4f);
     }
-    // The shape itself has not moved.
     CHECK(mesh.bounds.min.x == 0.0f && mesh.bounds.max.x == 1.0f);
 
-    // An oblique plane works the same way.
     MeshData oblique = weldedCube();
     CHECK(MeshEdit::knife(oblique, Math::vec3(1, 1, 0), 1.0f, 1.0e-5f));
     const Report ro = analyse(oblique);
@@ -648,7 +610,6 @@ void testKnifeRefusals()
     std::string error;
     MeshData mesh = weldedCube();
     CHECK(!MeshEdit::knife(mesh, Math::vec3(0, 0, 0), 0.0f, 1.0e-5f, nullptr, &error));
-    // A plane beside the cube, and one lying in a face: nothing crosses.
     CHECK(!MeshEdit::knife(mesh, Math::vec3(1, 0, 0), 5.0f, 1.0e-5f, nullptr, &error));
     CHECK(!MeshEdit::knife(mesh, Math::vec3(1, 0, 0), 0.0f, 1.0e-5f, nullptr, &error));
     CHECK(mesh.indices.size() == 36);
@@ -657,14 +618,12 @@ void testKnifeRefusals()
 void testLoopCutOnAGrid()
 {
     MeshData mesh = quadGrid(4, 4);
-    // The edge from vertex (1,2) to (2,2): its ring runs across the grid along Z.
     const u32 row = 5;
     const u64 start = MeshTopology::edgeKey(2 * row + 1, 2 * row + 2);
 
     std::vector<u64> created;
     std::string error;
     CHECK(MeshEdit::loopCut(mesh, start, 1, &created, &error));
-    // Four quads in the ring, each from two triangles to four.
     CHECK(mesh.indices.size() / 3 == 32 + 8);
     CHECK(mesh.positions.size() == 25 + 5);
 
@@ -675,11 +634,10 @@ void testLoopCutOnAGrid()
 
     const Report r = analyse(mesh);
     CHECK(r.valid && r.consistent);
-    CHECK(created.size() == 4); // the loop's own edges: 5 points in a line
+    CHECK(created.size() == 4);
     const MeshTopology topology = topologyOf(mesh);
     CHECK(topology.boundaryLoops(mesh).size() == 1);
 
-    // The new loop is a real line of edges: its points are joined end to end.
     for (const u64 key : created)
     {
         const Math::vec3& a = mesh.positions[static_cast<u32>(key >> 32)];
@@ -702,7 +660,6 @@ void testLoopCutSeveralAndEitherDirection()
     CHECK(r.valid && r.consistent);
     CHECK(mesh.indices.size() / 3 == 32 + 3 * 8);
 
-    // Starting from an edge further along the same ring gives the same loops.
     MeshData again = quadGrid(4, 4);
     const u64 other = MeshTopology::edgeKey(0 * row + 1, 0 * row + 2);
     CHECK(MeshEdit::loopCut(again, other, 1));
@@ -715,9 +672,7 @@ void testLoopCutSeveralAndEitherDirection()
 
 void testLoopCutsAreStraightAcrossTheRing()
 {
-    // Two loops: at a third and two thirds of the way. Each must be a straight
-    // line across the whole grid - quads reached from either end of the start
-    // edge have to cut at the same place, not at mirrored ones.
+    // Two loops, each a straight line across the grid: quads reached from either end of the start edge must cut at the same place.
     MeshData mesh = quadGrid(4, 4);
     const u32 row = 5;
     const u64 start = MeshTopology::edgeKey(2 * row + 1, 2 * row + 2);
@@ -728,12 +683,11 @@ void testLoopCutsAreStraightAcrossTheRing()
     const std::set<f32> found = distinct(xs);
     CHECK(found.size() == 2);
     CHECK(found.count(1.333f) == 1 && found.count(1.667f) == 1);
-    CHECK(xs.size() == 10); // five points on each line
+    CHECK(xs.size() == 10);
 }
 
 void testLoopCutAlongTheOtherAxis()
 {
-    // An edge running along Z: its ring crosses the grid along X.
     MeshData mesh = quadGrid(4, 4);
     const u32 row = 5;
     const u64 start = MeshTopology::edgeKey(1 * row + 2, 2 * row + 2);
@@ -748,11 +702,10 @@ void testLoopCutAlongTheOtherAxis()
 void testLoopCutClosesAroundABand()
 {
     MeshData mesh = band(8);
-    // A vertical edge: the ring goes round the band and comes back.
     const u64 start = MeshTopology::edgeKey(0, 8);
     std::string error;
     CHECK(MeshEdit::loopCut(mesh, start, 1, nullptr, &error));
-    CHECK(mesh.indices.size() / 3 == 16 + 16); // 8 quads, each 2 -> 4
+    CHECK(mesh.indices.size() / 3 == 16 + 16);
     CHECK(mesh.positions.size() == 16 + 8);
     for (u32 v = 16; v < mesh.positions.size(); ++v)
         CHECK(std::abs(mesh.positions[v].y - 0.5f) < 1.0e-5f || std::abs(mesh.positions[v].y - 0.5f) < 1.0e-5f);
@@ -766,7 +719,6 @@ void testLoopCutRefusals()
     MeshData mesh = quadGrid(2, 2);
     CHECK(!MeshEdit::loopCut(mesh, MeshTopology::edgeKey(0, 1), 0, nullptr, &error));
     CHECK(!MeshEdit::loopCut(mesh, MeshTopology::edgeKey(0, 99), 1, nullptr, &error));
-    // A single triangle is no quad.
     MeshData one;
     one.positions = {{0, 0, 0}, {1, 0, 0}, {0, 0, 1}};
     one.indices = {0, 2, 1};
@@ -776,18 +728,15 @@ void testLoopCutRefusals()
 
 void testInsetAFlatRegion()
 {
-    // The middle quad (two triangles) of a 3x3 grid.
     MeshData mesh = quadGrid(3, 3);
     const u32 quad = 1 * 3 + 1;
     std::vector<u32> inner;
     std::string error;
     CHECK(MeshEdit::inset(mesh, {quad * 2, quad * 2 + 1}, 0.2f, 0.0f, &inner, &error));
 
-    // Two triangles for the region, eight for the ring round it.
     CHECK(mesh.indices.size() / 3 == 18 + 8);
     CHECK(inner.size() == 2);
 
-    // The inner square is 0.2 in from each side of the old one (1..2 -> 1.2..1.8).
     std::set<f32> xs;
     for (const u32 face : inner)
         for (u32 c = 0; c < 3; ++c)
@@ -797,8 +746,7 @@ void testInsetAFlatRegion()
     const Report r = analyse(mesh);
     CHECK(r.valid && r.consistent);
     const MeshTopology topology = topologyOf(mesh);
-    CHECK(topology.boundaryLoops(mesh).size() == 1); // still only the grid's own border
-    // Everything still faces up.
+    CHECK(topology.boundaryLoops(mesh).size() == 1);
     for (usize f = 0; f < mesh.indices.size() / 3; ++f)
     {
         const Math::vec3& a = mesh.positions[mesh.indices[f * 3]];
@@ -814,7 +762,6 @@ void testInsetWithDepth()
     const u32 quad = 1 * 3 + 1;
     std::vector<u32> inner;
     CHECK(MeshEdit::inset(mesh, {quad * 2, quad * 2 + 1}, 0.25f, 0.5f, &inner));
-    // The inner region is raised along its normal (+Y); the outer border is not.
     for (const u32 face : inner)
         for (u32 c = 0; c < 3; ++c)
             CHECK(std::abs(mesh.positions[mesh.indices[face * 3 + c]].y - 0.5f) < 1.0e-5f);
@@ -822,7 +769,6 @@ void testInsetWithDepth()
     const Report r = analyse(mesh);
     CHECK(r.valid && r.consistent);
 
-    // Depth alone (no thickness) still raises the region, with a wall round it.
     MeshData raised = quadGrid(3, 3);
     CHECK(MeshEdit::inset(raised, {quad * 2, quad * 2 + 1}, 0.0f, 0.3f));
     CHECK(std::abs(raised.bounds.max.y - 0.3f) < 1.0e-5f);
@@ -830,7 +776,6 @@ void testInsetWithDepth()
 
 void testInsetOnAClosedSurface()
 {
-    // One face of a cube (welded and split alike): the surface stays closed.
     for (MeshData mesh : {weldedCube(), splitCube()})
     {
         std::vector<u32> inner;
@@ -869,7 +814,7 @@ void testInsetKeepsSubmeshes()
     b.indexCount = 18;
     mesh.submeshes = {a, b};
     mesh.materials.resize(2);
-    CHECK(MeshEdit::inset(mesh, {0, 1}, 0.1f, 0.0f)); // faces 0 and 1 are in the first submesh
+    CHECK(MeshEdit::inset(mesh, {0, 1}, 0.1f, 0.0f));
     CHECK(mesh.submeshes[0].indexCount == (6 + 8) * 3);
     CHECK(mesh.submeshes[1].indexCount == 18);
     CHECK(mesh.submeshes[1].indexOffset == mesh.submeshes[0].indexCount);
@@ -879,7 +824,6 @@ void testRemoveUnusedVertices()
 {
     MeshData mesh = weldedCube();
     addAttributes(mesh);
-    // Orphan two vertices by deleting the triangles that use them.
     mesh.positions.push_back({9, 9, 9});
     mesh.normals.push_back({0, 1, 0});
     mesh.uvs.push_back({0, 0});
@@ -890,7 +834,7 @@ void testRemoveUnusedVertices()
     mesh.colors.insert(mesh.colors.begin() + 2, 0xFFFFFFFFu);
     for (u32& index : mesh.indices)
         if (index >= 2)
-            ++index; // the inserted orphan pushed the later vertices along
+            ++index;
 
     const usize triangles = mesh.indices.size() / 3;
     const u32 dropped = MeshEdit::removeUnusedVertices(mesh);
@@ -920,19 +864,16 @@ void testBevelACubeEdge()
 
         const Report r = analyse(mesh);
         CHECK(r.closed && r.consistent && r.valid);
-        // 8 corners - the 2 on the edge + 4 new ones; V - E + F = 2 still.
         CHECK(r.vertices == 10);
         CHECK(usedVertexCount(mesh) == mesh.positions.size());
         CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
         CHECK(facesOutward(mesh, Math::vec3(0.5f)));
 
-        // The corner is cut away: nothing is left at the old edge.
         for (u32 v : std::set<u32>(mesh.indices.begin(), mesh.indices.end()))
         {
             const Math::vec3& p = mesh.positions[v];
             CHECK(!(std::abs(p.y) < 1.0e-6f && std::abs(p.z) < 1.0e-6f));
         }
-        // The new strip's four corners sit 0.2 in from the old edge on each face.
         u32 onFaceY = 0;
         u32 onFaceZ = 0;
         for (u32 v : std::set<u32>(mesh.indices.begin(), mesh.indices.end()))
@@ -944,8 +885,6 @@ void testBevelACubeEdge()
                 ++onFaceZ;
         }
         CHECK(onFaceY >= 2 && onFaceZ >= 2);
-        // A chamfer takes volume off: the cube's bounds are unchanged but the
-        // chamfer plane now passes inside the old corner line.
         CHECK(mesh.bounds.min == Math::vec3(0.0f) && mesh.bounds.max == Math::vec3(1.0f));
     }
 }
@@ -954,7 +893,7 @@ void testBevelTwoEdgesAtOnce()
 {
     MeshData mesh = weldedCube();
     const u64 a = edgeBetween(mesh, {0, 0, 0}, {1, 0, 0});
-    const u64 b = edgeBetween(mesh, {0, 1, 1}, {1, 1, 1}); // the opposite edge: no shared vertex
+    const u64 b = edgeBetween(mesh, {0, 1, 1}, {1, 1, 1});
     std::string error;
     const bool ok = MeshEdit::bevel(mesh, {a, b}, 0.15f, &error);
     if (!ok)
@@ -964,7 +903,6 @@ void testBevelTwoEdgesAtOnce()
     CHECK(r.closed && r.consistent && r.valid);
     CHECK(static_cast<int>(r.vertices) - static_cast<int>(r.edges) + static_cast<int>(r.faces) == 2);
     CHECK(facesOutward(mesh, Math::vec3(0.5f)));
-    // 12 distinct points; each strip also owns 4 vertices of its own so it shades as a face.
     CHECK(usedVertexCount(mesh) == 12 + 2 * 4);
 }
 
@@ -973,7 +911,7 @@ void testBevelRefusals()
     std::string error;
     MeshData mesh = weldedCube();
     const u64 a = edgeBetween(mesh, {0, 0, 0}, {1, 0, 0});
-    const u64 b = edgeBetween(mesh, {1, 0, 0}, {1, 1, 0}); // shares the vertex (1,0,0)
+    const u64 b = edgeBetween(mesh, {1, 0, 0}, {1, 1, 0});
     CHECK(!MeshEdit::bevel(mesh, {a, b}, 0.1f, &error));
     CHECK(error.find("share a vertex") != std::string::npos);
 
@@ -982,11 +920,10 @@ void testBevelRefusals()
     CHECK(!MeshEdit::bevel(mesh, {}, 0.1f, &error));
     CHECK(!MeshEdit::bevel(mesh, {MeshTopology::edgeKey(0, 99)}, 0.1f, &error));
 
-    // A border edge has only one triangle.
     MeshData grid = quadGrid(2, 2);
     CHECK(!MeshEdit::bevel(grid, {MeshTopology::edgeKey(0, 1)}, 0.1f, &error));
 
-    CHECK(mesh.indices.size() == 36); // every refusal left the mesh alone
+    CHECK(mesh.indices.size() == 36);
 }
 
 f32 triangleAreaSum(const MeshData& mesh, usize firstFace, usize lastFace)
@@ -1004,9 +941,7 @@ f32 triangleAreaSum(const MeshData& mesh, usize firstFace, usize lastFace)
 
 void testFillAClosedOffHole()
 {
-    // A cube missing its +X face: fill puts it back, facing out.
     MeshData mesh = weldedCube();
-    // Faces 10 and 11 are the x = 1 face (the sixth quad).
     mesh.indices.resize(30);
     std::string error;
     u32 filled = 0;
@@ -1021,10 +956,9 @@ void testFillAClosedOffHole()
 
 void testFillAConcaveHole()
 {
-    // An L-shaped hole well inside a 4x4 grid: three cells removed.
     MeshData mesh = quadGrid(4, 4);
     std::vector<u32> kept;
-    const std::set<u32> holeCells = {1 * 4 + 1, 1 * 4 + 2, 2 * 4 + 1}; // (x,z) = (1,1), (2,1), (1,2)
+    const std::set<u32> holeCells = {1 * 4 + 1, 1 * 4 + 2, 2 * 4 + 1};
     for (u32 cell = 0; cell < 16; ++cell)
     {
         if (holeCells.count(cell))
@@ -1034,12 +968,10 @@ void testFillAConcaveHole()
     mesh.indices = kept;
     const usize before = mesh.indices.size() / 3;
 
-    // The hole's own border: pick one of its edges (the one from vertex (1,1) to (2,1)).
     const u64 holeEdge = MeshTopology::edgeKey(1 * 5 + 1, 1 * 5 + 2);
     u32 filled = 0;
     CHECK(MeshEdit::fillHoles(mesh, {holeEdge}, 64, &filled));
     CHECK(filled == 1);
-    // Exactly the hole is filled: three cells = area 3, every triangle facing up.
     CHECK(std::abs(triangleAreaSum(mesh, before, mesh.indices.size() / 3) - 3.0f) < 1.0e-4f);
     for (usize f = before; f < mesh.indices.size() / 3; ++f)
     {
@@ -1049,7 +981,7 @@ void testFillAConcaveHole()
         CHECK(Math::cross(b - a, c - a).y > 0.0f);
     }
     const MeshTopology topology = topologyOf(mesh);
-    CHECK(topology.boundaryLoops(mesh).size() == 1); // only the grid's outer border remains
+    CHECK(topology.boundaryLoops(mesh).size() == 1);
 }
 
 void testFillRefusals()
@@ -1060,12 +992,11 @@ void testFillRefusals()
 
     MeshData open = weldedCube();
     open.indices.resize(30);
-    CHECK(!MeshEdit::fillHoles(open, {}, 3, nullptr, &error)); // the hole has four edges
+    CHECK(!MeshEdit::fillHoles(open, {}, 3, nullptr, &error));
     CHECK(!MeshEdit::fillHoles(open, {MeshTopology::edgeKey(0, 99)}, 64, nullptr, &error));
     CHECK(open.indices.size() == 30);
 }
 
-// Two bands, `count` quads round, `gap` apart along Y.
 MeshData twoBands(u32 countA, u32 countB)
 {
     MeshData a = band(countA);
@@ -1082,18 +1013,14 @@ MeshData twoBands(u32 countA, u32 countB)
 void testBridgeEqualRings()
 {
     MeshData mesh = twoBands(8, 8);
-    // An edge of the first band's top ring (vertices 8..15) and of the second's
-    // bottom ring (second band starts at 16).
     const u64 top = MeshTopology::edgeKey(8, 9);
     const u64 bottom = MeshTopology::edgeKey(16, 17);
     const usize before = mesh.indices.size() / 3;
     std::string error;
     CHECK(MeshEdit::bridge(mesh, {top, bottom}, &error));
-    // 8 quads between the rings.
     CHECK(mesh.indices.size() / 3 == before + 16);
     const Report r = analyse(mesh);
     CHECK(r.valid && r.consistent);
-    // Two border rings have become one tube: only the far ends stay open.
     const MeshTopology topology = topologyOf(mesh);
     CHECK(topology.boundaryLoops(mesh).size() == 2);
     for (const MeshTopology::Edge& edge : topology.edges())
@@ -1108,7 +1035,7 @@ void testBridgeUnequalRings()
     const usize before = mesh.indices.size() / 3;
     std::string error;
     CHECK(MeshEdit::bridge(mesh, {top, bottom}, &error));
-    CHECK(mesh.indices.size() / 3 == before + 8 + 12); // one triangle per edge of either ring
+    CHECK(mesh.indices.size() / 3 == before + 8 + 12);
     const Report r = analyse(mesh);
     CHECK(r.valid && r.consistent);
 }
@@ -1117,9 +1044,7 @@ void testBridgeRefusals()
 {
     std::string error;
     MeshData mesh = twoBands(8, 8);
-    // Four open borders and none chosen: ambiguous.
     CHECK(!MeshEdit::bridge(mesh, {}, &error));
-    // One border only.
     CHECK(!MeshEdit::bridge(mesh, {MeshTopology::edgeKey(8, 9)}, &error));
     MeshData closed = weldedCube();
     CHECK(!MeshEdit::bridge(closed, {}, &error));
@@ -1158,17 +1083,14 @@ void testMirrorWithoutWeld()
 {
     MeshData mesh = octahedron();
     CHECK(MeshEdit::mirror(mesh, 1, 2.0f, 0.0f, {}));
-    // A separate copy across y = 2: the bounds reach y = 5.
     CHECK(std::abs(mesh.bounds.max.y - 5.0f) < 1.0e-5f);
     CHECK(mesh.positions.size() == 12);
     CHECK(mesh.indices.size() / 3 == 16);
     const Report r = analyse(mesh);
     CHECK(r.valid && r.consistent);
-    // Both copies are closed, consistent and face out from their own centres.
     MeshData lower = octahedron();
     CHECK(facesOutward(lower, Math::vec3(0.0f)));
 
-    // Only some faces.
     MeshData some = octahedron();
     CHECK(MeshEdit::mirror(some, 0, 0.0f, 0.0f, {0, 1}));
     CHECK(some.indices.size() / 3 == 10);
@@ -1204,7 +1126,6 @@ void testMergeSubmeshes()
     std::string error;
     CHECK(MeshEdit::mergeSubmeshes(mesh, {2, 0}, &error));
     CHECK(mesh.submeshes.size() == 2);
-    // The joined one is the lowest-numbered (0), holding both 0's and 2's triangles.
     CHECK(mesh.submeshes[0].indexCount == 24);
     CHECK(mesh.submeshes[0].materialSlot == 0);
     CHECK(mesh.submeshes[1].indexCount == 12);

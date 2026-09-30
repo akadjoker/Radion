@@ -1,4 +1,3 @@
-"""The main window: chat on the left, screenshots on the right, all network work on threads."""
 
 from PySide6.QtCore import Qt, QThread
 from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
@@ -32,7 +31,7 @@ class MainWindow(QMainWindow):
         self._confirm = confirm
         self.busy = False
         self._vision_warned = False
-        self._undoable = 0  # editor undo steps the latest request added
+        self._undoable = 0
 
         self._build_ui()
         self._start_threads(poll_interval_ms)
@@ -41,8 +40,6 @@ class MainWindow(QMainWindow):
             self.chat.add_notice("No LLM profile yet: click 'New' to create one "
                                  "(examples for Ollama and DeepSeek are offered).")
         self._refresh_buttons()
-
-    # -- construction ------------------------------------------------------------------
 
     def _build_ui(self):
         root = QWidget()
@@ -117,8 +114,6 @@ class MainWindow(QMainWindow):
         self.poller.state.connect(self._on_api_state)
         self.poller.start()
 
-    # -- profiles ----------------------------------------------------------------------
-
     def _populate_profiles(self):
         self.profile_combo.blockSignals(True)
         self.profile_combo.clear()
@@ -188,8 +183,6 @@ class MainWindow(QMainWindow):
         token = self.secrets.resolve(API_TOKEN_ACCOUNT, API_TOKEN_ENV).value or None
         return (profile.api_url if profile else DEFAULT_API_URL), token
 
-    # -- sending -----------------------------------------------------------------------
-
     def _submit_from_input(self):
         if not self.busy:
             self._send()
@@ -237,8 +230,6 @@ class MainWindow(QMainWindow):
         self.delete_button.setEnabled(idle and has_profile)
         self.undo_button.setEnabled(idle and self._undoable > 0)
 
-    # -- worker signals ----------------------------------------------------------------
-
     def _on_step(self, step, max_steps):
         self.chat.end_assistant()
         self.run_label.setText(f"Step {step}/{max_steps}")
@@ -273,8 +264,6 @@ class MainWindow(QMainWindow):
         mark = "●" if reachable else "○"
         self.api_label.setText(f"{mark} {text}")
 
-    # -- toolbar actions ---------------------------------------------------------------
-
     def _undo_request(self):
         self.undo_button.setEnabled(False)
         self.worker.request_undo()
@@ -294,15 +283,12 @@ class MainWindow(QMainWindow):
             profile = self.store.current()
             save_conversation(path, profile.name if profile else "", self.worker.conversation())
 
-    # -- shutdown ----------------------------------------------------------------------
-
     def closeEvent(self, event):
         self.shutdown()
         super().closeEvent(event)
 
     def shutdown(self):
-        """Stops a request in flight and both threads; safe to call twice."""
-        self.worker.cancel()  # shuts the LLM socket down, so the agent thread returns quickly
+        self.worker.cancel()
         self.poller.stop()
         self._agent_thread.quit()
         for thread in (self._agent_thread, self.poller):

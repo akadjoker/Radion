@@ -17,9 +17,7 @@ HierarchyPanel::~HierarchyPanel()
 
 void HierarchyPanel::onImGui()
 {
-    // Begin()/End() must pair unconditionally - an inactive tab in a shared
-    // dock node returns false here without being closed, and skipping End()
-    // in that case corrupts ImGui's window stack for every window after it.
+    // Begin()/End() must pair unconditionally: skipping End() for an inactive docked tab corrupts ImGui's window stack.
     if (ImGui::Begin(title().c_str()))
     {
         ImGui::Checkbox("Show Bones", &mShowBones);
@@ -40,7 +38,6 @@ void HierarchyPanel::drawBoneTree()
     ImGui::Indent();
 
     // TODO: Traverse skeleton and draw bone hierarchy
-    // For now, just placeholder
 
     ImGui::TextDisabled("Load a rigged mesh to see skeleton");
 

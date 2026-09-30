@@ -44,8 +44,7 @@ int httpStatus(CommandStatus status)
 void sendJson(httplib::Response& response, int status, const Json& body)
 {
     response.status = status;
-    // Commands echo file paths and mesh names; never let an error in one
-    // character's encoding turn the whole reply into an exception.
+    // Commands echo paths and mesh names; a bad character encoding must not turn the reply into an exception.
     response.set_content(body.dump(-1, ' ', false, Json::error_handler_t::replace),
                          "application/json; charset=utf-8");
 }
@@ -63,7 +62,6 @@ std::string lower(std::string text)
     return text;
 }
 
-// Host header "name[:port]" (or "[v6]:port") down to the bare name.
 std::string hostOnly(const std::string& value)
 {
     if (!value.empty() && value.front() == '[')
@@ -104,7 +102,6 @@ bool ApiServer::isLocalHostName(const std::string& hostHeader)
 
 bool ApiServer::isLocalOrigin(const std::string& origin)
 {
-    // "scheme://host[:port]"
     const size_t scheme = origin.find("://");
     if (scheme == std::string::npos)
         return false;
@@ -131,8 +128,7 @@ bool ApiServer::start(std::string* error)
     if (mServer)
         return true;
 
-    // Listening beyond this machine is allowed, but never without a secret: the
-    // commands read and write files on whichever machine runs the editor.
+    // Listening beyond this machine requires a secret: the commands read and write files.
     const bool loopbackOnly = mConfig.host == "::1" || isLocalHostName(mConfig.host);
     if (!loopbackOnly && mConfig.token.empty())
     {
@@ -144,9 +140,8 @@ bool ApiServer::start(std::string* error)
     auto server = std::make_unique<httplib::Server>();
     server->set_payload_max_length(mConfig.maxBodyBytes);
 
-    // httplib's default sets SO_REUSEPORT, which lets a second editor bind the
-    // same port and silently split the requests between the two. Only allow
-    // the quick rebind after a restart, and on Windows refuse any sharing.
+    // httplib's default SO_REUSEPORT lets a second editor bind the same port; allow only quick rebind, refuse sharing on
+    // Windows.
     server->set_socket_options(
         [](socket_t sock)
         {
@@ -159,16 +154,12 @@ bool ApiServer::start(std::string* error)
 #endif
         });
 
-    // A web page can make a browser send a request to 127.0.0.1 (and, with a
-    // rebinding DNS name, even read the answer). Requiring a loopback Host and
-    // refusing any foreign Origin keeps the API to the local tools that mean
-    // to use it, whether or not a token is set.
+    // A web page can make a browser hit 127.0.0.1 (even read it via DNS rebinding); requiring a loopback Host and no
+    // foreign Origin keeps the API to local tools.
     server->set_pre_routing_handler(
         [this, loopbackOnly](const httplib::Request& request, httplib::Response& response)
         {
-            // Only a loopback server knows what its Host header must say; a
-            // server that was asked to listen wider is reached by whatever name
-            // its network gave it, and the token is what protects it.
+            // Only a loopback server knows what its Host header must say; a wider one is protected by the token.
             if (loopbackOnly && !isLocalHostName(request.get_header_value("Host")))
             {
                 sendError(response, CommandStatus::InvalidParams, "Host not allowed");
@@ -201,8 +192,7 @@ bool ApiServer::start(std::string* error)
     server->set_error_handler(
         [](const httplib::Request&, httplib::Response& response)
         {
-            // Routes answer with their own JSON body; this only fills in the
-            // ones httplib rejects itself (unknown path, bad method, too big).
+            // Fills in only what httplib rejects itself (unknown path, bad method, too big).
             if (response.body.empty())
                 sendJson(response, response.status,
                          {{"ok", false},

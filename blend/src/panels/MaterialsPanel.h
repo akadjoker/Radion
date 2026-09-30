@@ -46,10 +46,7 @@ private:
     void openMaterialFile(const std::string& path);
     void drawContextMenu(const FileSystem::DirEntry& entry);
 
-    // Lazily filled as image entries are drawn in Grid view - one lookup
-    // through AssetManager's own texture cache per path for the panel's
-    // lifetime rather than every frame. Same approach as the editor's
-    // AssetsPanel::thumbnailFor().
+    // Lazily filled as Grid view draws image entries; one AssetManager lookup per path rather than per frame.
     HashMap<std::string, TextureHandle> mThumbnailCache;
     TextureHandle thumbnailFor(const std::string& path);
 

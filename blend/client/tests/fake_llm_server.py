@@ -1,13 +1,3 @@
-"""A scripted OpenAI-compatible server for tests (no real LLM needed).
-
-    server = FakeLlmServer().start()
-    server.script.append(call_reply([("add_primitive", {"type": "box"})]))
-    server.script.append(text_reply("Done."))
-
-Every POST to /v1/chat/completions consumes the next scripted reply and is recorded in
-`server.requests` ({"body": parsed JSON, "headers": {...}}). Replies stream as SSE when
-the request asks for it, otherwise come back as one JSON document.
-"""
 
 import json
 import threading
@@ -18,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 @dataclass
 class Reply:
     text: str = ""
-    calls: list = field(default_factory=list)   # [(name, dict | raw str)]
+    calls: list = field(default_factory=list)
     fragments: int = 3        # how many pieces text / arguments are cut into when streaming
     force_json: bool = False  # answer with plain JSON even when streaming was requested
     status: int = 200
@@ -100,7 +90,7 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             self._respond(server, body, reply)
         except (BrokenPipeError, ConnectionResetError):
-            pass  # the client cancelled
+            pass
 
     def _respond(self, server, body, reply):
         if reply.status != 200:

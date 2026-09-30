@@ -2,10 +2,6 @@
 
     client = BlenderApi()                         # http://127.0.0.1:7420
     client.call("add_primitive", type="sphere", name="body", color="#c0392b")
-    client.screenshot("view.png", view="right")
-
-Any HTTP client works the same way: POST the arguments as JSON to
-/api/commands/<name>; GET /api/commands lists every command with its JSON Schema.
 """
 
 import base64
@@ -40,7 +36,6 @@ class BlenderApi:
             return json.loads(error.read())
 
     def commands(self):
-        """Every command: name, description, readOnly, inputSchema."""
         return self._request("GET", "/api/commands")["commands"]
 
     def call_raw(self, command, **arguments):
@@ -51,11 +46,9 @@ class BlenderApi:
         return reply
 
     def call(self, command, **arguments):
-        """Runs a command and returns its result object."""
         return self.call_raw(command, **arguments)["result"]
 
     def screenshot(self, path, **arguments):
-        """Saves a PNG of the model to `path` and returns the image size info."""
         reply = self.call_raw("screenshot", **arguments)
         with open(path, "wb") as file:
             file.write(base64.b64decode(reply["image"]["data"]))

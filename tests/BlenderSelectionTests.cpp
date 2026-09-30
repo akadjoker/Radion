@@ -39,10 +39,8 @@ void testSelectAndDeselect()
     CHECK(selection.isVertexSelected(64));
     CHECK(selection.isVertexSelected(200));
     CHECK(!selection.isVertexSelected(6));
-    // Well past anything ever touched: must answer, not read out of bounds.
     CHECK(!selection.isVertexSelected(100000));
 
-    // The list comes out ascending, whatever order they were selected in.
     const std::vector<u32>& list = selection.selectedVertices();
     CHECK(list.size() == 4);
     CHECK(list[0] == 5 && list[1] == 63 && list[2] == 64 && list[3] == 200);
@@ -52,7 +50,6 @@ void testSelectAndDeselect()
     CHECK(!selection.isVertexSelected(63));
     CHECK(selection.selectedVertices().size() == 3);
 
-    // Deselecting what was never selected changes nothing.
     selection.deselectVertex(999);
     CHECK(selection.selectedVertexCount() == 3);
 
@@ -63,9 +60,7 @@ void testSelectAndDeselect()
     CHECK(selection.selectedVertexCount() == 3);
 }
 
-// Selecting the same index twice used to be harmless because the list was
-// searched first. With a bitmask the count is kept by hand, so a double
-// select must not inflate it.
+// A double select must not inflate the count, which is kept by hand with a bitmask.
 void testDoubleSelectKeepsCount()
 {
     BlenderSelection selection;
@@ -81,10 +76,7 @@ void testDoubleSelectKeepsCount()
     CHECK(selection.selectedFaceCount() == 1);
 }
 
-// The bits past the count belong to no vertex. If the last word is not
-// masked they come back from selectedVertices() as real indices, and
-// whatever consumes them - deleteVertices, smoothVertices - runs off the end
-// of the mesh.
+// Bits past the count must be masked or selectedVertices() returns them as real indices.
 void testSelectAllMasksTheTail()
 {
     BlenderSelection selection;
@@ -99,7 +91,6 @@ void testSelectAllMasksTheTail()
     CHECK(!selection.isVertexSelected(100));
     CHECK(!selection.isVertexSelected(127));
 
-    // An exact multiple of the word size has no tail to mask.
     BlenderSelection exact;
     exact.selectAll(128, 0);
     CHECK(exact.selectedVertexCount() == 128);
@@ -111,7 +102,6 @@ void testSelectAllMasksTheTail()
     empty.selectAll(0, 0);
     CHECK(empty.selectedVertexCount() == 0);
 
-    // selectAll follows the mode: faces stay untouched in vertex mode.
     CHECK(selection.selectedFaceCount() == 0);
 }
 
@@ -130,22 +120,18 @@ void testInvert()
     CHECK(!selection.isVertexSelected(100));
     CHECK(selection.selectedVertices().size() == 98);
 
-    // Twice is the identity.
     selection.invertSelection(100, 0);
     CHECK(selection.selectedVertexCount() == 2);
     CHECK(selection.isVertexSelected(0));
     CHECK(selection.isVertexSelected(70));
 
-    // From nothing, invert is everything.
     BlenderSelection fresh;
     fresh.invertSelection(70, 0);
     CHECK(fresh.selectedVertexCount() == 70);
     CHECK(fresh.selectedVertices().back() == 69);
 }
 
-// A selection made on a big mesh, then inverted against a smaller one: the
-// words holding the old high indices are dropped, and the new count has to
-// come from the bits that remain rather than from the old total.
+// Invert against a smaller mesh: the new count must come from the remaining bits, not the old total.
 void testInvertAfterMeshShrinks()
 {
     BlenderSelection selection;
@@ -175,8 +161,6 @@ void testClearAll()
     CHECK(!selection.isFaceSelected(2));
 }
 
-// What the viewport uploads to the GPU. Anything wrong here shows as the
-// wrong vertices lighting up.
 void testFillVertexFlags()
 {
     BlenderSelection selection;
@@ -200,13 +184,10 @@ void testFillVertexFlags()
         CHECK(flags[i] == 0 || flags[i] == 1);
         set += flags[i];
     }
-    // Index 200 is past the buffer and must simply not be written.
     CHECK(set == 3);
 }
 
-// The viewport re-uploads on a revision change alone, so a no-op must not
-// bump it (needless GPU traffic) and a real change must (a stale selection
-// on screen otherwise).
+// A no-op must not bump the revision (needless GPU re-upload); a real change must.
 void testRevision()
 {
     BlenderSelection selection;
@@ -226,8 +207,7 @@ void testRevision()
     CHECK(selection.revision() != afterSelect);
 }
 
-// The list is rebuilt lazily from the bits; asking for it twice with a
-// change in between has to give the second answer, not the cached first.
+// The list is rebuilt lazily; a change between two requests must show in the second.
 void testListFollowsChanges()
 {
     BlenderSelection selection;
@@ -271,17 +251,16 @@ void testEdges()
     const u64 b = (u64(1) << 32) | 2;
     selection.selectEdge(a);
     selection.selectEdge(b);
-    selection.selectEdge(a); // twice: still one
+    selection.selectEdge(a);
     CHECK(selection.selectedEdgeCount() == 2);
     CHECK(selection.isEdgeSelected(a));
     CHECK(!selection.isEdgeSelected(a + 1));
 
-    // Ascending, whatever order they arrived in.
     const std::vector<u64>& list = selection.selectedEdges();
     CHECK(list.size() == 2 && list[0] == b && list[1] == a);
 
     const u64 before = selection.revision();
-    selection.deselectEdge(12345); // not selected: nothing changes
+    selection.deselectEdge(12345);
     CHECK(selection.revision() == before);
     selection.deselectEdge(a);
     CHECK(selection.revision() != before);
@@ -296,7 +275,6 @@ void testEdges()
     selection.setEdges({a, a, b});
     CHECK(selection.selectedEdgeCount() == 2);
 
-    // Edges are independent of vertices and faces, and clearAll() takes them too.
     selection.selectVertex(4);
     selection.selectFace(1);
     CHECK(selection.selectedEdgeCount() == 2);

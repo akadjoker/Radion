@@ -5,7 +5,6 @@ from radion_chat.tools import build_tools, simplify_schema
 
 
 def walk(node):
-    """Every dict inside a schema, however deep."""
     if isinstance(node, dict):
         yield node
         for value in node.values():
@@ -58,7 +57,7 @@ def test_union_integer_or_string_becomes_described_and_untyped(commands):
     assert "type" not in part
     assert "oneOf" not in part
     assert "an integer or a string" in part["description"]
-    assert part["description"].startswith("A part, by its index")  # original text kept
+    assert part["description"].startswith("A part, by its index")
 
 
 def test_union_number_or_array_describes_the_array(commands):

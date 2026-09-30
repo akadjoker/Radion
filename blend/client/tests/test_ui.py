@@ -133,7 +133,7 @@ def test_llm_failure_is_shown_as_an_error_notice(make_window):
     assert idle(window)
     notice = window.chat.items[-1]
     assert "500" in notice.text() and "d9534f" in notice.styleSheet()
-    assert notice.thread() is window.thread()  # built on the GUI thread
+    assert notice.thread() is window.thread()
 
 
 def test_undo_this_request(make_window, api_server, llm_server):
@@ -177,7 +177,6 @@ def test_enter_sends_and_shift_enter_adds_a_line(make_window, llm_server):
 
 
 def click_when_dialog_appears(button_text, seen):
-    """Answers the modal confirmation once it opens (exec() blocks the test otherwise)."""
     def poll():
         dialog = QApplication.activeModalWidget()
         if dialog is None:
@@ -234,7 +233,6 @@ def test_new_chat_clears_everything(make_window, llm_server):
     assert not window.undo_button.isEnabled()
     send(window, "again")
     assert idle(window)
-    # the model saw no trace of the first conversation
     assert [m["role"] for m in llm_server.requests[-1]["body"]["messages"]] == ["system", "user"]
 
 
@@ -269,7 +267,7 @@ def test_profile_dialog_new_from_template_and_validation(app):
     assert dialog.result() == 1
     assert (profile.name, profile.model, profile.temperature) == ("deepseek", "deepseek-chat", 0.3)
     assert dialog.typed_key() == "typed-secret"
-    assert not dialog.remember.isEnabled()  # no keyring installed
+    assert not dialog.remember.isEnabled()
 
 
 def test_editing_a_profile_through_the_window_never_writes_the_key(make_window, tmp_path, monkeypatch):

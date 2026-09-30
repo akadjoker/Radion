@@ -87,5 +87,5 @@ def test_save_to_keyring_then_resolve():
 
 def test_real_loader_survives_a_missing_keyring_package(monkeypatch):
     import sys
-    monkeypatch.setitem(sys.modules, "keyring", None)  # makes `import keyring` fail
+    monkeypatch.setitem(sys.modules, "keyring", None)
     assert not SecretStore(environ={}).keyring_available()

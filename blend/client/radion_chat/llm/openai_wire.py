@@ -1,8 +1,3 @@
-"""Pure helpers for the OpenAI chat-completions wire format (no I/O).
-
-`to_wire_messages` builds the request messages; `ReplyBuilder` assembles the assistant
-message from either a complete response or a stream of SSE deltas.
-"""
 
 import json
 
@@ -12,11 +7,8 @@ from .base import AssistantMessage, ToolCall, Usage
 def to_wire_messages(messages, vision):
     """Conversation -> request `messages`.
 
-    OpenAI's protocol cannot carry an image inside a `tool` message. A tool result with an
-    image is therefore followed by a `user` message holding it as a data URI, placed after
-    the whole run of tool messages of that assistant turn (a user message in between would
-    break the tool_call/tool pairing). Without vision the image is dropped: the text result
-    still says what was done.
+    An image cannot ride in a `tool` message, so it follows the run of tool messages as a `user`
+    data-URI message (a user message in between would break the tool_call/tool pairing).
     """
     wire = []
     pending_images = []
@@ -57,11 +49,7 @@ def _assistant_to_wire(message):
 
 
 def assistant_to_history(reply):
-    """AssistantMessage -> the message stored in the conversation.
-
-    Arguments are stored as normalised JSON ("{}" when the model's were unusable): servers
-    that parse the history again would reject the original malformed text.
-    """
+    """Arguments are stored as normalised JSON ("{}" when unusable): servers would reject the original text."""
     message = {"role": "assistant", "content": reply.content}
     if reply.tool_calls:
         message["tool_calls"] = [
@@ -73,11 +61,7 @@ def assistant_to_history(reply):
 
 
 class ReplyBuilder:
-    """Accumulates a reply from stream deltas, or takes a complete message whole.
-
-    Arguments of a tool call usually arrive in fragments that must be concatenated per
-    call `index`; some servers send a call in one piece, some omit ids or indexes.
-    """
+    """Accumulates a reply from stream deltas; tool-call arguments arrive in fragments per `index`."""
 
     def __init__(self):
         self.text = []
@@ -86,7 +70,6 @@ class ReplyBuilder:
         self.usage = None
 
     def add_chunk(self, chunk):
-        """Feeds one parsed SSE chunk; returns the text delta it carried ('' if none)."""
         if chunk.get("usage"):
             self._set_usage(chunk["usage"])
         choices = chunk.get("choices") or []
@@ -103,7 +86,6 @@ class ReplyBuilder:
         return text
 
     def add_message(self, response):
-        """Feeds a complete (non-streaming) response; returns its text."""
         if response.get("usage"):
             self._set_usage(response["usage"])
         choices = response.get("choices") or []
@@ -148,7 +130,6 @@ class ReplyBuilder:
 
 
 def _parse_call(call_id, name, raw):
-    """A ToolCall; unusable arguments become an `error` the agent relays to the model."""
     if not name:
         return ToolCall(call_id, "", None, raw, "the tool call has no function name")
     if not raw.strip():

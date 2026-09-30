@@ -1,4 +1,3 @@
-"""Profile editor, API settings and the confirmation prompt for risky commands."""
 
 import json
 from dataclasses import replace
@@ -20,8 +19,6 @@ SOURCE_TEXT = {
 
 
 class ProfileDialog(QDialog):
-    """Edits one profile. The key field is optional and never saved to the profiles file."""
-
     def __init__(self, profile=None, resolved_source="none", keyring_available=False, parent=None):
         super().__init__(parent)
         self.setWindowTitle("LLM profile")
@@ -31,7 +28,7 @@ class ProfileDialog(QDialog):
         form = QFormLayout()
         layout.addLayout(form)
 
-        if profile is None:  # a new profile can start from an example
+        if profile is None:
             self.template = QComboBox()
             self.template.addItems(["Custom", *TEMPLATES])
             self.template.currentTextChanged.connect(self._apply_template)
@@ -119,7 +116,6 @@ class ProfileDialog(QDialog):
             self._load(TEMPLATES[title])
 
     def profile(self):
-        """The profile as edited (other fields of the original are kept)."""
         base = self._profile or Profile(name="", base_url="", model="")
         return replace(
             base,
@@ -152,8 +148,6 @@ class ProfileDialog(QDialog):
 
 
 class ApiSettingsDialog(QDialog):
-    """Where the editor's API is, its token, and whether risky commands need confirmation."""
-
     def __init__(self, api_url, confirm_risky, token_source="none", parent=None):
         super().__init__(parent)
         self.setWindowTitle("Editor API settings")
@@ -178,7 +172,6 @@ class ApiSettingsDialog(QDialog):
 
 
 def ask_confirmation(parent, command, arguments):
-    """Modal prompt before a command that writes files or discards work; True = allow."""
     box = QMessageBox(parent)
     box.setObjectName("confirm_dialog")
     box.setIcon(QMessageBox.Icon.Warning)

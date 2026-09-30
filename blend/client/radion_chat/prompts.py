@@ -1,6 +1,3 @@
-"""The default system prompt: the conventions of blend/doc/API.md, in as few tokens as
-possible so that models with a small context can still follow it. The tools themselves
-(names, arguments) come from the editor; this text only teaches how to use them well."""
 
 SYSTEM_PROMPT = """\
 You build 3D models by calling the tools of the Radion Blender editor. The user describes what they want in plain language; you build it, check it, and report briefly.
@@ -31,6 +28,5 @@ Rules
 
 
 def build_system_prompt(extra=""):
-    """The default prompt plus the profile's own additions, if any."""
     extra = (extra or "").strip()
     return SYSTEM_PROMPT if not extra else f"{SYSTEM_PROMPT}\nAdditional instructions\n{extra}\n"

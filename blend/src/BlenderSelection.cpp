@@ -255,8 +255,7 @@ void BlenderSelection::selectAll(u32 vertexCount, u32 faceCount)
     if (mMode == SelectionMode::Vertex && vertexCount > 0)
     {
         mVertexBits.assign(wordCountFor(vertexCount), ~u64(0));
-        // The last word runs past vertexCount; those bits belong to no vertex
-        // and would be handed out by selectedVertices() as real indices.
+        // The last word runs past vertexCount; those bits would be handed out as real indices.
         const u32 tail = vertexCount % kBitsPerWord;
         if (tail)
             mVertexBits.back() = (u64(1) << tail) - 1;
@@ -274,9 +273,7 @@ void BlenderSelection::selectAll(u32 vertexCount, u32 faceCount)
 
 void BlenderSelection::invertSelection(u32 vertexCount, u32 faceCount)
 {
-    // Counted back from the bits rather than as count-minus-selected: the
-    // resize below can drop words left over from a larger mesh, and those
-    // bits were part of the old total.
+    // Counted from the bits: resize can drop words left over from a larger mesh.
     if (mMode == SelectionMode::Vertex)
     {
         mVertexBits.resize(wordCountFor(vertexCount), 0);

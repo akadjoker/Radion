@@ -90,7 +90,6 @@ void testArgsValidation()
     CHECK(args.numbers("v", 3, {}).size() == 3);
     CHECK(args.indices("i", 10).size() == 2);
     CHECK(args.choice("mode", {"vertex", "face"}, "vertex") == "face");
-    // Absent arguments fall back; they are not errors.
     CHECK(args.integer("missing", 7) == 7);
     CHECK(args.string("missing", "x") == "x");
 
@@ -138,7 +137,6 @@ void testRegistryCall()
 
     CHECK(registry.call("crash", Json::object()).status == CommandStatus::Failed);
 
-    // A second add() of the same name replaces, it does not duplicate.
     CommandRegistry replaced = makeRegistry();
     const size_t count = replaced.commands().size();
     CommandDef again;
@@ -219,8 +217,6 @@ void testQueueClose()
     again.join();
 }
 
-// A started server on an ephemeral port, with a thread standing in for the
-// editor's frame loop.
 struct ServerFixture
 {
     CommandRegistry registry = makeRegistry();
@@ -289,7 +285,6 @@ void testHttpEndpoints()
     CHECK(body(sum)["ok"] == true);
     CHECK(body(sum)["result"]["sum"] == 42);
 
-    // No body at all means "no arguments", which `picture` accepts.
     auto picture = client.Post("/api/commands/picture", "", "application/json");
     CHECK(picture && picture->status == 200);
     CHECK(body(picture)["image"]["mimeType"] == "image/png");
@@ -315,7 +310,6 @@ void testHttpEndpoints()
     CHECK(notFound && notFound->status == 404);
     CHECK(body(notFound)["ok"] == false);
 
-    // The handler ran on the frame-loop thread, not the HTTP worker.
     auto thread = client.Post("/api/commands/thread_id", "{}", "application/json");
     CHECK(thread && thread->status == 200);
     CHECK(body(thread)["result"]["id"] ==
@@ -375,7 +369,6 @@ void testServerLifecycle()
     const int port = first.port();
     CHECK(port > 0);
 
-    // A second server cannot take a port that is in use.
     ApiServerConfig taken = config;
     taken.port = port;
     ApiServer second(registry, queue, taken);
@@ -385,7 +378,6 @@ void testServerLifecycle()
 
     first.stop();
     CHECK(!first.running());
-    // Restartable on the same queue after a stop.
     CHECK(first.start());
     first.stop();
 }

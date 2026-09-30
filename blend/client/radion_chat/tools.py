@@ -1,13 +1,7 @@
-"""Turns the editor's `/api/commands` listing into OpenAI-style tool specs.
-
-Nothing about the commands is duplicated here: a command added to the editor shows up as
-a tool the next time the listing is fetched.
-"""
 
 import copy
 
-# Schema-level keywords that some OpenAI-compatible servers reject or mis-handle when they
-# turn the schema into a grammar (constrained decoding). Dropped in "simplified" mode.
+# Keywords some OpenAI-compatible servers reject when they turn the schema into a grammar.
 _UNSUPPORTED_KEYWORDS = frozenset({
     "$schema", "$id", "$ref", "$defs", "definitions", "additionalProperties",
     "minItems", "maxItems", "uniqueItems", "minimum", "maximum", "exclusiveMinimum",
@@ -19,7 +13,6 @@ _ARTICLES = {"integer": "an integer", "array": "an array", "object": "an object"
 
 
 def build_tools(commands, simplify=False):
-    """OpenAI `tools` list, one function per command."""
     tools = []
     for command in commands:
         schema = command.get("inputSchema") or {}
@@ -41,11 +34,7 @@ def build_tools(commands, simplify=False):
 def simplify_schema(schema):
     """A permissive copy of a JSON Schema for picky servers.
 
-    `oneOf`/`anyOf` is dropped (together with the node's own `type`) and described in the
-    `description` instead, so the model still learns e.g. that `scale` takes a number or
-    three numbers. Array size limits are also moved into the description, and keywords
-    in _UNSUPPORTED_KEYWORDS are removed. `type`, `enum`, `properties`, `items` and
-    `required` survive.
+    `oneOf`/`anyOf` and array size limits are moved into `description`; _UNSUPPORTED_KEYWORDS are removed.
     """
     if not isinstance(schema, dict):
         return schema
@@ -76,7 +65,6 @@ def simplify_schema(schema):
 
 
 def _describe(schema):
-    """Short English phrase for one alternative of a union."""
     if "enum" in schema:
         return "one of " + ", ".join(_literal(v) for v in schema["enum"])
     kind = schema.get("type", "any value")

@@ -28,10 +28,7 @@ CommandOutcome MainThreadQueue::run(Task task, std::chrono::milliseconds timeout
     std::unique_lock<std::mutex> lock(job->mutex);
     if (!job->done.wait_for(lock, timeout, [&] { return job->finished; }))
     {
-        // Not picked up yet: withdraw it, so a request that was reported as
-        // timed out can never change the document afterwards. Already
-        // running: it cannot be stopped half-way, so wait for it to finish
-        // and report what it really did.
+        // Withdraw an unstarted task so a timed-out request never runs late; a running one must be waited for.
         if (!job->started)
         {
             job->cancelled = true;

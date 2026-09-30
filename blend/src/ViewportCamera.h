@@ -30,9 +30,7 @@ struct CameraState
     f32 distance = 6.0f;
 };
 
-// One place for the camera maths, shared by the docked viewports and the
-// offscreen capture the API takes screenshots with - so a screenshot frames
-// the model exactly as the same camera would on screen.
+// Camera maths shared by the docked viewports and the screenshot capture, so both frame identically.
 void computeCameraMatrices(const CameraState& camera, CameraView view, f32 aspect, Math::mat4& viewMatrix,
                            Math::mat4& projectionMatrix, Math::vec3& cameraPos);
 

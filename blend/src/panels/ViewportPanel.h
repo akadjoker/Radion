@@ -60,11 +60,7 @@ private:
 
     using CameraState = ::Radion::CameraState;
 
-    // One offscreen colour+depth target per viewport - MiniRenderer draws
-    // into this, ImGui::Image() then displays it inside the docked panel.
-    // A docked panel's own screen rect is only known after ImGui's layout
-    // runs, so the 3D content cannot go straight to the backbuffer the way
-    // MiniRenderer's standalone test does.
+    // Offscreen colour+depth target per viewport: the panel's rect is only known after ImGui layout, so MiniRenderer can't draw to the backbuffer.
     struct RenderTarget
     {
         u32 fbo = 0;
@@ -95,10 +91,7 @@ private:
                             const Math::mat4& projection, const Math::vec2& imageMin,
                             const Math::vec2& imageSize, bool orthographic);
 
-    // One depth read covering the whole area a selection needs to test,
-    // instead of one glReadPixels per candidate. Each of those binds the FBO
-    // and stalls the pipeline waiting for the GPU, so a box select over a
-    // large mesh used to cost one full sync per vertex inside the box.
+    // One depth read for the whole selection area instead of a glReadPixels per candidate (each stalls the pipeline on the GPU).
     struct DepthRect
     {
         std::vector<f32> depth;
@@ -121,9 +114,7 @@ private:
         {ViewMode::Perspective, ViewMode::Top, ViewMode::Front, ViewMode::Right}
     };
 
-    // Only one viewport is ever dragged at a time - which one owns the drag
-    // that started it, so releasing the mouse over a different viewport's
-    // region (or none) still ends it cleanly.
+    // Only one viewport drags at a time; the owner ends the drag even if the mouse is released over another viewport.
     s32 mActiveViewport = -1;
     bool mOrbiting = false;
     bool mPanning = false;
@@ -133,10 +124,7 @@ private:
     bool mBoxSelecting = false;
     Math::vec2 mBoxSelectStart = Math::vec2(0.0f);
 
-    // Toolbar state. Only Grid is actually wired to a visible effect right
-    // now - Move/Rotate/Scale have no gizmo to drive yet, and Snap has no
-    // transform to snap. They exist because the toolbar is one row, not
-    // three separate features arriving separately.
+    // Toolbar state; only Grid has a visible effect so far (no gizmo for Move/Rotate/Scale, nothing for Snap to snap).
     enum class Tool : u8
     {
         Select,
@@ -147,8 +135,7 @@ private:
     Tool mTool = Tool::Select;
     bool mSnap = false;
 
-    // ImGuizmo keeps one set of state per frame, so only one viewport may
-    // draw a gizmo - the hovered one, or whichever owns a drag in progress.
+    // ImGuizmo keeps one state set per frame: only the hovered viewport, or the one owning a drag, draws a gizmo.
     s32 mGizmoViewport = -1;
     bool mGizmoDragging = false;
     Math::mat4 mGizmoMatrix = Math::mat4(1.0f);
@@ -156,8 +143,7 @@ private:
     bool mShowGrid = true;
     bool mSelectVisibleOnly = false;
 
-    // Scratch for the vertex selection stream, and the revision it was built
-    // from - the upload only happens when the selection actually changed.
+    // Scratch for the vertex selection stream and the revision it was built from; upload only on change.
     std::vector<u8> mVertexSelectionFlags;
     // One byte per vertex: 1 while the running gizmo drag is moving it.
     std::vector<u8> mSnapMoving;

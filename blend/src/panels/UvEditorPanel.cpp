@@ -63,7 +63,6 @@ std::vector<u32> UvEditorPanel::operationTarget(const std::vector<u32>& shown) c
 
 void UvEditorPanel::frameView(const ImVec2& canvasSize)
 {
-    // The 0..1 square, with a little air round it.
     const f32 side = std::max(std::min(canvasSize.x, canvasSize.y) - 24.0f, 32.0f);
     mZoom = side;
     mPan = Math::vec2((canvasSize.x - side) * 0.5f, (canvasSize.y - side) * 0.5f);
@@ -97,7 +96,6 @@ void UvEditorPanel::onImGui()
     }
     validateSelection();
 
-    // What is shown: the selected part, or everything.
     std::vector<u32> triangles;
     // A single-part mesh is that part whether or not it is "selected".
     const s32 part = app().selectedSubmesh() >= 0 ? app().selectedSubmesh() : (mesh->submeshes.size() == 1 ? 0 : -1);
@@ -255,7 +253,6 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
     auto toScreen = [&](const Math::vec2& uv) { return corner + uv * mZoom; };
     auto toUv = [&](const Math::vec2& screen) { return (screen - corner) / mZoom; };
 
-    // The albedo map of the shown part, when it has one.
     bool drewTexture = false;
     if (mShowTexture)
     {
@@ -284,7 +281,6 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
                       "Select a part to see its texture");
     draw->AddRect(toImVec(toScreen(Math::vec2(0, 0))), toImVec(toScreen(Math::vec2(1, 1))), IM_COL32(150, 150, 150, 255));
 
-    // Tenth-of-a-unit grid, only while it is not a blur.
     if (mZoom > 120.0f)
     {
         for (int i = 1; i < 10; ++i)
@@ -295,7 +291,6 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
         }
     }
 
-    // Triangle edges.
     for (const u32 triangle : triangles)
     {
         Math::vec2 p[3];
@@ -305,7 +300,6 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
             draw->AddLine(toImVec(p[edge]), toImVec(p[(edge + 1) % 3]), kEdgeColor);
     }
 
-    // Vertices.
     const std::vector<u8>* pinned = app().uvPinned();
     for (const u32 vertex : shown)
     {
@@ -319,7 +313,6 @@ void UvEditorPanel::drawCanvas(const std::vector<u32>& triangles, const std::vec
             draw->AddRect(ImVec2(at.x - half - 2, at.y - half - 2), ImVec2(at.x + half + 2, at.y + half + 2), kPinnedColor);
     }
 
-    // ---------------------------------------------------------- interaction
     const ImGuiIO& io = ImGui::GetIO();
     const Math::vec2 mouse = toMath(io.MousePos);
 

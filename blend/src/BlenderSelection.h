@@ -8,13 +8,7 @@
 namespace Radion
 {
 
-// Selection state for blender — tracks which vertices and faces are selected.
-//
-// Membership is a bitmask, not a list to search: isVertexSelected() runs in
-// the viewport's per-vertex draw loop and again inside every selectVertex(),
-// so a linear scan makes both the drawing and a box select quadratic in the
-// number of selected items. The index list callers iterate is rebuilt from
-// the bits only when one of them asks and something has changed since.
+// Membership is a bitmask: isVertexSelected() runs per vertex in the draw loop, so a list scan would be quadratic.
 class BlenderSelection
 {
 public:
@@ -37,39 +31,31 @@ public:
         mMode = mode;
     }
 
-    // Vertex selection
     void selectVertex(u32 index);
     void deselectVertex(u32 index);
     void toggleVertex(u32 index);
     bool isVertexSelected(u32 index) const;
     const std::vector<u32>& selectedVertices() const;
 
-    // Face selection
     void selectFace(u32 index);
     void deselectFace(u32 index);
     void toggleFace(u32 index);
     bool isFaceSelected(u32 index) const;
     const std::vector<u32>& selectedFaces() const;
 
-    // Edge selection. An edge is named by MeshTopology::edgeKey() - the pair of
-    // canonical vertex ids packed into one number - so the selection survives
-    // anything that leaves the mesh itself alone, and needs no index into a
-    // structure that has to be rebuilt.
+    // An edge is named by MeshTopology::edgeKey(), so the selection survives anything that leaves the mesh alone.
     void selectEdge(u64 key);
     void deselectEdge(u64 key);
     void toggleEdge(u64 key);
     bool isEdgeSelected(u64 key) const;
     // Ascending.
     const std::vector<u64>& selectedEdges() const;
-    // Replaces the edge selection.
     void setEdges(const std::vector<u64>& keys);
 
-    // Clear selection
     void clearAll();
     void selectAll(u32 vertexCount, u32 faceCount);
     void invertSelection(u32 vertexCount, u32 faceCount);
 
-    // Query
     u32 selectedVertexCount() const
     {
         return mVertexCount;
@@ -83,16 +69,13 @@ public:
         return static_cast<u32>(mEdges.size());
     }
 
-    // Bumped by every change. Lets a viewport tell in constant time whether
-    // the GPU-side copy it uploaded is still current, instead of comparing
-    // the selection itself.
+    // Bumped by every change; lets a viewport cheaply tell whether its GPU copy is current.
     u64 revision() const
     {
         return mRevision;
     }
 
-    // One byte per vertex, nonzero where selected, for handing the selection
-    // to the renderer as a vertex stream. Writes exactly `count` bytes.
+    // One byte per vertex, nonzero = selected; writes exactly `count` bytes.
     void fillVertexFlags(u8* out, u32 count) const;
 
 private:

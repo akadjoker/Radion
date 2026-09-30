@@ -76,8 +76,6 @@ void ConsolePanel::onImGui()
 
         ImGui::Separator();
 
-        // BeginChild()/EndChild() pair unconditionally too, same reason as
-        // the Begin()/End() below.
         if (ImGui::BeginChild("ConsoleOutput", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()),
                                ImGuiChildFlags_Borders))
         {
@@ -110,8 +108,6 @@ void ConsolePanel::onImGui()
         }
         ImGui::EndChild();
     }
-    // Begin()/End() must pair unconditionally - an inactive tab in a shared
-    // dock node returns false here without being closed, and skipping End()
-    // corrupts ImGui's window stack for every window drawn after it.
+    // Begin()/End() must pair unconditionally: skipping End() for an inactive docked tab corrupts ImGui's window stack.
     ImGui::End();
 }

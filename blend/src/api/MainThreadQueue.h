@@ -13,32 +13,19 @@
 namespace Radion::BlenderApi
 {
 
-// The editor is single-threaded: mesh data, the undo stacks and the GL context
-// all belong to the thread that runs the frame loop. HTTP requests arrive on
-// other threads, so they hand their work here instead of touching any of it.
-//
-// A request thread calls run() and blocks; the frame loop calls drain() once a
-// frame, which executes what has queued up, in arrival order, and wakes the
-// waiting threads.
+// All editor state belongs to the frame-loop thread; request threads queue work here and block until drain() runs it.
 class MainThreadQueue
 {
 public:
     using Task = std::function<CommandOutcome()>;
 
-    // Any thread except the one that drains. Returns Timeout when the frame
-    // loop did not get to the task in time (the task is then dropped, never
-    // run late), and Unavailable once the queue is closed.
+    // Any thread but the draining one. Timeout drops the task (never runs late); Unavailable once closed.
     CommandOutcome run(Task task, std::chrono::milliseconds timeout);
 
-    // The frame-loop thread. Returns how many tasks ran.
     size_t drain();
 
-    // Refuses new work and fails what is still queued. Called before the
-    // editor is torn down so no request thread is left waiting on a loop that
-    // is about to stop.
+    // Fails what is still queued; call before the editor is torn down so no request thread waits forever.
     void close();
-    // Accepts work again after close(), for a server that is switched off and
-    // back on while the editor keeps running.
     void open();
 
 private:

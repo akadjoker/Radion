@@ -14,7 +14,6 @@ public:
     BlenderSettings();
     ~BlenderSettings();
 
-    // Viewport settings
     struct ViewportSettings
     {
         f32 fov = 60.0f;
@@ -31,19 +30,14 @@ public:
         f32 submeshHighlightAlpha = 0.35f;
         Math::vec3 boxSelectColor = Math::vec3(1.0f, 0.65f, 0.0f);
         bool colorBySubmesh = false;
-        // Multiply the surface by the mesh's painted vertex colours - what the
-        // exported .glb will look like in a viewer that honours COLOR_0.
+        // Multiply by painted vertex colours (glTF COLOR_0).
         bool showVertexColors = true;
 
-        // Normals/Tangents debug view: line length drawn from each vertex,
-        // and the two colors - the shader's own color-coded surface is hard
-        // to read a direction off of, this is the line-per-vertex on top.
         f32 debugVectorLength = 0.15f;
         Math::vec3 normalVectorColor = Math::vec3(0.2f, 0.9f, 1.0f);
         Math::vec3 tangentVectorColor = Math::vec3(1.0f, 0.3f, 0.7f);
     };
 
-    // Animation settings
     struct AnimationSettings
     {
         enum class InterpolationMode : u8
@@ -57,7 +51,6 @@ public:
         bool autoLoop = true;
     };
 
-    // General settings
     struct GeneralSettings
     {
         std::string lastOpenedMesh;
@@ -66,14 +59,11 @@ public:
         bool showWireframe = false;
         f32 vertexPointSize = 5.0f;
         int themeIndex = 2;
-        // Most recent first, capped at kMaxRecentFiles - use addRecentFile()/
-        // removeRecentFile()/clearRecentFiles() to change it, never push_back
-        // directly, so the cap and the promote-to-top rule always hold.
+        // Most recent first, capped at kMaxRecentFiles; use addRecentFile() etc., never push_back.
         std::vector<std::string> recentFiles;
     };
 
-    // Steps the gizmo snaps to while Snap is on, and how close (in pixels) a
-    // vertex must be for Ctrl-drag to snap onto it.
+    // Gizmo snap steps, and the pixel reach for Ctrl-drag vertex snap.
     struct SnapSettings
     {
         f32 moveStep = 1.0f;
@@ -91,9 +81,7 @@ public:
         return mSnap;
     }
 
-    // The local HTTP API. `enabled` starts it with the editor; the secret is
-    // deliberately not kept here - it comes from the command line or the
-    // environment, so it never lands in a file.
+    // The secret is not kept here: it comes from the command line or environment so it never lands in a file.
     struct ApiSettings
     {
         bool enabled = false;
@@ -139,11 +127,8 @@ public:
     bool load(const std::string& path);
     bool save(const std::string& path);
 
-    // Moves `path` to the front of general().recentFiles, adding it if it
-    // was not already there, and drops anything past kMaxRecentFiles.
     void addRecentFile(const std::string& path);
-    // Drops `path` from general().recentFiles if present - used when opening
-    // a recent entry fails, so a moved/deleted file does not stay listed.
+    // Used when opening a recent entry fails, so a moved/deleted file does not stay listed.
     void removeRecentFile(const std::string& path);
     void clearRecentFiles();
 

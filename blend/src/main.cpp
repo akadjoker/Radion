@@ -17,8 +17,7 @@ using namespace Radion;
 
 namespace
 {
-// Command line for the local HTTP API. The token can also come from the
-// environment, which keeps it out of the process list.
+// The token can also come from the environment, which keeps it out of the process list.
 struct ApiOptions
 {
     bool enable = false;
@@ -42,7 +41,6 @@ void printUsage()
                 "  --help                this text\n");
 }
 
-// False when the arguments cannot be used; the reason is already printed.
 bool parseArguments(int argc, char** argv, ApiOptions& options, bool& helpOnly)
 {
     if (const char* token = std::getenv("RADION_BLENDER_API_TOKEN"))
@@ -137,13 +135,11 @@ int main(int argc, char** argv)
     // (the default exit key) with unsaved work in it.
     engine.getWindow().setExitKey(SDLK_UNKNOWN);
 
-    // Load engine settings
     const std::string engineSettingsFile =
         FileSystem::getSingleton().prefPath("Radion", "Blender") + "blender.engine.settings.json";
     engine.setSettingsFile(engineSettingsFile);
     EngineSettings::load(engine, engineSettingsFile);
 
-    // Add search paths for assets (shaders, textures, models)
     FileSystem& files = FileSystem::getSingleton();
     const std::string assetDirectory = resolveAssetDirectory(RADION_ASSET_DIR);
     files.addSearchPath(assetDirectory);
@@ -151,20 +147,15 @@ int main(int argc, char** argv)
     files.addSearchPath(assetDirectory + "/textures");
     files.addSearchPath(assetDirectory + "/models");
 
-    // Enable ImGui docking
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    // Nobody sets this by default, so every ImGui app in the repo shares
-    // ./imgui.ini - the editor's dozens of windows and the blender's few end
-    // up in the same file, each overwriting the other's docking layout. Its
-    // own file, next to the prefPath settings this app already writes to.
+    // Own ini file: the shared ./imgui.ini would have the editor and blender overwrite each other's docking layout.
     static const std::string iniPath =
         FileSystem::getSingleton().prefPath("Radion", "Blender") + "blender_imgui.ini";
     io.IniFilename = iniPath.c_str();
 
     applyBlenderTheme();
-    // Add base font before icon font merge
     io.Fonts->AddFontDefault();
     if (!loadBlenderIconFont(io))
         std::fprintf(stderr, "radion_blender: failed to load icon font\n");
@@ -176,8 +167,7 @@ int main(int argc, char** argv)
         if (startApi)
         {
             const int port = api.port > 0 ? api.port : blender.settings().api().port;
-            // A failed start is logged and shown in Preferences; the editor is
-            // still perfectly usable without it.
+            // A failed start is logged; the editor works without it.
             blender.startApi(api.host, port, api.token);
         }
         blender.run();

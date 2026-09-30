@@ -58,9 +58,7 @@ void MeshTopology::build(const MeshData& mesh, f32 epsilon)
     mEdges.clear();
     mEdgeIndex.clear();
 
-    // Weld by position. A vertex joins the first earlier point within epsilon
-    // (looked for in the cells around it), so the representative of a group is
-    // always its lowest index.
+    // Weld by position; a group's representative is its lowest index.
     const f32 cell = epsilon > 0.0f ? epsilon : 1.0e-5f;
     std::unordered_map<CellKey, std::vector<u32>, CellHash> cells;
     cells.reserve(vertexCount);
@@ -158,7 +156,6 @@ void MeshTopology::faceNeighbors(const MeshData&, u32 face, std::vector<u32>& ou
 
 std::vector<std::vector<u32>> MeshTopology::boundaryLoops(const MeshData& mesh) const
 {
-    // Directed boundary edges, as the single face that owns each one walks them.
     std::unordered_map<u32, std::vector<u32>> next;
     usize boundaryCount = 0;
     for (u32 face = 0; face < mFaceEdges.size(); ++face)

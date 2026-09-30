@@ -7,10 +7,7 @@
 namespace Radion
 {
 
-// What the loaded mesh is made of and what is wrong with it, with a way to
-// act on each fault. The analysis walks every triangle and hashes every
-// position, so it runs when asked and when the mesh changes underneath it -
-// not every frame.
+// What the loaded mesh is made of and what is wrong with it; analysis runs on request and on mesh change, not every frame.
 class MeshHealthPanel : public BlenderPanel
 {
 public:

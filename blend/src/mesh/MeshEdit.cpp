@@ -17,9 +17,6 @@ bool fail(std::string* error, const std::string& message)
     return false;
 }
 
-// The triangles of a mesh, each tagged with the submesh it belongs to. Edits
-// work on this and write it back, which keeps the submesh ranges right without
-// every edit knowing about them.
 struct Faces
 {
     std::vector<Tri> tri;
@@ -46,8 +43,6 @@ Faces readFaces(const MeshData& mesh)
     return faces;
 }
 
-// Writes the triangles back grouped by submesh (in their existing order within
-// each) and returns, for each written triangle, where it stood in `faces`.
 std::vector<u32> writeFaces(MeshData& mesh, const Faces& faces)
 {
     const usize count = faces.tri.size();
@@ -61,7 +56,6 @@ std::vector<u32> writeFaces(MeshData& mesh, const Faces& faces)
     }
     else
     {
-        // A stable counting sort by submesh.
         std::vector<u32> start(mesh.submeshes.size() + 1, 0);
         for (usize f = 0; f < count; ++f)
             ++start[std::min<usize>(faces.submesh[f], mesh.submeshes.size() - 1) + 1];
@@ -84,7 +78,6 @@ std::vector<u32> writeFaces(MeshData& mesh, const Faces& faces)
         for (usize c = 0; c < 3; ++c)
             mesh.indices[n * 3 + c] = faces.tri[order[n]][c];
 
-    // Bounds follow the geometry: the whole mesh's and each submesh's own.
     mesh.bounds = AABB();
     for (const Math::vec3& p : mesh.positions)
         mesh.bounds.expand(p);
@@ -116,8 +109,6 @@ Math::vec4 unpackColor(u32 c)
            255.0f;
 }
 
-// A new vertex a fraction `t` of the way from vertex `a` to vertex `b`, with
-// every attribute array that is in step with the positions carried along.
 u32 lerpVertex(MeshData& mesh, u32 a, u32 b, f32 t)
 {
     const usize n = mesh.positions.size();
@@ -150,9 +141,7 @@ u32 lerpVertex(MeshData& mesh, u32 a, u32 b, f32 t)
     return index;
 }
 
-// The edge an id pair names, looked up through the canonical ids of its ends -
-// an id that stopped being canonical (an earlier edit merged its point into
-// another) still finds the edge it used to be part of. -1 when it is gone.
+// Looks up an edge through canonical ids, so an id a later edit merged away still finds it; -1 when gone.
 s32 findEdgeById(const MeshTopology& topology, const MeshData& mesh, u64 key)
 {
     const u32 a = static_cast<u32>(key >> 32);
@@ -218,7 +207,6 @@ bool MeshEdit::refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits,
         handledAsQuad[quad.faceA] = handledAsQuad[quad.faceB] = 1;
     }
 
-    // Each cut triangle contributes at most 3 more; refuse before allocating.
     usize estimate = faceCount + quads.size() * 2;
     for (usize f = 0; f < faceCount; ++f)
     {
@@ -238,7 +226,7 @@ bool MeshEdit::refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits,
     if (estimate > kMaxTriangles)
         return fail(error, "the result would have more than " + std::to_string(kMaxTriangles) + " triangles");
 
-    std::unordered_map<u64, u32> midpointOf; // index pair -> vertex
+    std::unordered_map<u64, u32> midpointOf;
     RefineResult local;
 
     auto midpoint = [&](u32 from, u32 to) -> u32
@@ -274,7 +262,6 @@ bool MeshEdit::refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits,
         origin.push_back(source);
     };
 
-    // Quads first: each becomes two quads, split across the midpoints.
     for (const QuadCut& quad : quads)
     {
         const u32 p = quad.corner[0];
@@ -332,8 +319,6 @@ bool MeshEdit::refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits,
         }
         else if (cuts == 2)
         {
-            // k is the uncut edge; s the corner opposite it, where the two cut
-            // edges meet.
             const u32 k = !cut[0] ? 0 : !cut[1] ? 1 : 2;
             const u32 p = v[k];
             const u32 q = v[(k + 1) % 3];
@@ -341,7 +326,6 @@ bool MeshEdit::refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits,
             const u32 mA = midpoint(q, s);
             const u32 mB = midpoint(s, p);
             emit(f, mA, s, mB);
-            // The quad p, q, mA, mB: split along its shorter diagonal.
             const f32 dPA = Math::distance(mesh.positions[p], mesh.positions[mA]);
             const f32 dQB = Math::distance(mesh.positions[q], mesh.positions[mB]);
             if (dPA <= dQB)
@@ -382,14 +366,11 @@ bool MeshEdit::refineEdges(MeshData& mesh, const std::vector<EdgeSplit>& splits,
 
 namespace
 {
-// Loop's smoothing positions for one round of subdivision, worked out on the
-// mesh as it is before any cut. `inRegion` says which triangles take part: an
-// edge between a region triangle and anything else behaves like a border, so the
-// region stays attached to what it was attached to instead of pulling away.
+// Loop's smoothing positions, computed before any cut; an edge between a region triangle and anything else acts as a border.
 struct LoopPositions
 {
-    std::unordered_map<u32, Math::vec3> vertex; // canonical id -> new position
-    std::unordered_map<u64, Math::vec3> edge;   // canonical edge key -> new point
+    std::unordered_map<u32, Math::vec3> vertex;
+    std::unordered_map<u64, Math::vec3> edge;
 };
 
 LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
@@ -402,8 +383,6 @@ LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
     {
         return edge.faces.size() == 2 && inRegion[edge.faces[0]] && inRegion[edge.faces[1]];
     };
-    // The canonical id of a vertex is the index of its first occurrence, so its
-    // position is that vertex's.
     auto at = [&](u32 canonical) -> const Math::vec3& { return mesh.positions[canonical]; };
 
     std::unordered_map<u32, std::vector<u32>> incident;
@@ -424,7 +403,6 @@ LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
             out.edge[key] = (at(edge.a) + at(edge.b)) * 0.5f;
             continue;
         }
-        // The vertex each of the two triangles has beyond the edge.
         Math::vec3 beyond(0.0f);
         for (const u32 face : edge.faces)
         {
@@ -441,7 +419,6 @@ LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
         out.edge[key] = (at(edge.a) + at(edge.b)) * (3.0f / 8.0f) + beyond * (1.0f / 8.0f);
     }
 
-    // Only a vertex on a cut edge moves; the rest of the surface stays put.
     std::unordered_set<u32> touched;
     for (const u64 key : cutEdges)
     {
@@ -482,7 +459,6 @@ LoopPositions loopPositions(const MeshData& mesh, const MeshTopology& topology,
         {
             out.vertex[v] = self * 0.75f + (at(borderNeighbours[0]) + at(borderNeighbours[1])) * 0.125f;
         }
-        // A corner where more than two borders meet stays where it is.
     }
     return out;
 }
@@ -634,13 +610,11 @@ bool MeshEdit::turnEdge(MeshData& mesh, u64 edgeKey, std::string* error)
     if (topology.canonical(c1) == topology.canonical(d2))
         return fail(error, "both triangles have the same third corner");
 
-    // The flip is only valid when the quad is convex: each new triangle has to
-    // face the way the old pair did.
     const Math::vec3 old1 = Math::cross(pb - pa, pc - pa);
     const Math::vec3 old2 = Math::cross(pa - pb, pd - pb);
     const Math::vec3 reference = old1 + old2;
-    const Math::vec3 new1 = Math::cross(pa - pc, pd - pc); // (c, a, d)
-    const Math::vec3 new2 = Math::cross(pb - pd, pc - pd); // (d, b, c)
+    const Math::vec3 new1 = Math::cross(pa - pc, pd - pc);
+    const Math::vec3 new2 = Math::cross(pb - pd, pc - pd);
     if (Math::dot(new1, reference) <= 1.0e-12f || Math::dot(new2, reference) <= 1.0e-12f)
         return fail(error, "the quad is not convex, so turning the edge would fold the surface");
 
@@ -686,8 +660,6 @@ bool MeshEdit::collapseEdge(MeshData& mesh, u64 edgeKey, f32 t, std::string* err
     writeFaces(mesh, kept);
     return true;
 }
-
-// ---------------------------------------------------------------------- knife
 
 bool MeshEdit::knife(MeshData& mesh, const Math::vec3& normal, f32 offset, f32 epsilon, std::vector<u64>* cutEdges,
                      std::string* error)
@@ -737,18 +709,14 @@ bool MeshEdit::knife(MeshData& mesh, const Math::vec3& normal, f32 offset, f32 e
     return true;
 }
 
-// ------------------------------------------------------------------- loop cut
-
 namespace
 {
-// One step of a ring: the quad the edge (p -> q) is a side of, the side opposite
-// it (s -> r, so that "a fraction along p->q" lands at the same fraction along
-// s->r), and the triangle beyond that opposite side, if any.
+// One ring step: the quad an edge p->q is a side of, its opposite side s->r, and the triangle beyond it.
 struct RingStep
 {
-    u32 faceA = 0; // the two triangles of the quad
+    u32 faceA = 0;
     u32 faceB = 0;
-    std::array<u32, 4> corner = {0, 0, 0, 0}; // p, q, r, s as vertex indices
+    std::array<u32, 4> corner = {0, 0, 0, 0};
     u32 nextP = 0;                            // the opposite side as an oriented canonical pair
     u32 nextQ = 0;
     // True when the ring was walked from the start edge's q end: the near side
@@ -756,13 +724,10 @@ struct RingStep
     bool reversed = false;
 };
 
-// Finds the quad on the `source` triangle's side of the oriented canonical edge
-// p -> q. Returns false when the triangle is not half of a usable quad.
 bool quadAcross(const MeshData& mesh, const MeshTopology& topology, const Faces& faces, u32 source, u32 p, u32 q,
                 RingStep& out)
 {
     const Tri& t = faces.tri[source];
-    // Rotate the triangle so that p -> q is its first side: (p, q, u).
     s32 start = -1;
     for (u32 c = 0; c < 3; ++c)
         if (topology.canonical(t[c]) == p && topology.canonical(t[(c + 1) % 3]) == q)
@@ -773,15 +738,13 @@ bool quadAcross(const MeshData& mesh, const MeshTopology& topology, const Faces&
     const u32 iq = t[(static_cast<usize>(start) + 1) % 3];
     const u32 iu = t[(static_cast<usize>(start) + 2) % 3];
 
-    // The two sides of the triangle that are not the ring edge are candidates for
-    // the quad's diagonal; the right one has a triangle beyond it that makes the
-    // far side of the quad parallel to the ring edge.
+    // The diagonal is the side whose far partner makes the quad's far side parallel to the ring edge.
     struct Candidate
     {
         bool valid = false;
         f32 score = -1.0f;
         f32 parallel = -2.0f;
-        u32 other = 0;                          // the partner triangle
+        u32 other = 0;
         std::array<u32, 4> corner = {0, 0, 0, 0};
         u32 nextP = 0;
         u32 nextQ = 0;
@@ -801,7 +764,6 @@ bool quadAcross(const MeshData& mesh, const MeshTopology& topology, const Faces&
             continue;
         const u32 partner = diagonal.faces[0] == source ? diagonal.faces[1] : diagonal.faces[0];
 
-        // The partner must walk the diagonal the opposite way.
         const Tri& pt = faces.tri[partner];
         s32 pc = -1;
         for (u32 c = 0; c < 3; ++c)
@@ -811,14 +773,13 @@ bool quadAcross(const MeshData& mesh, const MeshTopology& topology, const Faces&
             continue;
         const u32 iw = pt[(static_cast<usize>(pc) + 2) % 3];
 
-        // Quad as p, q, r, s.
         std::array<u32, 4> corner;
         if (which == 0)
             corner = {ip, iq, iu, iw}; // (p, q, u, w): opposite side u-w, oriented w -> u
         else
             corner = {ip, iq, iw, iu}; // (p, q, w, u): opposite side w-u, oriented u -> w
         const Math::vec3 along = Math::normalize(mesh.positions[corner[1]] - mesh.positions[corner[0]]);
-        const Math::vec3 far = mesh.positions[corner[2]] - mesh.positions[corner[3]]; // r - s
+        const Math::vec3 far = mesh.positions[corner[2]] - mesh.positions[corner[3]];
         const f32 farLength = Math::length(far);
         if (!(farLength > 1.0e-8f))
             continue;
@@ -826,10 +787,7 @@ bool quadAcross(const MeshData& mesh, const MeshTopology& topology, const Faces&
         if (parallel < 0.5f)
             continue;
 
-        // Two triangles of neighbouring quads can make a parallelogram too, so
-        // parallel sides alone do not say which side is the diagonal. Quads are
-        // written as two consecutive triangles, and their diagonal is nearly
-        // always the longest side of either; those two hints settle it.
+        // Parallel sides alone don't identify the diagonal (neighbouring quads can form parallelograms); use the longest-side hint.
         const f32 diagonalLength = Math::distance(mesh.positions[from], mesh.positions[to]);
         const f32 otherA = Math::distance(mesh.positions[ip], mesh.positions[iq]);
         const f32 otherB = Math::distance(mesh.positions[which == 0 ? iq : ip], mesh.positions[iu]);
@@ -848,8 +806,7 @@ bool quadAcross(const MeshData& mesh, const MeshTopology& topology, const Faces&
         }
     }
 
-    // A quad's far side runs the same way as the near one; anything much less
-    // parallel than that is two triangles that just happen to touch.
+    // A quad's far side is near-parallel to the near one; less than that is two touching triangles.
     if (!best.valid || best.parallel < 0.5f)
         return false;
 
@@ -871,9 +828,7 @@ bool MeshEdit::loopCut(MeshData& mesh, u64 edgeKey, u32 cuts, std::vector<u64>* 
     u32 q = static_cast<u32>(edgeKey & 0xFFFFFFFFu);
     std::vector<u64> created;
 
-    // With n cuts the ring is cut one loop at a time: the first at 1/(n+1) of the
-    // way, then the remaining stretch at 1/n of what is left, and so on, so the
-    // loops come out evenly spaced without any edge having two cuts at once.
+    // Cut one loop at a time, 1/(n+1) first then 1/n of the rest, so loops are evenly spaced.
     for (u32 step = 0; step < cuts; ++step)
     {
         MeshTopology topology;
@@ -889,14 +844,12 @@ bool MeshEdit::loopCut(MeshData& mesh, u64 edgeKey, u32 cuts, std::vector<u64>* 
         const Faces faces = readFaces(mesh);
         const f32 fraction = 1.0f / static_cast<f32>(cuts - step + 1);
 
-        // Walk the ring both ways from the start edge, collecting quads.
         std::vector<RingStep> quads;
         std::unordered_set<u64> seenEdges;
         seenEdges.insert(MeshTopology::edgeKey(p, q));
         std::unordered_set<u32> usedFaces;
 
         const MeshTopology::Edge& start = topology.edges()[static_cast<usize>(startIndex)];
-        // Each triangle of the start edge seeds a direction.
         for (usize seedIndex = 0; seedIndex < start.faces.size(); ++seedIndex)
         {
             u32 source = start.faces[seedIndex];
@@ -925,11 +878,9 @@ bool MeshEdit::loopCut(MeshData& mesh, u64 edgeKey, u32 cuts, std::vector<u64>* 
                 usedFaces.insert(found.faceB);
                 quads.push_back(found);
 
-                // On to the side beyond, through the triangle on its far side
-                // (not the one already in this quad).
                 const u64 nextKey = MeshTopology::edgeKey(found.nextP, found.nextQ);
                 if (seenEdges.count(nextKey))
-                    break; // the ring has closed
+                    break;
                 seenEdges.insert(nextKey);
 
                 const s32 nextIndex = topology.findEdge(found.nextP, found.nextQ);
@@ -947,9 +898,7 @@ bool MeshEdit::loopCut(MeshData& mesh, u64 edgeKey, u32 cuts, std::vector<u64>* 
         if (quads.empty())
             return fail(error, "the edge is not part of a ring of quads (is it a diagonal, or a border?)");
 
-        // Every quad is cut a fraction along its near side p -> q and the same
-        // fraction along its far side s -> r, so the new edge runs straight
-        // across. `t` in a split is measured from an edge's lower canonical id.
+        // Cut each quad at the same fraction along near and far side so the new edge runs straight; `t` is from the lower canonical id.
         std::vector<EdgeSplit> splits;
         std::unordered_map<u64, f32> have;
         auto addOriented = [&](u32 iFrom, u32 iTo, f32 alongFraction)
@@ -981,8 +930,6 @@ bool MeshEdit::loopCut(MeshData& mesh, u64 edgeKey, u32 cuts, std::vector<u64>* 
         if (!refineEdges(mesh, splits, quadCuts, &result, error))
             return false;
 
-        // The next loop is cut in what remains: from the new vertex on the start
-        // edge toward its far end q.
         MeshTopology after;
         after.build(mesh);
         u32 newVertex = ~0u;
@@ -1007,8 +954,6 @@ bool MeshEdit::loopCut(MeshData& mesh, u64 edgeKey, u32 cuts, std::vector<u64>* 
         *newEdges = std::move(created);
     return true;
 }
-
-// ---------------------------------------------------------------------- inset
 
 bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thickness, f32 depth,
                      std::vector<u32>* innerFaces, std::string* error)
@@ -1035,17 +980,16 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
         inRegion[face] = 1;
     }
 
-    // The region's border: edges with exactly one triangle in the region.
     struct BorderEdge
     {
-        u32 a; // canonical ids, walked a -> b by the region triangle that owns it
+        u32 a;
         u32 b;
         u32 face;
-        u32 indexA; // the owning triangle's own vertex indices
+        u32 indexA;
         u32 indexB;
     };
     std::vector<BorderEdge> border;
-    std::unordered_map<u32, std::vector<u32>> borderNeighbours; // canonical -> canonical neighbours on the border
+    std::unordered_map<u32, std::vector<u32>> borderNeighbours;
     for (const MeshTopology::Edge& edge : topology.edges())
     {
         u32 inside = 0;
@@ -1075,8 +1019,6 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
     if (border.empty())
         return fail(error, "the selection has no border (it is the whole closed surface)");
 
-    // Per canonical vertex: the triangles of the region around it, for the
-    // direction it moves in and the normal it is pushed along.
     std::unordered_map<u32, Math::vec3> normalSum;
     std::unordered_map<u32, Math::vec3> centroidSum;
     std::unordered_map<u32, u32> touching;
@@ -1103,9 +1045,6 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
         return length > 1.0e-10f ? v / length : fallback;
     };
 
-    // Where each border vertex goes: inward across the surface by `thickness`
-    // (measured to the border's sides, not along the corner's diagonal), then
-    // along the surface normal by `depth`.
     std::unordered_map<u32, Math::vec3> innerPosition;
     for (const auto& entry : borderNeighbours)
     {
@@ -1123,7 +1062,6 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
             const Math::vec3 bisector = e1 + e2;
             if (Math::length(bisector) < 1.0e-4f)
             {
-                // A straight border: straight in, across the surface.
                 direction = unit(Math::cross(normal, e1), towardRegion);
             }
             else
@@ -1138,7 +1076,6 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
         innerPosition[c] = p + direction * length + normal * depth;
     }
 
-    // Interior vertices of the region only follow the depth.
     std::unordered_map<u32, Math::vec3> shifted;
     if (depth != 0.0f)
     {
@@ -1152,7 +1089,6 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
     MeshData work = mesh;
     Faces out = faces;
 
-    // A copy of every vertex index a region triangle uses at a border point.
     std::unordered_map<u32, u32> inner;
     auto innerOf = [&](u32 index) -> u32
     {
@@ -1177,8 +1113,6 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
         }
     }
 
-    // Every vertex in the region that is not on the border moves in place; a
-    // vertex standing at one of those points (a seam copy) moves with it.
     if (depth != 0.0f)
     {
         for (u32 v = 0; v < mesh.positions.size(); ++v)
@@ -1189,7 +1123,6 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
         }
     }
 
-    // The ring between the old border and the new.
     for (const BorderEdge& edge : border)
     {
         const u32 a = edge.indexA;
@@ -1218,8 +1151,6 @@ bool MeshEdit::inset(MeshData& mesh, const std::vector<u32>& selected, f32 thick
     return true;
 }
 
-// --------------------------------------------------------------------- bevel
-
 bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width, std::string* error)
 {
     if (mesh.positions.empty() || mesh.indices.size() < 3)
@@ -1233,15 +1164,14 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
     topology.build(mesh);
     const Faces faces = readFaces(mesh);
 
-    // What each bevelled edge needs to know, read off the two triangles on it.
     struct Bevel
     {
         u32 a = 0; // canonical ends, in the direction the first triangle walks them
         u32 b = 0;
-        u32 face1 = 0; // walks a -> b
-        u32 face2 = 0; // walks b -> a
-        u32 iA1 = 0, iB1 = 0, iC1 = 0; // the first triangle's own vertices: a, b and the one beyond
-        u32 iB2 = 0, iA2 = 0, iD2 = 0; // the second's: b, a and the one beyond
+        u32 face1 = 0;
+        u32 face2 = 0;
+        u32 iA1 = 0, iB1 = 0, iC1 = 0;
+        u32 iB2 = 0, iA2 = 0, iD2 = 0;
         f32 height1 = 0.0f;
         f32 height2 = 0.0f;
     };
@@ -1310,8 +1240,6 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
         bevels.push_back(bevel);
     }
 
-    // Cut the four sides that lead away from each edge, where a line parallel to
-    // it and `width` away crosses them.
     std::vector<EdgeSplit> splits;
     std::unordered_map<u64, f32> tOf;
     auto addCut = [&](u32 from, u32 toward, f32 fraction) -> bool
@@ -1356,9 +1284,7 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
 
     for (const Bevel& bv : bevels)
     {
-        // Each bevel is finished before the next begins, so a triangle that
-        // touches two of them is refilled once and the second bevel sees the
-        // result of the first.
+        // Finish each bevel before the next so a triangle touching two is refilled once, seeing the first's result.
         std::vector<u8> removed(current.tri.size(), 0);
         std::vector<Tri> extraTris;
         std::vector<u32> extraSubmesh;
@@ -1370,7 +1296,6 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
         if (a1 == ~0u || b1 == ~0u || a2 == ~0u || b2 == ~0u)
             return fail(error, "a cut vertex went missing while bevelling");
 
-        // The strips between each old edge and its new line.
         auto inSet = [&](u32 vertex, u32 n1, u32 n2)
         {
             const u32 c = canonicalOf(vertex);
@@ -1387,9 +1312,6 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
                 removed[f] = 1;
         }
 
-        // The two old vertices go: what is left of the triangles around each is
-        // filled in again without it, from the new vertex on one side of the
-        // strip round to the new vertex on the other.
         for (const u32 old : {bv.a, bv.b})
         {
             struct Link
@@ -1398,7 +1320,7 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
                 u32 toIndex;
                 u32 face;
             };
-            std::unordered_map<u32, Link> nextOf; // canonical of the link edge's start
+            std::unordered_map<u32, Link> nextOf;
             std::unordered_set<u32> hasIncoming;
             std::vector<u32> wedge;
             for (u32 f = 0; f < current.tri.size(); ++f)
@@ -1435,7 +1357,7 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
             if (startCanonical == ~0u)
                 return fail(error, "the triangles around a bevelled vertex close into a ring");
 
-            std::vector<u32> path; // vertex indices along the link, start to end
+            std::vector<u32> path;
             u32 at = startCanonical;
             while (true)
             {
@@ -1469,14 +1391,12 @@ bool MeshEdit::bevel(MeshData& mesh, const std::vector<u64>& edgeKeys, f32 width
             }
         }
 
-        // The new face: a strip from the line on one side to the line on the other.
         const Math::vec3 n1 = Math::cross(mesh.positions[bv.iB1] - mesh.positions[bv.iA1],
                                         mesh.positions[bv.iC1] - mesh.positions[bv.iA1]);
         const Math::vec3 n2 = Math::cross(mesh.positions[bv.iA2] - mesh.positions[bv.iB2],
                                         mesh.positions[bv.iD2] - mesh.positions[bv.iB2]);
         const Math::vec3 outward = n1 + n2;
-        // The strip gets vertices of its own so it shades as a crisp face instead
-        // of blending into the faces it joins.
+        // The strip has its own vertices so it shades as a crisp face.
         std::array<u32, 4> quad = {lerpVertex(work, a1, a1, 0.0f), lerpVertex(work, b1, b1, 0.0f),
                                    lerpVertex(work, b2, b2, 0.0f), lerpVertex(work, a2, a2, 0.0f)};
         const Math::vec3 q = Math::cross(work.positions[quad[1]] - work.positions[quad[0]],
@@ -1549,12 +1469,8 @@ u32 MeshEdit::removeUnusedVertices(MeshData& mesh)
     return static_cast<u32>(count) - kept;
 }
 
-// ------------------------------------------------------------ fill and bridge
-
 namespace
 {
-// A border as the vertex indices its own triangles use, walked the way those
-// triangles walk it, and the submesh of the first of them.
 struct Border
 {
     std::vector<u32> canonical;
@@ -1562,7 +1478,6 @@ struct Border
     u32 submesh = 0;
 };
 
-// Every closed border loop of the mesh, with real vertex indices.
 std::vector<Border> collectBorders(const MeshData& mesh, const MeshTopology& topology, const Faces& faces)
 {
     std::vector<Border> borders;
@@ -1633,7 +1548,6 @@ bool MeshEdit::fillHoles(MeshData& mesh, const std::vector<u64>& edges, u32 maxE
             bool wanted = false;
             for (const u64 key : edges)
             {
-                // Edge keys name canonical ids, looked up as they stand now.
                 if (borderHasEdge(border, key))
                 {
                     wanted = true;
@@ -1649,8 +1563,6 @@ bool MeshEdit::fillHoles(MeshData& mesh, const std::vector<u64>& edges, u32 maxE
             continue;
         }
 
-        // The new face walks each border edge the opposite way to the triangle
-        // that has it: the border reversed.
         const usize n = border.canonical.size();
         std::vector<Math::vec3> points(n);
         std::vector<u32> indexOf(n);
@@ -1714,8 +1626,7 @@ bool MeshEdit::bridge(MeshData& mesh, const std::vector<u64>& edges, std::string
     const usize n1 = first.canonical.size();
     const usize n2 = second.canonical.size();
 
-    // The second border, turned round: two rings facing each other run opposite
-    // ways, and the strip pairs each vertex of one with the vertex across.
+    // Turn the second ring round: two facing rings run opposite ways.
     std::vector<u32> b(n2);
     std::vector<u32> bIndex(n2);
     for (usize i = 0; i < n2; ++i)
@@ -1724,7 +1635,6 @@ bool MeshEdit::bridge(MeshData& mesh, const std::vector<u64>& edges, std::string
         bIndex[i] = second.index[n2 - 1 - i];
     }
 
-    // Start the strip where the two rings lie closest: try every rotation.
     usize bestShift = 0;
     f32 bestCost = 1.0e30f;
     for (usize shift = 0; shift < n2; ++shift)
@@ -1746,7 +1656,6 @@ bool MeshEdit::bridge(MeshData& mesh, const std::vector<u64>& edges, std::string
     auto A = [&](usize i) { return first.index[i % n1]; };
     auto B = [&](usize j) { return bIndex[(bestShift + j) % n2]; };
 
-    // Walk both rings together, always advancing the one that is further behind.
     usize i = 0;
     usize j = 0;
     while (i < n1 || j < n2)
@@ -1770,8 +1679,6 @@ bool MeshEdit::bridge(MeshData& mesh, const std::vector<u64>& edges, std::string
     writeFaces(mesh, faces);
     return true;
 }
-
-// --------------------------------------------------------------------- mirror
 
 bool MeshEdit::mirror(MeshData& mesh, s32 axis, f32 offset, f32 weld, const std::vector<u32>& selected,
                       std::string* error)
@@ -1812,7 +1719,6 @@ bool MeshEdit::mirror(MeshData& mesh, s32 axis, f32 offset, f32 weld, const std:
         if (found != mirrored.end())
             return found->second;
 
-        // On the plane: the copy would land on the original, so share it.
         if (weld > 0.0f && std::abs(work.positions[vertex][axis] - offset) <= weld)
         {
             mirrored[vertex] = vertex;
@@ -1824,7 +1730,6 @@ bool MeshEdit::mirror(MeshData& mesh, s32 axis, f32 offset, f32 weld, const std:
             work.normals[copy][axis] = -work.normals[copy][axis];
         if (copy < work.tangents.size())
         {
-            // A reflection reverses handedness.
             work.tangents[copy][axis] = -work.tangents[copy][axis];
             work.tangents[copy].w = -work.tangents[copy].w;
         }
@@ -1845,8 +1750,6 @@ bool MeshEdit::mirror(MeshData& mesh, s32 axis, f32 offset, f32 weld, const std:
     return true;
 }
 
-// ----------------------------------------------------------------- submeshes
-
 bool MeshEdit::mergeSubmeshes(MeshData& mesh, const std::vector<u32>& submeshes, std::string* error)
 {
     std::vector<u32> parts = submeshes;
@@ -1861,7 +1764,6 @@ bool MeshEdit::mergeSubmeshes(MeshData& mesh, const std::vector<u32>& submeshes,
     Faces faces = readFaces(mesh);
     const u32 keep = parts.front();
 
-    // New position of every submesh once the joined ones are gone.
     std::vector<u32> newIndex(mesh.submeshes.size());
     u32 next = 0;
     for (u32 s = 0; s < mesh.submeshes.size(); ++s)
@@ -1883,8 +1785,6 @@ bool MeshEdit::mergeSubmeshes(MeshData& mesh, const std::vector<u32>& submeshes,
     return true;
 }
 
-// ---------------------------------------------------------------- polygons
-
 std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<Math::vec3>& points)
 {
     const usize n = points.size();
@@ -1892,7 +1792,6 @@ std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<M
     if (n < 3)
         return out;
 
-    // The plane the outline lies nearest to: Newell's normal.
     Math::vec3 normal(0.0f);
     for (usize i = 0; i < n; ++i)
     {
@@ -1904,14 +1803,12 @@ std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<M
     }
     if (Math::length(normal) < 1.0e-12f)
     {
-        // Degenerate outline: a fan is as good as anything.
         for (u32 i = 1; i + 1 < n; ++i)
             out.push_back({0, i, i + 1});
         return out;
     }
     normal = Math::normalize(normal);
 
-    // Project onto the two axes that best keep the shape.
     Math::vec3 u = Math::normalize(std::abs(normal.x) < 0.9f ? Math::cross(normal, Math::vec3(1, 0, 0))
                                                           : Math::cross(normal, Math::vec3(0, 1, 0)));
     const Math::vec3 v = Math::cross(normal, u);
@@ -1951,7 +1848,7 @@ std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<M
                 flattestAt = k;
             }
             if (area <= 1.0e-12f)
-                continue; // a reflex (or flat) corner is not an ear
+                continue;
             bool empty = true;
             for (const u32 other : ring)
             {

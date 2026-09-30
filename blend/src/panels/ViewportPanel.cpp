@@ -16,7 +16,6 @@ namespace
 Math::vec2 projectToScreen(const Math::vec3& worldPos, const Math::mat4& viewProjection,
                           const Math::vec2& imageMin, const Math::vec2& imageSize, bool& inFront);
 
-// Distance from `point` to the segment a-b, all in screen space.
 f32 distanceToSegment(const Math::vec2& point, const Math::vec2& a, const Math::vec2& b)
 {
     const Math::vec2 ab = b - a;
@@ -45,9 +44,7 @@ void ViewportPanel::setViewMode(usize index, ViewMode mode)
         return;
     mViewModes[index] = mode;
 
-    // Snap the fixed axis views to a sane default distance/target instead of
-    // whatever the previous mode's orbit left behind - Blender's own numpad
-    // views do not carry the perspective camera's distance across either.
+    // Fixed axis views reset to a default distance/target instead of keeping the previous orbit's.
     CameraState& camera = mCameras[index];
     if (mode != ViewMode::Perspective && camera.distance < 0.5f)
         camera.distance = 6.0f;
@@ -110,9 +107,7 @@ void ViewportPanel::RenderTarget::destroy()
     width = height = 0;
 }
 
-// The tool keys live here rather than with the application's own shortcuts
-// because mTool lives here - the panel owns which gizmo is up. Held off while
-// a drag is running so a stray key cannot swap the operation mid-move.
+// Tool keys live with mTool (the panel owns the gizmo); held off during a drag so a stray key can't swap the operation mid-move.
 void ViewportPanel::handleToolShortcuts()
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -191,11 +186,6 @@ void ViewportPanel::drawViewportControls()
     }
 }
 
-// Same shape as EditorApplication's own viewport toolbar
-// (editor/src/panels/ViewportPanel.cpp:395-429): a row of tool buttons, the
-// active one highlighted with ButtonActive, then Snap and Grid as separate
-// toggles. Move/Rotate/Scale have no gizmo behind them yet and Snap has
-// nothing to snap - only Select and Grid actually do anything today.
 void ViewportPanel::drawToolbar()
 {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.0f, ImGui::GetStyle().ItemSpacing.y));
@@ -349,9 +339,6 @@ void ViewportPanel::drawToolbar()
     ImGui::Dummy(ImVec2(10.0f, 0.0f));
     ImGui::SameLine();
 
-    // Each button toggles its own view on/off, same click-active-again
-    // convention as Snap/Grid/Shadeless above - not a separate "off" button
-    // to hunt for.
     struct DebugViewEntry
     {
         MiniDebugView view;
@@ -515,10 +502,7 @@ void ViewportPanel::drawFourWayLayout()
     ImGui::EndChild();
 }
 
-// Same spherical-offset camera EditorApplication's own ViewportPanel uses
-// (editor/src/panels/ViewportPanel.cpp: updateNavigation()/forward's own
-// sin/cos build), ported without the GameObject it normally writes into:
-// Alt+LMB orbits, MMB pans, RMB looks (perspective only), wheel zooms.
+// Spherical-offset camera: Alt+LMB orbits, MMB pans, RMB looks (perspective only), wheel zooms.
 void ViewportPanel::updateCameraNavigation(usize index, CameraState& camera, ViewMode mode)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -728,10 +712,7 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
         return;
     }
 
-    // The gizmo follows the mouse from view to view but stays put once it is
-    // there, rather than blinking out whenever the cursor leaves. A drag
-    // holds its own view until released, so pulling the handle across a
-    // neighbouring viewport does not hand the drag over mid-move.
+    // The gizmo follows the mouse between views but stays once there; a drag holds its view until released.
     if (!mGizmoDragging && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows))
         mGizmoViewport = static_cast<s32>(index);
     if (mGizmoViewport < 0)
@@ -747,8 +728,7 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
                                           : mTool == Tool::Rotate ? ImGuizmo::ROTATE
                                                                   : ImGuizmo::SCALE;
 
-    // Between drags the gizmo sits on the pivot with no rotation or scale of
-    // its own, so the matrix it hands back is exactly what the drag did.
+    // Between drags the gizmo has no rotation or scale of its own, so its returned matrix is exactly the drag.
     if (!mGizmoDragging)
         mGizmoMatrix = Math::translate(Math::mat4(1.0f), app().transformPivot());
 
@@ -781,19 +761,15 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
         mGizmoViewport = static_cast<s32>(index);
         mGizmoStartMatrix = mGizmoMatrix;
 
-        // What is moving, so the vertex snap never offers a vertex as its own target.
         mSnapMoving.assign(mesh->positions.size(), 0);
         for (const u32 vertex : app().gizmoVertices())
             if (vertex < mSnapMoving.size())
                 mSnapMoving[vertex] = 1;
-        // Nothing selected drags the whole mesh.
         if (app().gizmoVertices().empty())
             std::fill(mSnapMoving.begin(), mSnapMoving.end(), 1);
     }
 
-    // Ctrl while moving: drop the pivot onto the nearest vertex that is not
-    // moving, if one is close on screen - the way to land a vertex exactly on
-    // another (weld afterwards to join them).
+    // Ctrl while moving: snap the pivot to the nearest non-moving vertex close on screen (weld afterwards to join).
     if (mTool == Tool::Move && ImGui::GetIO().KeyCtrl && mSnapMoving.size() == mesh->positions.size())
     {
         const Math::mat4 viewProjection = projection * view;
@@ -841,10 +817,7 @@ void ViewportPanel::uploadVertexSelection(const MeshData& mesh, const BlenderSel
     if (vertexCount == 0)
         return;
 
-    // Three things have to still hold for the GPU copy to be current: the
-    // same mesh, the same selection, and no re-upload since - an edit in
-    // place keeps the pointer and the selection while replacing the buffer
-    // with a zeroed one, which would otherwise blank the highlight.
+    // The GPU copy is current only for the same mesh and selection with no re-upload since; an in-place edit keeps the pointer but swaps in a zeroed buffer.
     MiniRenderer& renderer = app().renderer();
     if (&mesh == mUploadedSelectionMesh && selection.revision() == mUploadedSelectionRevision &&
         renderer.meshUploadRevision() == mUploadedMeshRevision &&
@@ -907,15 +880,10 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const Math::mat4&
         }
     }
 
-    // Vertex points are no longer batched here: MiniRenderer draws them from
-    // the static vertex buffer in one call, with the selection as a stream of
-    // its own, so a 150k vertex mesh costs nothing per frame.
     if (drawVertexFace && selection.mode() == BlenderSelection::SelectionMode::Face)
     {
         const Math::vec4 highlight(viewportSettings.faceHighlightColor, viewportSettings.faceHighlightAlpha);
         const Math::vec4 edgeHighlight(viewportSettings.faceEdgeHighlightColor, 1.0f);
-        // Walking the selection, not every face in the mesh: the cost belongs
-        // to what is highlighted, not to how big the model is.
         const std::vector<u32>& selectedFaces = selection.selectedFaces();
         const u32 faceCount = static_cast<u32>(mesh->indices.size() / 3);
         for (usize s = 0; s < selectedFaces.size(); ++s)
@@ -941,8 +909,6 @@ void ViewportPanel::drawSelectionOverlay(const MeshData* mesh, const Math::mat4&
 
     if (drawEdges)
     {
-        // Every edge of the model, faintly, so there is something to aim at, and
-        // the selected ones over them in the selection colour.
         constexpr usize kMaxDrawnEdges = 400000;
         const MeshTopology& topology = app().topology();
         const Math::vec4 plain(0.72f, 0.74f, 0.78f, 1.0f);
@@ -1043,13 +1009,7 @@ Math::vec2 projectToScreen(const Math::vec3& worldPos, const Math::mat4& viewPro
 }
 } // namespace
 
-// Unprojects the depth buffer's own value at the candidate's screen pixel
-// back into a world-space point (the standard "read depth, rebuild world
-// position" trick), then compares distance-from-camera against the
-// candidate's own distance - projection-agnostic (works the same for the
-// perspective view and the orthographic Top/Front/etc ones), unlike
-// comparing raw window-space depth directly, whose non-linear precision
-// made every candidate read as "in front" regardless of true occlusion.
+// Rebuilds the world position from the depth value and compares camera distances: projection-agnostic, unlike raw window-space depth whose precision made everything read as in front.
 bool ViewportPanel::readDepthRect(const RenderTarget& target, const Math::vec2& localMin,
                                   const Math::vec2& localMax, DepthRect& out)
 {
@@ -1181,11 +1141,7 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
     const Math::vec2 rectMin(Math::min(mBoxSelectStart.x, current.x), Math::min(mBoxSelectStart.y, current.y));
     const Math::vec2 rectMax(Math::max(mBoxSelectStart.x, current.x), Math::max(mBoxSelectStart.y, current.y));
 
-    // One read for the whole operation, before any candidate is tested. A box
-    // covers the dragged rectangle; a click tests only the winner, but that
-    // winner is the nearest candidate within the pick radius below (10px for
-    // a vertex, 14 for a face), so the read has to reach that far from the
-    // cursor or the test falls outside the rect and rejects everything.
+    // One read before any candidate is tested; it must reach the pick radius (10px vertex, 14 face) from the cursor or a click's winner falls outside the rect.
     std::vector<bool> faceSelectable;
     std::vector<bool> vertexSelectable;
     app().buildSelectableMask(faceSelectable, vertexSelectable);
@@ -1214,8 +1170,6 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
 
         for (const MeshTopology::Edge& edge : topology.edges())
         {
-            // Reachable when at least one triangle on it is (a hidden part's
-            // edges stay out of the way, like its faces and vertices).
             bool selectable = false;
             for (const u32 face : edge.faces)
             {
@@ -1326,14 +1280,8 @@ void ViewportPanel::updateSelectionInput(usize index, const MeshData* mesh, cons
 
         if (!isBox)
         {
-            // A click picks the triangle the cursor is actually over, not the
-            // one whose centroid happens to be nearest. Comparing centroids
-            // means a big face has to be clicked near its middle, and a small
-            // one next to it wins anywhere else - on a floor made of two huge
-            // triangles, most of the floor selects nothing at all.
-            //
-            // The nearest hit along the ray is the one in front, so this needs
-            // no separate occlusion test: the depth read is for box select.
+            // A click picks the triangle under the cursor, not the nearest centroid (which makes big faces need clicking near the middle).
+            // The nearest ray hit is the one in front, so no occlusion test is needed.
             const Ray ray = rayFromScreen(current.x - imageMin.x, current.y - imageMin.y,
                                           imageSize.x, imageSize.y, inverseViewProjection);
 
