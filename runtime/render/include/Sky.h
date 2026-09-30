@@ -32,10 +32,7 @@ struct SkySettings
     f32 ambientStrength = 1.0f;
     f32 intensity = 1.0f;
 
-    // Runtime controls for a baked (HAS_LIGHTMAP) surface, applied in
-    // lit.frag on top of the lightmap sample. The bake already cooks in its
-    // own ambient, so these are the only knobs a lightmapped surface has at
-    // runtime - the defaults leave the sampled lightmap untouched.
+    // Runtime controls for a baked (HAS_LIGHTMAP) surface, applied in lit.frag on top of the lightmap sample; defaults leave it untouched.
     f32 lightmapIntensity = 1.0f;
     f32 lightmapShadowLift = 0.0f;
     f32 sunIntensity = 22.0f;
@@ -46,19 +43,14 @@ struct SkySettings
     u32 viewSteps = 16;
     u32 lightSteps = 8;
 
-    // Non-owning: AssetManager owns the texture, this only points at it. The
-    // name is what gets serialised - Engine::setSkyCubemap() re-resolves the
-    // handle from it on load.
+    // Non-owning: AssetManager owns the texture. The name is serialised; Engine::setSkyCubemap() re-resolves the handle on load.
     TextureHandle cubemap;
     std::string cubemapName;
 
-    // Where the sky panel looks for selectable cubemaps. A setting rather
-    // than a constant because the engine has no business knowing how a
-    // particular project lays its assets out.
+    // Where the sky panel looks for cubemaps; a setting because the engine does not know a project's asset layout.
     std::string cubemapDirectory = "skys";
 
-    // Cloud layer, composited on top of whichever background mode is active
-    // above (gradient, atmosphere or cubemap), not a mode of its own.
+    // Cloud layer composited over the active background mode, not a mode itself.
     bool cloudsEnabled = false;
     f32 cloudHeight = 2000.0f;
     f32 cloudScale = 0.0008f;
@@ -71,11 +63,7 @@ struct SkySettings
     void updateSun();
 };
 
-// Resolves the six faces through AssetManager and points `sky` at the
-// result, leaving `sky.mode` alone: picking which cubemap and deciding to
-// display it are separate choices, and restoring settings needs the first
-// without the second. False (and `sky` untouched) when the faces are
-// missing or fail to load.
+// Resolves the six faces through AssetManager and points `sky` at them, leaving `sky.mode` alone. False (sky untouched) when faces are missing or fail to load.
 bool loadSkyCubemap(SkySettings& sky, const std::string& baseName);
 
 RenderTechnique* createSkyPass();

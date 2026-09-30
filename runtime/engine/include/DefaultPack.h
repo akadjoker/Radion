@@ -6,16 +6,12 @@ namespace Radion
 
 class FileSystem;
 
-// The shaders and lens flare textures compiled into the binary, so a build
-// runs with no assets folder beside it. Mounted as a fallback, never as an
-// override: anything found through a search path wins, which is what keeps
-// editing a shader on disk working the way it always did.
+// Embedded shaders/textures, mounted as a fallback only: anything on a search path wins.
 class DefaultPack
 {
 public:
     static bool available();
-    // Safe to call on a build with nothing embedded - returns false and
-    // leaves `files` alone.
+    // Returns false and leaves `files` alone when nothing is embedded.
     static bool mount(FileSystem& files);
     // Bytes of the embedded pack, 0 when there is none.
     static unsigned long long size();

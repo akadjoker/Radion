@@ -121,8 +121,6 @@ bool finiteVec(const Math::vec3& v)
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
 
-// -------------------------------------------------------------- DistanceJoint
-
 void testDistanceJointHoldsFixedLength()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
@@ -145,7 +143,6 @@ void testDistanceJointRangeAllowsSlack()
     for (u32 i = 0; i < 6; ++i)
         stepWithJoint(anchor, weight, joint, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
 
-    // Well inside the range, gravity must pull it down unopposed.
     CHECK(weight.position().y < -0.01f);
 
     for (u32 i = 0; i < 600; ++i)
@@ -155,8 +152,6 @@ void testDistanceJointRangeAllowsSlack()
     CHECK(length <= 2.02f);
     CHECK(near(length, 2.0f, 0.02f));
 }
-
-// ----------------------------------------------------------------- FixedJoint
 
 void testFixedJointLocksAllSixDOF()
 {
@@ -171,8 +166,6 @@ void testFixedJointLocksAllSixDOF()
     CHECK(near(Math::length(plate.orientation() - Math::quat(1.0f, 0.0f, 0.0f, 0.0f)), 0.0f, 0.05f));
 }
 
-// ------------------------------------------------------------------ HingeJoint
-
 void testHingeJointFreeAboutItsAxisOnly()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
@@ -183,14 +176,12 @@ void testHingeJointFreeAboutItsAxisOnly()
     for (u32 i = 0; i < 30; ++i)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f), 1.0f / 60.0f);
 
-    // A torque about a locked axis (y) must not spin the body about that axis.
     CHECK(near(arm.angularVelocity().y, 0.0f, 0.05f));
 
     arm.addTorque(Math::vec3(0.0f, 0.0f, 5.0f));
     for (u32 i = 0; i < 30; ++i)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f), 1.0f / 60.0f);
 
-    // The hinge axis itself (z) is free to spin.
     CHECK(std::abs(arm.angularVelocity().z) > 0.05f);
 }
 
@@ -207,8 +198,6 @@ void testHingeJointMotorDrivesToTargetVelocity()
     CHECK(near(wheel.angularVelocity().z, 4.0f, 0.1f));
 }
 
-// A servo is commanded with an angle, not a speed: it drives there and then
-// holds, which is what a robot arm's axis does.
 void testHingeServoReachesAndHoldsItsAngle()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
@@ -218,37 +207,32 @@ void testHingeServoReachesAndHoldsItsAngle()
     const f32 target = 0.6f;
     joint.setServo(target, 200.0f);
     CHECK(joint.servoEnabled());
-    CHECK(joint.motorEnabled()); // the servo drives the velocity motor
+    CHECK(joint.motorEnabled());
 
-    // Under gravity, so holding is real work and not just the absence of it.
     for (u32 i = 0; i < 400; ++i)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
     CHECK(near(joint.currentAngle(), target, 0.02f));
 
-    // Still there 400 steps later, and not drifting or oscillating.
     const f32 settled = joint.currentAngle();
     for (u32 i = 0; i < 400; ++i)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
     CHECK(near(joint.currentAngle(), settled, 0.01f));
-    CHECK(std::abs(arm.angularVelocity().z) < 0.05f); // arrived, not still chasing
+    CHECK(std::abs(arm.angularVelocity().z) < 0.05f);
 
-    // A new target is followed without re-enabling anything: this is the
-    // call a command arriving over a socket would make.
     joint.setServo(-0.4f, 200.0f);
     for (u32 i = 0; i < 400; ++i)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
     CHECK(near(joint.currentAngle(), -0.4f, 0.02f));
 }
 
-// A target outside the joint's own limits is clamped into them, not chased
-// through them - btHingeConstraint::setMotorTarget() does the same.
+// A target outside the limits is clamped, not chased through them (as btHingeConstraint::setMotorTarget()).
 void testHingeServoClampsTargetToLimits()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
     RigidBody arm = makeDynamicBox(Math::vec3(1.0f, 0.0f, 0.0f), 1.0f, Math::vec3(0.5f));
     HingeJoint joint(anchor, arm, Math::vec3(0.5f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f));
     joint.setLimits(-0.3f, 0.5f);
-    joint.setServo(2.0f, 200.0f); // well past the upper limit
+    joint.setServo(2.0f, 200.0f);
 
     for (u32 i = 0; i < 400; ++i)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f), 1.0f / 60.0f);
@@ -256,21 +240,19 @@ void testHingeServoClampsTargetToLimits()
     CHECK(near(joint.currentAngle(), 0.5f, 0.03f));
 }
 
-// Bounded torque is what makes a servo a servo: too little of it and the
-// joint cannot lift its own load, which is a result a caller must be able to
-// see rather than have papered over.
+// Bounded torque: with too little the joint cannot lift its load, and a caller must see that.
 void testHingeServoRespectsItsTorqueBudget()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
     RigidBody arm = makeDynamicBox(Math::vec3(1.0f, 0.0f, 0.0f), 1.0f, Math::vec3(0.5f));
     HingeJoint joint(anchor, arm, Math::vec3(0.5f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f));
-    joint.setServo(1.2f, 0.2f); // nowhere near enough against a 10 m/s^2 pull
+    joint.setServo(1.2f, 0.2f);
 
     for (u32 i = 0; i < 400; ++i)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
 
-    CHECK(joint.currentAngle() < 1.2f - 0.1f); // fell short, as it should
-    CHECK(std::isfinite(joint.currentAngle())); // and did not explode trying
+    CHECK(joint.currentAngle() < 1.2f - 0.1f);
+    CHECK(std::isfinite(joint.currentAngle()));
 }
 
 void testSliderServoReachesAndHoldsItsPosition()
@@ -287,14 +269,7 @@ void testSliderServoReachesAndHoldsItsPosition()
     CHECK(std::abs(finger.velocity().x) < 0.05f);
 }
 
-// Measures the one number that decides whether this engine can carry a
-// walking robot: how far a chain of servo-held joints sags under load.
-//
-// Three links held straight out by servos, with a mass on the end - the
-// shape of a leg holding up its share of a body. A rigid chain keeps every
-// joint at its commanded angle; a chain solved by sequential impulses gives
-// a little, and how much is what a learned gait would end up exploiting.
-// Reported rather than merely asserted: the number is the point.
+// Servo sag of a chain of three servo-held links with an end mass (a leg holding its share of a body); reported, not merely asserted.
 void testServoChainSagUnderLoad()
 {
     RigidBody root = makeStaticBox(Math::vec3(0.0f));
@@ -307,8 +282,7 @@ void testServoChainSagUnderLoad()
     HingeJoint knee(link1, link2, Math::vec3(1.5f, 0.0f, 0.0f), axis);
     HingeJoint ankle(link2, load, Math::vec3(2.5f, 0.0f, 0.0f), axis);
 
-    // Held straight, with torque to spare and a rated speed of 2 rad/s -
-    // about 115 deg/s, in the range an industrial arm's axis actually moves.
+    // Rated speed 2 rad/s, about 115 deg/s.
     hip.setServo(0.0f, 2000.0f, 2.0f);
     knee.setServo(0.0f, 2000.0f, 2.0f);
     ankle.setServo(0.0f, 2000.0f, 2.0f);
@@ -318,9 +292,7 @@ void testServoChainSagUnderLoad()
     const f32 duration = 1.0f / 120.0f;
     const Math::vec3 gravity(0.0f, -10.0f, 0.0f);
 
-    // Swept against solver iterations on purpose. If the error shrinks as
-    // they go up, what is being measured is the solver failing to converge
-    // on a coupled chain - not the servo.
+    // Swept against solver iterations: error shrinking with them means solver convergence is measured, not the servo.
     f32 hipSag = 0.0f, kneeSag = 0.0f, ankleSag = 0.0f, tipDrop = 0.0f;
     f32 worstByIterations[3] = {0.0f, 0.0f, 0.0f};
     u32 sweepIndex = 0;
@@ -354,8 +326,7 @@ void testServoChainSagUnderLoad()
             for (RigidBody* body : bodies)
                 if (body->isDynamic())
                     body->integrateVelocity(duration);
-            // Only the second half counts, so the initial settle is not
-            // mistaken for the steady-state wobble.
+            // Only the second half counts, so the initial settle is not mistaken for wobble.
             if (step > 300)
                 worstHip = Math::max(worstHip, Math::degrees(std::abs(hip.currentAngle())));
         }
@@ -374,17 +345,12 @@ void testServoChainSagUnderLoad()
 
     CHECK(std::isfinite(hipSag) && std::isfinite(tipDrop));
 
-    // What the sweep showed, and what has to keep being true:
-    // the chain's error is the solver's convergence, so more iterations buy
-    // a stiffer chain. Measured 10.2 -> 3.4 -> 0.36 degrees at 8/32/128.
+    // Chain error is solver convergence: measured 10.2 -> 3.4 -> 0.36 degrees at 8/32/128 iterations.
     CHECK(worstByIterations[1] < worstByIterations[0]);
     CHECK(worstByIterations[2] < worstByIterations[1]);
-    // And at 128 the chain is stiff enough to carry a walking robot: under a
-    // degree of swing at the loaded joint. This is the bound that matters -
-    // if it ever fails, a robot built on this engine stopped being credible.
+    // At 128 the swing at the loaded joint must be under a degree, or a robot built on this engine is not credible.
     CHECK(worstByIterations[2] < 1.0f);
-    // The default 8 is a game setting, not a robotics one. Kept as a bound
-    // only to catch the chain turning to rubber outright.
+    // The default 8 is a game setting: the bound only catches the chain turning to rubber.
     CHECK(worstByIterations[0] < 15.0f);
 }
 
@@ -401,8 +367,6 @@ void testHingeJointKeepsAnchorTogether()
     CHECK(near(hingePointOnArm, Math::vec3(0.5f, 0.0f, 0.0f), 0.05f));
 }
 
-// ----------------------------------------------------------------- SliderJoint
-
 void testSliderJointMovesOnlyAlongItsAxis()
 {
     RigidBody rail = makeStaticBox(Math::vec3(0.0f));
@@ -412,10 +376,8 @@ void testSliderJointMovesOnlyAlongItsAxis()
     for (u32 i = 0; i < 60; ++i)
         stepWithJoint(rail, carriage, joint, Math::vec3(4.0f, -10.0f, 3.0f), 1.0f / 60.0f);
 
-    // Gravity's x/z components must not move the carriage off the rail.
     CHECK(near(carriage.position().x, 0.0f, 0.02f));
     CHECK(near(carriage.position().z, 0.0f, 0.02f));
-    // The y component, along the rail, must have fallen freely.
     CHECK(carriage.position().y < -1.0f);
     CHECK(near(Math::length(carriage.orientation() - Math::quat(1.0f, 0.0f, 0.0f, 0.0f)), 0.0f,
               0.02f));
@@ -431,8 +393,7 @@ void testSliderJointLimitsClampTravel()
     for (u32 i = 0; i < 300; ++i)
         stepWithJoint(rail, piston, joint, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
 
-    // The limit clamps the slide displacement, not the absolute position -
-    // the piston started at y=-0.2, so the floor sits at -0.2 + (-1.0).
+    // The limit clamps displacement, not position: started at y=-0.2, so the floor is -0.2 + (-1.0).
     CHECK(joint.currentPosition() >= -1.02f);
     CHECK(near(joint.currentPosition(), -1.0f, 0.03f));
     CHECK(near(piston.position().y, -1.2f, 0.03f));
@@ -451,8 +412,6 @@ void testSliderJointMotorDrivesToTargetVelocity()
     CHECK(near(piston.velocity().x, 3.0f, 0.05f));
 }
 
-// ----------------------------------------------------------------- PistonJoint
-
 void testPistonJointMovesAndSpinsOnlyAlongItsAxis()
 {
     RigidBody rail = makeStaticBox(Math::vec3(0.0f));
@@ -463,12 +422,9 @@ void testPistonJointMovesAndSpinsOnlyAlongItsAxis()
     for (u32 i = 0; i < 60; ++i)
         stepWithJoint(rail, strut, joint, Math::vec3(4.0f, -10.0f, 3.0f), 1.0f / 60.0f);
 
-    // Gravity's sideways components and a torque about a locked axis (x)
-    // must not move or spin the strut off the rail.
     CHECK(near(strut.position().x, 0.0f, 0.03f));
     CHECK(near(strut.position().z, 0.0f, 0.03f));
     CHECK(near(strut.angularVelocity().x, 0.0f, 0.05f));
-    // Free along y: falls, and a torque about y is free to spin it.
     CHECK(strut.position().y < -1.0f);
 }
 
@@ -489,8 +445,6 @@ void testPistonJointLinearMotorAndAngularLimitAreIndependent()
     CHECK(joint.currentAngle() >= -0.22f);
 }
 
-// -------------------------------------------------------------- UniversalJoint
-
 void testUniversalJointFreeAboutBothAxesOnly()
 {
     RigidBody yoke = makeStaticBox(Math::vec3(0.0f));
@@ -498,9 +452,7 @@ void testUniversalJointFreeAboutBothAxesOnly()
     UniversalJoint joint(yoke, shaft, Math::vec3(0.5f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f),
                         Math::vec3(0.0f, 0.0f, 1.0f));
 
-    // A torque about the shared perpendicular direction (x, locked by the
-    // ball-and-socket point but not one of the two free hinge axes) must
-    // not build up angular velocity there.
+    // A torque about the shared perpendicular (x, locked by the point) must not build angular velocity.
     shaft.addTorque(Math::vec3(5.0f, 0.0f, 0.0f));
     for (u32 i = 0; i < 30; ++i)
         stepWithJoint(yoke, shaft, joint, Math::vec3(0.0f), 1.0f / 60.0f);
@@ -540,13 +492,8 @@ void testUniversalJointMotorDrivesToTargetVelocity()
     CHECK(near(shaft.angularVelocity().y, 3.0f, 0.1f));
 }
 
-// ------------------------------------------------------------------ stress
-
 void testChainOfPointJointsHangsWithoutStretching()
 {
-    // Eight links hanging from a static anchor - the configuration every
-    // ragdoll limb reduces to. A chain solved link by link is where drift
-    // and stretch pile up first.
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
     std::vector<RigidBody> links(8);
     std::vector<RigidBody*> bodies = {&anchor};
@@ -573,8 +520,7 @@ void testChainOfPointJointsHangsWithoutStretching()
 
     for (const RigidBody& link : links)
         CHECK(finite(link));
-    // The chain is 8.5 anchors long; the last link further away than that
-    // means the joints stretched apart.
+    // The chain is 8.5 anchors long; a farther last link means the joints stretched.
     CHECK(Math::length(links.back().position()) < 9.0f);
     for (const PointJoint& joint : joints)
         CHECK(Math::length(joint.worldAnchorA() - joint.worldAnchorB()) < 0.05f);
@@ -582,8 +528,7 @@ void testChainOfPointJointsHangsWithoutStretching()
 
 void testExtremeMassRatioStaysTogether()
 {
-    // A 100:1 ratio across one joint - the light body gets almost the whole
-    // correction and is the first to be launched by an unstable solver.
+    // 100:1 across one joint: the light body takes the correction and is first launched by an unstable solver.
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
     RigidBody light = makeDynamicBox(Math::vec3(1.0f, 0.0f, 0.0f), 0.05f, Math::vec3(0.3f));
     RigidBody heavy = makeDynamicBox(Math::vec3(2.0f, 0.0f, 0.0f), 5.0f, Math::vec3(0.5f));
@@ -608,7 +553,6 @@ void testHingeLimitSurvivesBeingHammered()
     HingeJoint joint(anchor, arm, Math::vec3(0.5f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f));
     joint.setLimits(-0.5f, 0.5f);
 
-    // Fifty radians per second straight into the limit, repeatedly.
     for (u32 burst = 0; burst < 4; ++burst)
     {
         arm.setAngularVelocity(Math::vec3(0.0f, 0.0f, burst % 2 == 0 ? 50.0f : -50.0f));
@@ -633,8 +577,7 @@ void testHingeMotorAgainstLimitHoldsAtLimit()
     for (u32 step = 0; step < 300; ++step)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f), 1.0f / 60.0f);
 
-    // The motor pushes forever; the limit has to win and hold, with no
-    // windup that bursts through and no oscillation left.
+    // The limit must win against a forever-pushing motor, with no windup or leftover oscillation.
     CHECK(finite(arm));
     CHECK(near(joint.currentAngle(), 0.3f, 0.05f));
     CHECK(std::abs(arm.angularVelocity().z) < 0.5f);
@@ -642,8 +585,7 @@ void testHingeMotorAgainstLimitHoldsAtLimit()
 
 void testUniversalJointSurvivesParallelAxes()
 {
-    // Degenerate construction: both hinge axes identical, including the one
-    // case where the axis matches the fallback perpendicular's partner.
+    // Both hinge axes identical, including when the axis matches the fallback perpendicular's partner.
     const Math::vec3 axes[] = {Math::vec3(0.0f, 1.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f),
                               Math::vec3(1.0f, 0.0f, 0.0f)};
     for (const Math::vec3& axis : axes)
@@ -682,8 +624,7 @@ void testPointJointRecoversFromATeleport()
     for (u32 step = 0; step < 60; ++step)
         stepWithJoint(anchor, weight, joint, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
 
-    // Someone moves the body by hand, ten metres away - a scene edit, a
-    // respawn. The joint has to reel it back in instead of detonating.
+    // Body moved 10 m by hand (scene edit, respawn): the joint must reel it in, not detonate.
     weight.setPosition(weight.position() + Math::vec3(10.0f, 5.0f, -3.0f));
     for (u32 step = 0; step < 300; ++step)
     {
@@ -700,8 +641,7 @@ void testHingeMotorSurvivesVaryingTimestep()
     HingeJoint joint(anchor, wheel, Math::vec3(0.5f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f));
     joint.setMotor(4.0f, 20.0f);
 
-    // Frame spikes: the warm-start impulse scaling is exactly what breaks
-    // when the step keeps changing.
+    // Frame spikes break the warm-start impulse scaling.
     for (u32 step = 0; step < 300; ++step)
     {
         const f32 dt = step % 3 == 0 ? 1.0f / 30.0f : step % 3 == 1 ? 1.0f / 240.0f : 1.0f / 60.0f;
@@ -713,9 +653,7 @@ void testHingeMotorSurvivesVaryingTimestep()
 
 void testDynamicPairConservesLinearMomentum()
 {
-    // Two free bodies joined by a point joint, no gravity: every joint
-    // impulse is internal and equal-and-opposite, so the pair's total
-    // momentum must not drift.
+    // No gravity: joint impulses are internal and equal-opposite, so total momentum must not drift.
     RigidBody a = makeDynamicBox(Math::vec3(0.0f), 2.0f);
     RigidBody b = makeDynamicBox(Math::vec3(1.0f, 0.0f, 0.0f), 1.0f);
     a.setVelocity(Math::vec3(3.0f, 1.0f, -2.0f));
@@ -743,8 +681,6 @@ void testFixedJointHoldsUnderHeavyTorque()
         stepWithJoint(anchor, plate, joint, Math::vec3(0.0f), 1.0f / 60.0f);
         CHECK(finite(plate));
     }
-    // Torque against a weld deflects a little each step and is pulled back;
-    // it must not ratchet into a slow spin.
     Math::quat deviation = plate.orientation();
     if (deviation.w < 0.0f)
         deviation = -deviation;
@@ -753,8 +689,7 @@ void testFixedJointHoldsUnderHeavyTorque()
 
 void testPistonCombinedMotionHoldsItsAxis()
 {
-    // Both freedoms at once: sliding under gravity while an angular motor
-    // spins it - the strut case. The locked directions must not leak.
+    // Sliding under gravity while an angular motor spins it (the strut case): locked directions must not leak.
     RigidBody rail = makeStaticBox(Math::vec3(0.0f));
     RigidBody strut = makeDynamicBox(Math::vec3(0.0f));
     PistonJoint joint(rail, strut, Math::vec3(0.0f), Math::vec3(0.0f, 1.0f, 0.0f));
@@ -771,8 +706,6 @@ void testPistonCombinedMotionHoldsItsAxis()
     CHECK(near(std::abs(strut.angularVelocity().x), 0.0f, 0.1f));
 }
 
-// ------------------------------------------------------------------ MouseJoint
-
 void testMouseJointCarriesABodyToTheTarget()
 {
     RigidBody box = makeDynamicBox(Math::vec3(0.0f), 1.0f);
@@ -787,17 +720,13 @@ void testMouseJointCarriesABodyToTheTarget()
         stepJoints(bodies, 1, joints, 1, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
 
     CHECK(finite(box));
-    // A soft spring under gravity holds a little below the target; what it
-    // must not do is lag by much or keep swinging.
     CHECK(Math::length(box.position() - joint.target()) < 0.15f);
     CHECK(Math::length(box.velocity()) < 0.2f);
 }
 
 void testMouseJointForceCapCannotYankABody()
 {
-    // Five newtons cannot lift a 1 kg body out of 10 m/s^2 gravity, so the
-    // capped joint must lose - the body keeps falling instead of being
-    // teleported to the cursor.
+    // 5 N cannot lift 1 kg against 10 m/s^2, so the capped joint must lose, not teleport the body.
     RigidBody box = makeDynamicBox(Math::vec3(0.0f), 1.0f);
     MouseJoint joint(box, Math::vec3(0.0f));
     joint.setMaxForce(5.0f);
@@ -827,17 +756,12 @@ void testMouseJointSurvivesAFarTarget()
         stepJoints(bodies, 1, joints, 1, Math::vec3(0.0f), 1.0f / 60.0f);
         CHECK(finite(box));
     }
-    // The force cap turns a far target into a bounded chase, never a launch
-    // beyond it.
     CHECK(box.position().x < 520.0f);
 }
 
 void testMouseJointGrabsASleepingBodyInAWorld()
 {
-    // The exact grab-in-a-level scenario: a crate settled on the floor long
-    // enough to fall asleep, then grabbed. Everything runs through
-    // Scene::updatePhysics() with its fixed-step accumulator, not through the
-    // solver directly, because that is the path a demo actually takes.
+    // Crate asleep on the floor, then grabbed, through Scene::updatePhysics() with its fixed-step accumulator, as a demo does.
     Radion::Scene world;
     world.setGravity(Math::vec3(0.0f, -9.81f, 0.0f));
     world.setFixedStep(1.0f / 120.0f);
@@ -874,17 +798,11 @@ void testMouseJointGrabsASleepingBodyInAWorld()
     world.removeJoint(&joint);
 
     CHECK(finite(crate));
-    // Grabbed two metres up: a joint that cannot wake a sleeping body leaves
-    // the crate exactly where it slept.
+    // A joint that cannot wake a sleeping body leaves the crate where it slept.
     CHECK(crate.position().y > 1.0f);
 }
 
-// ---------------------------------------------------- Scene registration safety
-
-// A loose joint's destructor must pull it out of any Scene it was added to
-// directly (Scene::addJoint(), no GameObject involved) - otherwise the
-// Scene's own joint list outlives the memory it points at the moment this
-// scope ends.
+// A loose joint's destructor must unregister it from its Scene (Scene::addJoint(), no GameObject), or the Scene's list dangles.
 void testLoosePointJointDeregistersOnDestruction()
 {
     RigidBody a = makeStaticBox(Math::vec3(0.0f));
@@ -901,14 +819,7 @@ void testLoosePointJointDeregistersOnDestruction()
     CHECK(world.jointCount() == 0);
 }
 
-// std::vector<PointJoint> reallocates by moving its elements to new storage.
-// PointJoint is the one joint class other code (a chain, a car's wheel
-// mounts) keeps in a vector rather than one at a time, so its move
-// constructor is the one that actually runs here - every other joint test in
-// this file sidesteps that with an upfront reserve(). A reserve() upfront is
-// the supported way to keep several registered joints in one vector - with
-// no reallocation, nothing ever moves, and every joint stays registered (see
-// the next test for what a growth WITHOUT the reserve does instead).
+// std::vector<PointJoint> reallocation runs the move constructor; reserve() upfront is the supported way to keep joints registered (next test: without it).
 void testPointJointVectorGrowthKeepsSceneRegistrationCorrect()
 {
     Radion::Scene world;
@@ -917,8 +828,6 @@ void testPointJointVectorGrowthKeepsSceneRegistrationCorrect()
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
     world.addBody(anchor);
 
-    // Reserved up front - RigidBody's own pointer stability across a vector
-    // growth is a separate concern, covered in DynamicsTests.cpp.
     std::vector<RigidBody> links;
     links.reserve(6);
     std::vector<PointJoint> joints;
@@ -944,14 +853,7 @@ void testPointJointVectorGrowthKeepsSceneRegistrationCorrect()
         CHECK(Math::length(joint.worldAnchorA() - joint.worldAnchorB()) < 0.1f);
 }
 
-// The unsupported counterpart to the test above, with no reserve() on
-// `joints`: every emplace_back past the small starting capacity reallocates
-// and moves the existing joints, and Joint::moveJointStateFrom() deregisters
-// each one from the Scene rather than leave a dangling mJoints entry pointing
-// at the freed old buffer. The guarantee this checks is narrower than "it
-// still works" - only that it fails SAFELY (no crash, no stale pointer ever
-// dereferenced by stepPhysics(), the count exactly matches what survived)
-// rather than corrupting the Scene.
+// No reserve(): reallocation deregisters moved joints (Joint::moveJointStateFrom()); must fail SAFELY: no stale pointer in stepPhysics(), count matches survivors.
 void testPointJointVectorGrowthWithoutReserveDropsRegistrationSafely()
 {
     Radion::Scene world;
@@ -980,8 +882,6 @@ void testPointJointVectorGrowthWithoutReserveDropsRegistrationSafely()
         CHECK(finite(link));
 }
 
-// ------------------------------------------------------------- warm start energy
-
 void testWarmStartDoesNotInjectEnergy()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
@@ -1000,8 +900,6 @@ void testWarmStartDoesNotInjectEnergy()
     CHECK(maxSpeed < 8.0f);
 }
 
-// ------------------------------------------------------------------ WheelJoint
-
 RigidBody makeChassis()
 {
     RigidBody body;
@@ -1017,11 +915,7 @@ RigidBody makeWheel(const Math::vec3& position)
     body.setPosition(position);
     body.setMass(15.0f);
     body.setInertiaTensor(Inertia::box(15.0f, Math::vec3(0.3f, 0.3f, 0.3f)));
-    // These tests drive the body directly, without a Scene to manage the
-    // joint's sleep island (Scene::addJoint wakes both bodies and keeps
-    // them awake together) - without this the body falls asleep the
-    // moment it settles, and the spring keeps nudging a velocity that no
-    // longer gets integrated.
+    // No Scene manages the joint's sleep island, so keep the body awake or it sleeps on settling and the spring nudges a velocity that is no longer integrated.
     body.setCanSleep(false);
     return body;
 }
@@ -1031,9 +925,7 @@ void testSuspensionSettlesAtRestLength()
     RigidBody chassis = makeChassis();
     RigidBody wheel = makeWheel(Math::vec3(0.0f, 0.3f, 0.0f));
 
-    // Anchor at the wheel's own centre: no lever arm on the wheel side, so
-    // free rotation about the spin axis (nothing constrains it) can't couple
-    // into the wheel's linear velocity through a stray arm.
+    // Anchor at the wheel's centre: no lever arm couples free spin into linear velocity.
     WheelJoint wheelJoint(chassis, wheel, wheel.position(), Math::vec3(0.0f, -1.0f, 0.0f),
                          Math::vec3(1.0f, 0.0f, 0.0f));
     wheelJoint.setSuspension(0.5f, 4000.0f, 400.0f);
@@ -1050,17 +942,11 @@ void testSuspensionSettlesAtRestLength()
         wheelJoint.solvePosition(0.2f);
     }
 
-    // Settled: travel close to the spring's equilibrium (rest length plus the
-    // extra compression gravity holds it at), not still falling.
     CHECK(std::fabs(wheelJoint.suspensionTravel() - 0.529f) < 0.02f);
     CHECK(std::fabs(wheel.velocity().y) < 0.05f);
 }
 
-// A real car's springs are stiff: 1500 kg sitting 20 cm into its travel is
-// around 75 kN/m per corner. An explicitly integrated spring has a stability
-// ceiling in k*dt^2/m and blows up above it; solved as a constraint row
-// there is no ceiling. This sweeps stiffness by decades and reports where,
-// if anywhere, it stops settling.
+// Real car springs are stiff (~75 kN/m per corner); an explicit spring blows up above k*dt^2/m, a constraint row has no ceiling. Sweeps stiffness by decades.
 void testSuspensionHoldsStiffSprings()
 {
     const f32 dt = 1.0f / 120.0f;
@@ -1072,8 +958,7 @@ void testSuspensionHoldsStiffSprings()
         RigidBody wheel = makeWheel(Math::vec3(0.0f, 0.3f, 0.0f));
         WheelJoint wheelJoint(chassis, wheel, wheel.position(), Math::vec3(0.0f, -1.0f, 0.0f),
                              Math::vec3(1.0f, 0.0f, 0.0f));
-        // Damping kept at a tenth of stiffness, the ratio the existing
-        // settling test uses, so only one thing changes across the sweep.
+        // Damping at a tenth of stiffness, as the existing settling test, so only one thing changes.
         wheelJoint.setSuspension(0.5f, stiffness, stiffness * 0.1f);
 
         for (int i = 0; i < 600; ++i)
@@ -1096,9 +981,7 @@ void testSuspensionHoldsStiffSprings()
                     static_cast<double>(speed), settled ? "" : "   NOT SETTLED");
     }
 
-    // Every stiffness in the sweep has to settle. A spring solved in the
-    // constraint has no step-size limit, so failing here means the row
-    // stopped being solved implicitly.
+    // Every stiffness must settle; failure means the row stopped being solved implicitly.
     CHECK(allSettled);
 }
 
@@ -1129,11 +1012,7 @@ void testSteeringMotorTurnsWithinLimits()
     CHECK(wheelJoint.steeringAngle() > 0.0f);
 }
 
-// A zero axis is a caller mistake, and Math::normalize(vec3(0)) is NaN. The
-// setters always refused one; the constructors did not, so the C++ path had
-// a hole the editor path never had - and a NaN axis does not stay in its own
-// joint, it goes out through the impulses into both bodies and from there
-// into everything they touch.
+// A zero axis normalises to NaN and spreads through the impulses into both bodies; setters refused it, constructors must too.
 void testJointsRejectDegenerateAxes()
 {
     const Math::vec3 zero(0.0f);
@@ -1183,11 +1062,6 @@ void testJointsRejectDegenerateAxes()
     }
 }
 
-// ---------------------------------------------------------- servo edge cases
-//
-// The values a caller gets wrong, a script sends by accident, or a save file
-// arrives with. None of these may crash, produce NaN, or silently do
-// something other than what was asked.
 void testServoRejectsNonFiniteInput()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
@@ -1197,7 +1071,6 @@ void testServoRejectsNonFiniteInput()
     joint.setServo(0.5f, 100.0f, 2.0f);
     const f32 good = joint.servoTargetAngle();
 
-    // Each of these must leave the last good setting standing.
     const f32 nan = std::numeric_limits<f32>::quiet_NaN();
     const f32 inf = std::numeric_limits<f32>::infinity();
     joint.setServo(nan, 100.0f, 2.0f);
@@ -1213,8 +1086,6 @@ void testServoRejectsNonFiniteInput()
     CHECK(finiteVec(arm.angularVelocity()));
 }
 
-// Zero torque is the documented way to switch a motor off, and a servo has
-// to honour it rather than driving with no budget.
 void testServoWithNoTorqueIsOff()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
@@ -1227,12 +1098,10 @@ void testServoWithNoTorqueIsOff()
 
     for (u32 i = 0; i < 240; ++i)
         stepWithJoint(anchor, arm, joint, Math::vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
-    // Free to fall under gravity: nothing is holding it up.
     CHECK(joint.currentAngle() < 0.0f);
     CHECK(std::isfinite(joint.currentAngle()));
 }
 
-// A zero-length step is what a paused editor hands the solver.
 void testServoSurvivesZeroTimestep()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
@@ -1248,16 +1117,14 @@ void testServoSurvivesZeroTimestep()
     CHECK(finiteVec(arm.position()));
 }
 
-// Limits given the wrong way round, and a target inside the inverted pair.
-// setLimits() clamps each side into its own half, so this cannot open a hole
-// the servo would fall through - but it must not spin or NaN either.
+// setLimits() clamps each side into its own half, so inverted limits open no hole; no spin or NaN either.
 void testServoWithInvertedLimits()
 {
     RigidBody anchor = makeStaticBox(Math::vec3(0.0f));
     RigidBody arm = makeDynamicBox(Math::vec3(1.0f, 0.0f, 0.0f), 1.0f, Math::vec3(0.5f));
     HingeJoint joint(anchor, arm, Math::vec3(0.5f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f));
 
-    joint.setLimits(0.8f, -0.8f); // backwards on purpose
+    joint.setLimits(0.8f, -0.8f);
     joint.setServo(0.4f, 200.0f, 2.0f);
 
     for (u32 i = 0; i < 300; ++i)
@@ -1268,8 +1135,7 @@ void testServoWithInvertedLimits()
     CHECK(finiteVec(arm.angularVelocity()));
 }
 
-// Suspension with damping but no spring: a pure damper, which is a valid
-// setup and used to be the one branch that skipped the spring entirely.
+// Damping without spring: a pure damper, a valid setup.
 void testSuspensionDamperWithoutSpring()
 {
     RigidBody chassis = makeChassis();
@@ -1294,14 +1160,13 @@ void testSuspensionDamperWithoutSpring()
     CHECK(finiteVec(wheel.position()));
 }
 
-// A wheel joint whose two axes are parallel - the one case the constructor's
-// own comment says must be avoided. It has to degrade, not explode.
+// Parallel wheel axes, which the constructor's comment says to avoid: must degrade, not explode.
 void testWheelJointWithDegenerateAxes()
 {
     RigidBody chassis = makeChassis();
     RigidBody wheel = makeWheel(Math::vec3(0.0f, 0.5f, 0.0f));
     WheelJoint wheelJoint(chassis, wheel, wheel.position(), Math::vec3(0.0f, -1.0f, 0.0f),
-                         Math::vec3(0.0f, -1.0f, 0.0f)); // spin axis == suspension axis
+                         Math::vec3(0.0f, -1.0f, 0.0f));
     wheelJoint.setSuspension(0.5f, 4000.0f, 400.0f);
     wheelJoint.setSpinMotor(10.0f, 100.0f);
 
@@ -1322,9 +1187,6 @@ void testWheelJointWithDegenerateAxes()
     CHECK(finiteVec(wheel.angularVelocity()));
 }
 
-// A steering wheel is turned to an angle, not spun at a speed. The rack
-// reaches the commanded angle, holds it, follows a new one, and refuses to
-// be sent past its own stops.
 void testSteeringServoHoldsCommandedAngle()
 {
     RigidBody chassis = makeChassis();
@@ -1349,22 +1211,18 @@ void testSteeringServoHoldsCommandedAngle()
         }
     };
 
-    // 4 rad/s is a fast rack; a road car's is slower, a racing one faster.
     wheelJoint.setSteeringServo(Math::radians(20.0f), 600.0f, 4.0f);
     CHECK(wheelJoint.steeringServoEnabled());
     drive(240);
     CHECK(near(wheelJoint.steeringAngle(), Math::radians(20.0f), 0.02f));
 
-    // Holds: still there after as long again.
     drive(240);
     CHECK(near(wheelJoint.steeringAngle(), Math::radians(20.0f), 0.02f));
 
-    // Steer the other way, without re-enabling anything.
     wheelJoint.setSteeringServo(Math::radians(-25.0f), 600.0f, 4.0f);
     drive(360);
     CHECK(near(wheelJoint.steeringAngle(), Math::radians(-25.0f), 0.02f));
 
-    // Past the stops: clamped to the limit, not driven through it.
     wheelJoint.setSteeringServo(Math::radians(80.0f), 600.0f, 4.0f);
     drive(480);
     CHECK(wheelJoint.steeringAngle() <= Math::radians(36.0f));
@@ -1393,7 +1251,6 @@ void testSpinMotorDrivesWheelWithoutLimit()
         wheelJoint.solvePosition(0.2f);
     }
 
-    // Free to spin without bound: should reach close to the target speed.
     CHECK(std::fabs(wheelJoint.spinAngularVelocity() - 20.0f) < 2.0f);
 }
 

@@ -32,9 +32,7 @@ AABB boxAt(const Math::vec3& center, const Math::vec3& half)
     return box;
 }
 
-// The answer the tree has to agree with, every time. A hierarchy that is
-// merely fast is worth nothing; the only property that matters is that it
-// returns exactly what a full scan would.
+// Brute-force reference the tree must agree with exactly.
 std::vector<u32> bruteForce(const std::vector<AABB>& items, const AABB& query)
 {
     std::vector<u32> out;
@@ -60,9 +58,7 @@ bool sameSet(std::vector<u32> a, std::vector<u32> b)
     return a == b;
 }
 
-// Everything in `candidates` really is a candidate and nothing was lost: the
-// tree's contract is a superset, so the property to check is containment, not
-// equality.
+// The tree's contract is a superset: check containment, not equality.
 bool containsAll(std::vector<u32> candidates, std::vector<u32> answer)
 {
     std::sort(candidates.begin(), candidates.end());
@@ -70,9 +66,7 @@ bool containsAll(std::vector<u32> candidates, std::vector<u32> answer)
     return std::includes(candidates.begin(), candidates.end(), answer.begin(), answer.end());
 }
 
-// The exact test the tree deliberately leaves to the caller. Doing it here is
-// what turns candidates into the answer, and comparing THAT against brute
-// force is what proves the tree drops nothing.
+// The exact test left to the caller; comparing it with brute force proves the tree drops nothing.
 template <typename Shape>
 std::vector<u32> filtered(const BoundsTree& tree, const std::vector<u32>& candidates,
                           const Shape& shape)
@@ -84,9 +78,7 @@ std::vector<u32> filtered(const BoundsTree& tree, const std::vector<u32>& candid
     return out;
 }
 
-// Spread out, all in one place, and a mix - the three shapes a real scene
-// takes, and the ones that tell the structures apart. Clustered is the case a
-// sweep-and-prune collapses on and the one a tower of boxes actually is.
+// Clustered is the case sweep-and-prune collapses on.
 enum class Layout
 {
     Spread,
@@ -138,14 +130,11 @@ f64 milliseconds(std::chrono::steady_clock::time_point start)
     return std::chrono::duration<f64, std::milli>(end - start).count();
 }
 
-// ----------------------------------------------------------- correctness
-
 void testEmptyAndSingle()
 {
     BoundsTree tree;
     std::vector<u32> out;
 
-    // Nothing in it must answer nothing, not crash and not return garbage.
     CHECK(!tree.valid());
     tree.queryCandidates(boxAt(Math::vec3(0.0f), Math::vec3(1.0f)), out);
     CHECK(out.empty());
@@ -182,8 +171,6 @@ void testMatchesBruteForce()
             const AABB query = boxAt(center, Math::vec3(1.0f + std::abs(unit(rng)) * 20.0f));
             tree.queryCandidates(query, out);
             const std::vector<u32> answer = bruteForce(items, query);
-            // Nothing real may be missing from the candidates, and filtering
-            // them has to land exactly on the answer.
             if (!containsAll(out, answer) || !sameSet(filtered(tree, out, query), answer))
             {
                 std::fprintf(stderr, "  layout %u trial %u: tree and brute force disagree\n",
@@ -193,8 +180,7 @@ void testMatchesBruteForce()
             }
         }
 
-        // A query covering everything has to return everything - the simplest
-        // way to catch a leaf that was built but never linked in.
+        // Catches a leaf that was built but never linked in.
         AABB everything;
         for (const AABB& item : items)
             everything.merge(item);
@@ -224,8 +210,6 @@ void testFrustumMatchesBruteForce()
 
         tree.queryCandidates(frustum, out);
         const std::vector<u32> answer = bruteForce(items, frustum);
-        // The fully-inside shortcut must not drop anything a plane test would
-        // have accepted.
         if (!containsAll(out, answer) || !sameSet(filtered(tree, out, frustum), answer))
         {
             std::fprintf(stderr, "  frustum trial %u: tree and brute force disagree (%zu vs %zu)\n",
@@ -243,8 +227,7 @@ void testRefitKeepsAnswersRight()
     tree.build(items.data(), static_cast<u32>(items.size()));
     const u32 nodesBefore = tree.nodeCount();
 
-    // Move everything, then refit. The answers still have to be exact - a
-    // refit that leaves one node's box stale drops items silently.
+    // A refit that leaves one node's box stale drops items silently.
     std::mt19937 rng(5);
     std::uniform_real_distribution<f32> unit(-1.0f, 1.0f);
     for (AABB& item : items)
@@ -254,7 +237,6 @@ void testRefitKeepsAnswersRight()
         item.max += shift;
     }
     CHECK(tree.refit(items.data(), static_cast<u32>(items.size())));
-    // Refit must not change the shape - that is the whole point of it.
     CHECK(tree.nodeCount() == nodesBefore);
 
     std::vector<u32> out;
@@ -273,15 +255,12 @@ void testRefitKeepsAnswersRight()
         }
     }
 
-    // A different number of items cannot be refitted onto this shape, and
-    // saying so beats answering from a tree that no longer describes them.
     CHECK(!tree.refit(items.data(), static_cast<u32>(items.size()) - 1));
 }
 
 void testDegenerateInputs()
 {
-    // Every box in the same place: the centres never separate, so a split
-    // that only trusts the midpoint would recurse forever on the same set.
+    // Identical centres never separate: a midpoint-only split would recurse forever.
     std::vector<AABB> stacked(64, boxAt(Math::vec3(1.0f), Math::vec3(0.5f)));
     BoundsTree tree;
     tree.build(stacked.data(), static_cast<u32>(stacked.size()));
@@ -293,7 +272,6 @@ void testDegenerateInputs()
     tree.queryCandidates(boxAt(Math::vec3(1.0f), Math::vec3(0.1f)), out);
     CHECK(out.size() == stacked.size());
 
-    // Boxes of zero size are points, and still have to be found.
     std::vector<AABB> points;
     for (u32 i = 0; i < 100; ++i)
     {
@@ -308,9 +286,6 @@ void testDegenerateInputs()
 
 void testQualityRisesAsThingsMove()
 {
-    // The measure that says when a refit has stopped being good enough.
-    // Scattering the items without rebuilding has to make it worse, and a
-    // rebuild has to bring it back - otherwise there is no signal to act on.
     std::vector<AABB> items = makeItems(Layout::Spread, 4000, 3);
     BoundsTree tree;
     tree.build(items.data(), static_cast<u32>(items.size()));
@@ -340,8 +315,6 @@ void testQualityRisesAsThingsMove()
     CHECK(decayed > fresh);
     CHECK(after < decayed);
 }
-
-// ------------------------------------------------------------- measurement
 
 void benchmark()
 {
@@ -374,9 +347,7 @@ void benchmark()
                                               unit(rng) * 200.0f),
                                     Math::vec3(10.0f)));
 
-        // Timed with the caller's own filtering included, because that is
-        // what a real query costs - measuring only the traversal would flatter
-        // the tree by leaving out work it deliberately hands back.
+        // Timed with the caller's filtering included; traversal alone would flatter the tree.
         std::vector<u32> out;
         start = std::chrono::steady_clock::now();
         usize found = 0;
@@ -397,8 +368,6 @@ void benchmark()
                     ++bruteFound;
         const f64 bruteMs = milliseconds(start) / static_cast<f64>(queries.size());
 
-        // The measurement is worthless if the two disagree, so it is checked
-        // rather than assumed.
         CHECK(found == bruteFound);
 
         std::fprintf(stderr, "  %-10s %7.2fms %7.3fms %8.4fms %8.4fms %8.1f\n",

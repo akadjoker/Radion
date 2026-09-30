@@ -1,7 +1,3 @@
-// SceneCollisionTests.cpp - Radion::Collider and Radion::CollisionWorld
-// against real Scene/GameObject state: attachment, world bounds, broad+narrow
-// phase contacts, the type pair table, and the serializer round trip.
-
 #include "PCH.h"
 
 #include "Collider.h"
@@ -40,9 +36,7 @@ bool near(const Math::vec3& a, const Math::vec3& b, f32 epsilon = 1e-3f)
     return Math::length(a - b) <= epsilon;
 }
 
-// A flat, world-space quad at y = 0 spanning [-5, 5] on X and Z, wound so its
-// face normal points straight up - the smallest mesh Collider::setMesh()
-// needs a TriangleOctree for.
+// Flat world-space quad at y = 0 spanning [-5, 5] in X and Z, normal up.
 void buildGroundOctree(TriangleOctree& octree)
 {
     CollisionMesh mesh;
@@ -86,7 +80,6 @@ GameObject* makeCapsuleWall(Scene& scene, const char* name, const Math::vec3& ce
     return object;
 }
 
-// 1. Attaching a Collider and reading it back through getComponent<T>().
 void testAttachAndReadBackComponent()
 {
     Scene scene;
@@ -106,8 +99,6 @@ void testAttachAndReadBackComponent()
     CHECK(near(fetched->height(), 1.8f));
 }
 
-// 2. World bounds follow the owner's transform after moving and scaling it,
-// for both a box and a sphere, the sphere ending on a non-uniform scale.
 void testWorldBoundsFollowTransform()
 {
     Scene scene;
@@ -143,8 +134,6 @@ void testWorldBoundsFollowTransform()
     CHECK(near(ballCollider->worldBounds().extents(), Math::vec3(1.5f, 0.5f, 0.5f)));
 }
 
-// 3. Two overlapping spheres on an enabled pair produce one contact on each
-// collider, with the normal actually pointing from one towards the other.
 void testOverlappingSpheresProduceDirectionalContacts()
 {
     Scene scene;
@@ -178,8 +167,6 @@ void testOverlappingSpheresProduceDirectionalContacts()
     }
 }
 
-// 4. The same overlapping pair, but the type pair was never enabled: zero
-// contacts, no matter how deep the overlap.
 void testUnregisteredPairProducesNoContacts()
 {
     Scene scene;
@@ -201,8 +188,6 @@ void testUnregisteredPairProducesNoContacts()
     CHECK(colliderB->contactCount() == 0);
 }
 
-// 5. disable() after enable() stops the contacts the same pair used to
-// produce.
 void testDisableAfterEnableStopsContacts()
 {
     Scene scene;
@@ -229,8 +214,6 @@ void testDisableAfterEnableStopsContacts()
     CHECK(colliderB->contactCount() == 0);
 }
 
-// 6. Sphere vs box and capsule vs sphere each produce a contact - proves the
-// Narrowphase wiring reaches those shape pairs, not only sphere vs sphere.
 void testSphereVsBoxAndCapsuleVsSphere()
 {
     Scene scene;
@@ -268,7 +251,6 @@ void testSphereVsBoxAndCapsuleVsSphere()
     CHECK(sphereCapsuleCollider->contactCount() == 1);
 }
 
-// 7. A Mesh collider reports a contact against a sphere overlapping it.
 void testMeshColliderReportsContactAgainstSphere()
 {
     TriangleOctree ground;
@@ -296,15 +278,12 @@ void testMeshColliderReportsContactAgainstSphere()
     if (ballCollider->contactCount() >= 1)
     {
         CHECK(ballCollider->contactAt(0).other == groundCollider);
-        // Resting on top of the ground: push-out points up.
         CHECK(ballCollider->contactAt(0).normal.y > 0.0f);
     }
     if (groundCollider->contactCount() >= 1)
         CHECK(groundCollider->contactAt(0).normal.y < 0.0f);
 }
 
-// 8. Contacts are cleared between steps, not accumulated: a step where the
-// objects are apart after a step where they touched reports zero.
 void testContactsAreClearedBetweenSteps()
 {
     Scene scene;
@@ -332,9 +311,7 @@ void testContactsAreClearedBetweenSteps()
     CHECK(colliderB->contactCount() == 0);
 }
 
-// 9. Serializer round trip: a Collider of each shape kind, a type and a
-// response survive toJson()/fromJson(). Objects are added to a Scene
-// lazily, so scene.update() runs once before serializing.
+// Objects join a Scene lazily, so scene.update() runs once before serializing.
 void testSerializerRoundTripForEveryShapeKind()
 {
     TriangleOctree dummyOctree;
@@ -419,8 +396,6 @@ void testSerializerRoundTripForEveryShapeKind()
     }
 }
 
-// 10. Nothing between from and to: moveSphere hands back the destination
-// untouched.
 void testFreeMoveReturnsDestinationUnchanged()
 {
     Scene scene;
@@ -435,9 +410,7 @@ void testFreeMoveReturnsDestinationUnchanged()
     CHECK(!result.collided);
 }
 
-// 11. Stop rejects the whole proposed step the instant any part of [from,
-// to] would cross the target, not just the fraction past the surface - the
-// mover never advances past `from`.
+// Stop rejects the whole step if any part of [from, to] crosses the target; the mover never advances past `from`.
 void testStopAgainstWallStaysAtStart()
 {
     Scene scene;
@@ -455,11 +428,7 @@ void testStopAgainstWallStaysAtStart()
     CHECK(result.position.x < 2.4f);
 }
 
-// 12. Slide against a single wall: moving diagonally into it keeps the
-// tangential (Y) component exactly and reduces the normal (X) component to
-// just short of the surface. Hand-verified: hit at t = 0.48, hitPos =
-// (2.4, 2.4, 0), normal = (-1, 0, 0); the tangential projection leaves Y
-// untouched at 5.0 and clips X to 2.4 minus the epsilon push-out.
+// Hand-verified: hit t = 0.48, hitPos (2.4, 2.4, 0), normal (-1, 0, 0); Y stays 5.0, X clips to 2.4 minus the epsilon push-out.
 void testSlideAlongWallKeepsTangentLosesNormal()
 {
     Scene scene;
@@ -476,13 +445,7 @@ void testSlideAlongWallKeepsTangentLosesNormal()
     CHECK(near(result.lastNormal, Math::vec3(-1.0f, 0.0f, 0.0f)));
 }
 
-// 13. SlideXZ decides whether to clamp from the XZ length alone: a curved
-// wall hit early on an almost-vertical path redistributes most of the
-// motion into X, so the XZ length balloons far past the original XZ
-// distance (0.2) while the full 3D length (5.69) still fits under the
-// plain-Slide budget (10.0). SlideXZ clamps the whole vector down; plain
-// Slide on the identical geometry does not clamp at all. Numbers are the
-// study's own formula run by hand (scratchpad sim.py in this task).
+// Curved wall on an almost-vertical path: XZ length balloons past 0.2 while the 3D length (5.69) fits the plain-Slide budget (10.0); SlideXZ clamps, Slide does not.
 void testSlideXZClampsHorizontallyNotVertically()
 {
     Scene scene;
@@ -508,11 +471,7 @@ void testSlideXZClampsHorizontallyNotVertically()
     CHECK(result.position.y < plainResult.position.y);
 }
 
-// 14. Two walls meeting at 90 degrees: pushed in diagonally, the mover
-// registers both planes (hitCount == 2), never crosses either wall's
-// inflated face, and settles - a second identical move from the result
-// advances it by less than a small epsilon, proving the plane history (not
-// a fresh, oscillating re-derivation) is what is remembered between calls.
+// Two walls at 90 degrees: both planes registered (hitCount == 2); a second identical move advances less than epsilon, so plane history is remembered.
 void testCornerRestsWithoutOscillating()
 {
     Scene scene;
@@ -533,8 +492,6 @@ void testCornerRestsWithoutOscillating()
     CHECK(Math::distance(second.position, first.position) < 0.01f);
 }
 
-// 15. A type pair that was never enable()'d does not stop the move, however
-// solid the geometry.
 void testUnenabledPairDoesNotStopTheMove()
 {
     Scene scene;
@@ -550,8 +507,6 @@ void testUnenabledPairDoesNotStopTheMove()
     CHECK(!result.collided);
 }
 
-// 16. Every target shape moveSphere dispatches to - sphere, box, capsule,
-// mesh - is reached and resolves the move.
 void testAllTargetShapesStopOrSlideCorrectly()
 {
     const Math::vec3 from(0.0f, 0.0f, 0.0f);
@@ -603,9 +558,7 @@ void testAllTargetShapesStopOrSlideCorrectly()
     }
 }
 
-// 17. maxHits reached mid-corner: the result is the last SAFE position (just
-// off the first wall), never the deep, unresolved corner position a second
-// hit would have produced, and never inside either wall.
+// maxHits reached mid-corner: the result is the last SAFE position (just off the first wall), never inside either wall.
 void testMaxHitsReturnsLastSafePosition()
 {
     Scene scene;

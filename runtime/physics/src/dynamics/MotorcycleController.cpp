@@ -118,9 +118,7 @@ void MotorcycleController::preUpdate(f32 step, const Math::vec3& gravity)
 
     if (mEnableLeanController)
     {
-        // Target lean follows the total impulse the ground applied to the
-        // wheels last step: supported weight plus cornering force, which is
-        // exactly the direction a rider balances against.
+        // Target lean follows the total ground impulse on the wheels last step (supported weight plus cornering force), the direction a rider balances against.
         Math::vec3 targetLean(0.0f);
         for (u32 i = 0; i < mVehicle.wheelCount(); ++i)
         {
@@ -215,9 +213,7 @@ void MotorcycleController::postUpdate(f32 step)
     const Math::vec3 oldAngularVelocity = mChassis.angularVelocity();
     mChassis.applyAngularImpulse(totalImpulse * forward);
 
-    // The angular impulse alone drags every contact point sideways; a linear
-    // impulse on the centre of mass cancels the average of that so the lean
-    // torque rolls the bike instead of pushing it off its line.
+    // Angular impulse alone drags contact points sideways; a linear impulse on the centre of mass cancels their average so the lean rolls the bike instead of pushing it off line.
     const Math::vec3 deltaAngularVelocity = mChassis.angularVelocity() - oldAngularVelocity;
     Math::vec3 linearAcceleration(0.0f);
     f32 totalLambda = 0.0f;

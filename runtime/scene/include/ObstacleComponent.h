@@ -1,21 +1,10 @@
 #ifndef RADION_OBSTACLE_COMPONENT_H
 #define RADION_OBSTACLE_COMPONENT_H
 
-// ObstacleComponent.h - Radion::Obstacle, the scene-side wrapper around one
-// AI::Obstacle shape (Obstacle.h, runtime/ai). Named apart from that header
-// on purpose: radion_scene's include path lists runtime/scene/include before
-// runtime/ai/include, so a second file also called "Obstacle.h" living there
-// would shadow the AI one for every #include "Obstacle.h" in the whole
-// target - including AI's own Obstacle.cpp. Every existing #include
-// "Obstacle.h" keeps reaching AI::Obstacle unchanged.
-//
-// One component, not one class per shape: Collider and RigidBody already
-// hold their shape kind in an enum rather than a class hierarchy, and the
-// four ObstacleShape cases differ in exactly the same way - a handful of
-// floats, not behavior.
+// Named apart from AI's Obstacle.h: include path order would otherwise shadow it for every #include "Obstacle.h".
 
 #include "Component.h"
-#include "Obstacle.h" // AI::Obstacle, AI::ObstacleSeenFrom
+#include "Obstacle.h"
 
 namespace Radion
 {
@@ -67,8 +56,7 @@ public:
         return mSeenFrom;
     }
 
-    // Owned; rebuilt whenever the shape or its dimensions change, so a
-    // pointer taken before that call must not be kept across it.
+    // Rebuilt on shape/dimension change; do not keep the pointer across it.
     AI::Obstacle* obstacle() const
     {
         return mObstacle;
@@ -82,10 +70,7 @@ private:
     ~Obstacle() override;
 
     void rebuildOwnedShape();
-    // Pushes the owner's world transform into the owned AI::Obstacle - runs
-    // every Scene::update(), in and out of Play, so the shape follows the
-    // gizmo with the game paused too (Scene::debugDrawObstacles() is what
-    // makes that visible).
+    // Runs every Scene::update(), in and out of Play, so the shape follows the gizmo while paused.
     void pushOwnerTransform();
 
     Scene* mScene = nullptr;

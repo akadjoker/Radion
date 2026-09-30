@@ -16,9 +16,9 @@ enum LogLevel
 
 enum class LogMode
 {
-    None,    // nothing gets through
-    Passive, // warnings and errors only
-    Verbose  // everything, debug included
+    None,
+    Passive,
+    Verbose
 };
 
 class Log
@@ -35,11 +35,7 @@ public:
     static LogMode getMode();
     static bool accepts(LogLevel level);
 
-    // One slot, not a list of subscribers - the editor's Console panel is the
-    // only thing that has ever needed every message as it happens rather
-    // than reading them back off the platform log. Called with the finished,
-    // formatted string (after the level's own filtering), in addition to -
-    // never instead of - the SDL_LogMessage() output every build still gets.
+    // Single slot (the editor Console); gets the formatted, filtered message in addition to SDL_LogMessage().
     using Sink = void (*)(LogLevel level, const char* message);
     static void setSink(Sink sink);
 };

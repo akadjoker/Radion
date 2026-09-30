@@ -10,8 +10,7 @@ namespace Radion::Physics
 
 namespace
 {
-// Above this cosine, the configured max slope angle is close enough to 0
-// degrees that the caller means "no limit", not "flat ground only".
+// Above this cosine the max slope angle is ~0 degrees, meaning "no limit", not "flat only".
 constexpr f32 kNoMaxSlopeAngleCosine = 0.9999f;
 } // namespace
 
@@ -178,18 +177,12 @@ void CharacterRigidBody::postSimulation(f32 maxSeparationDistance)
     mGroundNormal = groundNormal;
     mGroundPosition = groundPosition;
 
-    // mSupportingVolume is defined in the character's own local space, so the
-    // ground point needs the full inverse transform (rotation and
-    // translation), not just a subtraction - rotation happens to be locked
-    // to identity today (addToWorld()'s zero inverse inertia tensor), which
-    // is the only reason a bare subtraction has ever given the same answer.
+    // mSupportingVolume is in the character's local space: use the full inverse transform (rotation is locked to identity today,
+    // which is the only reason plain subtraction matched).
     const Math::vec3 localGroundPosition = mBody.pointToLocal(groundPosition);
     if (mSupportingVolume.distance(localGroundPosition) > 0.0f)
         mGroundState = GroundState::NotSupported;
-    // A max slope angle of (near) 0 degrees is the escape hatch that turns
-    // the check off entirely instead of rejecting every slope, including a
-    // flat one that only fails by rounding - kNoMaxSlopeAngleCosine matches
-    // the reference's own sentinel.
+    // A max slope angle near 0 disables the check instead of rejecting every slope (kNoMaxSlopeAngleCosine matches the reference sentinel).
     else if (mMaxSlopeAngleCosine < kNoMaxSlopeAngleCosine &&
              Math::dot(groundNormal, mUp) < mMaxSlopeAngleCosine)
         mGroundState = GroundState::OnSteepGround;

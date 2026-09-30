@@ -22,8 +22,7 @@ void applyAgentAvoidance(Radion::Agent& agent, float avoidDistance, float turnRa
 
     for (Radion::Agent* other : scene->agents())
     {
-        // Null while an agent is being destroyed mid-update - see
-        // Scene::agents().
+        // Null while an agent is being destroyed mid-update (see Scene::agents()).
         if (!other || other == &agent)
             continue;
 
@@ -36,8 +35,7 @@ void applyAgentAvoidance(Radion::Agent& agent, float avoidDistance, float turnRa
         if (distance > 1e-5f)
             repulsion += (away / distance) * (1.0f - distance / avoidDistance);
         else
-            // Coincident agents need opposite deterministic directions, or
-            // both pick the same escape and stay stuck together.
+            // Coincident agents need opposite deterministic directions, or both pick the same escape.
             repulsion += (&agent < other) ? agent.side() : -agent.side();
     }
 

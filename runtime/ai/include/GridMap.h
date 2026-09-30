@@ -1,11 +1,7 @@
 #ifndef RADION_AI_GRIDMAP_H
 #define RADION_AI_GRIDMAP_H
 
-// GridMap.h - a square cost grid for grid-based pathfinding.
-//
-// Cells hold an integer traversal cost (1 by default); any cost >= Blocked
-// (3000) is impassable. Costs are stored in one flat row-major vector for
-// cache friendliness.
+// Cost >= Blocked (3000) is impassable; costs are one flat row-major vector.
 
 #include <vector>
 

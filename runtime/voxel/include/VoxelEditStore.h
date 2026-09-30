@@ -17,10 +17,8 @@ struct VoxelEditRecord
     BlockId block = AirBlockId;
 };
 
-// Every block a player or a designer changed, kept per chunk and apart from
-// the generated terrain. A world saves as its seed plus this store, and a
-// chunk that streams back in is regenerated and then replayed from here, so
-// edits survive unloading without keeping the chunk in memory.
+// Every player/designer edit, kept per chunk apart from generated terrain: a world saves as seed plus this store,
+// and a chunk streaming back in is regenerated then replayed from here.
 class VoxelEditStore
 {
 public:

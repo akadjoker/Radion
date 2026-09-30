@@ -10,9 +10,7 @@ namespace Radion::Volume
 namespace
 {
 
-// Real-Time Collision Detection, 5.1.5: the closest point is found by which
-// of the triangle's seven Voronoi regions the point falls in, rather than by
-// projecting onto the plane and hoping the result lands inside.
+// Real-Time Collision Detection 5.1.5: closest point by which of the seven Voronoi regions the point is in.
 Math::vec3 closestPointOnTriangle(const Math::vec3& p, const Math::vec3& a, const Math::vec3& b,
                                  const Math::vec3& c)
 {
@@ -53,8 +51,7 @@ Math::vec3 closestPointOnTriangle(const Math::vec3& p, const Math::vec3& a, cons
     return a + ab * (vb * denominator) + ac * (vc * denominator);
 }
 
-// Three directions that share no plane, so a ray grazing an edge in one of
-// them is not grazing the same edge in the others.
+// Three directions sharing no plane, so a ray grazing an edge in one is not grazing it in the others.
 const Math::vec3 kParityDirections[3] = {
     Math::vec3(0.5773502691896258f, 0.5773502691896258f, 0.5773502691896258f),
     Math::vec3(-0.7071067811865475f, 0.3162277660168379f, 0.6324555320336759f),
@@ -142,11 +139,8 @@ bool MeshSource::build(const MeshData& mesh)
 
 f32 MeshSource::unsignedDistance(const Math::vec3& position) const
 {
-    // A sphere query returns every triangle whose box meets it, so a
-    // candidate found within the radius cannot be beaten by one outside it.
-    // When the sphere comes back empty, or holds nothing that close, it grows
-    // and the query runs again - a handful of rounds at most, against
-    // walking every triangle in the mesh.
+    // A sphere query returns every triangle whose box meets it, so a candidate within the radius can't be beaten.
+    // If nothing close enough, the sphere grows and re-queries.
     f32 radius = mDiagonal > 0.0f ? mDiagonal * 0.05f : 1.0f;
     const f32 limit = mDiagonal > 0.0f ? mDiagonal * 4.0f : 1e6f;
 
@@ -177,8 +171,7 @@ f32 MeshSource::unsignedDistance(const Math::vec3& position) const
         if (radius >= limit)
             return best == std::numeric_limits<f32>::max() ? limit : best;
 
-        // Jump straight to whatever the nearest candidate turned out to be
-        // rather than doubling blindly past it.
+        // Jump to the nearest candidate rather than doubling blindly past it.
         radius = best < std::numeric_limits<f32>::max() ? Math::min(best, limit)
                                                         : Math::min(radius * 2.0f, limit);
     }

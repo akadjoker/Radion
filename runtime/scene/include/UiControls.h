@@ -13,11 +13,7 @@
 namespace Radion
 {
 
-// Logical size UI anchors resolve against. runtime/scene has no reachable
-// Window instance (Engine owns it as a plain member, not a singleton), so
-// the host sets this once per frame instead - see UiSystem::setScreenSize().
-// No layout or hit-testing runs while invalid, same as a control whose
-// anchor base was never set would just sit at its constructed zero rect.
+// Logical size UI anchors resolve against, set by the host each frame (UiSystem::setScreenSize()). No layout or hit-testing while invalid.
 struct UiViewport
 {
     f32 width = 1280.0f;
@@ -27,11 +23,7 @@ struct UiViewport
 
 class UiControl;
 
-// Registry and per-frame layout/hit-test pass for every UiControl that
-// exists, plus the optional atlas texture widgets draw regions from. One
-// instance for the whole process, like ScreenDraw - Scene cannot own this
-// bookkeeping itself without a case per ComponentType::UiXxx in its own
-// registration switch, which is outside this port's file list.
+// One instance per process, like ScreenDraw.
 class UiSystem
 {
 public:
@@ -40,17 +32,10 @@ public:
     void setScreenSize(f32 width, f32 height);
     const UiViewport& viewport() const;
 
-    // Re-derives every live control's rect and hover/press/click state from
-    // this instant's input, then routes input to the single topmost
-    // interactive control under the cursor. Scene::update() calls this once
-    // per frame, ahead of the component update that draws the controls, so
-    // each one renders the layout this just produced. Calling it per control
-    // instead would cost a full pass over every control for each control
-    // there is.
+    // Called once per frame by Scene::update(), before components draw, so each control renders this layout. Input goes to the topmost interactive control under the cursor.
     void refresh();
 
-    // Unset (the default) makes every widget fall back to a flat color
-    // rect instead of sampling a region out of this texture.
+    // Unset falls back to flat color rects.
     void setThemeTexture(TextureHandle texture);
     void clearThemeTexture();
     bool hasThemeTexture() const;
@@ -70,12 +55,7 @@ private:
     TextureHandle mThemeTexture;
     std::vector<UiControl*> mControls;
     s32 mNextOrder = 0;
-    // True while refresh() is walking mControls - a control destroyed from
-    // inside onUiInput() (a button's own click handler removing itself, its
-    // panel, or another control) must not resize the vector refresh() is
-    // currently indexing into, so unregisterControl() tombstones instead
-    // while this is set and compactControls() sweeps the tombstones once
-    // refresh() itself is done.
+    // True while refresh() walks mControls: unregisterControl() tombstones instead of resizing; compactControls() sweeps afterwards.
     bool mRefreshing = false;
 };
 
@@ -84,10 +64,7 @@ inline UiSystem& UiSystems()
     return UiSystem::getSingleton();
 }
 
-// A GameObject marking the root of a UI hierarchy. Carries no state of its
-// own - anchors resolve against the screen once no ancestor carries a
-// UiControl, so nothing below reads UiCanvas at all. Its only purpose is to
-// give scenes and tooling something to point at.
+// Carries no state; only gives scenes and tooling something to point at.
 class UiCanvas final : public Component
 {
 public:
@@ -99,10 +76,7 @@ private:
     UiCanvas();
 };
 
-// Anchor+offset rectangle, hover/press/click state and the theme-aware draw
-// helpers shared by every concrete widget below. Never attached directly -
-// only a subclass with its own ComponentType has a Type to addComponent<>()
-// with.
+// Never attached directly; only a subclass with its own ComponentType can be addComponent<>()ed.
 class UiControl : public Component
 {
 public:
@@ -110,8 +84,7 @@ public:
     const Math::vec4& offsets() const;
     void setAnchors(const Math::vec4& value);
     void setOffsets(const Math::vec4& value);
-    // Anchors are reset to 0 (fully offset-driven) and offsets become the
-    // exact pixel rect (x, y, x + width, y + height).
+    // Anchors reset to 0 (offset-driven); offsets become the exact pixel rect.
     void setRect(f32 x, f32 y, f32 width, f32 height);
     const FloatRect& rect() const;
     bool hovered() const;
@@ -119,11 +92,7 @@ public:
     bool clicked() const;
     bool interactive() const;
     void setInteractive(bool value);
-    // Draw order (higher draws later, i.e. on top) and, on a tie, which of
-    // two overlapping interactive controls the cursor's input actually
-    // reaches - the same role owner()->zIndex() plays in the reference,
-    // expressed through the field Radion's GameObject actually has none of
-    // and ScreenDraw already needs one of anyway.
+    // Higher draws later (on top); on a tie, decides which overlapping interactive control gets input.
     s32 layer() const;
     void setLayer(s32 value);
 
@@ -134,9 +103,7 @@ protected:
     void onDestroy() override;
     void onUpdate(f32 deltaTime) override final;
 
-    // Subclasses draw here instead of overriding onUpdate() directly - the
-    // base's onUpdate() owns the once-per-active-control UiSystem::refresh()
-    // call every subclass instance would otherwise have to repeat.
+    // Subclasses draw here, not in onUpdate(): the base onUpdate() owns the once-per-control UiSystem::refresh() call.
     virtual void onUiRender();
     virtual void onUiInput(bool down, bool pressed, bool released);
 
@@ -211,8 +178,7 @@ public:
 
     const std::string& text() const;
     void setText(const std::string& value);
-    // One-shot: true the first time it is called after a completed click,
-    // false every time after until the next one.
+    // One-shot: true once after a completed click, then false until the next.
     bool consumeClick();
 
 private:

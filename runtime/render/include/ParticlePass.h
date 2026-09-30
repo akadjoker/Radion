@@ -9,9 +9,7 @@
 namespace Radion
 {
 
-// Global submission queue for particle effects. Mirrors the pattern used by
-// TrailDraws(): components submit emit requests during the frame, and the
-// ParticlePass executes them in one GPU-driven draw call.
+// Global submission queue for particle effects: components submit emit requests during the frame, ParticlePass runs them in one GPU-driven draw.
 class ParticleRenderQueue
 {
 public:

@@ -10,11 +10,8 @@ namespace Radion
 namespace Voxel
 {
 
-// One vertex stream for the chunk, and one submesh per render pass: opaque,
-// alpha-cutout, then transparent, in that order and only when they have
-// geometry. The passes need separate materials, not separate meshes - the
-// render list already picks a material per submesh - and one mesh per chunk is
-// one scene object instead of three. Positions are local to the chunk origin.
+// One vertex stream, one submesh per pass (opaque, alpha-cutout, transparent, in that order, only when non-empty):
+// one mesh per chunk is one scene object instead of three. Positions are local to the chunk origin.
 struct VoxelMeshData
 {
     static constexpr u32 OpaqueSlot = 0;
@@ -33,21 +30,15 @@ class VoxelMesher
 public:
     struct Settings
     {
-        // Atlas dimensions in tiles, never texels.  A value of one means the
-        // face material occupies the complete UV range.
+        // Atlas dimensions in tiles, never texels; one means the face uses the full UV range.
         u16 atlasColumns = 1;
         u16 atlasRows = 1;
-        // Per-vertex ambient occlusion, baked into the mesh colours. It also
-        // enters the greedy key - two cells whose corners are occluded
-        // differently must not merge - and that costs geometry: measured at
-        // +75% vertices over a chunk radius of six. Off merges as before and
-        // leaves every corner fully lit.
+        // Per-vertex AO baked into mesh colours. It enters the greedy key (differently occluded cells must not merge),
+        // costing about +75% vertices at chunk radius six. Off leaves every corner fully lit.
         bool ambientOcclusion = true;
     };
 
-    // Builds only faces visible from outside their block.  Neighbour lookups
-    // come from the gathered shell, so a shared chunk boundary does not
-    // produce a hidden internal face.
+    // Builds only faces visible from outside their block; neighbour lookups use the gathered shell, so chunk borders add no hidden faces.
     static VoxelMeshData buildChunk(const VoxelNeighbourhood& neighbourhood,
                                     const BlockRegistry& blocks, Settings settings);
     static VoxelMeshData buildChunk(const VoxelWorld& world, const VoxelChunk& chunk,

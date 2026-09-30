@@ -14,9 +14,7 @@ class Agent;
 namespace Radion::AI
 {
 
-// Describes one tunable field of a Behavior, for a generic editor slider and
-// a generic serializer field - the inspector and SceneSerializer read this
-// instead of a hand-written case per behavior.
+// One tunable field, read by the inspector and SceneSerializer.
 struct BehaviorParam
 {
     enum class Kind : u8
@@ -56,15 +54,10 @@ public:
         return "Base Behavior";
     }
 
-    // Identifies the concrete class for BehaviorFactory - every registered
-    // subclass overrides this; SteerBehavior (not registered) is the one
-    // exception, returning BehaviorType::Count.
+    // Every registered subclass overrides this; SteerBehavior (unregistered) returns Count.
     virtual BehaviorType type() const = 0;
 
-    // Generic parameter access for the editor and the serializer, backed by
-    // each subclass's own static BehaviorParam table and a switch on index -
-    // no reflection, no std::function. Defaults below say "no parameters";
-    // a subclass overrides only the accessor families its own params use.
+    // Generic parameter access for the editor and serializer; defaults mean "no parameters".
     virtual u32 paramCount() const;
     virtual const BehaviorParam& paramInfo(u32 index) const;
     virtual f32 paramFloat(u32 index) const;
@@ -74,11 +67,7 @@ public:
     virtual bool paramBool(u32 index) const;
     virtual void setParamBool(u32 index, bool value);
 
-    // The agent that owns and will delete this behavior, or null while it is
-    // still loose. Agent::addBehavior() rejects one that already has an
-    // owner - the same guard Group::add() kept against an entity landing in
-    // two groups, and it matters more here: a behavior handed to two agents
-    // is deleted twice.
+    // Owning agent, or null while loose. addBehavior() rejects one already owned: it would be deleted twice.
     Radion::Agent* owner() const
     {
         return mOwner;
@@ -91,8 +80,6 @@ private:
     Radion::Agent* mOwner = nullptr;
 };
 
-// Push away from the closest visible group member when inside the separation
-// distance; pull toward it when it drifts beyond it.
 class SeparationBehavior final : public Behavior
 {
 public:
@@ -143,7 +130,6 @@ private:
     float mMaxSeparationPercentage;
 };
 
-// Match the heading of the closest visible group member.
 class AlignmentBehavior final : public Behavior
 {
 public:
@@ -175,7 +161,6 @@ private:
     float mTurnRate;
 };
 
-// Steer toward the centre of mass of the visible group members.
 class CohesionBehavior final : public Behavior
 {
 public:
@@ -207,7 +192,6 @@ private:
     float mTurnRate;
 };
 
-// Flee from the closest visible enemy inside the avoidance distance.
 class AvoidanceBehavior final : public Behavior
 {
 public:
@@ -248,8 +232,7 @@ private:
     float mAvoidanceSpeed;
 };
 
-// Wander: nudge the desired move toward/away from the desired speed and throw
-// in occasional random per-axis movement.
+// Wander: nudge the desired move toward/away from the desired speed plus random per-axis movement.
 class CruisingBehavior final : public Behavior
 {
 public:
@@ -328,7 +311,6 @@ private:
     float mMinRateChange;
 };
 
-// Push back toward the sphere centre once the entity leaves the sphere.
 class StayWithinSphereBehavior final : public Behavior
 {
 public:
@@ -371,12 +353,7 @@ private:
     float mRadius;
 };
 
-// Deals damage to the nearest visible enemy once it is within fire range
-// and the entity's own attack cooldown (Agent::attackCooldown(), ticked
-// here every frame regardless of range) has elapsed. Purely reactive - it
-// does not move the entity or pick a target beyond "nearest visible enemy";
-// closing the distance is PathfindBehavior/FormationBehavior's job, same
-// division as every other Behavior in this file.
+// Purely reactive; closing the distance is PathfindBehavior/FormationBehavior's job.
 class CombatBehavior final : public Behavior
 {
 public:

@@ -17,18 +17,14 @@ struct GrassClump
     Math::vec4 rect = Math::vec4(0.0f);
 };
 
-// A region of the vegetation atlas. `size` multiplies the tuft's height, so a
-// tall plant in the atlas gives a tall quad without tuning each one by hand;
-// `aspect` is the region's width over its height, without which a thin stalk
-// and a wide bush would both come out square.
+// A region of the vegetation atlas. `size` multiplies the tuft's height; `aspect` is width over height.
 struct GrassAtlasRect
 {
     Math::vec4 texMulAdd = Math::vec4(1.0f, 1.0f, 0.0f, 0.0f);
     Math::vec4 sizeAspect = Math::vec4(1.0f, 1.0f, 0.0f, 0.0f);
 };
 
-// A sphere that pushes the grass out of its way. Cleared and re-added each
-// frame by whoever moves through the field.
+// A sphere that pushes grass aside; re-added each frame by whoever moves through the field.
 struct GrassInfluencer
 {
     Math::vec3 centre = Math::vec3(0.0f);
@@ -36,8 +32,7 @@ struct GrassInfluencer
     f32 force = 30.0f;
 };
 
-// What a Grass component hands over for the frame. The pass reads the arrays
-// straight out of the component, so nothing is copied on the way.
+// What a Grass component hands over for the frame; arrays are read in place, not copied.
 struct GrassDrawCommand
 {
     const GrassClump* clumps = nullptr;
@@ -54,20 +49,15 @@ struct GrassDrawCommand
     f32 cameraBend = 0.55f;
     f32 drawDistance = 120.0f;
 
-    // Verlet: stiffness pulls the tip back to rest, drag is how much of the
-    // inertia is lost per step. Without state the grass would snap back the
-    // instant a push ended.
+    // Verlet: stiffness pulls the tip back to rest, drag is the inertia lost per step.
     f32 stiffness = 12.0f;
     f32 drag = 0.12f;
     f32 deltaTime = 0.0f;
     bool reset = false;
 
-    // Second pass that blends the leaf outline. Off shows the binary step a
-    // plain alpha test leaves behind.
     bool softFringe = true;
 
-    // Defaults match the fake sun in unlit.frag, so grass and the ground it
-    // stands on are lit by the same light.
+    // Defaults match the fake sun in unlit.frag.
     Math::vec3 lightDirection = -Math::normalize(Math::vec3(0.4f, 0.8f, 0.3f));
     Math::vec3 lightColor = Math::vec3(1.0f);
     Math::vec3 ambient = Math::vec3(0.35f);
@@ -76,7 +66,7 @@ struct GrassDrawCommand
     u32 influencerCount = 0;
 };
 
-// As many as the block holds; the shader agrees on this number.
+// The shader agrees on this number.
 constexpr u32 kGrassMaxInfluencers = 8;
 
 class GrassRenderQueue
@@ -94,9 +84,7 @@ private:
 
 GrassRenderQueue& GrassDraws();
 
-// Culls in compute and draws indirect: the instance count is written by the
-// GPU and never read back, so the cost on the CPU is one dispatch and one draw
-// whatever the field holds.
+// Culls in compute and draws indirect; the instance count never returns to the CPU.
 RenderTechnique* createGrassPass();
 
 } // namespace Radion

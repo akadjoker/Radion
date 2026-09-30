@@ -1,5 +1,3 @@
-// BehaviorFactory.cpp - create/name/lookup for every registered BehaviorType.
-
 #include "PCH.h"
 
 #include "BehaviorFactory.h"

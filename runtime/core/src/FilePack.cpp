@@ -58,8 +58,6 @@ const std::string kEmptyName;
 
 } // namespace
 
-// ------------------------------------------------------------------- reading
-
 FilePack::FilePack() : mFile(nullptr), mMemory(nullptr), mMemorySize(0), mEncrypted(false)
 {
     std::memset(mKey, 0, sizeof(mKey));
@@ -97,8 +95,7 @@ bool FilePack::readAt(u64 offset, void* destination, usize size) const
 
     if (mMemory)
     {
-        // Subtraction, never addition: offset comes out of the file's own
-        // header, and offset + size can wrap on a malformed pack.
+        // Subtraction: offset comes from the file header and offset + size can wrap.
         if (offset > mMemorySize || size > mMemorySize - offset)
             return false;
         std::memcpy(destination, mMemory + offset, size);
@@ -342,8 +339,6 @@ u32 FilePack::entrySizeStored(u32 index) const
     return mEntries[index].sizeStored;
 }
 
-// ------------------------------------------------------------------- writing
-
 FilePackWriter::FilePackWriter() : mLevel(MZ_BEST_COMPRESSION), mRawBytes(0), mStoredBytes(0)
 {
 }
@@ -432,8 +427,7 @@ bool FilePackWriter::addData(const std::string& name, const u8* data, usize size
         const int status =
             mz_compress2(compressed.data(), &compressedSize, data, static_cast<mz_ulong>(size),
                          mLevel);
-        // Storing it raw when deflate did not help keeps the reader from
-        // paying to inflate bytes that never got smaller.
+        // Stored raw when deflate did not help, so the reader skips a useless inflate.
         if (status == MZ_OK && compressedSize < size)
         {
             ByteArray trimmed(static_cast<usize>(compressedSize));

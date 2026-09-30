@@ -23,9 +23,7 @@ namespace
 
 constexpr int kMaxIncludeDepth = 16;
 
-// A line of the form `#include "path"` - leading whitespace before the '#' is
-// allowed, anything past the closing quote is ignored rather than rejected so
-// a trailing comment does not break it.
+// A line of the form `#include "path"`; text past the closing quote is ignored so a trailing comment does not break it.
 bool parseInclude(const std::string& line, std::string& path)
 {
     usize i = 0;
@@ -53,14 +51,9 @@ bool parseInclude(const std::string& line, std::string& path)
 
 } // namespace
 
-// ----------------------------------------------------------------- lifetime
-
 AssetManager::AssetManager()
 {
-    // Registered once, here, instead of every demo building its own
-    // MeshLoader and remembering which importer(s) a mesh file needs -
-    // MeshLoader owns what it is handed, so these are never deleted anywhere
-    // else.
+    // MeshLoader owns what it is handed; these are never deleted elsewhere.
     mMeshLoader.addImporter(new RadionMeshImporter());
     mMeshLoader.addImporter(new ObjImporter());
     mMeshLoader.addImporter(new OgreMeshImporter());
@@ -146,32 +139,19 @@ AssetManager& Assets()
 
 void AssetManager::shutdown()
 {
-    // Mesh decoding is CPU-only, but its worker may still be reading the
-    // filesystem while the engine tears down the asset registries.
+    // Mesh decoding is CPU-only but its worker may still be reading the filesystem during teardown.
     if (mMeshInFlight.result.valid())
         mMeshInFlight.result.wait();
     mMeshInFlight = PendingMesh();
     mQueuedMeshes.clear();
 
-    // Meshes first: releasing one also releases its materials' param buffers.
-    // Textures then take their samplers with them, and the shader text last -
-    // it owns nothing on the GPU, only the strings the pipelines were built
-    // from.
+    // Meshes first (releasing one releases its materials' param buffers), then textures (taking their samplers), shader text last.
     destroyAllMeshes();
     destroyAllTextures();
     reloadAllShaders();
-    // AssetManager is a singleton and outlives Engine/GPUDevice restarts. A
-    // named target left behind here is a handle from the device that just
-    // shut down; the next GPUDevice starts its pools from zero, so the same
-    // index/generation can validly resolve to an unrelated texture on the new
-    // device instead of merely being stale. resolveRenderTarget() also
-    // confirms the handle against the live device before returning it, but
-    // clearing here is what keeps a producer that forgets to republish from
-    // resolving to someone else's texture in the first place.
+    // AssetManager outlives GPUDevice restarts; a stale named target could resolve to an unrelated texture on the new device (same index/generation), so clear it here.
     mNamedTargets.clear();
 }
-
-// ------------------------------------------------------------------ shaders
 
 std::string AssetManager::expandShader(const std::string& filename, int depth)
 {
@@ -202,9 +182,7 @@ std::string AssetManager::expandShader(const std::string& filename, int depth)
         std::string includePath;
         if (parseInclude(line, includePath))
         {
-            // Relative to the file doing the including, the way every other
-            // #include works. Without it a shared chunk could only be included
-            // from a shader that happens to sit in the working directory.
+            // Relative to the including file, like any #include.
             const usize directory = filename.find_last_of('/');
             if (directory != std::string::npos && includePath.front() != '/')
                 includePath = filename.substr(0, directory + 1) + includePath;
@@ -233,13 +211,7 @@ const std::string& AssetManager::loadShader(const std::string& filename)
 
 void AssetManager::reloadShader(const std::string& filename)
 {
-    // Erasing only this exact key never touches the shaders that #include
-    // it: their already-expanded text stays cached, so editing a shared
-    // .glsl chunk and hot-reloading its parent claimed success while the
-    // program that actually ran had not changed. Nothing here tracks the
-    // include graph, so the correct minimal fix is the same one
-    // reloadAllShaders() already does - clear every expanded source, not
-    // just one filename's.
+    // Erasing one key would leave shaders that #include it cached with stale expanded text; the include graph is not tracked, so clear everything.
     (void)filename;
     reloadAllShaders();
 }
@@ -248,18 +220,9 @@ void AssetManager::reloadAllShaders()
 {
     mShaderSources.clear();
 
-    // Clearing the source text was never the whole story: MaterialManager's
-    // pipeline cache and every Material's own `pipeline` field still pointed
-    // at programs compiled from the old text, so "reload" could report
-    // success while the same GLSL kept running. Destroying the cache is
-    // enough to fix that without walking every material by hand -
-    // resolvePipeline() runs once per material every frame already (see
-    // Scene::buildRenderList()), misses the now-empty cache, and recompiles
-    // from the freshly-reloaded source on its own.
+    // Also destroy MaterialManager's pipeline cache, else materials keep programs compiled from the old text; resolvePipeline() recompiles on the next miss (see Scene::buildRenderList()).
     MaterialManager::getSingleton().destroyAllPipelines();
 }
-
-// ------------------------------------------------------------ named targets
 
 void AssetManager::publishRenderTarget(u32 nameHash, TextureHandle texture)
 {
@@ -277,13 +240,7 @@ TextureHandle AssetManager::resolveRenderTarget(u32 nameHash) const
     if (it == mNamedTargets.end())
         return TextureHandle();
 
-    // A generation match against a texture pool that was recreated (a device
-    // restart, a resize that destroyed and rebuilt the target) is not proof
-    // the handle still names the same texture the publisher meant - only that
-    // some texture happens to sit at that index/generation now. Confirming
-    // against the live device is what tells a resolved-but-wrong handle apart
-    // from a genuinely resolved one; tryGet() rather than getSingleton()
-    // because this can be called before a device exists at all.
+    // A generation match is not proof the handle names the publisher's texture after a device restart or resize rebuild; confirm against the live device. tryGet() because a device may not exist yet.
     GPU* gpu = GPU::tryGet();
     TextureDesc info;
     if (!gpu || !gpu->textureInfo(it->second, info))

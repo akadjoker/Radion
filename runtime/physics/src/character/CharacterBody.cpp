@@ -79,9 +79,7 @@ CharacterBody::Slide CharacterBody::slide(const Math::vec3& startCentre,
     const Math::vec3 extents = radii();
     const Math::vec3 up = mUpDirection;
 
-    // World-space bookkeeping only; projecting the destination with the
-    // ellipsoid-space normal leaves a residual whose vertical component gets
-    // amplified on the way back and launches the character off walls.
+    // World-space bookkeeping only: projecting with the ellipsoid-space normal amplifies the vertical residual and launches the character off walls.
     Math::vec3 center = startCentre;
     Math::vec3 velocity = displacement;
     Math::vec3 outputVelocity = displacement;
@@ -107,8 +105,7 @@ CharacterBody::Slide CharacterBody::slide(const Math::vec3& startCentre,
         const Math::vec3 n = Math::normalize(rotation * hit.normal);
         const f32 upDot = Math::dot(n, up);
 
-        // Floor within the slope limit, ceiling when facing along -up, wall
-        // otherwise; each keeps the most extreme normal seen for the getters.
+        // Floor within the slope limit, ceiling facing along -up, wall otherwise; each keeps the most extreme normal for the getters.
         if (upDot >= mSlopeLimitCosine)
         {
             out.grounded = true;
@@ -129,8 +126,7 @@ CharacterBody::Slide CharacterBody::slide(const Math::vec3& startCentre,
             out.onWall = true;
         }
 
-        // One push-out per move: iterating an embedded shove is how a wedged
-        // character is thrown across the level in a single frame.
+        // One push-out per move: iterating an embedded shove throws a wedged character across the level.
         if (hit.t < 0.0f)
         {
             if (resolvedOverlap)
@@ -141,8 +137,7 @@ CharacterBody::Slide CharacterBody::slide(const Math::vec3& startCentre,
         center = (hit.t > 0.0f) ? center + velocity * hit.t : center - n * hit.t;
         center = center + n * mSkinWidth;
 
-        // A wall steeper than the limit cannot be climbed: drop the upward
-        // component so the slide goes down it, not up.
+        // Drop the upward component of a too-steep wall so the slide goes down it.
         outputVelocity = outputVelocity - n * Math::dot(outputVelocity, n);
         if (upDot < mSlopeLimitCosine)
         {
@@ -157,8 +152,7 @@ CharacterBody::Slide CharacterBody::slide(const Math::vec3& startCentre,
                 outputVelocity -= up * upSpeed;
         }
 
-        // Motion straight along -up onto a slope stops instead of sliding
-        // down its face.
+        // Motion straight along -up onto a slope stops rather than sliding down.
         if (mFloorStopOnSlope && out.grounded && Math::length(outputVelocity) > 1e-5f &&
             Math::length(Math::normalize(outputVelocity) + up) < 0.02f)
         {
@@ -167,8 +161,6 @@ CharacterBody::Slide CharacterBody::slide(const Math::vec3& startCentre,
             break;
         }
 
-        // On the floor, pressing into a wall within this angle of head-on
-        // stops instead of sliding along it. Zero keeps the plain slide.
         if (mWallMinSlideAngleDegrees > 0.0f && out.onWall && out.grounded &&
             Math::length(inputHorizontal) > 1e-6f)
         {
@@ -186,8 +178,7 @@ CharacterBody::Slide CharacterBody::slide(const Math::vec3& startCentre,
             }
         }
 
-        // Destination projected onto the sliding plane, not the leftover
-        // velocity - the projection of the leftover gives a shorter slide.
+        // Project the destination onto the sliding plane, not the leftover velocity (which gives a shorter slide).
         endpoint = endpoint - n * Math::dot(endpoint - center, n);
         velocity = endpoint - center;
     }
@@ -209,20 +200,17 @@ bool CharacterBody::stepUp(const Math::vec3& startCentre, const Math::vec3& hori
     const Math::vec3 meshOrigin(meshTransform[3]);
     const Math::vec3 extents = radii();
 
-    // Anything overhead means there is no room to climb.
     const Math::vec3 up = mUpDirection * mStepOffset;
     TrimeshShape::SweepHit upHit;
     if (mesh.sweepEllipsoid(inverseRotation * (startCentre - meshOrigin), extents,
                             inverseRotation * up, upHit))
         return false;
 
-    // The raised path has to be clear, or a wall taller than the step lets
-    // the climb through and the character ratchets up it a step per frame.
+    // Raised path must be clear, or a wall taller than the step lets the character ratchet up a step per frame.
     const Slide across = slide(startCentre + up, horizontal, mesh, meshTransform);
     if (across.collided)
         return false;
 
-    // Nothing underneath is a gap, not a step.
     const Math::vec3 down = mUpDirection * -(mStepOffset + mSkinWidth);
     TrimeshShape::SweepHit downHit;
     if (!mesh.sweepEllipsoid(inverseRotation * (across.centre - meshOrigin), extents,
@@ -261,8 +249,7 @@ bool CharacterBody::snapToGround(const TrimeshShape& mesh, const Math::mat4& mes
     if (Math::dot(normal, mUpDirection) < mSlopeLimitCosine)
         return false;
 
-    // Only downward hits ahead of us; a negative t is an overlap the slide
-    // has just dealt with.
+    // Only downward hits ahead; a negative t is an overlap the slide already handled.
     if (hit.t < 0.0f || hit.t > 1.0f)
         return false;
 
@@ -306,9 +293,7 @@ CharacterBody::MoveResult CharacterBody::move(const Math::vec3& displacement,
 
     Slide primary = slide(start, displacement, mesh, meshTransform);
 
-    // Climb only when the horizontal move was actually stopped: a platform
-    // seam is an edge, an edge contact reads steep even on level floor, and
-    // firing the climb there is a hop at every junction.
+    // Climb only when the horizontal move was stopped: a platform seam reads steep even on level floor and would hop at every junction.
     const Math::vec3 achieved = primary.centre - start;
     const Math::vec3 achievedHorizontal = achieved - up * Math::dot(achieved, up);
     const f32 wanted = Math::dot(horizontal, horizontal);
@@ -353,8 +338,6 @@ CharacterBody::MoveResult CharacterBody::moveAndSlide(f32 deltaTime, const Trime
     if (!(deltaTime > 0.0f))
         return result;
 
-    // The caller owns velocity, gravity and jump included; this displaces by
-    // velocity*dt and slides.
     const Math::vec3 start = mPosition;
     const Math::vec3 up = mUpDirection;
     const bool wasGrounded = mGrounded;
@@ -362,8 +345,7 @@ CharacterBody::MoveResult CharacterBody::moveAndSlide(f32 deltaTime, const Trime
 
     result = move(mVelocity * deltaTime, mesh, meshTransform);
 
-    // If the slide just lost a floor the body was standing on, probing down
-    // and settling keeps resting contact from flickering.
+    // Probe down and settle after the slide loses a standing floor, so resting contact does not flicker.
     if (!result.grounded && wasGrounded && !velFacingUp &&
         Math::dot(mPosition - start, up) <= kEpsilon && snapToGround(mesh, meshTransform))
     {
@@ -388,8 +370,7 @@ CharacterBody::MoveResult CharacterBody::update(f32 deltaTime, const TrimeshShap
     const Math::vec3 start = mPosition;
     const Math::vec3 up = mUpDirection;
 
-    // Planted while grounded, so standing still does not accumulate downward
-    // speed frame after frame.
+    // Planted while grounded, so standing still does not accumulate downward speed.
     if (mGrounded && mVerticalSpeed < 0.0f)
         mVerticalSpeed = 0.0f;
 
@@ -400,9 +381,7 @@ CharacterBody::MoveResult CharacterBody::update(f32 deltaTime, const TrimeshShap
     const bool wasGrounded = mGrounded;
     result = move(mMoveInput * deltaTime + up * (mVerticalSpeed * deltaTime), mesh, meshTransform);
 
-    // Only going down, only if standing a moment ago, and only if this frame
-    // gained no height: a jump must leave the floor, a cliff walk-off must
-    // fall, and snapping mid-climb undoes the climb.
+    // Only going down, standing a moment ago, no height gained: a jump must leave the floor, a walk-off must fall, snapping mid-climb undoes the climb.
     if (!result.grounded && wasGrounded && mVerticalSpeed <= 0.0f &&
         Math::dot(mPosition - start, up) <= kEpsilon && snapToGround(mesh, meshTransform))
     {
@@ -410,9 +389,7 @@ CharacterBody::MoveResult CharacterBody::update(f32 deltaTime, const TrimeshShap
         result.groundNormal = mGroundNormal;
     }
 
-    // The slid velocity, never the position delta: the delta includes the
-    // push-out, and reading that back as speed launches the character off a
-    // surface he only brushed.
+    // Use the slid velocity, not the position delta (it includes push-out and would launch the character off a brushed surface).
     mVelocity = result.remaining / deltaTime;
     mVerticalSpeed = Math::dot(mVelocity, up);
     if (result.grounded && mVerticalSpeed < 0.0f)

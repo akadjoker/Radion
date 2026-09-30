@@ -1,15 +1,4 @@
-// FBX importer built on ofbx (runtime/render/src/ofbx.h).
-//
-// Geometry, materials, skeleton and animation are loaded through the same three
-// entry points the other importers expose: FbxImporter::import() for the mesh,
-// loadFbxSkeleton() for the bone hierarchy, and loadFbxAnimation() for the
-// first animation stack.
-//
-// ofbx triangulates the polygon data for us. Matrices coming from ofbx are
-// column-major double[16] (same memory layout as Math::mat4), so they are copied
-// component by component into Math::mat4. FBX's texture V origin is at the
-// bottom of the image, same as OBJ, so UVs are flipped to match the engine's
-// top-left convention.
+// FBX importer built on ofbx (runtime/render/src/ofbx.h). UVs are flipped from FBX's bottom-left origin.
 
 #include "PCH.h"
 
@@ -54,14 +43,7 @@ std::string joinPath(const std::string& directory, const std::string& name)
     return directory + name;
 }
 
-// A texture reference embedded in an FBX is routinely the file's ORIGINAL
-// absolute path on whoever exported it, not one relative to this file -
-// Mixamo's own temp directories are a common example, and joinPath() alone
-// turns that into a path that never resolves. LumixEngine's own importer
-// (model_importer.cpp's findTexture()) hits the exact same thing and falls
-// back to the bare filename beside the mesh, then that mesh's own textures/
-// subfolder - this does the same, minus the multi-extension guessing Lumix
-// also does, since the embedded name already carries the right one here.
+// An embedded texture path is often the exporter's absolute path; fall back to the bare filename beside the mesh, then its textures/ subfolder.
 std::string resolveTextureFile(FileSystem& files, const std::string& directory,
                                const std::string& embeddedPath)
 {
@@ -81,8 +63,7 @@ std::string resolveTextureFile(FileSystem& files, const std::string& directory,
     if (files.exists(inTextures))
         return inTextures;
 
-    // Nothing resolved - keep the joined path so the eventual "file not
-    // found" still names something a user can recognise and go fix.
+    // Nothing resolved: keep the joined path so the error still names something.
     return joined;
 }
 
@@ -96,18 +77,7 @@ std::string stem(const std::string& path)
     return path.substr(base, dot - base);
 }
 
-// An "Embed Media" FBX export carries its textures as Video objects inside
-// the binary itself rather than as sibling files - resolveTextureFile()
-// alone leaves those as a name nothing on disk answers to (routinely the
-// exporting machine's own temp path, e.g. a Mixamo download's
-// ".../yaku_j_ignite.fbm/...png"). This decodes the embedded bytes once
-// (Pixmap already reads PNG/JPEG straight from memory) and writes them out
-// as a real file next to the source FBX, so the rest of the pipeline never
-// has to know the texture did not ship as its own file - same idea as
-// GltfImporter's resolveImageFile() for a .glb's buffer-embedded images.
-// `realDirectory` is the source FBX's own directory already resolved to a
-// writable disk path (FileSystem::writeBinary()/Pixmap::save() need one,
-// unlike reading, which resolves search paths on its own).
+// Decodes an "Embed Media" texture and writes it next to the FBX; realDirectory must be a writable disk path.
 std::string extractEmbeddedTexture(FileSystem& files, const std::string& realDirectory,
                                    const std::string& textureFolder, const ofbx::Texture* texture)
 {
@@ -115,9 +85,7 @@ std::string extractEmbeddedTexture(FileSystem& files, const std::string& realDir
         return std::string();
 
     const ofbx::DataView embedded = texture->getEmbeddedData();
-    // The FBX 'R' (raw binary) property hands back its own 4-byte length
-    // prefix ahead of the payload (see TextureImpl::getEmbeddedData() in
-    // ofbx.cpp) - the actual image starts 4 bytes in.
+    // The 'R' property has a 4-byte length prefix (see ofbx.cpp); the image starts 4 bytes in.
     if (!embedded.begin || embedded.end <= embedded.begin + 4)
         return std::string();
 
@@ -155,8 +123,7 @@ u32 hashName(const std::string& name)
     return hash;
 }
 
-// ofbx stores matrices as column-major double[16]. Copy them straight into a
-// Math::mat4 (also column-major) without any transpose.
+// ofbx matrices are column-major double[16], copied without transpose.
 Math::mat4 toMat4(const ofbx::Matrix& m)
 {
     Math::mat4 out;
@@ -209,7 +176,6 @@ void sortUniqueTimes(std::vector<f32>& times)
                 times.end());
 }
 
-// Keep the four strongest skin weights for a vertex, same as B3DImporter.
 struct WeightSlots
 {
     s32 ids[4] = {-1, -1, -1, -1};
@@ -254,15 +220,13 @@ struct WeightSlots
     }
 };
 
-// Parse one ofbx scene from raw bytes. The caller becomes the owner and must
-// call scene->destroy() when done.
+// The caller owns the scene and must call scene->destroy().
 ofbx::IScene* parseFbx(const u8* data, usize size)
 {
     return ofbx::load(data, static_cast<int>(size),
                       static_cast<ofbx::u64>(ofbx::LoadFlags::TRIANGULATE));
 }
 
-// Get a stable name out of an ofbx object, falling back to its id.
 std::string objectName(const ofbx::Object& obj)
 {
     if (obj.name[0] != '\0')
@@ -270,9 +234,7 @@ std::string objectName(const ofbx::Object& obj)
     return "object_" + std::to_string(obj.id);
 }
 
-// Mixamo and Blender spell a few of the same bones differently. Canonicalize
-// the Blender spellings to the Mixamo ones so a mesh and its animation,
-// exported by different tools, still match by name.
+// Canonicalize Blender bone spellings to Mixamo's so mesh and animation from different tools match.
 std::string canonicalBoneName(const std::string& name)
 {
     if (name == "Chest")
@@ -298,8 +260,7 @@ bool isSkeletonNode(const ofbx::Object* object)
            object->getType() == ofbx::Object::Type::NULL_NODE;
 }
 
-// Armatures commonly contain Null nodes between LimbNodes. Dropping one
-// changes both the parent index and local bind transform.
+// Dropping a Null node between LimbNodes changes parent index and local bind transform.
 bool buildBoneMap(const ofbx::IScene& scene, FbxBoneMap& result)
 {
     std::unordered_set<u64> required;
@@ -357,10 +318,7 @@ bool buildBoneMap(const ofbx::IScene& scene, FbxBoneMap& result)
     return true;
 }
 
-// Find the first animated bone that carries locomotion. Start at the top of the
-// hierarchy and skip common dummy root nodes (Reference, root, RootNode). The
-// first non-dummy bone with a position track is treated as the functional root
-// for in-place conversion.
+// First bone with a position track, skipping dummy roots (Reference, root, RootNode): the functional root for in-place conversion.
 s32 findFunctionalRoot(const FbxBoneMap& boneMap, const std::vector<s32>& parentAnim,
                        const std::vector<s32>& animToSkeleton,
                        const std::vector<BoneTrack>& tracks)
@@ -405,8 +363,6 @@ s32 findFunctionalRoot(const FbxBoneMap& boneMap, const std::vector<s32>& parent
 
 } // namespace
 
-// ------------------------------------------------------------------ importer
-
 bool FbxImporter::supports(const char* extension) const
 {
     return extension && std::strcmp(extension, "fbx") == 0;
@@ -425,18 +381,13 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
     mesh.clear();
 
     const std::string directory = directoryOf(filename);
-    // Only needed for an embedded texture's own extraction
-    // (extractEmbeddedTexture()) - an external one is still read the normal
-    // search-path-aware way via `directory` above, so this staying empty (an
-    // unresolvable `filename`) only means an embedded texture falls back to
-    // importing blank, not that nothing imports at all.
+    // Only for embedded-texture extraction; empty just means embedded textures import blank.
     const std::string resolvedFilename = files.resolve(filename);
     const std::string realDirectory =
         directoryOf(resolvedFilename.empty() ? filename : resolvedFilename);
     const std::string textureFolder = stem(filename) + "_textures";
 
-    // One scene-global bone map shared by every mesh. Cluster order is local
-    // to each Skin and is not a skeleton index.
+    // One scene-global bone map shared by every mesh (cluster order is per-Skin).
     FbxBoneMap boneMap;
     if (!buildBoneMap(*scene, boneMap))
     {
@@ -446,8 +397,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
         return false;
     }
 
-    // Pre-pass: does any mesh in the file have a skin? If yes, we allocate a
-    // skin vertex for every vertex so the arrays stay in lockstep.
+    // Pre-pass: any skin in the file means every vertex gets a skin vertex, keeping arrays in lockstep.
     bool hasSkin = false;
     for (int mi = 0; mi < scene->getMeshCount() && !hasSkin; ++mi)
     {
@@ -457,8 +407,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
             hasSkin = true;
     }
 
-    // Material bookkeeping across the whole file. Different meshes can reuse the
-    // same ofbx Material object; we map each unique pointer to one slot.
+    // Different meshes can share an ofbx Material; one slot per unique pointer.
     std::unordered_map<const ofbx::Material*, u32> materialSlot;
     const auto slotForMaterial = [&](const ofbx::Material* material) -> u32
     {
@@ -532,15 +481,11 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
         const int* srcMaterials = geom->getMaterials();
         const ofbx::Skin* skin = geom->getSkin();
         const bool skinned = skin && skin->getClusterCount() > 0;
-        // Start with the mesh node transform; attachments may replace it
-        // with a transform relative to their bone below.
         Math::mat4 nodeXform = toMat4(fbxMesh->getGlobalTransform());
         s32 attachmentBone = -1;
         if (!skinned && hasSkin)
         {
-            // Facial meshes can be exported as separate objects with an
-            // Armature modifier but without a usable FBX cluster. Never guess
-            // their bone from position: that changes with each animation.
+            // Facial meshes may have an Armature modifier but no usable cluster; never guess a bone from position (varies per animation).
             const std::string meshName = objectName(*fbxMesh);
             const bool facial = meshName.find("Eye") != std::string::npos ||
                                 meshName.find("eye") != std::string::npos ||
@@ -570,7 +515,6 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
                     break;
                 }
             }
-            // Non-facial unskinned attachments may still be children of a bone.
             if (!attachment)
                 for (const ofbx::Object* parent = fbxMesh->getParent(); parent;
                      parent = parent->getParent())
@@ -588,8 +532,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
                             toMat4(fbxMesh->getGlobalTransform());
         }
 
-        // Bake static meshes with their node transform. Skinned vertices stay
-        // in the common mesh-local bind space used by the skin palette.
+        // Static meshes are baked with their node transform; skinned stay in mesh-local bind space.
         if (skinned)
             nodeXform = Math::mat4(1.0f);
         const Math::mat4 geomXform = toMat4(fbxMesh->getGeometricMatrix());
@@ -616,7 +559,6 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
         if (hasSkin)
             mesh.skin.resize(vertexBase + vertexCount);
 
-        // Build skin weights first so the per-vertex copy is trivial.
         std::vector<WeightSlots> weights;
         if (skinned)
         {
@@ -726,9 +668,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
             }
         }
 
-        // Collect indices grouped by material so each SubMesh owns one contiguous
-        // range. This avoids surprises if per-triangle material indices are not
-        // already sorted in the file.
+        // Group indices by material so each SubMesh owns one contiguous range.
         std::unordered_map<u32, std::vector<u32>> indicesBySlot;
         for (int ii = 0; ii < indexCount; ii += 3)
         {
@@ -776,10 +716,7 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
         return false;
     }
 
-    // ForwardPass decides the skinning pipeline from the MATERIAL's Skinned
-    // flag, while DepthPass keys off the mesh. A skinned FBX must mark its
-    // materials, or the colour pass renders the static bind pose under an
-    // animated shadow.
+    // ForwardPass picks skinning from the material's Skinned flag; unmarked, the colour pass renders the static bind pose under an animated shadow.
     if (hasSkin)
         for (Material& material : mesh.materials)
             material.flags |= MaterialSkinned;
@@ -801,8 +738,6 @@ bool FbxImporter::import(const std::string& filename, ByteArray& data, FileSyste
 
     return true;
 }
-
-// ------------------------------------------------------------ skeleton loader
 
 bool loadFbxSkeleton(const std::string& filename, FileSystem& files, Skeleton& skeleton)
 {
@@ -828,7 +763,6 @@ bool loadFbxSkeleton(const std::string& filename, FileSystem& files, Skeleton& s
         return false;
     }
 
-    // Gather inverse bind matrices from the clusters that link back to each limb.
     std::unordered_map<u64, Math::mat4> inverseBindByBoneId;
     std::unordered_map<u64, Math::mat4> bindGlobalByBoneId;
     for (int mi = 0; mi < scene->getMeshCount(); ++mi)
@@ -892,8 +826,6 @@ bool loadFbxSkeleton(const std::string& filename, FileSystem& files, Skeleton& s
     return skeleton.finalize();
 }
 
-// ----------------------------------------------------------- animation loader
-
 bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skeleton& skeleton,
                       AnimationClip& clip, bool keepRootMotion)
 {
@@ -929,17 +861,11 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
         return false;
     }
 
-    // Match the animation's bones to the loaded skeleton by name, not by
-    // order. The animation may live in a separate FBX whose hierarchy or bone
-    // ordering differs from the mesh's (Blender re-exports add Reference/Pivot/
-    // Root nodes and reshuffle children). BoneTrack::bone stores a skeleton
-    // index, and unmapped animation bones are simply skipped.
+    // Match animation bones to the skeleton by name; the animation may come from another FBX with different ordering. Unmapped bones are skipped.
     const usize animBoneCount = boneMap.bones.size();
     std::vector<s32> animToSkeleton(animBoneCount, -1);
     u32 matched = 0;
 
-    // Canonical name -> skeleton index, so either the Mixamo or Blender
-    // spelling resolves to the same bone.
     std::unordered_map<std::string, s32> skeletonByCanonicalName;
     for (u32 b = 0; b < skeleton.boneCount(); ++b)
         skeletonByCanonicalName[canonicalBoneName(skeleton.bone(b).name)] = static_cast<s32>(b);
@@ -961,11 +887,7 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
         scene->destroy();
         return false;
     }
-    // Do not silently play an animation on a different character. A partial
-    // name match can look plausible while leaving unmatched limbs in the bind
-    // pose, which produces detached/deformed body parts. Animation exports
-    // may omit a few helper bones, but the animated hierarchy itself must be
-    // mostly shared with the loaded skeleton.
+    // Do not play an animation on a different character: partial name matches leave limbs in bind pose.
     const u32 minimumMatches = static_cast<u32>(std::ceil(animBoneCount * 0.80));
     if (matched < minimumMatches)
     {
@@ -1045,14 +967,10 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
     }
 
     clip = AnimationClip();
-    // Blender exports every action under the generic "Take 001"; the filename
-    // stem (e.g. "Idle", "Run_0") is unique and meaningful, so prefer it over
-    // the generic stack name. Mixamo's "mixamo.com" is kept as-is.
+    // Prefer the filename stem over the generic stack name (Blender's "Take 001").
     const std::string stackName = stack->name[0] != '\0' ? std::string(stack->name) : std::string();
     clip.setName(!stackName.empty() && stackName != "Take 001" ? stackName : stem(filename));
 
-    // Aggregate channels per target bone. A bone can have up to three curve
-    // nodes (translation, rotation, scale), each with up to three XYZ curves.
     struct Channels
     {
         const ofbx::Object* object = nullptr;
@@ -1117,10 +1035,7 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
     }
     sortUniqueTimes(times);
 
-    // Parent indices inside the animation file's own hierarchy. Blender-style
-    // exports can be re-rooted or re-ordered relative to the mesh skeleton, so
-    // the animation side walks its own chain instead of borrowing the loaded
-    // skeleton's parent list.
+    // The animation walks its own parent chain; its hierarchy may be re-rooted relative to the mesh skeleton.
     std::vector<s32> parentAnim(animBoneCount, -1);
     for (usize a = 0; a < animBoneCount; ++a)
     {
@@ -1131,11 +1046,7 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
             parentAnim[a] = parentIt->second;
     }
 
-    // The true bind pose lives in the skin clusters' TransformLink, not in the
-    // nodes' Lcl Translation/Rotation (which Blender writes as the first
-    // animation frame). Reconstruct the authored bind the same way
-    // loadFbxSkeleton() does, so authoredBindGlobal == skeletonBindGlobal for
-    // a consistent file and the delta maps bind -> animated correctly.
+    // Bind pose lives in the skin clusters' TransformLink, not Lcl TRS; reconstruct as loadFbxSkeleton() does.
     std::unordered_map<u64, Math::mat4> clusterBindGlobal;
     for (int mi = 0; mi < scene->getMeshCount(); ++mi)
     {
@@ -1153,7 +1064,6 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
         }
     }
 
-    // Local (parent-relative) bind transform of every animation bone.
     std::vector<Math::mat4> authoredBindLocal(animBoneCount, Math::mat4(1.0f));
     for (usize a = 0; a < animBoneCount; ++a)
     {
@@ -1175,11 +1085,7 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
     std::vector<BoneTrack> tracks(skeletonBoneCount);
     for (usize s = 0; s < skeletonBoneCount; ++s)
         tracks[s].bone = static_cast<s32>(s);
-    // Sample in LOCAL space: each animation bone's delta (bind local ->
-    // animated local) is applied to the mapped skeleton bone's bind local.
-    // Working per bone instead of through world-space globals stops a
-    // different root position/rotation between two files from leaking huge
-    // translations into bones far from the origin.
+    // Sample in LOCAL space: per-bone delta applied to the skeleton bind local, so differing root transforms do not leak translations.
     for (f32 time : times)
     {
         for (usize a = 0; a < animBoneCount; ++a)
@@ -1246,17 +1152,8 @@ bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skel
             track.scales.push_back(outScale);
         }
     }
-    // Optional in-place conversion. Some exporters bake a large world-space offset
-    // into the hips (or a similar functional root), which teleports the character
-    // away from the origin. For in-place playback we pin the horizontal position
-    // to the bind pose and preserve only the vertical bobbing, referenced against
-    // the LOWEST point of the root track rather than frame 0 - for a locomotion
-    // cycle that lowest point is the weight-bearing/ground-contact frame, the one
-    // actually at the bind pose's standing height; frame 0 lands there only by
-    // chance (mid-stride, a foot lifted, is just as likely), and pinning to it
-    // would carry that stride phase's own height into every frame, floating the
-    // whole loop by however far off the ground frame 0 happened to be.
-    // Rotations are left untouched.
+    // In-place: pin horizontal position to bind pose, keep vertical bobbing relative to the LOWEST root point
+    // (ground contact), not frame 0, which may be mid-stride.
     if (!keepRootMotion)
     {
         const s32 rootAnim = findFunctionalRoot(boneMap, parentAnim, animToSkeleton, tracks);

@@ -39,12 +39,7 @@ public:
     void setBox(const Math::vec3& halfExtents);
     void setCapsule(f32 radius, f32 height); // height is total, cap to cap
     void setMesh(const TriangleOctree* octree); // borrowed, not owned
-    // Switches the shape to Mesh and reads the sibling MeshRenderer's mesh
-    // asset, baking it through the object's current world transform into an
-    // octree this Collider owns - a one-time bake, never repeated as the
-    // object moves, so the object must be GameObject::isStatic(). False,
-    // with the shape still Mesh but mesh() still null, when the object is
-    // not static, has no MeshRenderer, or its mesh has no geometry yet.
+    // One-time bake, so the object must be GameObject::isStatic().
     bool rebuildMeshFromRenderer();
 
     ColliderShape shape() const;
@@ -59,7 +54,7 @@ public:
     void setResponse(CollisionResponse response);
     CollisionResponse response() const;
 
-    f32 capsuleSegmentHalfHeight() const; // physics CapsuleShape's segment, half of it
+    f32 capsuleSegmentHalfHeight() const;
 
     AABB worldBounds() const;
 

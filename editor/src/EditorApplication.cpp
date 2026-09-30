@@ -57,8 +57,7 @@ namespace Radion
 
 namespace
 {
-// ImGui's .ini keys docking on these - constant across sessions, per
-// PLANO_EDITOR.md's layout note. Never renamed casually.
+// ImGui's .ini keys docking on these; constant across sessions, never rename casually.
 constexpr const char* kHierarchyWindow = "Hierarchy";
 constexpr const char* kViewportWindow = "Viewport";
 constexpr const char* kGameWindow = "Game";
@@ -214,8 +213,7 @@ void EditorApplication::logSink(LogLevel level, const char* message)
     ConsolePanel::pushEntry(level, message);
     if (!sInstance || !message)
         return;
-    // Info and Debug stay in the console: a toast for each would bury the
-    // ones that need answering under the running commentary of a scene load.
+    // Info and Debug stay in the console; a toast for each would bury the ones needing an answer.
     if (level == LOG_ERROR)
         sInstance->mToasts.error(message);
     else if (level == LOG_WARNING)
@@ -254,8 +252,7 @@ EditorApplication::EditorApplication(Engine& engine) : mEngine(engine)
     Log::setMode(LogMode::Verbose);
     Log::setSink(&EditorApplication::logSink);
 
-    // Preferences must exist before panels are constructed: their
-    // constructors copy the persisted viewport/tool state into live fields.
+    // Preferences must exist before panels: their constructors copy persisted state into live fields.
     mSettingsFile =
         FileSystem::getSingleton().prefPath("Radion", "Editor") + "editor.settings.json";
     mSettings.load(mSettingsFile);
@@ -266,9 +263,7 @@ EditorApplication::EditorApplication(Engine& engine) : mEngine(engine)
     mEngine.createScene();
     scene().setRunningInEditor(true);
 
-    // Automatic coalesces scene invalidations and captures once after the
-    // edits settle. Timed remains available explicitly in Settings for work
-    // that really needs continuously refreshed reflections.
+    // Automatic coalesces invalidations and captures once after edits settle; Timed refreshes continuously.
     EnvironmentProbe& probe = mEngine.environmentProbe();
     probe.create(64);
     probe.refresh = EnvironmentProbe::Refresh::Automatic;
@@ -313,7 +308,7 @@ void EditorApplication::startDeferredStartupLoad()
 
 EditorApplication::~EditorApplication()
 {
-    // Shutdown logs after this object is gone otherwise reach mToasts.
+    // Shutdown logs after this object is gone would otherwise reach mToasts.
     sInstance = nullptr;
     mSettings.cursor3D = mCursor3D;
     mSettings.viewMode = mViewMode == ViewMode::Game ? 1 : 0;
@@ -351,16 +346,11 @@ void EditorApplication::buildPanels()
                                   panel->title() == "Tile Painter" ||
                                   panel->title() == "Settings" || panel->title() == "Animation" ||
                                   panel->title() == "Debug" || panel->title() == "Profiler";
-        // The first dock-layout migration also establishes the quieter
-        // default: these heavyweight tools are available from Windows, but
-        // do not open automatically.
         if (mSettings.dockLayoutVersion < 2 && optionalTool)
             panel->setActive(false);
         else if (saved != mSettings.panelOpen.end())
             panel->setActive(saved->second);
         else if (optionalTool)
-            // These tools remain available from Windows, but stay out of the
-            // initial layout until explicitly enabled by the user.
             panel->setActive(false);
     }
 }
@@ -376,8 +366,7 @@ void EditorApplication::openScriptEditor(const std::string& path)
 
 void EditorApplication::buildDefaultScene()
 {
-    // A fresh scene starts at the world origin, regardless of the cursor
-    // position persisted from the scene that was edited previously.
+    // A fresh scene starts at the world origin regardless of the persisted cursor.
     mCursor3D = Math::vec3(0.0f);
 
     GameObject* cameraObject = scene().createGameObject("Camera");
@@ -397,9 +386,7 @@ void EditorApplication::buildDefaultScene()
 
 void EditorApplication::applyNewSceneRenderDefaults()
 {
-    // A new scene should start cheap and neutral: it is easier to opt into a
-    // look than to diagnose bloom, temporal history or a local-light shadow
-    // atlas that was silently inherited from the previous scene.
+    // A new scene starts cheap and neutral so nothing (bloom, temporal history, local-light shadow atlas) is silently inherited.
     PostProcessStack& post = mEngine.postProcess();
     post.enabled = false;
     post.ssaoEnabled = false;
@@ -410,9 +397,7 @@ void EditorApplication::applyNewSceneRenderDefaults()
     if (LensFlarePass* lensFlare = mEngine.lensFlare())
         lensFlare->enabled = false;
 
-    // Four stable 1024 cascades cover a normal new scene well while keeping
-    // the first cascade dense. Local-light shadows stay opt-in: a few point
-    // lights can otherwise consume the atlas before the author asks for it.
+    // Four 1024 cascades; local-light shadows stay opt-in so a few point lights cannot consume the atlas.
     if (CascadeShadowSettings* shadows = mEngine.cascadeSettings())
     {
         *shadows = CascadeShadowSettings();
@@ -433,10 +418,7 @@ void EditorApplication::replaceScene(Scene* replacement)
     replacement->setRunningInEditor(true);
     mEngine.setActiveScene(replacement);
     mSelection.clear();
-    // Both of these name things in the scene being replaced - an object id
-    // and submesh indices into a mesh that is about to be a different one.
-    // Carried over, the next Delete acts on whatever now happens to sit at
-    // those indices.
+    // These name an object id and submesh indices of the scene being replaced; carrying them over would make the next Delete hit the wrong pieces.
     mSubmeshSelection.object = 0;
     mSubmeshSelection.indices.clear();
     mPickedSubmesh = PickedSubmesh();
@@ -513,9 +495,7 @@ std::string EditorApplication::nextIncrementedName(const std::string& name)
         width = 2;
     }
 
-    // The scene may already hold the next few numbers (duplicating the same
-    // source twice, or a hand-named object sitting on the number) - walk
-    // forward until one is actually free instead of handing back a duplicate.
+    // Walk forward until a number is actually free (the scene may already hold it).
     for (;;)
     {
         ++counter;
@@ -590,8 +570,7 @@ void EditorApplication::restoreMeshEdit(const UndoState& state)
         return;
     data->submeshes = state.submeshes;
     applyMeshEdit(state.mesh);
-    // The indices it held name submeshes that have just moved (or come
-    // back); keeping them would point the next Delete at the wrong pieces.
+    // Held indices name submeshes that moved; keeping them would point the next Delete at the wrong pieces.
     mSubmeshSelection.indices.clear();
 }
 
@@ -604,8 +583,7 @@ void EditorApplication::undo()
         SceneRenderSettings settings = sceneRenderSettings();
         UndoState current;
         current.scene = mSerializer.toJson(scene(), &settings);
-        // The step being left behind carries today's submesh table, so redo
-        // can put the deletion back after this undo removes it.
+        // The step being left carries today's submesh table so redo can put the deletion back.
         if (mUndoStates.back().hasMeshEdit)
             if (const MeshData* data = importedMeshData(mUndoStates.back().mesh))
             {
@@ -650,9 +628,7 @@ void EditorApplication::newScene()
     Scene* fresh = new Scene();
     replaceScene(fresh);
     applyNewSceneRenderDefaults();
-    // Without this the fresh scene has no active camera and no light - the
-    // Viewport/Game panels both bail out with nothing to render ("black
-    // screen") until the user adds one by hand.
+    // Without this the fresh scene has no camera or light and Viewport/Game render nothing.
     buildDefaultScene();
     mScenePath.clear();
     mDirty = false;
@@ -705,8 +681,7 @@ void EditorApplication::fitShadowsToScene()
 
     const f32 radius = bounds.empty() ? 1.0f : bounds.radius();
 
-    // Texel density depends on the camera's own field of view and on the sun's
-    // angle, so the fit is solved against the real ones rather than a guess.
+    // Texel density depends on the camera FOV and sun angle, so solve against the real ones.
     ShadowCamera camera;
     if (Camera* active = scene().activeCamera(); active && active->owner())
     {
@@ -737,10 +712,7 @@ void EditorApplication::play()
     SceneRenderSettings settings = sceneRenderSettings();
     mEditSnapshot = mSerializer.toJson(scene(), &settings);
 
-    // A compiled script is kept for the life of the process, so editing a
-    // .py in another window and pressing Play would otherwise run the
-    // version from before the edit. Here is the one place worth paying a
-    // stat per cached script for.
+    // Compiled scripts are cached for the process life; stat each so an edited .py is not run stale on Play.
     if (const int reloaded = ScriptCache::getSingleton().refreshChangedFiles())
         Log::info("EditorApplication: recompiled %d changed script(s)", reloaded);
 
@@ -759,10 +731,7 @@ void EditorApplication::stop()
     SceneRenderSettings settings = sceneRenderSettings();
     if (!mSerializer.fromJson(mEditSnapshot, *restored, result, &settings))
     {
-        // The snapshot came from this same serializer moments ago - a
-        // failure here means Play captured something Stop cannot rebuild,
-        // which is a real bug, not a user mistake. Keep the play-mode scene
-        // rather than dropping it silently into a broken restore.
+        // The snapshot came from this serializer, so a failure is a real bug; keep the play-mode scene rather than a broken restore.
         Log::error("EditorApplication: could not restore the pre-Play snapshot, staying in Play");
         delete restored;
         return;
@@ -780,18 +749,14 @@ bool EditorApplication::saveSceneAs(const std::string& path)
     std::vector<MaterialSaveBatch> batches;
     if (!collectMaterialOverridesRecursive(scene().root(), batchByMesh, batches))
     {
-        // A failed sidecar write must never make the editor consider this
-        // state saved.  In particular, keep every override alive so the user
-        // can fix the path/permissions and retry without recreating edits.
+        // A failed sidecar write must not mark the state saved; keep every override so the user can retry.
         mDirty = true;
         Log::error(
             "EditorApplication: scene not saved because one or more material sidecars failed");
         return false;
     }
 
-    // Apply every compatible instance edit before writing any sidecar. Slots
-    // edited on different instances merge; two different edits to the same
-    // shared slot fail above rather than choosing one silently.
+    // Apply every compatible instance edit before writing sidecars; conflicting edits to one shared slot fail above.
     for (MaterialSaveBatch& batch : batches)
     {
         for (usize slot = 0; slot < batch.changedSlots.size(); ++slot)
@@ -820,10 +785,7 @@ bool EditorApplication::saveSceneAs(const std::string& path)
     }
     if (!mEngine.sceneManager().save(path))
     {
-        // Sidecars may already have reached disk, but the save transaction is
-        // not complete until the scene itself succeeds.  Overrides remain the
-        // authoritative in-memory copy until then and are deliberately not
-        // cleared here.
+        // Sidecars may be on disk but the save is incomplete until the scene succeeds; overrides stay authoritative and are not cleared.
         mDirty = true;
         Log::error("EditorApplication: scene save failed; material overrides were kept");
         return false;
@@ -833,13 +795,7 @@ bool EditorApplication::saveSceneAs(const std::string& path)
     for (const MaterialSaveBatch& batch : batches)
         for (MeshRenderer* renderer : batch.renderers)
             renderer->clearMaterialOverrides();
-    // Rendering now reads mesh->materials instead of the overrides that were
-    // just dropped, and those went in as plain data - a merged material can
-    // be a different shader variant from the one it replaced (a baked
-    // lightmap is exactly that), and a static submesh otherwise keeps the
-    // pipeline the BVH cached before the swap. Without this the object turns
-    // black on save, because emitSubmesh() drops a submesh whose pipeline
-    // does not match. Same reason applyMeshEdit() rebuilds the index.
+    // Rendering now reads mesh->materials, which may be a different shader variant (e.g. baked lightmap); rebuild the index or the BVH-cached pipeline mismatches and emitSubmesh() drops the submesh (black object). Same as applyMeshEdit().
     if (!batches.empty())
     {
         for (const MaterialSaveBatch& batch : batches)
@@ -878,10 +834,7 @@ void EditorApplication::addProjectSearchPath(const std::string& path)
 {
     if (path.empty())
         return;
-    // Compared normalized, not as raw strings: the same folder reached with
-    // or without a trailing separator (or added twice from two different
-    // callers) is one search path, not two - an exact-string compare missed
-    // that and let the sidebar show the same folder listed twice.
+    // Compared normalized: a folder with/without a trailing separator is one path, not two.
     const std::filesystem::path normalized = std::filesystem::path(path).lexically_normal();
     for (const std::string& existing : mExtraSearchPaths)
         if (std::filesystem::path(existing).lexically_normal() == normalized)
@@ -929,12 +882,7 @@ MeshData* EditorApplication::importedMeshData(MeshHandle handle)
     if (it != mImportedMeshData.end())
         return &it->second;
 
-    // A mesh that arrived with a saved scene never went through the import
-    // popup, so nothing put a CPU copy here - and every mesh tool, the
-    // submesh delete and the lightmap unwrap all need one. Read back from
-    // the recipe the scene stored, on first use rather than at load: doing
-    // it for the whole scene up front would read every mesh file twice and
-    // hold all of it in memory, most of which is never edited.
+    // Meshes from a saved scene skip the import popup and have no CPU copy; load it from the stored recipe on first use, not at load (would read every file twice).
     const MeshDesc& desc = Assets().meshDesc(handle);
     if (desc.source != MeshSource::File || desc.file.empty())
         return nullptr;
@@ -996,8 +944,7 @@ GameObject* EditorApplication::adoptGeneratedMesh(const std::string& name,
     renderer->setMesh(mesh);
     scene().update(0.0f);
     selection().select(object->id());
-    // Same reason replaceScene() clears these: they index a mesh that is not
-    // the one now in front of the user.
+    // Same reason as replaceScene(): they index a mesh no longer in front of the user.
     mSubmeshSelection.object = 0;
     mSubmeshSelection.indices.clear();
     markDirty();
@@ -1010,15 +957,7 @@ bool EditorApplication::applyMeshEdit(MeshHandle handle)
     MeshData* data = importedMeshData(handle);
     if (!data || !Assets().replaceMesh(handle, *data))
         return false;
-    // replaceMesh() hands back a brand new Mesh - same handle, but a fresh
-    // Material array with every pipeline unresolved. Static geometry's
-    // pipelines are only ever resolved once, up front, by rebuildStaticIndex()
-    // (see its own call site's comment and Scene::buildShadowList()'s) - left
-    // uncalled here, every submesh on this mesh keeps whatever pipeline
-    // state the BVH cached from before the edit, which for an alpha-tested
-    // material (a shader variant the old, now-gone Material object does not
-    // share with the new one) is an invalid one: emitSubmesh() drops it, and
-    // the submesh renders as if deleted.
+    // replaceMesh() returns a fresh Mesh with unresolved pipelines; rebuildStaticIndex() must run or the BVH-cached state is invalid and emitSubmesh() drops the submesh.
     scene().rebuildStaticIndex();
     scene().rebuildDynamicIndex();
     markDirty();
@@ -1038,9 +977,7 @@ void EditorApplication::deleteSubmeshSelection()
         return;
     }
     recordMeshUndo(renderer->mesh());
-    // Highest index first: removing one shifts every index past it down by
-    // one, so the loop's own remaining indices must not be read after that
-    // happens to them.
+    // Highest index first: each removal shifts later indices.
     std::vector<u32> sorted = mSubmeshSelection.indices;
     std::sort(sorted.begin(), sorted.end(), std::greater<u32>());
     u32 removed = 0;
@@ -1220,9 +1157,7 @@ bool EditorApplication::openProject(const std::string& manifestPath)
                           path.get_ref<const std::string&>()) == extraSearchPaths.end())
                 extraSearchPaths.push_back(path.get<std::string>());
 
-    // Asset lookup is part of loading a scene, so install the candidate
-    // project's paths before deserializing. If loading fails, restore the
-    // previous project's paths and metadata unchanged.
+    // Asset lookup is part of loading: install the candidate project's paths first, restore the previous ones if loading fails.
     unregisterProjectSearchPaths();
     const std::string candidateAssetPath = (root / assetRoot).string();
     FileSystem::getSingleton().addSearchPath(candidateAssetPath);
@@ -1303,9 +1238,7 @@ void EditorApplication::drawDockspace()
     if (!mDockLayoutBuilt)
     {
         mDockLayoutBuilt = true;
-        // Only on the very first run for this .ini - once the user redocks
-        // anything, ImGui's own persistence takes over and this never runs
-        // again (PLANO_EDITOR.md: "não reconstruir os docks a cada arranque").
+        // Only on the first run for this .ini; afterwards ImGui's persistence takes over.
         if (mSettings.dockLayoutVersion < 2 || ImGui::DockBuilderGetNode(dockspaceId) == nullptr ||
             ImGui::DockBuilderGetNode(dockspaceId)->IsSplitNode() == false)
         {
@@ -1313,10 +1246,6 @@ void EditorApplication::drawDockspace()
             ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
             ImGui::DockBuilderSetNodeSize(dockspaceId, viewport->WorkSize);
 
-            // Simple by default: tree on the left, Game/Scene in the middle,
-            // Inspector filling the whole right side, Console and Assets at
-            // the bottom - everything else (Settings, the heavier tools) is
-            // still dockable from the Windows menu, just not shown until then.
             ImGuiID left, center, right, centerTop, bottom;
             ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Left, 0.20f, &left, &center);
             ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.22f / 0.80f, &right, &center);
@@ -1355,8 +1284,7 @@ void EditorApplication::drawMainMenuBar()
         redo();
     if (!ImGui::BeginMenuBar())
         return;
-    // Disabled during Play - editing the snapshot Stop will discard anyway
-    // is not useful, and New/Open would abandon Play silently otherwise.
+    // Disabled during Play: editing the snapshot Stop discards is useless, and New/Open would abandon Play silently.
     ImGui::BeginDisabled(mPlaying);
     if (ImGui::BeginMenu("Project"))
     {
@@ -1555,9 +1483,6 @@ void EditorApplication::drawMainMenuBar()
         ImGui::SetTooltip("Stop");
     ImGui::EndDisabled();
 
-    // Which view is live. Only one renders - see ViewMode - so this is a
-    // performance control as much as a navigation one, which is why it sits
-    // out here beside Play/Stop instead of inside a menu.
     ImGui::SameLine();
     ImGui::TextDisabled("|");
     ImGui::SameLine();
@@ -1616,8 +1541,6 @@ void EditorApplication::drawCameraSettingsPopup()
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Geometry beyond this distance is clipped.");
     ImGui::Separator();
-    // Applied live in the viewport (it reads these every frame) and written
-    // to disk here - the periodic 5s auto-save would persist them anyway.
     if (ImGui::Button("Save"))
         mSettings.save(mSettingsFile);
     ImGui::SameLine();
@@ -1731,18 +1654,9 @@ void EditorApplication::drawSaveSceneAsPopup()
     ImGui::EndPopup();
 }
 
-// What is happening right now, along the bottom edge, where a status bar
-// belongs: frame time, what the scene holds, what is selected, which file is
-// open. It replaces the floating FPS box, which sat over the viewport and
-// covered the very thing being looked at.
-//
-// BeginViewportSideBar reserves the strip out of the viewport's work area
-// rather than drawing on top of it, so the dockspace ends above the bar and
-// no panel is ever hidden behind it.
 void EditorApplication::drawStatusBar(f32 deltaTime)
 {
-    // Exponential moving average - a raw per-frame delta jumps around too
-    // much to read at a glance, this reacts over roughly ten frames instead.
+    // Exponential moving average over roughly ten frames; the raw delta is too jumpy to read.
     mStatsSmoothedDelta =
         mStatsSmoothedDelta <= 0.0f ? deltaTime : mStatsSmoothedDelta * 0.9f + deltaTime * 0.1f;
     const f32 fps = mStatsSmoothedDelta > 0.0f ? 1.0f / mStatsSmoothedDelta : 0.0f;
@@ -1774,8 +1688,6 @@ void EditorApplication::drawStatusBar(f32 deltaTime)
     else
         ImGui::TextDisabled("No selection");
 
-    // The counts that say whether the physics and AI in this scene are doing
-    // anything - the two things most likely to be wrong while building one.
     if (current.bodyCount() > 0 || current.agentCount() > 0)
     {
         separator();
@@ -1812,9 +1724,6 @@ void EditorApplication::drawStatsOverlay(f32 deltaTime)
     (void)deltaTime; // the frame time moved to the status bar
     const u32 pendingTextures = AsyncTextureLoader::getSingleton().pendingCount();
     const u32 pendingMeshes = Assets().pendingAsyncMeshLoads();
-    // Streaming feedback is not behind the Stats Overlay toggle - a scene
-    // load is exactly the moment the editor used to look frozen, so it has
-    // to be visible without the user knowing to turn anything on first.
     if (!mStartupLoadPending && !mStartupLoading && pendingTextures == 0 && pendingMeshes == 0)
         return;
 
@@ -1848,14 +1757,10 @@ void EditorApplication::drawStatsOverlay(f32 deltaTime)
 
 void EditorApplication::runFrame(f32 deltaTime)
 {
-    // ViewportPanel raises this again after processing camera input. Reset it
-    // here so a closed/hidden viewport cannot leave captures deferred.
+    // ViewportPanel raises this again after camera input; reset here so a hidden viewport cannot leave captures deferred.
     mEngine.setProbeCaptureDeferred(false);
 
-    // Submesh indices only mean anything against the object they were picked
-    // on. Enforced here rather than at each call site because the object
-    // selection changes from several places - a Viewport click, a Hierarchy
-    // row, a rubber band - and only one of them ever remembered to do it.
+    // Submesh indices only mean something against the object they were picked on; enforced here because selection changes from several places.
     if (!mSubmeshSelection.indices.empty() && mSelection.selectedId() != mSubmeshSelection.object)
     {
         mSubmeshSelection.object = 0;
@@ -1876,8 +1781,7 @@ void EditorApplication::runFrame(f32 deltaTime)
 
     scene().update(deltaTime);
     drawDockspace();
-    // Before the panels: it reserves its strip out of the viewport's work
-    // area, and the dockspace built above has to end where the bar starts.
+    // Before the panels: it reserves its strip from the viewport work area, so the dockspace must end where the bar starts.
     drawStatusBar(deltaTime);
     drawStatsOverlay(deltaTime);
     mToasts.update(deltaTime);
@@ -1885,8 +1789,6 @@ void EditorApplication::runFrame(f32 deltaTime)
     {
         if (!panel->active())
             continue;
-        // Every window uses its constant title as ImGui id, matching what
-        // DockBuilderDockWindow() above targeted.
         bool open = true;
         ImGuiWindowFlags flags = ImGuiWindowFlags_None;
         if (panel->title() == kViewportWindow)
@@ -1901,7 +1803,7 @@ void EditorApplication::runFrame(f32 deltaTime)
         mFocusScriptEditorPending = false;
         ImGui::SetWindowFocus("Script Editor");
     }
-    // Last, so the toasts sit over every panel rather than under one.
+    // Last, so toasts sit over every panel.
     mToasts.draw();
     SceneRenderSettings renderSettings = sceneRenderSettings();
     const std::string currentRenderSettings =
@@ -1915,17 +1817,11 @@ void EditorApplication::runFrame(f32 deltaTime)
     }
     if (mFocusViewportPending)
     {
-        // SetWindowFocus() only finds a window that has had Begin() called at
-        // least once - the very first runFrame() this is still null before
-        // the panel loop above, a no-op. Runs after it instead, once "Viewport"
-        // is guaranteed to exist, and wins over whatever tab imgui.ini
-        // persisted as selected from a previous session.
+        // SetWindowFocus() needs a prior Begin(); run after the panel loop so "Viewport" exists, overriding the .ini's selected tab.
         mFocusViewportPending = false;
         ImGui::SetWindowFocus(kViewportWindow);
     }
-    // Preferences are cheap JSON and should survive more than a clean exit.
-    // Five seconds avoids writing every camera movement frame while bounding
-    // what a crash can lose.
+    // Five seconds avoids writing on every camera-move frame while bounding what a crash can lose.
     mSettingsSaveTimer += deltaTime;
     if (mSettingsSaveTimer >= 5.0f)
     {
@@ -2030,28 +1926,16 @@ void EditorApplication::run()
         const f32 deltaTime = Math::min(mEngine.getWindow().getDeltaTime(), 0.1f);
         mSceneRendered = false;
         runFrame(deltaTime);
-        // Only if no panel drew the scene into its own texture this frame -
-        // an older persisted layout with neither Viewport nor Game visible,
-        // say. This used to run unconditionally, before the panels, which
-        // meant a third full submission of the whole scene from the game
-        // camera every frame, straight into a backbuffer the dockspace then
-        // covered completely. Nothing was ever seen of it; it just cost a
-        // scene's worth of geometry and shadows.
+        // Only if no panel drew the scene into its own texture; unconditionally it cost a third full scene submission into a covered backbuffer.
         if (!mSceneRendered)
             mEngine.render(scene());
         mEngine.flip();
         updateRunner();
-        // Let the first editor frame reach the window before loading the
-        // persisted project/scene. Previously this happened in the
-        // constructor, so the user saw a black window until all scene work
-        // completed and no loading feedback could be drawn.
+        // Let the first frame reach the window before loading the persisted scene, so loading feedback can be drawn.
         if (mStartupLoadPending && !mStartupLoadStarted)
         {
             ++mStartupFramesPresented;
-            // The load is one blocking call, so the frame that says so has to
-            // be on screen BEFORE it starts: raising the flag inside
-            // startDeferredStartupLoad() set and cleared it without a single
-            // frame drawn in between, and the message was never seen.
+            // The load is one blocking call, so the frame announcing it must be on screen BEFORE it starts.
             if (mStartupFramesPresented == 2)
                 mStartupLoading = true;
             else if (mStartupFramesPresented >= 3)

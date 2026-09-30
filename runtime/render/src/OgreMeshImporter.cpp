@@ -52,14 +52,12 @@ constexpr usize MAX_OGRE_STRING_LENGTH = 4096;
 constexpr u32 MAX_OGRE_VERTICES = 16u * 1024u * 1024u;
 constexpr u32 MAX_OGRE_INDICES = 64u * 1024u * 1024u;
 
-// Vertex element semantics (Ogre's VertexElementSemantic).
 constexpr u16 OGRE_VES_POSITION = 1;
 constexpr u16 OGRE_VES_NORMAL = 4;
 constexpr u16 OGRE_VES_DIFFUSE = 5;
 constexpr u16 OGRE_VES_TEXTURE_COORDINATES = 7;
 constexpr u16 OGRE_VES_TANGENT = 9;
 
-// Vertex element types (Ogre's VertexElementType).
 constexpr u16 OGRE_VET_FLOAT1 = 0;
 constexpr u16 OGRE_VET_FLOAT2 = 1;
 constexpr u16 OGRE_VET_FLOAT3 = 2;
@@ -72,16 +70,13 @@ struct OgreVertex
 {
     float x = 0, y = 0, z = 0;
     float nx = 0, ny = 0, nz = 0;
-    // UV set 0 (the base texture's tiling unwrap) and set 1 (a baked
-    // lightmap's own unwrap). MeshData::uvs/uvs2 carry exactly these two;
-    // a mesh with a third set still loses it.
+    // UV set 0 (base) and set 1 (lightmap); a third set is lost.
     float u = 0, v = 0;
     float u1 = 0, v1 = 0;
     float tx = 0, ty = 0, tz = 0, tw = 1.0f;
     u8 color[4] = {255, 255, 255, 255};
 };
 
-// What a given geometry chunk actually carries.
 struct GeometryLayout
 {
     bool hasNormal = false;
@@ -220,8 +215,7 @@ bool readSkeletonAnimation(ByteArray& r, usize animationEnd, PendingAnimation& a
             return false;
         if (chunk.id == SKELETON_ANIMATION_BASEINFO)
         {
-            // Base animation baking is handled in a later pass. Parse it now
-            // so it is never mistaken for a track or silently read as bytes.
+            // Base animation baking is handled later; parse it so it is not read as a track.
             std::string baseName;
             if (!readOgreString(r, chunkEnd, baseName) || chunkEnd - r.tell() != sizeof(f32))
                 return false;
@@ -302,9 +296,7 @@ bool loadOgreSkeletonBytes(const std::string& filename, ByteArray& r, Skeleton& 
         else if (chunk.id == SKELETON_BONE)
         {
             OgreBoneData bone;
-            // Serializer_v1.10's historical calcBoneSize() omits the bone
-            // name even though the bytes are written. Ogre compensates for
-            // this internally; mirror that adjustment before using the end.
+            // Serializer_v1.10's calcBoneSize() omits the bone name though it is written; mirror Ogre's adjustment.
             if (!readOgreString(r, r.size(), bone.name) ||
                 bone.name.size() + 1 > r.size() - chunkEnd)
                 return false;
@@ -470,7 +462,7 @@ void applyAssignments(MeshData& mesh, u32 vertexBase, usize vertexCount,
             total += influences[i].weight;
         MeshSkinVertex& skin = mesh.skin[vertexBase + vertex];
         if (total <= 1e-8f)
-            continue; // explicit fallback remains joint 0 with weight 1
+            continue;
         skin.weights = Math::vec4(0.0f);
         for (usize i = 0; i < count; ++i)
         {
@@ -480,10 +472,7 @@ void applyAssignments(MeshData& mesh, u32 vertexBase, usize vertexCount,
     }
 }
 
-// M_GEOMETRY: vertex count, a declaration (one element per attribute) and one
-// or more raw interleaved vertex buffers, one per declared "source" (bind
-// index). Extracts POSITION/NORMAL/TANGENT/DIFFUSE and TEXCOORD sets 0/1 -
-// what MeshData (uvs/uvs2) can express.
+// M_GEOMETRY: vertex declaration plus interleaved buffers per source; extracts POSITION/NORMAL/TANGENT/DIFFUSE and TEXCOORD 0/1.
 bool readGeometry(ByteArray& r, usize endPos, std::vector<OgreVertex>& outVerts,
                   GeometryLayout& outLayout)
 {
@@ -550,7 +539,7 @@ bool readGeometry(ByteArray& r, usize endPos, std::vector<OgreVertex>& outVerts,
         }
         else
         {
-            r.seek(static_cast<long long>(childEnd)); // unrecognised at this level - skip
+            r.seek(static_cast<long long>(childEnd));
         }
     }
 
@@ -607,9 +596,7 @@ bool readGeometry(ByteArray& r, usize endPos, std::vector<OgreVertex>& outVerts,
         return false;
     }
 
-    // Optional attributes in an unexpected type are dropped, not fatal: the
-    // mesh still renders without a tangent/colour/extra UV set, and refusing
-    // the whole asset over one attribute would be worse.
+    // Optional attributes of unexpected type are dropped, not fatal.
     if (tanEl && tanEl->type != OGRE_VET_FLOAT3 && tanEl->type != OGRE_VET_FLOAT4)
     {
         Log::info("OgreMeshImporter: TANGENT is type=%d (not FLOAT3/FLOAT4) - ignoring it",
@@ -683,9 +670,7 @@ bool readGeometry(ByteArray& r, usize endPos, std::vector<OgreVertex>& outVerts,
             u32 packed = 0;
             std::memcpy(&packed, colBuf->data.data() + static_cast<usize>(i) * colBuf->vertexSize + colEl->offset,
                        sizeof(u32));
-            // ARGB/ABGR differ only in whether R or B sits in the low byte;
-            // VET_COLOUR is whatever the exporting renderer used, and ABGR
-            // (RGBA in memory order on little-endian) is the GL convention.
+            // ARGB/ABGR differ in whether R or B is the low byte; ABGR (RGBA in memory order) is the GL convention.
             if (colEl->type == OGRE_VET_COLOUR_ARGB)
             {
                 v.color[0] = static_cast<u8>((packed >> 16) & 0xFF);
@@ -712,11 +697,7 @@ bool readGeometry(ByteArray& r, usize endPos, std::vector<OgreVertex>& outVerts,
     return true;
 }
 
-// Finds `name` among mesh.materials, appending a new slot if it is not there
-// yet. Only the name/nameHash are set here - a .mesh file names its
-// materials but does not carry their look, so the rest of each Material
-// stays default until MaterialManager::load() replaces the whole vector
-// positionally (see the demo that calls it after import()).
+// Finds `name` in mesh.materials, appending a slot if absent; only names are set, MaterialManager::load() replaces the rest positionally.
 u32 materialSlotFor(MeshData& mesh, const std::string& name)
 {
     for (usize i = 0; i < mesh.materials.size(); ++i)
@@ -729,8 +710,6 @@ u32 materialSlotFor(MeshData& mesh, const std::string& name)
     return static_cast<u32>(mesh.materials.size() - 1);
 }
 
-// Appends one submesh's vertices/indices onto MeshData's shared buffers -
-// one set of arrays, submeshes as index ranges into it.
 u32 appendSubMesh(MeshData& mesh, const std::vector<OgreVertex>& verts,
                   const GeometryLayout& layout, const std::vector<u32>& indices,
                   const std::string& materialName)
@@ -772,10 +751,7 @@ u32 appendSubMesh(MeshData& mesh, const std::vector<OgreVertex>& verts,
     return vertexBase;
 }
 
-// M_SUBMESH: material name, index buffer, then either a reference to the
-// mesh's shared geometry or its own dedicated M_GEOMETRY. Trailing optional
-// chunks (operation type, bone assignments, texture aliases) are skipped in
-// bulk via the chunk's own declared end.
+// M_SUBMESH: trailing optional chunks are skipped via the chunk's declared end.
 bool readSubMesh(ByteArray& r, usize endPos, MeshData& mesh, const std::vector<OgreVertex>* sharedVerts,
                  const GeometryLayout& sharedLayout,
                  std::vector<std::pair<u32, usize>>& sharedCopies, usize meshEnd)
@@ -1002,9 +978,7 @@ bool importOgreMesh(const std::string& filename, ByteArray& r, MeshData& mesh,
         }
         else
         {
-            // Skeleton link, bone assignments, LOD levels, bounds, name
-            // table, edge lists, poses, animations - all out of scope for a
-            // static mesh loader.
+            // Skeleton link, bone assignments, LODs etc. are out of scope for a static mesh loader.
             r.seek(static_cast<long long>(childEnd));
         }
     }
@@ -1021,12 +995,7 @@ bool importOgreMesh(const std::string& filename, ByteArray& r, MeshData& mesh,
     if (meshSkeletonLink.empty())
         mesh.skin.clear();
 
-    // Unlike FbxImporter/RadionMeshImporter, this never got a MaterialSkinned
-    // pass of its own - MaterialManager::pipelineFor() picks the vertex shader
-    // variant off this flag (MATERIAL_SKINNED define), and a skinned mesh
-    // whose material lacks it gets the plain-mesh variant instead: the vertex
-    // layouts do not match, so nothing renders even though the raw geometry
-    // (DebugDraw's outline, drawn straight from the mesh data) is fine.
+    // MaterialManager::pipelineFor() picks the skinned vertex variant from the material flag; without it a skinned mesh renders nothing (layout mismatch).
     if (!mesh.skin.empty())
         for (Material& material : mesh.materials)
             material.flags |= MaterialSkinned;

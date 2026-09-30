@@ -66,20 +66,12 @@ enum ComponentEventFlags : u8
     ComponentEventLateUpdate = 1 << 1
 };
 
-// Most components are composable. Types that model one authoritative state
-// for an object (a physics body, terrain generator, or skeleton) remain
-// explicitly exclusive even though the storage supports sibling instances.
+// Types modelling one authoritative state (physics body, terrain, skeleton) stay exclusive.
 bool componentTypeAllowsMultiple(ComponentType type);
 
 class Component;
 
-// A component's ComponentType normally identifies its class outright, so
-// finding the slot occupied is proof enough and this default says so. Where
-// several classes share one type - the four light classes all register as
-// ComponentType::Light - it is specialised next to them to consult whatever
-// runtime discriminator they carry. All typed GameObject queries go through
-// this predicate so a shared type slot can still hold several concrete
-// component classes.
+// Where several classes share one ComponentType (the light classes), specialise this to consult a runtime discriminator.
 template <class T> struct ComponentMatch
 {
     static bool test(const Component*)
@@ -129,9 +121,7 @@ private:
     u8 mEvents;
     bool mActive = true;
     bool mStarted = false;
-    // Scene owns flat event lists so its frame loop only touches components
-    // that actually exist. These are tombstone positions while a callback is
-    // in flight; Scene compacts the lists once the frame is complete.
+    // Tombstone positions while a callback is in flight; Scene compacts the lists after the frame.
     usize mSceneUpdateIndex = InvalidSceneListIndex;
     usize mSceneLateUpdateIndex = InvalidSceneListIndex;
 };

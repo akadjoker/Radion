@@ -58,10 +58,7 @@ namespace Radion
 namespace
 {
 
-// A freshly built primitive has no material of its own - without one its
-// submesh has nothing to draw with and RenderList::emitSubmesh() silently
-// drops it, so the shape never actually appears in the scene despite the
-// mesh upload having succeeded.
+// A primitive needs a material or RenderList::emitSubmesh() silently drops its submesh.
 Material defaultPrimitiveMaterial()
 {
     Material material;
@@ -73,8 +70,6 @@ Material defaultPrimitiveMaterial()
     return material;
 }
 
-// The extension after the last '.', lower-cased - empty for an extension-less
-// path.
 std::string lowerExtension(const std::string& file)
 {
     const usize dot = file.find_last_of('.');
@@ -86,19 +81,7 @@ std::string lowerExtension(const std::string& file)
     return extension;
 }
 
-// Already .rskel: loads it as-is (still needed in-memory, to decode any .fbx
-// clip against it below). Anything else (.fbx today): decodes through
-// AssetManager::importSkeleton() and writes a .rskel beside it - the format
-// Animator::bind()/SceneSerializer actually understand. Empty on failure.
-// The .rskel/.ranim this writes always lands next to the SOURCE file on
-// disk - `file` itself is often a bare logical path (a MeshDesc's own .file,
-// pre-filled by drawAddComponentSection() straight from an already-imported
-// mesh, e.g. "models/ninja/ninja.b3d" with no RADION_ASSET_DIR prefix at
-// all). FileSystem::writeBinary() (which RadionSkeletonIO::save*() goes
-// through) does no search-path resolution the way reading does - it needs a
-// real path, so one has to be resolved here before deriving the sibling
-// output name, or the write fails against whatever the process's own
-// working directory happens to be instead of the asset.
+// .rskel loads as-is (needed in memory to decode .fbx clips); anything else converts via AssetManager::importSkeleton() and writes a .rskel beside the SOURCE file. `file` is often a bare logical path and FileSystem::writeBinary() does no search-path resolution, so resolve a real path first. Empty on failure.
 std::string ensureSkeletonFile(const std::string& file, Skeleton& skeleton)
 {
     if (lowerExtension(file) == "rskel")
@@ -116,9 +99,7 @@ std::string ensureSkeletonFile(const std::string& file, Skeleton& skeleton)
     return std::string();
 }
 
-// Same idea for one clip, against the skeleton ensureSkeletonFile() already
-// resolved - a .fbx clip's bone tracks are indices into that skeleton, so it
-// has to exist first.
+// Same for one clip; its bone tracks index the skeleton, which must exist first.
 std::string ensureAnimationFile(const std::string& file, const Skeleton& skeleton)
 {
     if (lowerExtension(file) == "ranim")
@@ -137,13 +118,7 @@ std::string ensureAnimationFile(const std::string& file, const Skeleton& skeleto
     return std::string();
 }
 
-// The "Create" button's whole job: get every file to the format loadFromFiles()
-// understands, bind an Animator to the result, and leave the object untouched
-// on any failure along the way (a half-bound Animator would be worse than
-// none - Inspector would show it as "not bound" with no obvious next step).
-// `error` is always left with a human-readable reason on false - a caller
-// that only logs (the old behaviour here) is indistinguishable from Create
-// having silently done nothing at all.
+// Converts every file to the format loadFromFiles() understands and binds an Animator; leaves the object untouched on failure. `error` holds a human-readable reason on false.
 bool createAnimator(GameObject& object, const std::string& skeletonFile,
                     const std::vector<std::string>& clipFiles, std::string& error)
 {
@@ -192,15 +167,7 @@ bool createAnimator(GameObject& object, const std::string& skeletonFile,
     return true;
 }
 
-// One component's row: bullet + name, with a small remove button
-// right-aligned - the editor had no way at all to detach a component once
-// added (Lumix's property_grid.cpp draws the same idea as a "..." context
-// menu with "Remove component"; a direct button reads faster for the one
-// action we offer). Returns true the frame the button is clicked - the
-// caller must stop touching that component's pointer immediately (it may
-// already be gone by the time drawComponentList() processes the removal,
-// once every component this frame has had its turn) and must not call this
-// twice for the same slot in one frame.
+// One component's row with a right-aligned remove button. Returns true the frame it is clicked; the caller must then stop touching that component's pointer and not call this twice for one slot per frame.
 bool drawComponentHeader(EditorApplication& app, const char* label, Component& component)
 {
     ImGui::PushID(label);
@@ -235,10 +202,7 @@ void drawComponentInstances(GameObject& object, EditorApplication& app, Componen
     });
 }
 
-// A curated subset, not every KeyCode - the realistic choices for a camera
-// movement binding (letters near WASD, arrows, the usual modifiers), not a
-// combo a user has to hunt through 100+ entries of function/numpad/media
-// keys to find "E" in.
+// A curated subset of KeyCode: realistic camera-binding choices, not 100+ entries.
 constexpr KeyCode kBindableKeys[] = {
     KEY_W,       KEY_A,          KEY_S,        KEY_D,          KEY_Q,
     KEY_E,       KEY_R,          KEY_F,        KEY_C,          KEY_SPACE,
@@ -288,10 +252,7 @@ const char* keyLabel(KeyCode key)
     }
 }
 
-// True if changed. `current` falls back to the bound key even when it is
-// not one of kBindableKeys (an old scene, or one hand-edited outside this
-// combo) - the combo just shows it as "(other)" rather than silently
-// snapping to something else the moment the Inspector draws it.
+// True if changed. `current` may be a key outside kBindableKeys (old or hand-edited scene); shown as "(other)" rather than snapped.
 bool drawKeyCombo(const char* label, KeyCode& current)
 {
     bool changed = false;
@@ -348,9 +309,7 @@ bool drawMouseButtonCombo(const char* label, MouseButton& current)
     return changed;
 }
 
-// Target slot shared by Orbit and Maya - both orbit a GameObject (falling
-// back to a fixed world-space point when none is set). Returns true if the
-// target changed.
+// Target slot shared by Orbit and Maya (falls back to a fixed world point when unset). Returns true if the target changed.
 bool drawOrbitTargetSlot(EditorApplication& app, GameObject*& target, Math::vec3& targetPoint)
 {
     bool changed = false;
@@ -381,9 +340,7 @@ bool drawOrbitTargetSlot(EditorApplication& app, GameObject*& target, Math::vec3
     return changed;
 }
 
-// Common to FreeFly and FPS - same Action enum shape (Forward/Back/Left/
-// Right/Up/Down/Sprint), same speed/look/pitch fields. Returns true if
-// anything changed, so the caller knows whether to markDirty().
+// Common to FreeFly and FPS. Returns true if anything changed so the caller can markDirty().
 template <class ControllerType>
 bool drawFreeLookController(ControllerType& controller)
 {
@@ -448,7 +405,6 @@ bool drawFreeLookController(ControllerType& controller)
     return changed;
 }
 
-// Same true-if-changed convention as drawTextureSlot below.
 bool drawFlagCheckbox(const char* label, MaterialFlags flag, Material& material)
 {
     bool value = (material.flags & flag) != 0;
@@ -459,8 +415,7 @@ bool drawFlagCheckbox(const char* label, MaterialFlags flag, Material& material)
     return true;
 }
 
-// True if `material` changed - the caller is the one holding the working
-// copy, so it decides whether that means writing it back to the renderer.
+// True if `material` changed; the caller holds the working copy and decides whether to write it back.
 bool drawTextureSlot(EditorApplication& app, const char* label, MaterialSlot slot,
                      Material& material)
 {
@@ -487,10 +442,7 @@ bool drawTextureSlot(EditorApplication& app, const char* label, MaterialSlot slo
             const std::string path(static_cast<const char*>(payload->Data), payload->DataSize);
             texture.texture = Assets().loadTexture(
                 path, Material::colorSpaceFor(slot, material.flags));
-            // Match MaterialParserInternal's defaults exactly. Otherwise a
-            // newly dropped map uses sampler 0 (or the previous slot's
-            // sampler) until save/reload, then suddenly becomes anisotropic
-            // repeat filtering when the sidecar is parsed.
+            // Match MaterialParserInternal's defaults exactly, or a dropped map changes sampler after save/reload.
             SamplerDesc sampler;
             sampler.filter = Filter::Anisotropic;
             sampler.wrapU = Wrap::Repeat;
@@ -505,9 +457,7 @@ bool drawTextureSlot(EditorApplication& app, const char* label, MaterialSlot slo
         ImGui::EndDragDropTarget();
     }
 
-    // A regular Button, not SmallButton - SmallButton zeroes FramePadding
-    // for a tight inline-with-text look, which leaves no vertical room for
-    // an icon glyph taller than a text line and clips its top edge.
+    // A regular Button: SmallButton zeroes FramePadding and clips the top of a tall icon glyph.
     ImGui::SameLine();
     ImGui::BeginDisabled(texture.file.empty());
     if (ImGui::Button(ICON_MDI_CROSSHAIRS_GPS, iconButtonSize))
@@ -622,9 +572,7 @@ void InspectorPanel::drawHeader(GameObject& object)
 
 namespace
 {
-// A SmallButton is shorter than the DragFloat3 it shares a line with, and
-// being first it is what SameLine() lines the row up on - which left the
-// field hanging below it. Square, exactly one frame high, matches.
+// A SmallButton is shorter than the DragFloat3 on its line and misaligns the row; use a square one frame high.
 bool resetButton(const char* id, const char* tooltip)
 {
     const f32 size = ImGui::GetFrameHeight();
@@ -654,10 +602,7 @@ void InspectorPanel::drawTransform(GameObject& object)
         app().markDirty();
     }
 
-    // Displayed as Euler degrees, converted from the live quaternion every
-    // frame - simplest editing surface for v1, at the usual cost of that
-    // conversion: no guarantee of the same Euler triple across a gimbal-lock
-    // pose. Revisit if that turns out to matter in practice.
+    // Euler degrees converted from the live quaternion each frame; the same triple is not guaranteed across gimbal lock.
     if (resetButton(ICON_MDI_RESTORE "##resetRotation", "Reset rotation to 0, 0, 0"))
     {
         app().recordUndo();
@@ -691,19 +636,10 @@ void InspectorPanel::drawComponentList(GameObject& object)
     if (!ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen))
         return;
 
-    // Removal happens once, after every component below has had its turn -
-    // removing mid-loop would leave whichever component's `if` runs next
-    // (drawAnimatorComponent, e.g.) holding a pointer into a slot that no
-    // longer exists.
+    // Remove once after all components have drawn; removing mid-loop leaves later blocks holding a dangling slot pointer.
     Component* toRemove = nullptr;
 
-    // Every block below is wrapped in PushID(label)/PopID() at the call site,
-    // not just inside drawComponentHeader() (which pops its own before this
-    // even starts): two components on the same object whose own fields share
-    // a bare label - Orbit and Maya both have "Distance"/"Pitch"/"Yaw", say -
-    // land in the same window-level ID scope otherwise. CollapsingHeader
-    // (drawComponentHeader's own) does not push a scope for what follows it
-    // the way TreeNode does, so nothing upstream was covering this.
+    // Every block is wrapped in PushID(label)/PopID() here: CollapsingHeader pushes no ID scope, so components sharing labels (Orbit/Maya "Distance") would collide.
     drawComponentInstances<Camera>(object, app(), toRemove, "Camera",
                                    [this](Camera& component) { drawCameraComponent(component); });
     drawComponentInstances<FreeFly>(object, app(), toRemove, "FreeFly", [this](FreeFly& component)
@@ -2396,9 +2332,7 @@ void InspectorPanel::drawForestComponent(Forest& forest)
     }
     if (ImGui::Button("Plant one here", ImVec2(-FLT_MIN, 0.0f)) && forest.speciesCount() > 0)
     {
-        // paint() only ever scatters (it rejects radius <= 0 outright) -
-        // plant() is the same per-tree call it makes internally, exposed so
-        // a single exact placement does not need a fake scatter radius.
+        // paint() only scatters (rejects radius <= 0); plant() is its per-tree call for a single exact placement.
         Math::vec3 centre = app().cursor3D();
         if (forest.owner())
             centre = Math::vec3(Math::inverse(forest.owner()->globalTransform()) * Math::vec4(centre, 1.0f));
@@ -2646,10 +2580,7 @@ void InspectorPanel::drawAnimatorComponent(Animator& animator)
     if (const AnimationSet* set = Animations().get(animator.animationSet()))
     {
         ImGui::TextUnformatted("Clips");
-        // Non-const so events can be added: they belong to the clip, and the
-        // set is what everyone playing it shares - which is the point, since
-        // "attack hits at 0.4s" is a property of the animation and not of
-        // whoever happens to be playing it.
+        // Non-const so events can be added: they belong to the clip and are shared by everyone playing it.
         AnimationSet* editable = const_cast<AnimationSet*>(set);
         for (AnimationClip& clip : editable->clips)
         {
@@ -2678,8 +2609,7 @@ void InspectorPanel::drawAnimatorComponent(Animator& animator)
                     app().markDirty();
                 }
 
-                // Adding one: a time and a name. The name is what the script
-                // compares against, so it is free text rather than a list.
+                // The name is what the script compares against, so it is free text.
                 ImGui::SetNextItemWidth(80.0f);
                 ImGui::DragFloat("##eventTime", &mAnimationEventTime, 0.01f, 0.0f,
                                 Math::max(clip.duration(), 0.01f), "%.3fs");
@@ -2706,12 +2636,7 @@ void InspectorPanel::drawAnimatorComponent(Animator& animator)
             ImGui::TextDisabled("No clips bound yet.");
     }
 
-    // Adding a clip to a live Animator: sets are cached by their exact
-    // (skeleton, clips) file list, so "add" is really "load the same
-    // skeleton with one more clip and rebind" - the old set stays cached
-    // for whoever else still holds it. The dropped file goes through the
-    // same ensureAnimationFile() the Add Animator popup uses, so a .fbx
-    // clip converts to .ranim beside its source on the way in.
+    // Sets are cached by exact (skeleton, clips) file list, so adding a clip loads the same skeleton with one more clip and rebinds; .fbx clips convert via ensureAnimationFile().
     ImGui::Button("(drop a .ranim/.fbx clip here to add it)", ImVec2(-FLT_MIN, 0.0f));
     if (ImGui::BeginDragDropTarget())
     {
@@ -3081,15 +3006,7 @@ void InspectorPanel::drawParticleEffectComponent(ParticleEffect& effect)
 
 void InspectorPanel::drawAddComponentSection(GameObject& object)
 {
-    // A menu, not a single button, on purpose - HierarchyPanel's own Create
-    // menu (drawCreateMenu()) is the model: this list only grows as more
-    // component kinds pick up an "attach to an object that already exists"
-    // path, same as that one grew its own categories over time. Only a
-    // component simple enough to need nothing beyond addComponent<T>() (or
-    // a fixed one-time setup call, ReflectionProbe's create()) belongs here
-    // directly; anything that needs geometry/data building at creation time
-    // (Terrain, Road, ParticleEffect, ...) stays Hierarchy-only until it
-    // grows its own "add to existing object" setup to mirror here.
+    // A menu, modeled on HierarchyPanel's Create menu. Only components needing just addComponent<T>() (or a fixed setup call) belong here; ones needing geometry/data at creation stay Hierarchy-only.
     if (ImGui::Button(ICON_MDI_PLUS " Add Component"))
         ImGui::OpenPopup("AddComponentMenu");
 
@@ -3222,9 +3139,7 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
         }
         if (ImGui::MenuItem("Reflection Probe"))
         {
-            // Same one-time setup HierarchyPanel's createReflectionProbeObject()
-            // gives a freshly created one - addComponent<T>() alone leaves this
-            // one inert (no cubemap yet), unlike everything else in this menu.
+            // Same one-time setup as HierarchyPanel's createReflectionProbeObject(); addComponent<T>() alone leaves it inert.
             ReflectionProbe* probeComponent = object.addComponent<ReflectionProbe>();
             probeComponent->create(128);
             EnvironmentProbe& env = probeComponent->probe();
@@ -3251,25 +3166,11 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
         {
             mNewAnimatorClipFiles.clear();
             mNewAnimatorError.clear();
-            // A skinned MeshRenderer's bone indices come from THIS file's own
-            // buildBoneMap() call, made once at mesh-import time - loading the
-            // skeleton from any other export (an animation-only Idle.fbx, say)
-            // would very likely enumerate FBX objects in a different order and
-            // silently mismatch every bone index, even though nothing here
-            // would fail loudly. Pre-filling the mesh's own source file is
-            // what steers away from that trap; the field is still editable
-            // for an object with no mesh of its own (an empty rig setup
-            // elsewhere).
+            // Skinned MeshRenderer bone indices come from this file's buildBoneMap(); a skeleton from another export may enumerate differently and silently mismatch. Pre-fill the mesh's own source file (still editable).
             MeshRenderer* renderer = object.getComponent<MeshRenderer>();
             const MeshDesc& desc = renderer ? Assets().meshDesc(renderer->mesh()) : MeshDesc();
             mNewAnimatorSkeletonFile = desc.source == MeshSource::File ? desc.file : std::string();
-            // Not OpenPopup() here directly - "AddComponentMenu" is still
-            // open around this MenuItem and closes on this same click
-            // (MenuItem's default behaviour), and opening a second popup
-            // while the first is mid-close on the very same frame is exactly
-            // the ordering ImGui's own popup stack does not guarantee. The
-            // flag defers the actual OpenPopup() to below, once
-            // AddComponentMenu is fully done with for this frame.
+            // Do not OpenPopup() directly: AddComponentMenu closes on this click, and opening a second popup mid-close is not guaranteed by ImGui. The flag defers it.
             mOpenAddAnimatorPopup = true;
         }
         ImGui::EndPopup();
@@ -3318,11 +3219,7 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             std::find(mNewAnimatorClipFiles.begin(), mNewAnimatorClipFiles.end(),
                      mNewAnimatorSkeletonFile) != mNewAnimatorClipFiles.end();
 
-        // b3d/ms3d/gltf carry the skeleton AND every animation in the one
-        // file (importAnimation() reads clips from it same as
-        // importSkeleton() reads bones) - unlike Mixamo's fbx convention
-        // below, the clip to add here IS the skeleton file itself, not a
-        // sibling.
+        // b3d/ms3d/gltf hold skeleton AND animations in one file, so the clip to add IS the skeleton file.
         if ((skeletonExtension == "b3d" || skeletonExtension == "ms3d" ||
             skeletonExtension == "gltf" || skeletonExtension == "glb") &&
             !alreadyHasClip)
@@ -3336,9 +3233,7 @@ void InspectorPanel::drawAddComponentSection(GameObject& object)
             ImGui::PopID();
         }
 
-        // Mixamo-style exports are the other shape: one skeleton+mesh file,
-        // one extra .fbx per clip, all sitting next to each other - listing
-        // them here beats a "Browse..." round trip per clip for that case.
+        // Mixamo-style: one skeleton+mesh file plus one .fbx per clip alongside; list them to avoid a Browse round trip per clip.
         std::vector<std::string> suggestions;
         for (const FileSystem::DirEntry& entry :
              FileSystem::getSingleton().listDirectory(directory))
@@ -3485,9 +3380,7 @@ void InspectorPanel::drawCameraComponent(Camera& camera)
         app().markDirty();
     }
 
-    // Read-only: the viewport/game render target's own dimensions drive this
-    // every frame (Camera::setAspect(), ViewportPanel/GamePanel) - a value
-    // typed in here would just be overwritten on the next resize.
+    // Read-only: the viewport/game render target drives this every frame (Camera::setAspect()).
     ImGui::BeginDisabled();
     f32 aspect = camera.aspect();
     ImGui::DragFloat("Aspect", &aspect);
@@ -3655,7 +3548,6 @@ const char* billboardModeName(BillboardMode mode)
     return "Free";
 }
 
-// True if changed.
 bool drawBillboardModeCombo(BillboardMode& mode)
 {
     bool changed = false;
@@ -3696,7 +3588,6 @@ const char* billboardBlendName(BatchRenderer::BlendMode mode)
     return "Alpha";
 }
 
-// True if changed.
 bool drawBillboardBlendCombo(BatchRenderer::BlendMode& mode)
 {
     bool changed = false;
@@ -3909,11 +3800,7 @@ bool containsCaseInsensitive(const std::string& haystack, const char* needle)
     return lowered.find(loweredNeedle) != std::string::npos;
 }
 
-// The Select Bone popup's body. Filter empty: the skeleton's real hierarchy,
-// every branch open (a rig is picked from by reading it top to bottom, so
-// collapsed-by-default just adds clicks). Filter set: a flat list of the
-// matches - grafting matched nodes onto partial trees reads worse than a
-// plain list once the tree is mostly filtered away.
+// Select Bone body. No filter: full hierarchy, all open. Filter set: flat list of matches.
 void drawBoneTree(const Skeleton& skeleton, s32 parent, s32 currentBone, const char* filter,
                   bool& picked, s32& pickedBone)
 {
@@ -4645,8 +4532,7 @@ void InspectorPanel::drawJointComponent(GameObject& object, Physics::Joint& join
 {
     ImGui::Indent(14.0f);
 
-    // Mouse is left out on purpose: it is the editor's own dragging tool,
-    // not something a scene is authored with.
+    // Mouse left out: it is the editor's own dragging tool.
     static const char* kKindNames[] = {"Distance", "Fixed",  "Hinge", "Slider",
                                        "Piston",   "Universal", "Point", "Wheel"};
     int kindIndex = static_cast<int>(joint.kind());
@@ -5047,8 +4933,7 @@ void InspectorPanel::drawJointComponent(GameObject& object, Physics::Joint& join
     ImGui::Unindent(14.0f);
 }
 
-// The literal the script itself wrote, formatted the way it reads in the
-// source - what the tooltip shows a value is being overridden away from.
+// The literal as the script wrote it, shown in the tooltip as the value being overridden away from.
 static std::string zenPropertyDefaultText(const ScriptProperty& property)
 {
     char buffer[128];
@@ -5077,9 +4962,7 @@ void InspectorPanel::drawZenBehaviourComponent(GameObject& object, ZenBehaviour&
 {
     ImGui::Indent(14.0f);
 
-    // Refresh the path field from the component whenever the selection
-    // switches to a different object - otherwise it would keep showing
-    // whichever object's path was last typed into it.
+    // Refresh the path field when the selection switches object, or it shows the previous object's path.
     if (mZenBehaviourObjectId != object.id())
     {
         mZenBehaviourObjectId = object.id();
@@ -5131,8 +5014,7 @@ void InspectorPanel::drawZenBehaviourComponent(GameObject& object, ZenBehaviour&
             const std::string path = result.path.string();
             app().settings().lastOpenDirectory = result.path.parent_path().string();
             std::snprintf(mZenScriptPathBuffer, sizeof(mZenScriptPathBuffer), "%s", path.c_str());
-            // Picking a file is a load: a "Browse..." that left the object
-            // still running the old script would be a trap.
+            // Picking a file is a load: a "Browse..." leaving the old script running would be a trap.
             behaviour.loadFile(path);
             app().markDirty();
         }
@@ -5168,10 +5050,7 @@ void InspectorPanel::drawZenBehaviourComponent(GameObject& object, ZenBehaviour&
     ImGui::Unindent(14.0f);
 }
 
-// The values the script declares in its class body (or optionally in
-// __init__), each one editable per object. An edited value becomes an
-// override stored on this component and is written into the script instance
-// after its optional constructor; the rest simply show the script default.
+// Values the script declares in its class body (or __init__); an edit becomes an override on this component, applied after the constructor.
 void InspectorPanel::drawZenBehaviourProperties(ZenBehaviour& behaviour)
 {
     const usize count = behaviour.declaredPropertyCount();
@@ -5206,8 +5085,6 @@ void InspectorPanel::drawZenBehaviourProperties(ZenBehaviour& behaviour)
 
         ImGui::PushID((int)i);
 
-        // An overridden row is tinted, so "this object differs from the
-        // script" is visible without opening anything.
         if (overridden)
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.98f, 0.83f, 0.38f, 1.0f));
 
@@ -5512,11 +5389,7 @@ void InspectorPanel::drawMeshRenderer(GameObject& object, MeshRenderer& renderer
     const MeshDesc& mesh = assets.meshDesc(renderer.mesh());
     const bool isPrimitive = mesh.source >= MeshSource::Box && mesh.source <= MeshSource::Torus;
 
-    // Once a mesh is assigned - primitive or file - there is no
-    // re-parametrize-in-place: delete and recreate the node to change
-    // shape/dimensions. The picker below only ever runs for a MeshRenderer
-    // still waiting for a mesh (e.g. Hierarchy > Create > Special Nodes >
-    // Mesh Instance).
+    // Once a mesh is assigned there is no re-parametrize: delete and recreate to change shape. The picker runs only for a MeshRenderer still waiting for a mesh.
     if (renderer.mesh().valid())
     {
         if (isPrimitive)
@@ -5646,9 +5519,7 @@ void InspectorPanel::drawMeshRenderer(GameObject& object, MeshRenderer& renderer
     }
 }
 
-// One slot's worth of fields - Base Color through Clear Textures, the same
-// set every slot needs. Returns true if `material` changed; the caller
-// decides what that means for the slot it came from.
+// One slot's fields. Returns true if `material` changed.
 bool InspectorPanel::drawMaterialFields(Material& material)
 {
     bool changed = false;
@@ -5700,11 +5571,7 @@ bool InspectorPanel::drawMaterialFields(Material& material)
                                 "%.3f");
     ImGui::EndDisabled();
 
-    // emissive.w, not the flags above, is what makes this glow rather than
-    // just tint: lit.frag adds emissive.rgb * emissive.w straight into the
-    // HDR colour (lit.frag:927), so a value past 1 is what clears bloom's
-    // threshold and actually blooms - a colour alone never will, same as
-    // the sponza demo's own Glow panel drives it.
+    // emissive.w makes it glow rather than tint: lit.frag adds emissive.rgb * emissive.w into HDR (lit.frag:927), so values past 1 clear bloom's threshold.
     changed |= ImGui::ColorEdit3("Emissive", &material.params.emissive.x);
     changed |= ImGui::SliderFloat("Glow Strength", &material.params.emissive.w, 0.0f, 12.0f, "%.1f");
     if (material.params.emissive.w > 0.0f)
@@ -5729,23 +5596,14 @@ bool InspectorPanel::drawMaterialFields(Material& material)
         ImGui::SetTooltip("Baked into the lightmap. Sampling the cascades as well would light the "
                          "same sun twice, so the shader skips them entirely.");
 
-    // Opt-in, not implied by Metallic: EnvironmentReflection() is only added
-    // to the shaded colour #ifdef HAS_REFLECTION (lit.frag) - a probe is
-    // captured from one point, so away from it a box projection only
-    // approximates, and every surface paying for that unasked is how a flat
-    // floor ends up with the sky pasted on it in a hard-edged patch.
+    // Opt-in, not implied by Metallic: EnvironmentReflection() is only added under HAS_REFLECTION (lit.frag), and a probe's box projection only approximates away from its capture point.
     changed |= drawFlagCheckbox("Reflection", MaterialReflection, material);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Metallic alone reflects nothing - Reflection is what samples the "
                           "environment probe");
     ImGui::SameLine();
 
-    // A different technique from Reflection above: this samples the frame's
-    // one planar capture (Renderer::executeReflection(), lit.frag's
-    // HAS_MIRROR) instead of the environment cube - exact instead of
-    // approximate, but only for a flat surface and only one per frame.
-    // Hierarchy > Create > Special Nodes > Mirror sets this up already;
-    // exposed here too for turning it on/off or tuning strength by hand.
+    // Differs from Reflection: samples the frame's one planar capture (Renderer::executeReflection(), HAS_MIRROR), exact but flat surfaces only and one per frame.
     changed |= drawFlagCheckbox("Mirror", MaterialMirror, material);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("A flat mirror - exact planar reflection instead of Reflection's "
@@ -5760,11 +5618,7 @@ bool InspectorPanel::drawMaterialFields(Material& material)
                               "by a Fresnel curve so a grazing angle reflects more than a "
                               "face-on one.");
 
-        // custom0.y: Renderer::executeReflection() reads this straight off
-        // the winning MaterialMirror instance - only one mirror's reflection
-        // texture exists per frame (the "first one found" rule), so its
-        // Quality is the only one that matters that frame regardless of how
-        // many other Mirror surfaces sit unused in the scene.
+        // custom0.y: only the winning MaterialMirror's reflection exists per frame, so only its Quality matters.
         static const f32 kQualityScales[] = {0.25f, 0.5f, 1.0f};
         static const char* kQualityNames[] = {"Low", "Medium", "High"};
         int qualityIndex = 1;
@@ -5813,11 +5667,7 @@ bool InspectorPanel::drawMaterialFields(Material& material)
                               "missing anything that should be far behind the mirror.");
     }
 
-    // No auto-attached probe here any more: a probe is its own placeable
-    // object (Hierarchy > Create > Special Nodes > Reflection Probe), the
-    // way a Camera or a Light is - drop one where a room needs its own
-    // capture, parent it under this object or leave it standalone,
-    // Scene::resolveNearestProbe() picks whichever is closest per object.
+    // No auto-attached probe: a probe is its own placeable object; Scene::resolveNearestProbe() picks the closest per object.
     if (material.flags & MaterialReflection)
         ImGui::TextDisabled("Reflects the nearest Reflection Probe object, or the scene's "
                             "global one when none is in range.");
@@ -5862,11 +5712,7 @@ bool InspectorPanel::drawMaterialFields(Material& material)
             material.textures[slot] = MaterialTexture();
         changed = true;
     }
-    // Worth saying plainly, because it is the one thing that makes a metal
-    // read as painted stone rather than as metal: F0 is mix(0.04, albedo,
-    // metallic) per pixel (lit.frag), so at metallic 1 the albedo texture
-    // tints the mirror itself. A flat Base Color is what gives a clean one -
-    // the sponza mirror ball carries no albedo map for exactly this reason.
+    // F0 is mix(0.04, albedo, metallic) (lit.frag): at metallic 1 the albedo texture tints the mirror itself, so a flat Base Color gives a clean one.
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Empties every texture slot. At high Metallic the albedo texture "
                           "tints the reflection itself, so a flat Base Color is what makes a "
@@ -5877,13 +5723,7 @@ bool InspectorPanel::drawMaterialFields(Material& material)
     return changed;
 }
 
-// One CollapsingHeader per material slot - a mesh with several submeshes
-// (Sponza's ~25 materials, say) used to only ever expose slot 0 here, the
-// rest silently unreachable from the Inspector no matter how many the mesh
-// actually had. mesh->materials.size() is the slot count MeshRenderer::
-// setMaterialOverride() itself indexes by; a primitive with no materials
-// array of its own (built straight from HierarchyPanel, never named any)
-// still gets exactly the one slot it always had.
+// One CollapsingHeader per material slot; mesh->materials.size() is the slot count MeshRenderer::setMaterialOverride() indexes by; a primitive without a materials array gets one slot.
 bool InspectorPanel::makeSubmeshMaterialUnique(MeshHandle handle, u32 slot, s32 submeshIndex)
 {
     MeshData* data = app().importedMeshData(handle);
@@ -5896,12 +5736,7 @@ bool InspectorPanel::makeSubmeshMaterialUnique(MeshHandle handle, u32 slot, s32 
 
     const u32 newSlot = static_cast<u32>(data->materials.size());
     data->materials.push_back(data->materials[slot]);
-    // Every per-material file array grows by one in lockstep, whatever its
-    // own length already was - AssetMesh.cpp only ever reads these guarded
-    // by "index < array.size()", so a short array already means "no texture
-    // past here" for every slot beyond it, old or new alike. Copying the
-    // source slot's own entry (or empty, past its length) keeps the new slot
-    // textured exactly the way the one it split from was.
+    // Every per-material file array grows in lockstep; AssetMesh.cpp reads them guarded by "index < size()", so copy the source slot's entry (or empty) to texture the new slot alike.
     const auto duplicateAux = [slot](std::vector<std::string>& files)
     {
         files.push_back(slot < files.size() ? files[slot] : std::string());
@@ -5921,20 +5756,13 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
     const Mesh* mesh = AssetManager::getSingleton().getMesh(renderer.mesh());
     const usize submeshCount = renderer.submeshCount();
 
-    // The one thing that ties the Viewport and this list together, both
-    // ways - see EditorApplication::pickedSubmesh(). Read up here, before
-    // the outer header below, so a pick landing on this renderer can force
-    // that header open instead of leaving the picked entry folded away.
+    // Read before the outer header so a pick on this renderer can force it open (see EditorApplication::pickedSubmesh()).
     EditorApplication::PickedSubmesh& picked = app().pickedSubmesh();
     const u64 ownerId = renderer.owner() ? renderer.owner()->id() : 0;
     const bool pickedHere = picked.object == ownerId && picked.justPicked;
 
     ImGui::Separator();
-    // A mesh with many submeshes (Bistro-scale imports run into the
-    // hundreds) used to spell out every one of them right here, pushing
-    // whatever came after MeshRenderer in the component list far enough
-    // down that reaching it meant scrolling past all of them first. Folded
-    // shut by default now - one line to open, not a wall to scroll through.
+    // Folded shut by default: hundreds of submeshes would push later components far down.
     bool showSubmeshes = submeshCount <= 1;
     if (submeshCount > 1)
     {
@@ -5946,10 +5774,7 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
     else
         ImGui::TextUnformatted("Material");
 
-    // The Viewport's Shift-click batch (Pick Surface tool) picks a SET of
-    // submeshes on this object - shown here regardless of whether
-    // "Submeshes (N)" above is folded, since that set is otherwise invisible
-    // until this row tells the user it exists at all.
+    // The Shift-click batch set is shown even when "Submeshes (N)" is folded, or it would be invisible.
     EditorApplication::SubmeshSelection& submeshSelection = app().submeshSelection();
     const bool haveSubmeshSelection =
         submeshSelection.object == ownerId && !submeshSelection.indices.empty();
@@ -5973,9 +5798,7 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
             submeshSelection.indices.clear();
     }
 
-    // Once for the whole renderer, not per submesh - keeping something out
-    // of a reflection is a property of the object, not of any one material
-    // on it.
+    // Once per renderer: reflection visibility is a property of the object, not a material.
     bool visibleInReflections = renderer.visibleInReflections();
     if (ImGui::Checkbox("Visible in Reflections", &visibleInReflections))
     {
@@ -5988,21 +5811,12 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
                           "an object seeing itself in its own reflection, or to keep something "
                           "out of a mirror on purpose. Its shadow is unaffected.");
 
-    // Saving a .material sidecar is a Mesh Tools action (see "Save
-    // Materials..." there, next to Save As... for the mesh itself) - the
-    // Inspector shows/edits live state, it does not accumulate export
-    // buttons for every kind of file that state could turn into.
+    // Saving .material sidecars is a Mesh Tools action, not an Inspector one.
     if (renderer.materialOverrideCount() > 0)
     {
         if (ImGui::Button("Reset Materials to File"))
         {
-            // The only way back from a per-slot override once made - there is
-            // no per-slot clear, and there needs to be no other way: an
-            // override saved into an object's own scene file (see
-            // SceneSerializer) never updates itself when the .material
-            // sidecar it was copied from is edited afterward. A mesh whose
-            // sidecar changed after this object's last save is exactly what
-            // leaves overrides stale like this.
+            // The only way back from a per-slot override: overrides saved in the scene never follow later edits to the .material sidecar, so they go stale.
             renderer.clearMaterialOverrides();
             app().markDirty();
         }
@@ -6016,8 +5830,6 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
 
     if (submeshCount == 0)
     {
-        // No mesh, or an importer that never split into submeshes - one
-        // plain material, same as it always was.
         Material material =
             renderer.materialOverrideCount() > 0 ? renderer.materialOverrides()[0]
                                                  : defaultPrimitiveMaterial();
@@ -6030,18 +5842,12 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
     }
 
     const bool haveImportedData = app().importedMeshData(renderer.mesh()) != nullptr;
-    // Acted on after the loop: removing a submesh rebuilds the GPU mesh and
-    // shifts every index after it, which a loop walking those indices cannot
-    // survive.
+    // Acted on after the loop: removal rebuilds the GPU mesh and shifts indices.
     s32 submeshToDelete = -1;
 
     for (usize i = 0; showSubmeshes && i < submeshCount; ++i)
     {
-        // mesh may be a dangling pointer past this point on an iteration
-        // that ends up splitting a shared slot below (applyMeshEdit()
-        // rebuilds the GPU Mesh) - slot is a plain u32, copied out before
-        // that can happen, and everything after only reads the mesh pointer
-        // again once it has been re-fetched.
+        // mesh may dangle after applyMeshEdit() rebuilds the GPU Mesh when splitting a shared slot; `slot` is copied out first and the mesh pointer re-fetched.
         const u32 slot = mesh->submeshes[i].materialSlot;
 
         Material material;
@@ -6060,8 +5866,7 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
         if (slot < mesh->materials.size() && !mesh->materials[slot].name.empty())
             label += " (" + mesh->materials[slot].name + ")";
 
-        // How many submeshes on THIS mesh still read this slot - a slot used
-        // only once is already this submesh's own, nothing to split.
+        // Submeshes on THIS mesh still reading this slot; a slot used once is already its own.
         u32 sharedBy = 0;
         for (const SubMesh& submesh : mesh->submeshes)
             if (submesh.materialSlot == slot)
@@ -6072,30 +5877,18 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
             ImGui::SetNextItemOpen(true);
 
         ImGui::PushID(static_cast<int>(i));
-        // A single-submesh mesh (the overwhelming majority - most
-        // primitives, most single-material imports) skips the header
-        // entirely: the fields just sit right under "Material" like they
-        // always did, nothing new to click through for the common case.
-        // AllowOverlap: without it a CollapsingHeader claims its entire row
-        // for its own click, and the focus icon placed on the same line via
-        // SameLine() below never receives one of its own - every click just
-        // toggled the header open/closed instead of doing anything else.
+        // A single-submesh mesh skips the header. AllowOverlap: otherwise the header claims the whole row and the focus icon on the same line never gets a click.
         const bool open = submeshCount == 1 ||
                           ImGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_AllowOverlap);
         if (ImGui::IsItemClicked())
         {
-            // Selecting an entry here highlights it back in the Viewport
-            // (the cyan box) - the other half of the Viewport-click-opens-
-            // this-entry direction below.
+            // Selecting an entry highlights it in the Viewport (cyan box).
             picked.index = static_cast<s32>(i);
             picked.object = ownerId;
         }
         if (submeshCount > 1)
         {
-            // A regular Button, not SmallButton - SmallButton zeroes
-            // FramePadding for a tight inline-with-text look, which clips
-            // the top of a glyph this tall (see drawTextureSlot's own note
-            // on the same thing) - the crosshair rendered, just invisibly.
+            // A regular Button: SmallButton's zero FramePadding clips a glyph this tall (see drawTextureSlot).
             const f32 iconSize = ImGui::GetFrameHeight();
             const f32 spacing = ImGui::GetStyle().ItemSpacing.x;
             ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - iconSize * 3.0f - spacing * 2.0f);
@@ -6135,10 +5928,7 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
         if (isPicked && picked.justPicked)
         {
             ImGui::SetScrollHereY(0.1f);
-            // Consumed - a second click on the very same submesh (a common
-            // "wait, which one was that again" re-check) still re-opens and
-            // re-scrolls to it instead of silently doing nothing the second
-            // time.
+            // Consumed, yet a second click on the same submesh still re-opens and re-scrolls to it.
             picked.justPicked = false;
         }
 
@@ -6175,11 +5965,7 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
             if (AssetManager::getSingleton().removeSubmesh(*data,
                                                            static_cast<u32>(submeshToDelete)))
             {
-                // Hidden submeshes are stored as indices into the submesh
-                // table, so every one past the deleted entry now names the
-                // wrong piece. Cleared rather than remapped: the list is
-                // small and getting this subtly wrong hides the wrong
-                // geometry with no way to tell.
+                // Hidden submesh indices go stale past the deleted entry; cleared rather than remapped since a subtle error hides the wrong geometry.
                 renderer.setHiddenSubmeshes({});
                 app().applyMeshEdit(renderer.mesh());
                 app().markDirty();
@@ -6190,11 +5976,7 @@ void InspectorPanel::drawMeshMaterial(MeshRenderer& renderer)
     }
 }
 
-// A Reflection Probe object (Hierarchy > Create > Special Nodes): its own
-// capture point, placed wherever it was dropped rather than tied to one
-// mesh - a room-sized probe two mirrors in it can both use, each closer to
-// it than to the scene's single global one (Scene::resolveNearestProbe()
-// picks whichever wins that comparison).
+// A Reflection Probe object: its own capture point, not tied to one mesh; Scene::resolveNearestProbe() picks the closest.
 void InspectorPanel::drawReflectionProbe(ReflectionProbe& probeComponent)
 {
     EnvironmentProbe& env = probeComponent.probe();
@@ -6219,9 +6001,7 @@ void InspectorPanel::drawReflectionProbe(ReflectionProbe& probeComponent)
                           "does not need the same resolution as the mirror the camera is "
                           "pointed at - 32 for a background prop, 512 for a hero surface.");
 
-    // The box the reflection is treated as living inside - lit.frag re-aims
-    // every reflection ray onto its wall, so this is the single control that
-    // decides whether a neighbour comes back at its real size or magnified.
+    // The box the reflection lives inside: lit.frag re-aims every ray onto its wall, so it controls neighbour scale.
     if (ImGui::DragFloat("Influence Radius", &env.influenceRadius, 0.1f, 0.01f, 10000.0f))
         app().markDirty();
     if (ImGui::IsItemHovered())
@@ -6297,13 +6077,11 @@ void InspectorPanel::drawWaypointsComponent(GameObject& object, Waypoints& waypo
                       "so moving it carries the whole graph.");
     ImGui::Text("Points: %zu", waypoints.pointCount());
 
-    // Dropped at the object's own origin - the gizmo in the viewport is what
-    // places it, not a typed coordinate.
+    // Dropped at the object's origin; the viewport gizmo places it.
     if (ImGui::Button("Add point"))
     {
         app().recordUndo();
-        // Dropped at the 3D cursor, in the object's own space - the same
-        // place every other "create here" in the editor uses.
+        // Dropped at the 3D cursor, in the object's own space.
         const Math::vec3 local = Math::vec3(Math::inverse(object.globalTransform()) *
                                          Math::vec4(app().cursor3D(), 1.0f));
         app().setSelectedWaypoint(static_cast<s32>(waypoints.addPoint(local)));
@@ -6438,9 +6216,7 @@ void InspectorPanel::drawNavMeshSurfaceComponent(GameObject& object, NavMeshSurf
         ImGui::SetTooltip("Explicit on purpose: baking a large level is slow, and doing it "
                          "silently on load would be paid for at the worst moment.");
 
-    // The baked surface can be written out and read back instead of rebuilt:
-    // the scene only ever stores the recipe, so without a file beside it
-    // every load pays the whole Recast pipeline again.
+    // The scene stores only the recipe; write the baked surface to a file or every load reruns the Recast pipeline.
     ImGui::SameLine();
     ImGui::BeginDisabled(!surface.built());
     if (ImGui::Button("Save Baked..."))

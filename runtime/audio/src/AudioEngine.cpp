@@ -437,8 +437,7 @@ bool AudioEngine::setVoiceVolume(VoiceId voice, f32 volume)
         return false;
     found->volume = clampValue(volume, 0.0f, 4.0f);
     ma_sound_set_volume(&found->player, found->volume);
-    // Cancels a fade still in flight: without this the fade keeps writing
-    // its own gain over the volume just set.
+    // Cancel an in-flight fade, which would overwrite the volume just set.
     ma_sound_set_fade_in_milliseconds(&found->player, 1.0f, 1.0f, 0);
     return true;
 }

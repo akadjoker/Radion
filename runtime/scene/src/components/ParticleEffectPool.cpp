@@ -53,7 +53,7 @@ void ParticleEffectPool::initialize(Scene& scene)
 
 void ParticleEffectPool::shutdown()
 {
-    // Objects owned by the scene are destroyed with it. We only clear our book-keeping.
+    // Scene-owned objects are destroyed with it; only clear the book-keeping.
     mAvailable.clear();
     mActive.clear();
     mScene = nullptr;

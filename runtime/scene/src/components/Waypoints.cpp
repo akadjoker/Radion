@@ -26,8 +26,7 @@ void Waypoints::removePoint(u32 index)
         return;
 
     mPoints.erase(mPoints.begin() + index);
-    // Indices ARE the node identity, so every link above the hole shifts
-    // down by one and every link at the hole disappears.
+    // Indices are the node identity: links above the hole shift down by one and links at it disappear.
     for (WaypointNode& node : mPoints)
     {
         for (usize i = node.links.size(); i-- > 0;)
@@ -97,8 +96,7 @@ bool Waypoints::link(u32 a, u32 b)
 {
     if (a == b || a >= mPoints.size() || b >= mPoints.size() || linked(a, b))
         return false;
-    // Stored once, on the lower index - a two-way edge kept in one place
-    // cannot fall out of sync with itself.
+    // Stored once, on the lower index, so a two-way edge cannot disagree with itself.
     mPoints[Math::min(a, b)].links.push_back(Math::max(a, b));
     return true;
 }

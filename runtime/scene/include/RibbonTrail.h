@@ -16,16 +16,10 @@ class RibbonTrail final : public Component
 public:
     static constexpr ComponentType Type = ComponentType::RibbonTrail;
 
-    // Widest the blade may be sampled. Two is a flat strip; more makes the
-    // ribbon's cross-section a curve of its own, which is what a real sword
-    // trail looks like along a curved edge.
+    // Two is a flat strip; more gives a curved cross-section.
     static constexpr u32 MaxBladePoints = 8;
 
     bool setBlade(GameObject* base, GameObject* tip);
-    // Two to MaxBladePoints objects strung along the blade, base first. Each
-    // one traces its own line through the trail and the ribbon is the surface
-    // between them, so a curved blade gives a curved sheet instead of the
-    // flat quad two points can describe.
     bool setBladePoints(GameObject* const* objects, u32 count);
     u32 bladePointCount() const
     {
@@ -66,19 +60,14 @@ private:
     RibbonTrail();
     void onLateUpdate(f32 deltaTime) override;
     void push(const Math::vec3* points, f32 distance);
-    // Average of a sample's blade points. The curve is run through THIS and
-    // each point keeps its offset from it - two edges given independent
-    // splines cross on a fast reversal and fold the ribbon into a sail, and
-    // with more than two the odds only get worse.
+    // The curve runs through the average; independent splines per edge would cross and fold the ribbon.
     Math::vec3 centreOf(const Sample& sample) const;
     Sample& sample(usize index);
     const Sample& sample(usize index) const;
     void expire();
     void reserveVertices();
     void buildVertices();
-    // Two triangles of the ribbon quad between two samples, faded by age and
-    // textured along the strip's own distance (firstDistance/span cover the
-    // whole strip, not just this section, so the UV stays continuous).
+    // firstDistance/span cover the whole strip so the UV stays continuous.
     void appendSection(const Sample& a, const Sample& b, f32 firstDistance, f32 span);
     Sample renderSample(usize index) const;
     Sample interpolate(const Sample& before, const Sample& from, const Sample& to,

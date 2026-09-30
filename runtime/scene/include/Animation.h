@@ -17,10 +17,6 @@ public:
     static constexpr ComponentType Type = ComponentType::Animator;
     void bind(AnimationSetHandle animations);
     bool bound() const;
-    // What bind() was last called with - null/invalid if never bound. What a
-    // saved scene resolves back to a filename through
-    // AnimationManager::sourceFile(), the same way MeshRenderer resolves its
-    // MeshHandle through AssetManager::meshDesc().
     AnimationSetHandle animationSet() const;
     AnimationLayer& layer(u32 index);
     u32 layerCount() const;
@@ -33,33 +29,19 @@ public:
     const std::vector<Math::mat4>& palette() const;
     const std::vector<Math::mat4>& prevPalette() const;
 
-    // IK chains, solved every update() right after the pose is evaluated and
-    // before the skinning palette is built - see IKSolver. Held by value and
-    // handed back by pointer so a caller can move a target every frame (foot
-    // placement) without re-adding the chain.
+    // Solved every update() after pose evaluation and before the skinning palette is built.
     u32 addIKChain(const IKChain& chain);
     IKChain* ikChain(u32 index);
     u32 ikChainCount() const;
     void clearIKChains();
 
-    // Model-space position of a bone in the pose as it stands, for a caller
-    // that needs to know where a foot IS before deciding where to put it.
-    // Returns false for an out-of-range bone rather than an identity matrix
-    // that would read as a real position at the origin.
     bool boneGlobalPosition(s32 bone, Math::vec3& out) const;
 
-    // Editor hand-posing: while on, update() leaves mLocalPose exactly as
-    // last written instead of resampling bind pose + clip layers into it, so
-    // a bone set through setBoneLocalPose() (or an IK chain's target, moved
-    // by the caller through ikChain()) is not overwritten by playback next
-    // frame. IK chains and the skinning palette are still rebuilt every
-    // frame either way, so a dragged IK target keeps solving live.
+    // While on, update() leaves mLocalPose as written; IK chains and the skinning palette are still rebuilt.
     void setPoseEditMode(bool enabled);
     bool poseEditMode() const;
 
-    // Writes one bone's local pose directly. Only meaningful in pose edit
-    // mode - a bound clip's next update() would recompute over it otherwise.
-    // Out-of-range bone is a no-op.
+    // Only meaningful in pose edit mode; playback would overwrite it otherwise.
     void setBoneLocalPose(u32 bone, const LocalPose& pose);
 
 private:

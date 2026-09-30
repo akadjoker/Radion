@@ -1,13 +1,6 @@
 #ifndef RADION_AI_PATHFINDBEHAVIOR_H
 #define RADION_AI_PATHFINDBEHAVIOR_H
 
-// PathfindBehavior.h - steering behavior that follows a waypoint path.
-//
-// Drives an Agent along its Path, popping waypoints as they are reached,
-// periodically testing line of sight to the goal (short-circuiting the path
-// when it becomes visible), and nudging the agent with a perpendicular
-// agitation vector if it stalls.
-
 #include "Behavior.h"
 #include "WaypointNetwork.h"
 
@@ -28,26 +21,20 @@ class PathfindBehavior final : public Behavior
 public:
     struct Settings
     {
-        float turnRate = 0.2f;                 // desired-move strength toward the next node
-        float goalRadius = 50.0f;              // distance at which the goal counts as reached
+        float turnRate = 0.2f;
+        float goalRadius = 50.0f;
         float avoidDistance = 0.0f;            // <= 0 disables avoidance
-        float maxTimeBeforeAgitation = 25.0f;  // seconds stuck before the agitation nudge
-        float maxTimeBeforeLineOfSight = 0.5f; // seconds between goal line-of-sight tests
-        // Seconds between A* searches. Without it, an agent with no path -
-        // which is exactly what a failed search leaves behind - searched
-        // again on the very next frame, and kept doing it: a full graph
-        // search per agent per frame, precisely when the search is failing.
+        float maxTimeBeforeAgitation = 25.0f;
+        float maxTimeBeforeLineOfSight = 0.5f;
+        // Seconds between A* searches; stops a failed search being retried every frame.
         float repathInterval = 0.35f;
         Math::vec3 upVector = Math::vec3(0.0f, 1.0f, 0.0f);
         WaypointNetwork* waypointNetwork = nullptr; // non-owning
-        // Line-of-sight functor used for the goal short-circuit. Supply one to
-        // feed real LOS results, or nullptr for "always visible".
+        // Line-of-sight functor for the goal short-circuit; nullptr means always visible.
         const WaypointVisibility* visibility = nullptr;
     };
 
-    // The no-arg overload default-constructs Settings in the .cpp rather
-    // than taking `= Settings()` here - see NavMeshBehavior.h's comment on
-    // the same constraint.
+    // No-arg overload default-constructs Settings in the .cpp (see NavMeshBehavior.h).
     PathfindBehavior();
     explicit PathfindBehavior(const Settings& settings);
 
@@ -79,7 +66,6 @@ public:
 
 private:
     Settings mSettings;
-    // Per-agent, because one behavior instance now belongs to one agent.
     float mSinceRepath = 0.0f;
 };
 

@@ -12,18 +12,10 @@ struct ProfileSample
 {
     static constexpr u32 HistorySize = 120;
 
-    // Owned, not a borrowed const char*: a call site that passes a temporary
-    // (name.c_str() on a local std::string, a formatted label) used to leave
-    // the profiler holding an address that outlived nothing, read back with
-    // strcmp() on the next frame.
+    // Owned, not const char*: a temporary name would leave a dangling pointer.
     std::string name;
     f32 milliseconds = 0.0f;
-    // What a panel should show instead of `milliseconds`: the same value,
-    // held still and replaced only every RefreshSeconds. At sixty frames a
-    // second a per-frame number is not slow reading, it is unreadable - it
-    // changes several times before the eye has finished one line of the
-    // table, and the digits that move most are the ones worth looking at.
-    // The measurement itself is untouched; only how often it is handed over.
+    // What a panel shows instead of `milliseconds`: held still, replaced every RefreshSeconds so it is readable.
     f32 display = 0.0f;
     f32 average = 0.0f;
     f32 maximum = 0.0f;
@@ -37,7 +29,6 @@ class Profiler
 public:
     static constexpr u32 MaxSamples = 32;
     static constexpr u32 MaxDepth = 16;
-    // How often the values a panel reads are replaced - see ProfileSample.
     static constexpr f64 RefreshSeconds = 0.25;
 
     static Profiler& getSingleton();
@@ -46,16 +37,12 @@ public:
     void endFrame();
     bool begin(const char* name);
     void end();
-    // A duration measured outside any scope of this profiler's own, billed
-    // to `name` as if a scope had produced it. For the one thing a scope
-    // cannot reach: work that happens after endFrame() closed the frame it
-    // belongs to, and so can only be reported into the next one.
+    // Duration measured outside any scope, billed to `name`; for work finishing after endFrame().
     void addSample(const char* name, f32 milliseconds);
 
     const ProfileSample* samples() const;
     u32 sampleCount() const;
-    // Held still on the same cadence as ProfileSample::display, and taken
-    // from the same frame as those, so the total and the rows agree.
+    // Held on the same cadence and frame as ProfileSample::display, so total and rows agree.
     f32 frameMilliseconds() const;
 
 private:

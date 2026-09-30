@@ -55,10 +55,7 @@ bool ForwardPass::setup()
     texture.debugName = "forward.white_ao";
     mWhiteAO = gpu.createTexture(texture);
 
-    // Stands in for any material sampler the shader declares and the material
-    // does not have. GL treats a sampler as used if it is referenced anywhere
-    // in the source, even inside a branch a #define has already made dead, and
-    // draws with an unbound sampler fail outright.
+    // Stands in for any declared material sampler the material lacks: GL fails draws with an unbound sampler.
     const u8 neutral[4] = {255, 255, 255, 255};
     TextureDesc neutralDesc;
     neutralDesc.format = Format::RGBA8;
@@ -80,15 +77,8 @@ bool ForwardPass::setup()
     arrayDesc.debugName = "forward.neutral_array";
     mNeutralArray = gpu.createTexture(arrayDesc);
 
-    // Black, not white: this stands in for "there is no environment probe",
-    // and the reflection term is additive - a white cube would add a full
-    // unit of light to every lit surface in the frame. The intensity in the
-    // Environment block is zeroed alongside it, so this is belt and braces.
-    //
-    // One pixel repeated six times, not one: a cube upload reads depth
-    // (6) layers' worth of data from a single glTextureSubImage3D call, so
-    // a single-pixel source here was six pixels short - the driver read
-    // whatever followed it on the stack.
+    // Black, not white: the reflection term is additive, so white would add a unit of light everywhere.
+    // One pixel x six faces: a cube upload reads six layers of data from glTextureSubImage3D.
     const u8 black[4 * 6] = {0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255,
                              0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255};
     TextureDesc cubeDesc;
@@ -132,11 +122,7 @@ bool ForwardPass::ensureInstanceCapacity(u32 instances)
     desc.residency = Residency::Stream;
     desc.stride = sizeof(GPUInstance);
     desc.debugName = "forward.instances";
-    // Created before the old buffer is touched: destroying it first, on the
-    // handle capacity already agreed was current, used to mean a failed
-    // allocation left mInstanceCapacity claiming a size no buffer backed at
-    // all - the next call's early return above believed it and skipped
-    // retrying.
+    // Create the new buffer before touching the old one, so a failed allocation leaves capacity consistent.
     GPU& gpu = GPU::getSingleton();
     BufferHandle next = gpu.createBuffer(desc);
     if (!next.valid())
@@ -197,21 +183,12 @@ void ForwardPass::bindFrameState(const FrameContext& frame)
                     frame.environmentCube.valid() ? frame.environmentCube : mNeutralCube,
                     frame.environmentCubeSampler);
 
-    // MaterialMirror's own reflection, bound unconditionally like the
-    // environment cube above - a Lit pipeline declares uMirrorReflectionTex
-    // statically once any material in the frame used HAS_MIRROR, so every
-    // batch after that one needs a valid binding whether or not IT is a
-    // mirror. WaterPass writes the same slots for its own draws right
-    // before this pass runs the next frame; each pass rewrites both before
-    // its own batches, so the two never fight over them.
+    // Bound unconditionally: a Lit pipeline declares uMirrorReflectionTex once any material used HAS_MIRROR.
     gpu.updateBuffer(mMirrorCameraBuffer, 0, sizeof(Math::mat4), &frame.reflectionViewProj);
     gpu.bindUniform(BindingReflectionCamera, mMirrorCameraBuffer);
     const TextureHandle mirrorReflection =
         Assets().resolveRenderTarget(hashName(kReflectionTargetName));
-    // Trilinear, not whatever the texture's own default is: HAS_MIRROR reads
-    // this with textureLod for Roughness-driven blur (mReflection.create()'s
-    // mips=true), and a sampler that ignores mip level would make Roughness
-    // do nothing.
+    // Trilinear: HAS_MIRROR reads it with textureLod for Roughness blur.
     SamplerDesc mirrorSamplerDesc;
     mirrorSamplerDesc.filter = Filter::Trilinear;
     mirrorSamplerDesc.wrapU = Wrap::Clamp;
@@ -228,11 +205,7 @@ void ForwardPass::bindFrameState(const FrameContext& frame)
                         frame.directionalShadowRawSampler);
     }
 
-    // Bound unconditionally, not only while a Lit material is up next: a Lit
-    // pipeline's fragment shader declares these SSBOs statically, and Lighting
-    // keeps the tile buffer valid (if empty) even with tiled culling off, for
-    // exactly this reason - a shader-declared storage binding left unbound
-    // fails every draw that follows it, silently, without the debug context on.
+    // Bound unconditionally: a shader-declared storage binding left unbound fails every following draw.
     if (frame.entityBuffer.valid())
     {
         gpu.bindStorage(BindingEntities, frame.entityBuffer);
@@ -285,9 +258,7 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
     if (packets.empty())
         return;
 
-    // Rewritten into draw order, not submission order: instancing needs a
-    // run's matrices to sit next to each other in the buffer, and the sort
-    // only made the packets adjacent, not their instance indices.
+    // Rewritten into draw order: instancing needs a run's matrices adjacent in the buffer.
     const Math::mat4* models = frame.list->models();
     const Math::mat4* prevModels = frame.list->prevModels();
     mGPUInstances.clear();
@@ -313,10 +284,7 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
         }
         else if (instance.material && (instance.material->flags & MaterialSkinned))
         {
-            // Skinned material, no Animator yet to pose it (Scene passes
-            // palette=nullptr) - identity so the vertex shader's
-            // MATERIAL_SKINNED path reads bind pose instead of whatever the
-            // buffer held from a previous frame's draw at this offset.
+            // Skinned with no Animator: identity palette so MATERIAL_SKINNED reads bind pose, not stale buffer data.
             const std::vector<Math::mat4>& identity = RenderList::identityPalette();
             mPalettes.insert(mPalettes.end(), identity.begin(), identity.end());
             gpuInstance.prevPaletteOffset = static_cast<u32>(mPalettes.size());
@@ -356,8 +324,6 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
             continue;
         }
 
-        // How far the run of identical draws reaches. The sort put these
-        // together; this is what turns them into one call.
         usize end = i + 1;
         while (end < packets.size())
         {
@@ -388,11 +354,7 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
         }
 
         {
-            // A local ReflectionProbe (scene/) nearest this instance overrides
-            // the frame's single default cubemap for this run of packets - see
-            // RenderProbe's comment. Runs only merge when they share the same
-            // probe (the grouping check above), so every batch here really does
-            // want just one binding for its whole instanced draw.
+            // A local ReflectionProbe overrides the default cubemap; runs only merge when they share a probe.
             const TextureHandle desiredCube = instance.probe.cubemap.valid()
                                                   ? instance.probe.cubemap
                                                   : (frame.environmentCube.valid() ? frame.environmentCube
@@ -415,18 +377,8 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
                 boundEnvironmentCube = desiredCube;
             }
 
-            // Bound every run, not skipped on a texture-handle match: a sampler
-            // is a separate GL object from the texture it wraps, so two materials
-            // sharing one texture with different wrap/filter/anisotropy need
-            // their own bind even when the texture side does not change. GLDevice
-            // already caches texture and sampler binds independently and skips
-            // the redundant GL call itself - see GLDevice::bindTexture() - so
-            // there is nothing to save by duplicating that cache here, only a
-            // second one that could disagree with it.
-            //
-            // Only meaningful when the pipeline was compiled with the matching
-            // HAS_* define - see MaterialManager::resolvePipeline. Binding a slot
-            // the shader never samples costs nothing it would not pay anyway.
+            // Bound every run: a sampler is a separate GL object, so materials sharing a texture can differ in wrap/filter.
+            // Only meaningful with the matching HAS_* define (MaterialManager::resolvePipeline).
             const MaterialTexture& albedo = material.textures[SlotAlbedo];
             gpu.bindTexture(BindingAlbedo, albedo.texture.valid() ? albedo.texture : mNeutral,
                             albedo.sampler);
@@ -434,21 +386,13 @@ void ForwardPass::drawCategory(const FrameContext& frame, RenderCategory categor
             if (detail.texture.valid())
                 gpu.bindTexture(BindingDetail, detail.texture, detail.sampler);
 
-            // Which part of the surface is lit up. Only sampled by a pipeline
-            // compiled with HAS_EMISSIVE, so a material without one pays nothing -
-            // not even a branch.
             const MaterialTexture& emissive = material.textures[SlotEmissive];
             if (emissive.texture.valid())
                 gpu.bindTexture(BindingEmissive, emissive.texture, emissive.sampler);
-            // A landscape's colour map. Nothing else in the engine uses this
-            // slot, so binding it whenever present costs nothing extra for every
-            // other material - the same trade SlotDetail/BindingDetail above
-            // already makes.
             const MaterialTexture& colorMap = material.textures[SlotColorMap];
             if (colorMap.texture.valid())
                 gpu.bindTexture(BindingColorMap, colorMap.texture, colorMap.sampler);
-            // A baked lightmap, sampled through the mesh's own uv2 - see
-            // HAS_LIGHTMAP in lit.frag and OgreMeshImporter.
+            // Sampled through the mesh's uv2 (HAS_LIGHTMAP in lit.frag).
             const MaterialTexture& lightmap = material.textures[SlotLightmap];
             if (lightmap.texture.valid())
                 gpu.bindTexture(BindingLightmap, lightmap.texture, lightmap.sampler);

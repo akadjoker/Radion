@@ -30,8 +30,6 @@ public:
 
     void setMoveSpeed(f32 unitsPerSecond);
     f32 moveSpeed() const;
-    // Held Action::Sprint multiplies moveSpeed by this for as long as it is
-    // down - Shift+W (the default Sprint key) moving faster than plain W.
     void setSprintMultiplier(f32 multiplier);
     f32 sprintMultiplier() const;
     void setLookSpeed(f32 degreesPerPixel);
@@ -83,8 +81,6 @@ public:
 
     void setMoveSpeed(f32 unitsPerSecond);
     f32 moveSpeed() const;
-    // Held Action::Sprint multiplies moveSpeed by this for as long as it is
-    // down - Shift+W (the default Sprint key) moving faster than plain W.
     void setSprintMultiplier(f32 multiplier);
     f32 sprintMultiplier() const;
     void setLookSpeed(f32 degreesPerPixel);
@@ -242,9 +238,6 @@ public:
     f32 maxPitch() const;
     void setDistance(f32 distance);
     f32 distance() const;
-    // Mouse-wheel zoom, the same setZoomSpeed()/setDistanceLimits() pattern
-    // Orbit/Maya already use - wheel input is read every onUpdate()
-    // regardless, so these only need setting once to take effect.
     void setZoomSpeed(f32 speed);
     f32 zoomSpeed() const;
     void setDistanceLimits(f32 minDistance, f32 maxDistance);
@@ -263,10 +256,7 @@ public:
     f32 pitch() const;
     void snap();
 
-    // Sphere-swept collision against a level's collision mesh, the same
-    // primitive CharacterController::setOctree() already uses - nullptr (the
-    // default) keeps the orbit uncollided, same as before this existed. Set
-    // once after the octree is built; the component only ever reads it.
+    // nullptr (default) keeps the orbit uncollided; the component only reads it.
     void setCollisionOctree(const TriangleOctree* octree);
     const TriangleOctree* collisionOctree() const;
     void setCollisionRadius(f32 radius);
@@ -281,9 +271,6 @@ private:
     void onUpdate(f32 deltaTime) override;
     Math::vec3 desiredPosition() const;
     Math::vec3 aimPoint() const;
-    // Pulls `desired` back toward `anchor` when the sphere swept between them
-    // hits the collision octree - see slideCamera() in
-    // collision/CollisionShape.cpp for the physics-world twin this mirrors.
     Math::vec3 collide(const Math::vec3& anchor, const Math::vec3& desired) const;
 
     GameObject* mTarget = nullptr;

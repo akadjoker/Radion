@@ -1,8 +1,3 @@
-// GridPathfinder.cpp - grid searches (A*, Dijkstra, Best-First, BFS).
-//
-// The node grid is a flat vector; each expansion is an O(1) contains via
-// inOpen/inClosed flags, with the priority lists kept sorted by f.
-
 #include "PCH.h"
 
 #include "GridPathfinder.h"
@@ -22,17 +17,11 @@ struct Node
     bool inClosed = false;
 };
 
-// 8-directional neighbours.
 const int kDx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
 const int kDy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
 
-// A diagonal step passes between two cells, and both have to be open. With
-// only the destination tested, a route slipped through the seam where two
-// blocked cells touch corner to corner - legal on the grid, and a walk
-// straight through a wall for anything that has width. Both and not either:
-// with one side open the agent still clips the corner it is cutting.
-//
-// Shared by the three searches below, which all had the same hole.
+// Both cells beside a diagonal step must be open, or a route slips through the seam where two blocked cells touch
+// (with only one open the agent still clips the corner).
 bool diagonalCutsCorner(const GridMap& grid, int fromX, int fromY, int dx, int dy)
 {
     if (dx == 0 || dy == 0)
@@ -43,8 +32,6 @@ bool diagonalCutsCorner(const GridMap& grid, int fromX, int fromY, int dx, int d
            !grid.inBounds(fromX, sideY) || grid.isBlocked(fromX, sideY);
 }
 
-// Walk the parent chain from the goal back to the start, then flip to
-// produce the path start..end.
 bool reconstructPath(const Node* end, const std::vector<Node>& nodes, int size,
                      std::vector<GridCellCoord>& outPath)
 {
@@ -115,7 +102,6 @@ bool GridPathfinder::findPath(int startX, int startY, int endX, int endY,
     }
 }
 
-// Shared weighted search: A* (useHeuristic) and Dijkstra (no heuristic).
 bool GridPathfinder::searchInformed(int startX, int startY, int endX, int endY, bool useHeuristic,
                                     std::vector<GridCellCoord>& outPath) const
 {
@@ -173,7 +159,7 @@ bool GridPathfinder::searchInformed(int startX, int startY, int endX, int endY, 
             int newg = n->g + mGrid->cost(x, y);
 
             if ((node.inOpen || node.inClosed) && node.g <= newg)
-                continue; // already have a cheaper or equal route to it
+                continue;
 
             node.parent = n;
             node.g = newg;
@@ -188,7 +174,6 @@ bool GridPathfinder::searchInformed(int startX, int startY, int endX, int endY, 
             }
             else
             {
-                // Cost changed - reposition within the sorted open list.
                 auto pos = std::find(open.begin(), open.end(), &node);
                 if (pos != open.end())
                     open.erase(pos);
@@ -199,10 +184,9 @@ bool GridPathfinder::searchInformed(int startX, int startY, int endX, int endY, 
         n->inClosed = true;
     }
 
-    return false; // goal unreachable
+    return false;
 }
 
-// Greedy best-first search: expand the node with the lowest heuristic.
 bool GridPathfinder::searchBestFirst(int startX, int startY, int endX, int endY,
                                      std::vector<GridCellCoord>& outPath) const
 {
@@ -256,7 +240,7 @@ bool GridPathfinder::searchBestFirst(int startX, int startY, int endX, int endY,
 
             Node& node = nodeAt(x, y);
             if (node.inOpen || node.inClosed)
-                continue; // greedy: never revisit a discovered node
+                continue;
 
             node.parent = n;
             node.h = goalEstimate(x, y, endX, endY);
@@ -268,10 +252,9 @@ bool GridPathfinder::searchBestFirst(int startX, int startY, int endX, int endY,
         n->inClosed = true;
     }
 
-    return false; // goal unreachable
+    return false;
 }
 
-// Breadth-first search: unweighted FIFO expansion.
 bool GridPathfinder::searchBreadthFirst(int startX, int startY, int endX, int endY,
                                         std::vector<GridCellCoord>& outPath) const
 {
@@ -312,7 +295,7 @@ bool GridPathfinder::searchBreadthFirst(int startX, int startY, int endX, int en
 
             Node& node = nodeAt(x, y);
             if (node.inOpen || node.inClosed)
-                continue; // already queued or expanded
+                continue;
 
             node.parent = n;
             node.inOpen = true;
@@ -322,7 +305,7 @@ bool GridPathfinder::searchBreadthFirst(int startX, int startY, int endX, int en
         n->inClosed = true;
     }
 
-    return false; // goal unreachable
+    return false;
 }
 
 } // namespace Radion::AI

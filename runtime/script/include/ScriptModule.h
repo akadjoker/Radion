@@ -10,8 +10,6 @@ namespace Radion
 {
 
 // Registration point for the "radion" native module exposed to Zen scripts.
-// Keeps the zen::NativeLib table and its native functions grouped in one
-// place instead of loose functions in the zen namespace.
 class ScriptModule
 {
 public:

@@ -39,13 +39,9 @@ struct ChunkCoordHash
     usize operator()(const ChunkCoord& coord) const;
 };
 
-// A fixed-size, CPU-only block store. Rendering and collision consume a
-// rebuilt result later; editing a chunk only changes this authoritative data.
-//
-// A chunk holding one block everywhere - open sky, solid rock - keeps no array
-// at all and answers from `mUniform`. Half a generated world is one of those
-// two, and 64 KB each is what a large view radius runs out of first. The array
-// appears on the first write that disagrees with it.
+// A fixed-size, CPU-only block store; editing changes only this authoritative data.
+// A chunk holding one block everywhere keeps no array and answers from `mUniform` (64 KB each is what a large view radius runs out of first);
+// the array appears on the first write that disagrees.
 class VoxelChunk
 {
 public:
@@ -63,13 +59,9 @@ public:
     bool setBlock(VoxelCoord local, BlockId block);
     void fill(BlockId block);
 
-    // Drops the array when every block in it is the same. Worth one scan
-    // after generation fills a chunk, and free for the ones that were never
-    // anything but sky or rock.
+    // Drops the array when every block is the same; worth one scan after generation.
     void compact();
-    // Back to empty air at a new coordinate, keeping whatever the block array
-    // already reserved: a streamer that recycles chunks stops allocating in
-    // steady state.
+    // Back to empty air at a new coordinate, keeping reserved storage so a recycling streamer stops allocating.
     void reset(ChunkCoord coordinate);
 
     bool uniform() const { return mBlocks.empty(); }

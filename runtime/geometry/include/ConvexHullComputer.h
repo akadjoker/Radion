@@ -34,15 +34,9 @@ public:
     std::vector<Edge> edges;
     std::vector<int> faces;
 
-    // Computes the convex hull of "count" vertices stored in "coords". "stride" is the
-    // difference in bytes between the addresses of consecutive vertices. If "shrink" is
-    // positive, the convex hull is shrunk by that amount (each face is moved by "shrink"
-    // length units towards the center along its normal). If "shrinkClamp" is positive,
-    // "shrink" is clamped to not exceed "shrinkClamp * innerRadius", where "innerRadius"
-    // is the minimum distance of a face to the center of the convex hull.
-    //
-    // The returned value is the amount by which the hull has been shrunk. If it is negative,
-    // the amount was so large that the resulting convex hull is empty.
+    // Hull of "count" vertices in "coords", "stride" bytes apart. A positive "shrink" moves each face that far towards the center
+    // along its normal, clamped to "shrinkClamp * innerRadius" if shrinkClamp is positive. Returns the shrink applied;
+    // negative means the hull became empty.
     f32 compute(const float* coords, int stride, int count, f32 shrink, f32 shrinkClamp);
 };
 

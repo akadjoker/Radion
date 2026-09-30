@@ -42,8 +42,6 @@ RigidBody makeBullet(const Math::vec3& position, const Math::vec3& velocity, con
     return body;
 }
 
-// A thin static wall a fast body would cross entirely within one step if
-// swept only by its own AABB - the classic tunnelling setup.
 void testBulletStopsAtThinWall()
 {
     BoxShape wallShape(Math::vec3(0.05f, 1.0f, 1.0f));
@@ -71,9 +69,7 @@ void testBulletStopsAtThinWall()
     CHECK(near(bullet.position().z, 0.0f, 1e-3f));
 }
 
-// Same scene, no setBullet(true): proves the wall really is thin enough to
-// tunnel through, so the previous test is measuring the sweep and not
-// something else (contact margin, a slow enough wall, and so on).
+// No setBullet(true): proves the wall is thin enough to tunnel, so the sweep is what the test above measures.
 void testNonBulletTunnelsThroughSameWall()
 {
     BoxShape wallShape(Math::vec3(0.05f, 1.0f, 1.0f));
@@ -104,9 +100,7 @@ void testNonBulletTunnelsThroughSameWall()
     CHECK(near(bullet.position().x, 20.0f, 1e-3f));
 }
 
-// A bullet-marked body settling under ordinary gravity has to rest exactly
-// like any other body: the sweep must stay out of the way once motion per
-// step drops below the slop threshold.
+// A bullet body settling must rest like any other once per-step motion is below the slop threshold.
 void testBulletRestsNormallyAtLowSpeed()
 {
     BoxShape groundShape(Math::vec3(10.0f, 0.5f, 10.0f));
@@ -138,10 +132,7 @@ void testBulletRestsNormallyAtLowSpeed()
     CHECK(Math::length(ball.velocity()) < 0.5f);
 }
 
-// Two fast dynamic bodies closing on each other: the reference sweep skips
-// any hit against a Dynamic body and leaves it to the ordinary contact
-// solver, so a bullet-marked body must still cross a dynamic obstacle within
-// the step that first brings them together.
+// The reference sweep skips Dynamic hits (left to the contact solver), so a bullet must still cross a dynamic obstacle in the first step.
 void testBulletSweepSkipsDynamicObstacles()
 {
     BoxShape obstacleShape(Math::vec3(0.05f, 1.0f, 1.0f));

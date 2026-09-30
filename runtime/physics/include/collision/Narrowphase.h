@@ -6,33 +6,24 @@
 namespace Radion::Physics
 {
 
-// One point where two shapes touch. The impulses persist between steps so the
-// solver can start from what it needed last time (warm starting) instead of
-// finding the same answer again from zero every frame - it is the difference
-// between a stack that settles and one that sinks.
+// One contact point. Impulses persist between steps for warm starting (lets a stack settle instead of sink).
 struct ContactPoint
 {
     Math::vec3 position{0.0f}; // world, midway between the two surfaces
     f32 penetration = 0.0f;   // positive when overlapping
     f32 normalImpulse = 0.0f;
     f32 tangentImpulse[2] = {0.0f, 0.0f};
-    // Separation speed the solver aims for, from the approach speed measured
-    // before any impulse is applied. Not persistent state like the impulses -
-    // ContactSolver::solve() recomputes it every step, and it is zero for
-    // everything that is not bouncing.
+    // Target separation speed from the pre-impulse approach speed; recomputed each step by ContactSolver::solve(), zero unless bouncing.
     f32 velocityBias = 0.0f;
 };
 
-// The at-most-four points of one contact patch, plus the shared normal.
-// Four is what a box face against a box face needs; more adds nothing a
-// solver can use and costs iterations.
+// At most four points (a box face against a box face); more adds nothing.
 struct ContactManifold
 {
     static constexpr u32 MaxPoints = 4;
 
     // Points from A towards B: pushing B along it separates them.
     Math::vec3 normal{0.0f, 1.0f, 0.0f};
-    // Perpendicular to the normal, for the two friction directions.
     Math::vec3 tangent[2] = {Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f)};
     ContactPoint points[MaxPoints];
     u32 count = 0;
@@ -47,25 +38,14 @@ struct ShapeRayHit
     Math::vec3 normal{0.0f, 1.0f, 0.0f};
 };
 
-// Separating Axis Test and contact generation, one static entry point per
-// shape pair. Nothing here touches a RigidBody: collision is a question about
-// two transformed shapes, and keeping it that way is what lets it be tested
-// without building a world.
+// SAT and contact generation, one static entry point per shape pair; nothing here touches a RigidBody.
 class Narrowphase
 {
 public:
-    // `margin` reports shapes that are close but not yet touching, with a
-    // NEGATIVE penetration saying how far apart they are. Zero is plain
-    // overlap-only detection.
-    //
-    // A margin matters because the position pass pushes a body just clear of
-    // the surface it landed on. With overlap-only detection the contact then
-    // vanishes for as long as it takes gravity to pull it back - measured at
-    // 33 steps for a box dropped 2.5 m - taking the pair's accumulated
-    // impulses and its enter/stay/exit state with it. The solver ignores a
-    // negative penetration for position and produces no impulse while the
-    // bodies are separating, so a speculative contact costs nothing and
-    // keeps the pair alive across the gap.
+    // `margin` reports near-but-not-touching shapes with NEGATIVE penetration = gap; 0 is overlap-only.
+    // The position pass pushes a body just clear, and without a margin the contact vanishes until gravity returns (33 steps for a
+    // 2.5 m box drop), losing accumulated impulses and enter/stay/exit state. The solver ignores negative penetration and applies
+    // no impulse while separating, so speculative contacts are free.
     static bool collide(const CollisionShape& a, const Math::mat4& transformA,
                         const CollisionShape& b, const Math::mat4& transformB,
                         ContactManifold& out, f32 margin = 0.0f);
@@ -78,29 +58,21 @@ public:
     static bool boxBox(const BoxShape& a, const Math::mat4& transformA, const BoxShape& b,
                        const Math::mat4& transformB, ContactManifold& out, f32 margin = 0.0f);
 
-    // A capsule against a sphere is the sphere case moved to the closest
-    // point on its segment, and against another capsule it is the same with
-    // both segments - so these are exact, not approximations.
+    // Capsule cases reduce to the sphere case at the closest segment point(s): exact, not approximations.
     static bool capsuleSphere(const CapsuleShape& a, const Math::mat4& transformA,
                               const SphereShape& b, const Math::mat4& transformB,
                               ContactManifold& out, f32 margin = 0.0f);
     static bool capsuleCapsule(const CapsuleShape& a, const Math::mat4& transformA,
                                const CapsuleShape& b, const Math::mat4& transformB,
                                ContactManifold& out, f32 margin = 0.0f);
-    // Separation by SAT over the box's faces, the capsule's axis and their
-    // cross products; contact by clipping the capsule's segment to the box
-    // face when the two are parallel, so a capsule lying on a surface gets
-    // TWO points and stays put instead of pivoting on one.
+    // SAT over box faces, capsule axis and cross products; a parallel capsule is clipped to the box face, giving TWO points so it does not pivot.
     static bool capsuleBox(const CapsuleShape& a, const Math::mat4& transformA, const BoxShape& b,
                            const Math::mat4& transformB, ContactManifold& out, f32 margin = 0.0f);
     static bool convexPlane(const CollisionShape& a, const Math::mat4& transformA,
                             const PlaneShape& b, const Math::mat4& transformB,
                             ContactManifold& out, f32 margin = 0.0f);
 
-    // The same face+edge SAT boxBox() uses, generalized from six fixed faces
-    // to however many a ConvexHullShape has: its own face normals stand in
-    // for the box's three, and its own edge directions stand in for the
-    // box's three when a cross-product axis is needed.
+    // Same face+edge SAT as boxBox(), using the hull's own face normals and edge directions.
     static bool convexHullSphere(const ConvexHullShape& a, const Math::mat4& transformA,
                                  const SphereShape& b, const Math::mat4& transformB,
                                  ContactManifold& out, f32 margin = 0.0f);
@@ -114,11 +86,8 @@ public:
                                      const ConvexHullShape& b, const Math::mat4& transformB,
                                      ContactManifold& out, f32 margin = 0.0f);
 
-    // Triangle cases, normal pointing from the convex towards the triangle.
-    // A contact landing on a shared edge takes that edge's direction, not the
-    // face's: without the neighbouring triangles' normals there is no way to
-    // tell an outer edge from an interior seam, so a body sliding across a
-    // mesh can still catch on one. Adjacency would fix it and is not here.
+    // Triangle cases, normal from the convex towards the triangle. A contact on a shared edge takes the edge direction: without neighbour
+    // normals an outer edge cannot be told from an interior seam, so sliding can still catch (adjacency would fix it).
     static bool sphereTriangle(const SphereShape& a, const Math::mat4& transformA,
                                const TriangleShape& b, const Math::mat4& transformB,
                                ContactManifold& out, f32 margin = 0.0f);
@@ -129,10 +98,7 @@ public:
                                 const TriangleShape& b, const Math::mat4& transformB,
                                 ContactManifold& out, f32 margin = 0.0f);
 
-    // One manifold PER TOUCHING TRIANGLE, appended to `out`. Not one merged
-    // manifold: a manifold carries a single normal, and a box wedged into a
-    // corner needs one normal per face it rests on or the solver pushes it
-    // out along an average that belongs to neither.
+    // One manifold PER TOUCHING TRIANGLE appended to `out`: a manifold has one normal, and a box wedged in a corner needs one per face.
     static bool convexTrimesh(const CollisionShape& convex, const Math::mat4& convexTransform,
                               const TrimeshShape& mesh, const Math::mat4& meshTransform,
                               std::vector<ContactManifold>& out, f32 margin = 0.0f);

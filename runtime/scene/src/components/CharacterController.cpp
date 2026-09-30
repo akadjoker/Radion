@@ -15,8 +15,6 @@ CharacterController::CharacterController()
 {
 }
 
-// ------------------------------------------------------------- configuration
-
 void CharacterController::setOctree(const TriangleOctree* octree)
 {
     mOctree = octree;
@@ -98,8 +96,6 @@ u32 CharacterController::maxIterations() const
     return mMaxIterations;
 }
 
-// ---------------------------------------------------------------- movement
-
 void CharacterController::setMoveInput(const Math::vec3& moveSpeed)
 {
     mMoveInput = Math::vec3(moveSpeed.x, 0.0f, moveSpeed.z);
@@ -144,13 +140,7 @@ f32 CharacterController::slopeAngle() const
         std::acos(Math::clamp(Math::dot(mGroundNormal, Math::vec3(0.0f, 1.0f, 0.0f)), -1.0f, 1.0f)));
 }
 
-// ---------------------------------------------------------------- CollideAndSlide
-//
-// Port of CCollision::CollideEllipsoid from the study project, working in
-// world space: the octree's sweepEllipsoid() does the ellipsoid transform
-// internally and hands back a fraction-of-velocity t plus a world normal, so
-// every step of the loop below is the study's algorithm with the ellipsoid
-// bookkeeping moved into the query.
+// Port of CCollision::CollideEllipsoid in world space: sweepEllipsoid() does the ellipsoid transform and returns a fraction-of-velocity t plus a world normal.
 
 CharacterController::Slide CharacterController::slide(const Math::vec3& startCenter,
                                                       const Math::vec3& displacement) const
@@ -196,20 +186,16 @@ CharacterController::Slide CharacterController::slide(const Math::vec3& startCen
             out.steepBlock = true;
         }
 
-        // Move to the contact position (embedded hits push out along the
-        // normal instead of forward), then nudge off the surface by the skin.
+        // Embedded hits push out along the normal instead of forward; then nudge off the surface by the skin.
         out.center = (hit.t > 0.0f) ? out.center + out.velocity * hit.t : out.center - n * hit.t;
         out.center = out.center + n * mSkinWidth;
 
-        // Slide the output velocity off the normal. A wall steeper than the
-        // slope limit cannot be climbed: drop its upward component so the
-        // character slides down it instead of walking up it.
+        // A wall steeper than the slope limit cannot be climbed: drop its upward component.
         outputVelocity = outputVelocity - n * Math::dot(outputVelocity, n);
         if (upDot < cosLimit && outputVelocity.y > 0.0f)
             outputVelocity.y = 0.0f;
 
-        // Project the movement endpoint onto the sliding plane through the
-        // new center (the study's eTo adjustment) and continue from there.
+        // Project the endpoint onto the sliding plane through the new center (the study's eTo adjustment).
         endpoint = endpoint - n * Math::dot(endpoint - out.center, n);
         out.velocity = endpoint - out.center;
     }
@@ -242,7 +228,6 @@ CharacterController::MoveResult CharacterController::move(const Math::vec3& disp
     const Math::vec3 horizontal(displacement.x, 0.0f, displacement.z);
     const Math::vec3 vertical(0.0f, displacement.y, 0.0f);
 
-    // Primary pass: slide the whole displacement.
     Slide primary = slide(center, displacement);
     Math::vec3 finalCenter = primary.center;
     Math::vec3 finalDisplacement = primary.velocity;
@@ -250,9 +235,7 @@ CharacterController::MoveResult CharacterController::move(const Math::vec3& disp
     result.grounded = primary.grounded;
     result.normal = primary.groundNormal;
 
-    // Step-up: a steep wall blocked the horizontal move - try climbing over
-    // it. Only accept the climb when the raised horizontal path is clear and
-    // we land back on something within the step height (no floating).
+    // Step-up: only accepted when the raised horizontal path is clear and we land within the step height (no floating).
     if (mStepOffset > 0.0f && primary.steepBlock && Math::dot(horizontal, horizontal) > 1e-10f)
     {
         const Math::vec3 upVec(0.0f, mStepOffset, 0.0f);
@@ -268,8 +251,7 @@ CharacterController::MoveResult CharacterController::move(const Math::vec3& disp
                 {
                     const Math::vec3 landed =
                         across.center + downVec * downHit.t + downHit.normal * mSkinWidth;
-                    // Keep the vertical (gravity / jump) movement from the
-                    // primary move, resolved at the stepped position.
+                    // Vertical (gravity/jump) movement from the primary move, resolved at the stepped position.
                     Slide final = slide(landed, vertical);
                     finalCenter = final.center;
                     finalDisplacement = vertical;
@@ -291,8 +273,6 @@ CharacterController::MoveResult CharacterController::move(const Math::vec3& disp
     return result;
 }
 
-// ------------------------------------------------------------------- update
-
 void CharacterController::onUpdate(f32 deltaTime)
 {
     if (!mOctree)
@@ -300,7 +280,7 @@ void CharacterController::onUpdate(f32 deltaTime)
     if (deltaTime <= 0.0f)
         return;
 
-    // Stay planted while grounded instead of accumulating tiny negative drift.
+    // Stay planted while grounded instead of accumulating negative drift.
     if (mGrounded && mVerticalVelocity.y < 0.0f)
         mVerticalVelocity.y = 0.0f;
 
@@ -316,8 +296,7 @@ void CharacterController::onUpdate(f32 deltaTime)
     if (result.grounded)
         mGroundNormal = result.normal;
     mVelocity = deltaTime > 0.0f ? result.displacement / deltaTime : Math::vec3(0.0f);
-    // Fold the post-collision residual back in so gravity keeps the velocity
-    // honest after a landing.
+    // Fold the post-collision residual back so gravity stays honest after a landing.
     mVerticalVelocity.y = mVelocity.y;
     if (mGrounded && mVerticalVelocity.y < 0.0f)
         mVerticalVelocity.y = 0.0f;

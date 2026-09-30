@@ -49,8 +49,6 @@ void AsyncTextureLoader::shutdown()
     SDL_WaitThread(mThread, nullptr);
     mThread = nullptr;
 
-    // Whatever finished decoding but was never picked up by processCompleted()
-    // still owns a Pixmap/DDSImage - free it now rather than leaking it.
     for (Result& result : *mResults)
         releaseDecodedTexture(result.decoded);
 
@@ -156,9 +154,7 @@ void AsyncTextureLoader::workerLoop()
         mInFlight = true;
         SDL_UnlockMutex(mJobsMutex);
 
-        // Pure CPU work - file I/O and stb_image/DDS decoding, no GL calls -
-        // is exactly what makes running this off the main thread safe. See
-        // TextureDecode.h.
+        // Pure CPU work, no GL calls: safe off the main thread.
         Result result;
         result.placeholder = job.placeholder;
         result.filename = job.filename;

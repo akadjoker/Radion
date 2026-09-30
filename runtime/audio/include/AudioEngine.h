@@ -9,13 +9,7 @@
 namespace Radion
 {
 
-// Engine-owned wrapper around miniaudio. A SoundId names a loaded file; a
-// VoiceId names one playback of it, and several voices of the same sound
-// overlap freely.
-//
-// Everything a sound needs is held as encoded bytes, so a file read through
-// FileSystem - including one that only exists inside a mounted pack - plays
-// exactly like one on disk.
+// SoundId names a loaded file; a VoiceId one playback of it. Sounds are held as encoded bytes.
 class AudioEngine
 {
 public:
@@ -37,8 +31,7 @@ public:
 
     SoundId loadSound(const std::string& path);
     SoundId loadMusic(const std::string& path);
-    // The bytes are copied, so a caller may release its buffer as soon as
-    // this returns.
+    // Bytes are copied; the caller may release its buffer on return.
     SoundId loadSoundMemory(const void* data, usize size);
     SoundId loadMusicMemory(const void* data, usize size);
     bool unload(SoundId sound);
@@ -58,18 +51,13 @@ public:
     VoiceId crossfadeMusic(SoundId sound, bool loop = true, f32 volume = 1.0f,
                            f32 seconds = 1.0f);
 
-    // World audio. The listener is ordinarily the active camera: position
-    // places it, orientation decides which side of it a voice is heard on.
-    // Set both - a listener with a stale orientation pans every voice
-    // wrongly the moment the camera turns.
+    // Set both position and orientation: a stale orientation pans every voice wrongly as the camera turns.
     bool setListenerPosition(const Math::vec3& position);
     bool setListenerOrientation(const Math::vec3& forward, const Math::vec3& up);
     bool setListenerVelocity(const Math::vec3& velocity);
     bool setVoicePosition(VoiceId voice, const Math::vec3& position);
     bool setVoiceVelocity(VoiceId voice, const Math::vec3& velocity);
-    // Distances are world units. Below minDistance a voice is at full
-    // volume; past maxDistance it is silent, with rolloff shaping the
-    // inverse curve between them.
+    // World units; silent past maxDistance, rolloff shapes the inverse curve.
     bool setVoiceSpatial(VoiceId voice, bool enabled, f32 minDistance = 1.0f,
                          f32 maxDistance = 100.0f, f32 rolloff = 1.0f);
     VoiceId playAt(SoundId sound, const Math::vec3& position, f32 volume = 1.0f,
@@ -101,8 +89,6 @@ private:
     Impl* mImpl;
 };
 
-// Shorthand for AudioEngine::getSingleton(), which is otherwise most of the
-// line at every call site.
 AudioEngine& Audio();
 
 } // namespace Radion

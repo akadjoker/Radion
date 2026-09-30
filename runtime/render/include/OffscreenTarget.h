@@ -6,10 +6,7 @@
 namespace Radion
 {
 
-// A colour + depth render target pair, the shape every render-to-texture
-// technique needs (a planar reflection, a scene colour copy for refraction).
-// Owns its own textures - unlike AssetManager's, these are never shared or
-// looked up by name, only published under one once built.
+// Colour + depth render target pair for render-to-texture techniques. Owns its textures; never shared or looked up by name.
 struct OffscreenTarget
 {
     TargetHandle target;
@@ -25,13 +22,7 @@ struct OffscreenTarget
         return target.valid();
     }
 
-    // Pass Format::Unknown for depth when a colour-only ping-pong target is
-    // enough (post-processing, for example). `mips` allocates the full chain
-    // on the colour texture instead of just level 0 - for a target something
-    // reads back with textureLod (a mirror's roughness-driven blur), not for
-    // one only ever sampled at its native resolution; the caller still has
-    // to generate them itself after rendering (GPU::generateMips()), this
-    // only reserves the room.
+    // Format::Unknown depth gives a colour-only ping-pong target. `mips` reserves the full chain on colour (for textureLod readers); the caller still calls GPU::generateMips().
     bool create(u32 w, u32 h, Format colorFormat, Format depthFormat, const char* debugName,
                bool mips = false, Format velocityFormat = Format::Unknown,
                Format reactiveFormat = Format::Unknown, bool storage = false);

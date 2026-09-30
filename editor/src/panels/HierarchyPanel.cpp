@@ -44,10 +44,7 @@ GameObject* beginCreateObject(EditorApplication& app, const char* name, GameObje
     return object;
 }
 
-// A freshly built primitive has no material of its own - without one its
-// submesh has nothing to draw with and RenderList::emitSubmesh() silently
-// drops it, so the shape never actually appears in the scene despite the
-// mesh upload having succeeded.
+// A primitive needs a material or RenderList::emitSubmesh() silently drops its submesh.
 Material defaultPrimitiveMaterial()
 {
     Material material;
@@ -78,12 +75,7 @@ void createComponentObject(EditorApplication& app, GameObject* parent, const cha
     finishCreateObject(app, object);
 }
 
-// Created whole rather than through a popup asking for an atlas first. A
-// modal popup blocks every other window from being hovered (imgui.cpp,
-// IsWindowContentHoverable), so an asset cannot be dragged out of the Assets
-// panel and into it - a drop target in a modal is dead. Everything here has
-// a working default and the atlas is dropped afterwards in the Inspector,
-// where drag and drop actually works, and only if the terrain wants one.
+// Created whole, not via a popup: a modal blocks hovering other windows so assets cannot be dropped into it; the atlas is set later in the Inspector.
 void createTiledTerrainObject(EditorApplication& app, GameObject* parent)
 {
     GameObject* object = beginCreateObject(app, "Tiled Terrain", parent);
@@ -91,9 +83,7 @@ void createTiledTerrainObject(EditorApplication& app, GameObject* parent)
     {
         if (TiledTerrain* terrain = object->addComponent<TiledTerrain>())
         {
-            // Built immediately: an empty tile map makes no mesh at all, so
-            // the object would come back as an invisible marker and read as
-            // "nothing happened".
+            // Built immediately: an empty tile map makes no mesh and the object would look like nothing happened.
             const u32 side = 16;
             const std::vector<u8> tiles(static_cast<usize>(side) * side, terrain->defaultTile());
             terrain->loadTilemap(side, side, tiles.data());
@@ -102,13 +92,7 @@ void createTiledTerrainObject(EditorApplication& app, GameObject* parent)
     finishCreateObject(app, object);
 }
 
-// A flat mirror: a Plane whose material carries MaterialMirror, which
-// lit.frag samples as a screen-space planar reflection instead of the
-// environment cube (see Material.h's own doc on the flag). Renderer::
-// executeReflection() picks the first MaterialMirror surface it finds in
-// the frame's opaque list as the plane to render that reflection from, so
-// creating this is the whole setup - rotate the GameObject afterward to
-// aim it anywhere, the plane's local +Y is its facing.
+// A Plane whose material carries MaterialMirror; Renderer::executeReflection() uses the first such surface. Local +Y is its facing.
 void createMirrorObject(EditorApplication& app, GameObject* parent)
 {
     MeshHandle mesh = Assets().createPlane(2.0f, 2.0f);
@@ -131,21 +115,13 @@ void createMirrorObject(EditorApplication& app, GameObject* parent)
         material.params.custom1.x = 0.0f;  // far plane - auto (Renderer::executeReflection)
         material.paramsDirty = true;
         renderer->setMaterialOverride(0, material);
-        // The reflected camera's frustum is fitted exactly to this plane's own
-        // rectangle (Renderer::executeReflection()), so the plane itself sits
-        // right on that frustum's near clip - left visible, its own back edge
-        // flickers into its own reflection at a grazing angle instead of the
-        // clean recursion-free capture a mirror is supposed to show.
+        // The reflected frustum is fitted to this plane, so the plane sits on its near clip and would flicker into its own reflection; keep it hidden from it.
         renderer->setVisibleInReflections(false);
     }
     finishCreateObject(app, object);
 }
 
-// A ReflectionProbe needs create() called before it holds a usable cubemap -
-// unlike every other component here, addComponent() alone leaves it inert.
-// Zero extents is the shader's no-parallax path (a plain mirror of the
-// surroundings); influenceRadius is what makes this the probe a nearby
-// object picks over the scene's global one (Scene::resolveNearestProbe()).
+// A ReflectionProbe needs create() before it holds a cubemap. Zero extents is the no-parallax path; influenceRadius makes it the nearby probe (Scene::resolveNearestProbe()).
 void createReflectionProbeObject(EditorApplication& app, GameObject* parent)
 {
     GameObject* object = beginCreateObject(app, "Reflection Probe", parent);
@@ -189,9 +165,7 @@ void HierarchyPanel::onImGui()
             mPendingSelect = 0;
         else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
         {
-            // Ctrl/Shift adds to the set instead of replacing it - what a
-            // batch delete needs, and the only place the editor builds a
-            // multi-selection at all.
+            // Ctrl/Shift adds to the set; the only place a multi-selection is built.
             const ImGuiIO& io = ImGui::GetIO();
             if (io.KeyCtrl || io.KeyShift)
                 app().selection().toggle(mPendingSelect);
@@ -234,9 +208,7 @@ void HierarchyPanel::onImGui()
     for (usize i = 0; i < root.childCount(); ++i)
         drawNode(*root.child(i));
 
-    // The whole empty area under the tree unparents, not just the one-line
-    // hint above it: dragging out of a parent is the only way back to root
-    // and a thin text target is not something a drag can reliably land on.
+    // The whole empty area under the tree unparents: a thin text target is not reliably droppable.
     const ImVec2 remaining = ImGui::GetContentRegionAvail();
     if (remaining.y > 1.0f)
     {
@@ -259,8 +231,7 @@ void HierarchyPanel::onImGui()
             app().selection().clear();
     }
 
-    // Clicking empty space below the tree clears selection - the same
-    // convention PLANO_EDITOR.md calls for.
+    // Clicking empty space below the tree clears the selection.
     if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
         !ImGui::IsAnyItemHovered())
         app().selection().clear();
@@ -334,10 +305,7 @@ void HierarchyPanel::drawCreateMenu(GameObject* parent)
     {
         if (ImGui::MenuItem("Directional Light"))
         {
-            // setSunLight() needs the light already flushed into Scene's own
-            // mLights (Scene::setSunLight()'s own "not registered" check) -
-            // finishCreateObject()'s update(0.0f) is what does that, so this
-            // has to run after it, not right after addComponent().
+            // setSunLight() needs the light flushed into Scene's mLights: run after finishCreateObject()'s update(0.0f).
             GameObject* object = beginCreateObject(app(), "Directional Light", parent);
             DirectionalLight* light = object ? object->addComponent<DirectionalLight>() : nullptr;
             finishCreateObject(app(), object);
@@ -686,8 +654,7 @@ void HierarchyPanel::drawObjectActions()
     if (ImGui::Button(ICON_MDI_DELETE))
     {
         app().recordUndo();
-        // Resolved into pointers up front: Scene::destroy() is deferred, but
-        // the ids are read from a selection this loop is also clearing.
+        // Resolved into pointers up front: the ids are read from a selection this loop is clearing.
         std::vector<GameObject*> doomed;
         doomed.reserve(app().selection().count());
         for (u64 id : app().selection().selectedIds())
@@ -699,10 +666,7 @@ void HierarchyPanel::drawObjectActions()
             destroyedAny = scene.destroy(object) || destroyedAny;
         if (destroyedAny)
         {
-            // Scene::destroy() is deliberately deferred. runFrame() flushes
-            // pending scene changes at the start of the next frame; doing it
-            // here can invalidate objects while this frame's editor panels
-            // are still traversing the hierarchy.
+            // Scene::destroy() is deferred: flushing here can invalidate objects this frame's panels are still traversing.
             app().selection().clear();
             app().markDirty();
         }
@@ -780,8 +744,7 @@ void HierarchyPanel::drawFilteredList(GameObject& object, u32& shown)
             ImGui::EndDragDropSource();
         }
 
-        // The flat list hides where a match actually sits, so the one thing
-        // the tree gave for free - its position - is spelled out here.
+        // The flat list hides a match's position, so spell it out.
         if (const GameObject* parent = object.parent())
             if (parent->parent())
             {
@@ -798,14 +761,10 @@ void HierarchyPanel::drawFilteredList(GameObject& object, u32& shown)
 
 void HierarchyPanel::drawNode(GameObject& object)
 {
-    // The id, not the name, as ImGui id: two siblings can share a name, and
-    // a rename must not reshuffle which node ImGui thinks is expanded.
+    // Id, not name: siblings can share names and a rename must not change which node is expanded.
     ImGui::PushID(static_cast<int>(object.id()));
 
-    // Decided once and reused by the TreePop() guard below: the drag-drop
-    // target on this very node reparents immediately, so childCount() can
-    // change between TreeNodeEx() (which pushes only for non-leaves) and the
-    // end of this call - re-reading it there popped a push that never was.
+    // Decided once for the TreePop() guard: a drag-drop reparent can change childCount() mid-call, which popped a push that never was.
     const bool hadChildren = object.childCount() > 0;
 
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
@@ -832,9 +791,7 @@ void HierarchyPanel::drawNode(GameObject& object)
         mPendingSelect = object.id();
         mDragSelecting = true;
     }
-    // Every row the pointer crosses while the button is held joins the set.
-    // Additive on purpose: a drag that had to replace the selection each
-    // frame would only ever keep the last row it touched.
+    // Additive on purpose: replacing each frame would keep only the last row touched.
     if (mDragSelecting && ImGui::IsMouseDragging(ImGuiMouseButton_Left) &&
         ImGui::IsItemHovered() && !app().selection().isSelected(object.id()))
     {
@@ -872,10 +829,7 @@ void HierarchyPanel::drawNode(GameObject& object)
         if (ImGui::MenuItem(ICON_MDI_DELETE " Delete"))
         {
             app().recordUndo();
-            // Right-clicking inside a multi-selection deletes the whole set,
-            // not just the row under the cursor - the toolbar button does the
-            // same, and having the two disagree is how a batch delete
-            // silently removes one object.
+            // Right-click in a multi-selection deletes the whole set, matching the toolbar button.
             bool destroyedAny = false;
             if (app().selection().count() > 1 && app().selection().isSelected(object.id()))
             {
@@ -891,11 +845,7 @@ void HierarchyPanel::drawNode(GameObject& object)
                 destroyedAny = app().scene().destroy(&object);
             if (destroyedAny)
             {
-                // Do not flush here: drawNode() still uses `object` below
-                // (drag/drop and child traversal). Immediate destruction was
-                // a use-after-free and crashed the editor. The normal scene
-                // update at the beginning of the next frame performs the
-                // queued destruction safely, before any panel starts drawing.
+                // Do not flush here: drawNode() still uses `object` below; immediate destruction was a use-after-free. Next frame's update destroys safely.
                 app().selection().clear();
                 app().markDirty();
             }
@@ -989,9 +939,6 @@ void HierarchyPanel::queuePendingPrimitive(PrimitiveKind kind, GameObject* paren
     }
 }
 
-// The queued shape stays off the scene tree until this popup's OK button
-// fires: only then does the mesh get built and the GameObject actually
-// created. Cancel (or dismissing the popup) leaves the scene untouched.
 void HierarchyPanel::drawPendingPrimitivePopup()
 {
     static const char* kPrimitiveNames[] = {"Cube",    "Sphere", "Plane", "Cylinder",

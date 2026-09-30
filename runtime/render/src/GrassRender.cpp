@@ -16,8 +16,7 @@ namespace Radion
 namespace
 {
 
-// Mirrors GrassUniforms in grass_uniforms.glsl, field for field. std140 puts
-// each vec3's trailing float in its fourth slot, which is why they are paired.
+// Mirrors GrassUniforms in grass_uniforms.glsl; std140 pairs each vec3 with a trailing float.
 struct alignas(16) GrassUniforms
 {
     Math::mat4 viewProjection = Math::mat4(1.0f);
@@ -69,8 +68,7 @@ struct GrassSimState
     Math::vec4 previousTail = Math::vec4(0.0f);
 };
 
-// What glMultiDrawArraysIndirect reads. The compute shader owns instanceCount;
-// the rest is written once per frame from here.
+// What glMultiDrawArraysIndirect reads; the compute shader owns instanceCount.
 struct GrassIndirectArgs
 {
     u32 vertexCount = 0;
@@ -79,13 +77,10 @@ struct GrassIndirectArgs
     u32 firstInstance = 0;
 };
 
-// Three crossed quads, two triangles each, no index buffer.
 constexpr u32 kVerticesPerClump = 18;
 constexpr u32 kCullGroupSize = 64;
 
-// Storage bindings local to this pass. Instances and Palettes own 0 and 1
-// engine-wide, but nothing of theirs is bound while grass draws.
-// The numbers the ported shaders declare.
+// Storage bindings local to this pass; Instances and Palettes own 0 and 1 but are unbound during grass draws.
 enum GrassStorageBinding : u32
 {
     BindingClumps = 4,
@@ -177,9 +172,7 @@ public:
     }
 
 private:
-    // Built on first use, not in setup(): a technique is set up while the
-    // engine starts, and the application has not mounted its assets yet.
-    // MaterialManager compiles at first draw for the same reason.
+    // Built on first use: assets are not mounted yet when the technique is set up.
     bool ensurePipelines()
     {
         if (mPipelinesReady)
@@ -214,14 +207,11 @@ private:
         PipelineDesc drawPipeline;
         drawPipeline.vs = {vertex.c_str(), 0, "grass.vert"};
         drawPipeline.fs = {fragment.c_str(), 0, "grass.frag"};
-        // Both faces: a quad stands for something that has no back, and half a
-        // field would vanish depending on which way the wind turned it.
+        // Both faces: a quad has no back.
         drawPipeline.raster.cull = CullMode::None;
         drawPipeline.debugName = "grass.draw";
         mDrawPipeline = gpu.createPipeline(drawPipeline);
 
-        // Same program, different state: the fringe blends and leaves depth
-        // alone, which is the whole difference between the two passes.
         PipelineDesc fringePipeline = drawPipeline;
         fringePipeline.blend.mode = BlendMode::Alpha;
         fringePipeline.depth.write = false;
@@ -234,8 +224,6 @@ private:
         return mPipelinesReady;
     }
 
-    // The clump and visible buffers only change when the field is edited, so
-    // they are uploaded on a revision change rather than every frame.
     bool ensureClumps(GPU& gpu, const GrassDrawCommand& command)
     {
         if (command.clumpCount > mCapacity || !mClumps.valid() || !mVisible.valid() ||
@@ -245,12 +233,7 @@ private:
             while (capacity < command.clumpCount)
                 capacity *= 2;
 
-            // All three built before any of the old ones are destroyed, and
-            // mCapacity only moves once every one of them exists: setting it
-            // unconditionally - as this used to - let a failed allocation
-            // (mSimulation, say) still raise the bar the next call's count
-            // check above compares against, so a permanently invalid buffer
-            // never got retried.
+            // Build all three before destroying old ones; move mCapacity only once all exist, else a failed allocation is never retried.
             BufferDesc clumps;
             clumps.size = static_cast<u64>(capacity) * sizeof(GrassClump);
             clumps.usage = BufferStorage;
@@ -290,11 +273,9 @@ private:
             mVisible = nextVisible;
             mSimulation = nextSimulation;
             mCapacity = capacity;
-            mRevision = 0; // the new buffer holds nothing yet
+            mRevision = 0;
         }
 
-        // A repaint moves tufts the simulation still holds tips for, so the
-        // upload and the reset are the same event.
         mReset = false;
         if (command.revision != mRevision)
         {
@@ -326,9 +307,6 @@ private:
             mUploadedRects = nullptr;
         }
 
-        // Regions are authored once and read every frame. Re-uploading them
-        // per frame is small, but it is still a write the GPU has to order
-        // against the dispatch that reads them.
         if (command.rects != mUploadedRects || command.rectCount != mUploadedRectCount)
         {
             gpu.updateBuffer(mRects, 0,
@@ -363,10 +341,7 @@ private:
         uniforms.alphaCut = command.alphaCut;
         uniforms.cameraBend = command.cameraBend;
         uniforms.drawDistance = command.drawDistance;
-        // The same sun and ambient the forward pass binds, so grass and the
-        // ground it stands on move together when the time of day does. A
-        // directional light in the scene overrides it, for a scene lit by one
-        // instead of by a sky.
+        // Same sun and ambient as the forward pass; a scene directional light overrides.
         const EnvironmentBlock environment = environmentForFrame(frame);
         uniforms.lightDirection = Math::vec3(environment.sunDirection);
         uniforms.lightColor = Math::vec3(environment.sunColor);
@@ -408,14 +383,11 @@ private:
         gpu.setPipeline(mSimulatePipeline);
         gpu.dispatch(groups, 1, 1);
 
-        // The draw reads the tips the simulation just wrote.
         gpu.barrier(BarrierStorage);
 
         gpu.setPipeline(mCullPipeline);
         gpu.dispatch(groups, 1, 1);
 
-        // The instance count the draw reads and the list it walks are both
-        // written by the dispatch above.
         gpu.barrier(BarrierIndirect | BarrierStorage);
 
         if (command.atlas.valid())
@@ -424,9 +396,7 @@ private:
         DrawDesc draw;
         draw.count = kVerticesPerClump;
 
-        // Pass one is the solid core of the leaf: alpha-tested, writes depth,
-        // occludes properly. Pass two is the outline, blended and with depth
-        // write off, so the fringe fades instead of stepping.
+        // Pass one: alpha-tested solid core, writes depth. Pass two: blended outline, no depth write.
         gpu.setPipeline(mDrawPipeline);
         gpu.drawIndirect(draw, mIndirect, 0, 1);
 

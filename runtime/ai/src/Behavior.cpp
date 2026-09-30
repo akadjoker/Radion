@@ -1,5 +1,3 @@
-// Behavior.cpp - flocking behavior implementations.
-
 #include "PCH.h"
 
 #include "Behavior.h"
@@ -15,12 +13,6 @@ namespace Radion::AI
 using detail::safeNormalize;
 using Radion::Agent;
 using Radion::EntityDist;
-
-// --- Behavior (base defaults) ------------------------------------------------
-//
-// A behavior with no parameters (WanderBehavior, SteerBehavior) inherits
-// these as-is; one with parameters overrides only the accessor family its
-// own BehaviorParam::Kind values use.
 
 u32 Behavior::paramCount() const
 {
@@ -69,8 +61,6 @@ void Behavior::setParamBool(u32 index, bool value)
     (void)index;
     (void)value;
 }
-
-// --- Separation -------------------------------------------------------------
 
 namespace
 {
@@ -130,11 +120,7 @@ void SeparationBehavior::iterate(float timeDelta, Agent& entity)
     if (groupMembers.empty())
         return;
 
-    // Repel from EVERY neighbour inside the separation distance (summed, with
-    // a falloff), not just the closest one. Reacting to a single neighbour
-    // lets a school collapse into a dense ball at the centre of mass where
-    // separation and cohesion fight every frame - the "crazy fish at the
-    // centre" look.
+    // Repel from EVERY neighbour (summed, with falloff): reacting to the closest only collapses the school into a ball.
     Math::vec3 separationPush(0.0f);
     for (const EntityDist& member : groupMembers)
     {
@@ -142,8 +128,6 @@ void SeparationBehavior::iterate(float timeDelta, Agent& entity)
         if (d >= mSeparationDistance)
             continue;
 
-        // 0.0 at the separation edge, growing to (1 - minPct) as the
-        // neighbour fully overlaps us.
         const float pct =
             std::clamp(d / mSeparationDistance, mMinSeparationPercentage, mMaxSeparationPercentage);
 
@@ -163,8 +147,6 @@ void SeparationBehavior::iterate(float timeDelta, Agent& entity)
     currentDesiredMove += safeNormalize(separationPush) * gain();
     entity.setDesiredMove(currentDesiredMove);
 }
-
-// --- Alignment --------------------------------------------------------------
 
 namespace
 {
@@ -210,14 +192,11 @@ void AlignmentBehavior::iterate(float timeDelta, Agent& entity)
 
     const Agent& nearestGroupMember = *groupMembers.front().entity;
 
-    // Match the heading of our closest group member.
     Math::vec3 desiredMoveAdj = safeNormalize(nearestGroupMember.velocity()) * mTurnRate;
     Math::vec3 currentDesiredMove = entity.desiredMove();
     currentDesiredMove += desiredMoveAdj * gain();
     entity.setDesiredMove(currentDesiredMove);
 }
-
-// --- Cohesion ---------------------------------------------------------------
 
 namespace
 {
@@ -261,27 +240,21 @@ void CohesionBehavior::iterate(float timeDelta, Agent& entity)
     if (groupMembers.empty())
         return;
 
-    // Compute the centre of mass of the group.
     Math::vec3 groupCenterOfMass(0.0f);
     for (const EntityDist& member : groupMembers)
         groupCenterOfMass += member.entity->position();
     groupCenterOfMass /= static_cast<float>(groupMembers.size());
 
-    // Dead zone: when we are essentially ON the centre of mass the direction
-    // is pure floating-point noise and the force fights the separation every
-    // frame (the "crazy at the centre" look). Skip it until we drift away.
+    // Dead zone: on the centre of mass the direction is float noise and fights separation every frame.
     const Math::vec3 toCenterOfMass = groupCenterOfMass - entity.position();
     if (Math::dot(toCenterOfMass, toCenterOfMass) < 0.0625f) // < 0.25 units
         return;
 
-    // Move toward the centre of the group.
     Math::vec3 desiredMoveAdj = safeNormalize(toCenterOfMass) * mTurnRate;
     Math::vec3 currentDesiredMove = entity.desiredMove();
     currentDesiredMove += desiredMoveAdj * gain();
     entity.setDesiredMove(currentDesiredMove);
 }
-
-// --- Avoidance --------------------------------------------------------------
 
 namespace
 {
@@ -339,7 +312,6 @@ void AvoidanceBehavior::iterate(float timeDelta, Agent& entity)
     const Agent& nearestEnemy = *enemies.front().entity;
     float nearestEnemyDist = enemies.front().distance;
 
-    // Head away from the enemy.
     if (nearestEnemyDist < mAvoidanceDistance)
     {
         Math::vec3 desiredMoveAdj =
@@ -349,8 +321,6 @@ void AvoidanceBehavior::iterate(float timeDelta, Agent& entity)
         entity.setDesiredMove(currentDesiredMove);
     }
 }
-
-// --- Cruising ---------------------------------------------------------------
 
 namespace
 {
@@ -422,19 +392,15 @@ void CruisingBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
-    // How fast we are going vs how fast we'd like to be going.
     float currentSpeed = Math::length(entity.velocity());
     float percentDesiredSpeed =
         std::fabs((currentSpeed - entity.desiredSpeed()) / entity.maxSpeed());
     float signum = (currentSpeed - entity.desiredSpeed()) > 0.0f ? -1.0f : 1.0f;
 
-    // Clamp rate changes.
     percentDesiredSpeed = std::clamp(percentDesiredSpeed, mMinRateChange, mMaxRateChange);
 
-    // Add some random movement. The chances are per-axis probabilities, so
-    // the roll is tested against cumulative bands - comparing each against
-    // the raw roll would make an axis unreachable whenever its chance is
-    // smaller than the previous one (Y never fired for X=0.45, Y=0.2).
+    // Chances are per-axis probabilities; test the roll against cumulative bands, or an axis with a smaller
+    // chance than the previous one becomes unreachable.
     Math::vec3 desiredMoveAdj(0.0f);
     float randmove = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
     if (randmove < mRandMoveXChance)
@@ -444,21 +410,12 @@ void CruisingBehavior::iterate(float timeDelta, Agent& entity)
     else if (randmove < mRandMoveXChance + mRandMoveYChance + mRandMoveZChance)
         desiredMoveAdj.z += mMinRandomMove * signum;
 
-    // Scaled by how far off the desired speed the agent actually is - which
-    // is what percentDesiredSpeed was computed and clamped for, and was then
-    // dropped in favour of a constant mMinRateChange. With the constant, the
-    // nudge never varied, the "toward/away from the desired speed" half of
-    // this behavior never happened, and mMaxRateChange had no effect at all
-    // (it only ever bounded a value nothing read). The clamp's lower bound
-    // is mMinRateChange, so an agent already at its desired speed gets what
-    // it got before.
+    // Scaled by how far off the desired speed the agent is; the clamp's lower bound is mMinRateChange.
     Math::vec3 currentDesiredMove = entity.desiredMove();
     desiredMoveAdj = safeNormalize(desiredMoveAdj) * (percentDesiredSpeed * signum);
     currentDesiredMove += desiredMoveAdj * gain();
     entity.setDesiredMove(currentDesiredMove);
 }
-
-// --- Stay Within Sphere -----------------------------------------------------
 
 namespace
 {
@@ -524,8 +481,6 @@ void StayWithinSphereBehavior::iterate(float timeDelta, Agent& entity)
     }
 }
 
-// --- Combat -------------------------------------------------------------
-
 namespace
 {
 const BehaviorParam kCombatParams[] = {
@@ -583,7 +538,7 @@ void CombatBehavior::iterate(float timeDelta, Agent& entity)
     if (enemies.empty() || entity.attackCooldown() > 0.0f)
         return;
 
-    // Sorted ascending by distance - front() is the nearest.
+    // Ascending by distance; front() is the nearest.
     const EntityDist& nearest = enemies.front();
     if (nearest.distance > mFireRange)
         return;

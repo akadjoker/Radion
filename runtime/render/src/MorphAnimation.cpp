@@ -9,11 +9,7 @@ namespace
 {
 const std::string kEmptyClipName;
 
-// Every frame index is clamped into what this keyframe set actually holds.
-// A clip registered with a first/last beyond the range - a shared clip table
-// reused across models with different frame counts - would otherwise index
-// past the end and read whatever is there, which is silent nonsense rather
-// than a clean crash at the bad index.
+// Frame indices are clamped: a shared clip table reused across models with different frame counts would index past the end.
 s32 clampFrame(s32 frame, s32 maxFrame)
 {
     if (maxFrame < 0)
@@ -53,8 +49,7 @@ void MorphAnimator::removeClip(const std::string& name)
     const auto found = mClips.find(name);
     if (found == mClips.end())
         return;
-    // The play states point into the map; dropping the entry they name would
-    // leave them dangling.
+    // Play states point into the map; erasing would dangle them.
     if (mCurrent.clip == &found->second)
         mCurrent.clip = nullptr;
     if (mPrevious.clip == &found->second)
@@ -73,12 +68,7 @@ bool MorphAnimator::play(const std::string& name, f32 blendTime)
     if (found == mClips.end())
         return false;
 
-    // The restart is skipped only for a LOOPING clip already playing, so
-    // repeated play("idle") does not visibly reset a continuous loop. A
-    // one-shot ("fire", "reload") must restart every time, even when it is
-    // already current: once it reaches its last frame it freezes there by
-    // design, and without this a second play() was a silent no-op forever -
-    // only playing a different clip first could unstick it.
+    // Restart is skipped only for a looping clip already playing; a one-shot freezes on its last frame and must restart every time.
     const bool sameClip = mCurrent.clip == &found->second;
     if (sameClip && found->second.loop)
         return true;
@@ -87,12 +77,7 @@ bool MorphAnimator::play(const std::string& name, f32 blendTime)
     mCurrent.clip = &found->second;
     mCurrent.time = 0.0f;
     mBlendDuration = blendTime;
-    // Restarting the same one-shot would blend it against a slightly offset
-    // copy of itself, and the faster it is retriggered the worse it gets -
-    // each new call resets the blend before the last one settles, so the
-    // pose keeps snapping back part-way. There is nothing meaningful to
-    // crossfade between two points on one clip, so snap; only a genuine
-    // change of clip blends.
+    // Snap, do not crossfade: a retriggered one-shot would blend against an offset copy of itself.
     mBlend = (sameClip || blendTime <= 0.0f || !mPrevious.clip) ? 1.0f : 0.0f;
     return true;
 }
@@ -110,7 +95,7 @@ void MorphAnimator::update(f32 deltaTime)
         if (mBlend >= 1.0f)
         {
             mBlend = 1.0f;
-            mPrevious.clip = nullptr; // transition done, drop the old clip
+            mPrevious.clip = nullptr;
         }
     }
 }
@@ -132,7 +117,7 @@ void MorphAnimator::framePair(const PlayState& state, s32& a, s32& b, f32& t) co
         return;
     }
     const MorphClip& clip = *state.clip;
-    const s32 span = clip.last - clip.first; // frames after the first
+    const s32 span = clip.last - clip.first;
     if (span <= 0)
     {
         a = b = clip.first;
@@ -230,9 +215,7 @@ Math::mat4 MorphAnimator::tagTransform(const MorphTags& tags, s32 tagIndex) cons
         tags.perFrame.empty())
         return Math::mat4(1.0f);
 
-    // Nothing playing - a static single-frame model that never had a clip -
-    // uses the tag's own frame 0 rather than identity, so a model does not
-    // need a dummy clip just to expose where its parts attach.
+    // Nothing playing: use the tag's frame 0 rather than identity, so models need no dummy clip.
     if (!mCurrent.clip)
     {
         const MorphTagFrame& first = tags.perFrame[0][tagIndex];

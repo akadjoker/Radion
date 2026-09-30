@@ -22,11 +22,11 @@ public:
     f32 radius() const;
     void setHeight(f32 height); // total height; vertical radius = height / 2
     f32 height() const;
-    void setStepOffset(f32 offset); // how high a step it will climb
+    void setStepOffset(f32 offset);
     f32 stepOffset() const;
-    void setSlopeLimit(f32 degrees); // max walkable slope
+    void setSlopeLimit(f32 degrees);
     f32 slopeLimit() const;
-    void setSkinWidth(f32 width); // pushed this far off a surface at contact
+    void setSkinWidth(f32 width);
     f32 skinWidth() const;
     void setGravity(f32 gravity); // units/s^2; negative pulls down
     f32 gravity() const;
@@ -35,8 +35,7 @@ public:
     void setMaxIterations(u32 count);
     u32 maxIterations() const;
 
-    // Desired horizontal movement per second (XZ). onUpdate() integrates it
-    // with deltaTime; the vertical axis is driven by gravity and jump().
+    // XZ; the vertical axis is driven by gravity and jump().
     void setMoveInput(const Math::vec3& moveSpeed);
     const Math::vec3& moveInput() const;
 
@@ -46,7 +45,6 @@ public:
     bool isGrounded() const;
     const Math::vec3& groundNormal() const;
     f32 slopeAngle() const; // degrees of the current ground
-    // Residual per-second velocity after the last move (what the slide left).
     const Math::vec3& velocity() const;
 
     struct MoveResult
@@ -57,9 +55,6 @@ public:
         Math::vec3 displacement = Math::vec3(0.0f); // residual after slides
     };
 
-    // CollideAndSlide `displacement` against the octree, moving the owner.
-    // This is what onUpdate() calls internally; expose it for a caller that
-    // wants to drive the controller by hand instead of through moveInput.
     MoveResult move(const Math::vec3& displacement);
 
 private:
@@ -78,9 +73,6 @@ private:
         bool steepBlock = false; // a wall (steeper than slopeLimit) stopped us
     };
 
-    // One CollideAndSlide pass: sweep the ellipsoid, slide the velocity off
-    // every contact, up to mMaxIterations times. Returns the surviving center
-    // and velocity plus grounding info.
     Slide slide(const Math::vec3& startCenter, const Math::vec3& displacement) const;
 
     const TriangleOctree* mOctree = nullptr;

@@ -15,24 +15,9 @@ struct MeshData;
 namespace Radion::Volume
 {
 
-// A loaded mesh as a density field, which is what lets everything in
-// VolumeCSG.h - Union, Intersection, Difference - work on geometry that was
-// modelled rather than described. Without it the CSG can only combine spheres,
-// boxes, planes and noise with each other.
-//
-// Density is the distance to the nearest triangle, positive inside, so it
-// follows the same sign convention as every other Source.
-//
-// The sign comes from counting how many triangles a ray leaving the point
-// crosses: odd means it started inside. That answer only means anything on a
-// closed surface - an open one has no inside, and a ray leaving through the
-// hole gives the opposite parity to one that does not. Three rays vote, which
-// covers a ray grazing an edge but not a mesh that is genuinely open. The Mesh
-// Health panel reports boundary edges, and a mesh with any is not a solid.
-//
-// Sampling is not reentrant: the candidate lists the tree queries fill are
-// kept between calls rather than allocated per sample, and there are millions
-// of samples in a meshing pass.
+// Mesh as a density field (distance to nearest triangle, positive inside) so CSG works on modelled geometry.
+// Sign is by ray parity, three rays voting: only meaningful on a closed mesh (boundary edges in Mesh Health mean not solid).
+// Sampling is not reentrant: the tree's candidate lists are reused between calls (millions of samples per pass).
 class MeshSource final : public Source
 {
 public:
@@ -42,16 +27,14 @@ public:
     MeshSource(const MeshSource&) = delete;
     MeshSource& operator=(const MeshSource&) = delete;
 
-    // Takes a copy of the triangles and builds the tree over them; the
-    // MeshData is not kept. False when there are no triangles to take.
+    // Copies the triangles and builds the tree; the MeshData is not kept. False when empty.
     bool build(const MeshData& mesh);
     void clear();
     bool valid() const;
 
     f32 sampleDensity(const Math::vec3& position) const override;
 
-    // The mesh's own box, which is what a meshing pass wants for its bounds -
-    // grown a little, or the surface sits exactly on the edge of the grid.
+    // The mesh's own box, grown a little or the surface sits exactly on the grid edge.
     const AABB& bounds() const
     {
         return mBounds;
@@ -63,8 +46,7 @@ private:
     f32 unsignedDistance(const Math::vec3& position) const;
     bool isInside(const Math::vec3& position) const;
 
-    // Three corners per triangle, flattened: the tree indexes triangles, and
-    // an index buffer here would cost a second indirection per candidate.
+    // Three corners per triangle, flattened: an index buffer would cost a second indirection per candidate.
     std::vector<Math::vec3> mCorners;
     BoundsTree mTree;
     AABB mBounds;

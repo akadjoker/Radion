@@ -13,9 +13,7 @@ class Engine;
 class EngineSettings
 {
 public:
-    // Missing file is not an error: a demo asks for its settings on startup
-    // and gets its own defaults when there are none yet. A malformed one is,
-    // and is logged.
+    // A missing file is not an error (defaults); a malformed one is logged.
     static bool load(Engine& engine, const std::string& filename);
     static bool save(const Engine& engine, const std::string& filename);
 };

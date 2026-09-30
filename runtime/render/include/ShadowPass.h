@@ -34,9 +34,7 @@ struct alignas(16) DirectionalShadowBlock
     Math::vec4 penumbraKernel[MaxShadowKernel]{};
 };
 
-// Why a frame carries no directional shadow. Every one of these is a normal
-// state, not an error, which is exactly why they used to be indistinguishable
-// from each other and from a shadow that rendered but did not show.
+// Why a frame carries no directional shadow; each is a normal state, not an error.
 enum class ShadowSkipReason : u32
 {
     None,
@@ -59,18 +57,13 @@ public:
         return mCalculator.settings;
     }
 
-    // mShadowList is rebuilt (and its stats reset) for every cascade in turn,
-    // so this is only ever the LAST cascade drawn this frame, not a sum
-    // across all of them - still enough to see whether the cull sphere is
-    // rejecting anything at all, which is what a debug panel needs.
+    // Stats of the LAST cascade drawn (mShadowList is rebuilt per cascade); enough to see whether the cull sphere rejects anything.
     const RenderListStats& lastCascadeStats() const
     {
         return mShadowList.stats();
     }
 
-    // World half-width the cascade covered this frame. Resolution divided by
-    // this is what actually decides the aliasing, which the resolution alone
-    // never says.
+    // World half-width the cascade covered; resolution divided by this decides aliasing.
     f32 halfExtent(u32 cascade) const
     {
         return cascade < MaxShadowCascades ? mHalfExtents[cascade] : 0.0f;
@@ -81,8 +74,7 @@ public:
         return cascade < MaxShadowCascades ? mSplits[cascade] : 0.0f;
     }
 
-    // The directional depth atlas, read-only. For the debug overlay - shading
-    // reaches it through FrameContext::directionalShadow instead.
+    // Read-only directional depth atlas, for the debug overlay.
     TextureHandle texture() const
     {
         return mTexture;
@@ -100,8 +92,7 @@ private:
     bool createResources();
     void destroyResources();
     void rebuildKernels();
-    // Records the reason and logs it once, on the frame it changes - a
-    // per-frame message for a state that persists is noise nobody reads.
+    // Records the reason and logs it once, when it changes.
     void reportSkip(ShadowSkipReason reason);
 
     CascadeShadowCalculator mCalculator;
@@ -122,9 +113,7 @@ private:
     u32 mFrameIndex = 0;
     bool mAtlasNeedsClear = true;
 
-    // Rebuilt for each cascade in turn - they are drawn one at a time, never
-    // concurrently, so one reused list costs less than four and behaves the
-    // same: nothing reads cascade N's list once cascade N+1 starts building.
+    // Rebuilt per cascade; cascades draw one at a time, so one reused list suffices.
     RenderList mShadowList;
 };
 

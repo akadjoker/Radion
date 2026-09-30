@@ -45,9 +45,7 @@ void VoxelNeighbourhood::gather(const VoxelWorld& world, ChunkCoord coordinate)
                 const BlockId* source = chunk->blocks();
                 const BlockId uniform = chunk->uniformBlock();
 
-                // A neighbour's local coordinate lands on this chunk's local
-                // axis shifted by a whole chunk, and only the part that falls
-                // inside the padded box is copied.
+                // A neighbour's local coordinate is shifted a whole chunk; only the part inside the padded box is copied.
                 const s32 shiftX = chunkX * VoxelChunk::Size;
                 const s32 shiftY = chunkY * VoxelChunk::Size;
                 const s32 shiftZ = chunkZ * VoxelChunk::Size;

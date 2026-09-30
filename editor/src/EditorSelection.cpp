@@ -25,9 +25,7 @@ void EditorSelection::toggle(u64 objectId)
     if (found != mSelectedIds.end())
     {
         mSelectedIds.erase(found);
-        // Dropping the primary hands that role to whatever is still selected,
-        // so the inspector never ends up pointed at nothing while a set is
-        // still highlighted.
+        // Dropping the primary hands that role to a remaining selection so the inspector is never left empty.
         if (mSelectedId == objectId)
             mSelectedId = mSelectedIds.empty() ? 0 : mSelectedIds.back();
         return;

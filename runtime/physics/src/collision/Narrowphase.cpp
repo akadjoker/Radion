@@ -9,8 +9,7 @@ namespace
 {
 constexpr f32 kEpsilon = 1e-6f;
 
-// Overlap of the two shadows on `axis`, and which way the axis has to point
-// to push B off A. Negative means a gap, which ends the test.
+// Overlap of the two shadows on `axis` and which way it must point to push B off A; negative means a gap, ending the test.
 bool axisOverlap(const CollisionShape& a, const Math::mat4& transformA, const CollisionShape& b,
                  const Math::mat4& transformB, const Math::vec3& axis, f32 margin,
                  f32& penetration, Math::vec3& normal)
@@ -24,9 +23,7 @@ bool axisOverlap(const CollisionShape& a, const Math::mat4& transformA, const Co
     a.project(transformA, unit, minA, maxA);
     b.project(transformB, unit, minB, maxB);
 
-    // overlapA is what moving B along -unit costs, overlapB what moving it
-    // along +unit costs. Either going negative past the margin is a gap, and
-    // a gap on any one axis ends the whole test.
+    // overlapA is the cost of moving B along -unit, overlapB along +unit; negative past the margin on any axis is a gap.
     const f32 overlapA = maxB - minA;
     const f32 overlapB = maxA - minB;
     if (overlapA < -margin || overlapB < -margin)
@@ -45,7 +42,6 @@ bool axisOverlap(const CollisionShape& a, const Math::mat4& transformA, const Co
     return true;
 }
 
-// Sutherland-Hodgman against one plane, keeping what is behind it.
 u32 clipPolygon(const Math::vec3* input, u32 count, const Math::vec3& planeNormal, f32 planeOffset,
                 Math::vec3* output, u32 capacity)
 {
@@ -59,7 +55,6 @@ u32 clipPolygon(const Math::vec3* input, u32 count, const Math::vec3& planeNorma
 
         if (distanceCurrent <= 0.0f)
             output[written++] = current;
-        // Sign change means the edge crosses the plane; add where it does.
         if (written < capacity && distanceCurrent * distanceNext < 0.0f)
         {
             const f32 t = distanceCurrent / (distanceCurrent - distanceNext);
@@ -69,8 +64,7 @@ u32 clipPolygon(const Math::vec3* input, u32 count, const Math::vec3& planeNorma
     return written;
 }
 
-// Face of `box` whose outward normal is most opposed to `normal` - the face
-// that is actually being pressed into the other shape.
+// Face of `box` most opposed to `normal`: the one being pressed into the other shape.
 u32 incidentFace(const BoxShape& box, const Math::mat4& transform, const Math::vec3& normal)
 {
     u32 best = 0;
@@ -89,14 +83,10 @@ u32 incidentFace(const BoxShape& box, const Math::mat4& transform, const Math::v
 
 u32 reducePoints(const Math::vec3* points, const f32* depths, u32 count, ContactManifold& out);
 
-// Generous enough for a shatter shard - VoronoiShatter cells run to a handful
-// of faces and tens of vertices, nowhere near this.
+// Generous for a shatter shard (a handful of faces, tens of vertices).
 constexpr u32 kHullArrayCapacity = 32;
 
-// Outward normal of face `face`, world space, from its first triangle - the
-// hull's own equivalent of BoxShape::faceNormal(). Built the same way
-// VoronoiShatter builds its half-space planes: cross of the first two edges
-// of the face loop.
+// Outward face normal from its first triangle (cross of the first two edges of the face loop), like VoronoiShatter's planes.
 Math::vec3 hullFaceNormal(const ConvexHullShape& hull, const Math::mat4& transform, u32 face)
 {
     const ConvexHullShape::Edge* edge = &hull.edges()[static_cast<usize>(hull.faces()[face])];
@@ -112,9 +102,7 @@ Math::vec3 hullFaceNormal(const ConvexHullShape& hull, const Math::mat4& transfo
     return length > kEpsilon ? worldRaw / length : Math::vec3(0.0f, 1.0f, 0.0f);
 }
 
-// Hull's own face whose outward normal is most opposed to `normal` - the
-// same "most opposed wins" rule incidentFace() uses for a box, applied to
-// however many faces the hull actually has.
+// Same most-opposed rule as incidentFace(), for any number of hull faces.
 u32 hullIncidentFace(const ConvexHullShape& hull, const Math::mat4& transform,
                      const Math::vec3& normal)
 {
@@ -133,11 +121,7 @@ u32 hullIncidentFace(const ConvexHullShape& hull, const Math::mat4& transform,
     return best;
 }
 
-// Walks face `face`'s half-edge loop once, writing each vertex's world
-// position in order - the polygon clipPolygon() clips against, and the
-// corner list its side planes are built from. Same walk VoronoiShatter's
-// volume integration uses, minus the triangle fan: here the whole loop is
-// wanted, not just the triangles of it.
+// Walks the face's half-edge loop once, writing each vertex's world position: the polygon clipPolygon() clips against.
 u32 hullFacePolygon(const ConvexHullShape& hull, const Math::mat4& transform, u32 face,
                     Math::vec3* out, u32 capacity)
 {
@@ -155,12 +139,8 @@ u32 hullFacePolygon(const ConvexHullShape& hull, const Math::mat4& transform, u3
         edge = edge->getNextEdgeOfFace();
     } while (edge != start);
 
-    // ConvexHullComputer's own face loop winds the OPPOSITE way round from
-    // hullFaceNormal()'s cross(v1-v0, v2-v0) - verified against a known
-    // interior point, not assumed: with the raw walk above, clipFaceAgainst-
-    // Face()'s side planes reject the face's own centre. Reversed, they
-    // agree with the normal the same way BoxShape's kFaces winding already
-    // does, and clipFaceAgainstFace() needs no shape-specific case for it.
+    // ConvexHullComputer's face loop winds OPPOSITE to hullFaceNormal()'s cross(v1-v0, v2-v0) (verified against a known interior point);
+    // reversed, the side planes agree with BoxShape's kFaces winding and clipFaceAgainstFace() needs no shape-specific case.
     for (u32 i = 0, j = count > 0 ? count - 1 : 0; i < j; ++i, --j)
     {
         const Math::vec3 temporary = out[i];
@@ -170,10 +150,7 @@ u32 hullFacePolygon(const ConvexHullShape& hull, const Math::mat4& transform, u3
     return count;
 }
 
-// One direction per edge of the hull, world space, unnormalized - each edge
-// counted once, from whichever of its two half-edges has the smaller index.
-// Stands in for a box's three edge directions when SAT needs a cross-product
-// axis against another shape's edges.
+// One direction per hull edge, world space, unnormalized, each edge counted once (smaller half-edge index); stands in for a box's edge directions in SAT cross axes.
 u32 hullEdgeDirections(const ConvexHullShape& hull, const Math::mat4& transform, Math::vec3* out,
                        u32 capacity)
 {
@@ -195,10 +172,7 @@ u32 hullEdgeDirections(const ConvexHullShape& hull, const Math::mat4& transform,
     return count;
 }
 
-// Single contact at the midpoint of the two support points along `normal` -
-// what an edge-edge separation, or a grazing face pair clipPolygon() clipped
-// down to nothing, both fall back to. The same block boxBox() repeats three
-// times inline, factored out for the hull routines that need it twice more.
+// Single contact at the midpoint of the support points along `normal`: the fallback for edge-edge separation or a grazing face pair clipped to nothing.
 void supportPointContact(const CollisionShape& a, const Math::mat4& transformA,
                          const CollisionShape& b, const Math::mat4& transformB, f32 penetration,
                          ContactManifold& out)
@@ -213,10 +187,7 @@ void supportPointContact(const CollisionShape& a, const Math::mat4& transformA,
     out.points[0].tangentImpulse[1] = 0.0f;
 }
 
-// Clips the incident face's own polygon against the reference face's side
-// planes and keeps what ends up behind the reference plane - the shape-
-// agnostic half of boxBox()'s face case, generalized from four corners to
-// however many either polygon has.
+// Clips the incident face polygon against the reference face's side planes, keeping what is behind the reference plane (boxBox()'s face case, any polygon size).
 bool clipFaceAgainstFace(const Math::vec3* referencePolygon, u32 referenceCount,
                          const Math::vec3& referenceNormal, const Math::vec3* incidentPolygon,
                          u32 incidentCount, f32 margin, ContactManifold& out)
@@ -236,10 +207,7 @@ bool clipFaceAgainstFace(const Math::vec3* referencePolygon, u32 referenceCount,
         const Math::vec3& edgeStart = referencePolygon[i];
         const Math::vec3& edgeEnd = referencePolygon[(i + 1) % referenceCount];
         const Math::vec3 edge = edgeEnd - edgeStart;
-        // cross(normal, edge), not cross(edge, normal) - boxBox() found the
-        // hard way that the other order points the side plane into the face
-        // instead of out of it. Both the box's kFaces winding and the hull's
-        // own face winding go outward-CCW, so the same sign works for either.
+        // cross(normal, edge), not cross(edge, normal): the other order points the side plane into the face. Box kFaces and hull faces both wind outward-CCW.
         const Math::vec3 planeNormal = Math::cross(referenceNormal, edge);
         const f32 planeLength = Math::length(planeNormal);
         if (planeLength < kEpsilon)
@@ -276,10 +244,7 @@ bool clipFaceAgainstFace(const Math::vec3* referencePolygon, u32 referenceCount,
     return out.count > 0;
 }
 
-// Keeps the deepest point, then the three that are furthest from it and from
-// each other, so the patch spans the real contact area instead of clustering
-// in one corner. A manifold of four points all but touching is a manifold of
-// one, and a box balanced on it wobbles.
+// Keeps the deepest point, then the three furthest from it and each other, so the patch spans the contact area; four clustered points act as one and a box wobbles.
 u32 reducePoints(const Math::vec3* points, const f32* depths, u32 count, ContactManifold& out)
 {
     if (count == 0)
@@ -291,11 +256,7 @@ u32 reducePoints(const Math::vec3* points, const f32* depths, u32 count, Contact
 
     if (count <= ContactManifold::MaxPoints)
     {
-        // The deepest point goes first even when nothing is being dropped.
-        // Anything reading points[0] as "how far in are they" - and that is
-        // the obvious reading - is otherwise handed whichever corner the
-        // clipper happened to emit first, which on a tilted face is not the
-        // deepest one.
+        // Deepest point goes first even when nothing is dropped, so points[0] really is the deepest (the clipper's first corner is not).
         out.points[0].position = points[deepest];
         out.points[0].penetration = depths[deepest];
         u32 written = 1;
@@ -351,8 +312,7 @@ u32 reducePoints(const Math::vec3* points, const f32* depths, u32 count, Contact
 
 void ContactManifold::buildTangents()
 {
-    // Any vector not parallel to the normal will do; picking the world axis
-    // the normal leans on least keeps the cross product away from zero.
+    // Any vector not parallel to the normal works; the world axis it leans on least keeps the cross product away from zero.
     const Math::vec3 reference = std::abs(normal.x) < 0.57735f ? Math::vec3(1.0f, 0.0f, 0.0f)
                                                               : Math::vec3(0.0f, 1.0f, 0.0f);
     tangent[0] = Math::normalize(Math::cross(reference, normal));
@@ -371,8 +331,7 @@ bool Narrowphase::sphereSphere(const SphereShape& a, const Math::mat4& transform
     if (distance >= total + margin)
         return false;
 
-    // Concentric spheres have no direction to separate along; any one will
-    // do, and picking it here beats dividing by zero.
+    // Concentric spheres have no separation direction; pick any rather than divide by zero.
     out.normal = distance > kEpsilon ? delta / distance : Math::vec3(0.0f, 1.0f, 0.0f);
     out.buildTangents();
     out.count = 1;
@@ -411,8 +370,7 @@ bool Narrowphase::sphereBox(const SphereShape& a, const Math::mat4& transformA, 
     }
     else
     {
-        // Centre inside the box: the closest face is the one it is least far
-        // from, and the sphere has to come out through that one.
+        // Centre inside the box: exit through the face it is least far from.
         const Math::vec3 depth = half - Math::abs(local);
         if (depth.x <= depth.y && depth.x <= depth.z)
         {
@@ -446,10 +404,7 @@ bool Narrowphase::sphereBox(const SphereShape& a, const Math::mat4& transformA, 
 bool Narrowphase::boxBox(const BoxShape& a, const Math::mat4& transformA, const BoxShape& b,
                          const Math::mat4& transformB, ContactManifold& out, f32 margin)
 {
-    // Fifteen axes: three face normals each, and the nine cross products of
-    // their edge directions. Without the nine, two boxes meeting edge to edge
-    // come back with a face normal that is not the real separating direction,
-    // and slide along it.
+    // Fifteen axes: six face normals and nine edge cross products; without the nine, edge-to-edge contact gets a face normal and slides along it.
     const Math::mat3 rotationA(transformA);
     const Math::mat3 rotationB(transformB);
 
@@ -472,9 +427,7 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::mat4& transformA, const 
         Math::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axes[i], margin, penetration, normal))
             return false;
-        // A parallel edge pair gives a zero-length cross product, which
-        // axisOverlap() reports as "no information" - it must not then win
-        // the smallest-penetration contest with a stale zero.
+        // A parallel edge pair gives a zero cross product, which axisOverlap() reports as no information; it must not win with a stale zero.
         if (Math::length(axes[i]) < kEpsilon)
             continue;
         if (penetration < bestPenetration)
@@ -488,9 +441,7 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::mat4& transformA, const 
     out.normal = bestNormal;
     out.buildTangents();
 
-    // An edge-edge separation has no face to clip against: the contact is the
-    // single point where the two edges are closest, found by walking out to
-    // the support point on each side.
+    // Edge-edge separation has no face to clip: the contact is the closest point of the two edges, found via each side's support point.
     if (bestAxis >= 6)
     {
         out.count = 1;
@@ -504,14 +455,11 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::mat4& transformA, const 
         return true;
     }
 
-    // Face case: clip the incident face against the side planes of the
-    // reference face, then keep whatever ends up behind the reference plane.
     const bool referenceIsA = bestAxis < 3;
     const BoxShape& reference = referenceIsA ? a : b;
     const BoxShape& incident = referenceIsA ? b : a;
     const Math::mat4& referenceTransform = referenceIsA ? transformA : transformB;
     const Math::mat4& incidentTransform = referenceIsA ? transformB : transformA;
-    // The reference face is the one pointing at the other box.
     const Math::vec3 referenceDirection = referenceIsA ? out.normal : -out.normal;
 
     u32 referenceFace = 0;
@@ -545,18 +493,13 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::mat4& transformA, const 
     for (u32 i = 0; i < 4; ++i)
         polygon[i] = incidentCorner[incidentIndices[i]];
 
-    // Four side planes, each spanned by one edge of the reference face and
-    // its normal, all pointing outwards.
     for (u32 i = 0; i < 4 && count > 0; ++i)
     {
         const Math::vec3& edgeStart = referenceCorner[referenceIndices[i]];
         const Math::vec3& edgeEnd = referenceCorner[referenceIndices[(i + 1) % 4]];
         const Math::vec3 edge = edgeEnd - edgeStart;
-        // cross(normal, edge), not cross(edge, normal). With the winding in
-        // kFaces the latter points INTO the face, and clipping against it
-        // throws the whole incident polygon away - a face-face contact then
-        // falls back to a single support point and a box balanced on it
-        // tips. Checked against all six faces, not just the one.
+        // cross(normal, edge), not cross(edge, normal): with kFaces winding the latter points INTO the face, clipping discards the whole incident
+        // polygon, and a face-face contact degrades to one support point (a balanced box tips).
         const Math::vec3 planeNormal = Math::cross(referenceNormal, edge);
         const f32 planeLength = Math::length(planeNormal);
         if (planeLength < kEpsilon)
@@ -573,12 +516,10 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::mat4& transformA, const 
     for (u32 i = 0; i < count; ++i)
     {
         const f32 depth = referenceOffset - Math::dot(referenceNormal, polygon[i]);
-        // Negative depth is a point in front of the reference face. Within
-        // the margin it is kept as a speculative contact; past it, dropped.
+        // Negative depth is in front of the reference face; within the margin it is a speculative contact, past it dropped.
         if (depth < -margin)
             continue;
-        // Reported on the reference face, which is the surface the solver
-        // should push along, not where the incident corner happens to sit.
+        // Reported on the reference face, the surface the solver pushes along, not where the incident corner sits.
         kept[keptCount] = polygon[i] + referenceNormal * depth;
         depths[keptCount] = depth;
         ++keptCount;
@@ -586,9 +527,7 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::mat4& transformA, const 
 
     if (keptCount == 0)
     {
-        // Clipping produced nothing - a grazing face pair. The axis test
-        // already proved they overlap, so fall back to the support points
-        // rather than dropping a contact the solver was told exists.
+        // Clipping produced nothing (grazing face pair) though the axis test proved overlap: fall back to support points rather than drop a contact.
         out.count = 1;
         const Math::vec3 pointA = a.support(transformA, out.normal);
         const Math::vec3 pointB = b.support(transformB, -out.normal);
@@ -612,9 +551,7 @@ bool Narrowphase::boxBox(const BoxShape& a, const Math::mat4& transformA, const 
 
 namespace
 {
-// Two spheres of the given radii at the given centres, written straight into
-// the manifold. Capsule contacts all reduce to this once the closest points
-// on the segments are known.
+// Two spheres at given centres written into the manifold; every capsule contact reduces to this once closest points are known.
 bool sphereContact(const Math::vec3& centerA, f32 radiusA, const Math::vec3& centerB, f32 radiusB,
                    f32 margin, ContactManifold& out)
 {
@@ -667,9 +604,7 @@ bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::mat4& transformA
     const Math::mat3 rotationB(transformB);
     const Math::vec3 capsuleAxis = Math::normalize(Math::vec3(transformA[1]));
 
-    // The box's three faces, the capsule's own axis, and the three cross
-    // products between them. The last set is what catches a capsule lying
-    // diagonally across an edge, which no face normal separates.
+    // Box faces, capsule axis and their cross products; the last set catches a capsule lying diagonally across an edge.
     Math::vec3 axes[7];
     u32 axisCount = 0;
     for (u32 i = 0; i < 3; ++i)
@@ -698,15 +633,11 @@ bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::mat4& transformA
     out.normal = bestNormal;
     out.buildTangents();
 
-    // Lying along a face: the segment's two ends are both in contact, and one
-    // point would let the capsule pivot around it. Clipped to the face so the
-    // pair sits inside the surface rather than hanging off its edge.
+    // Lying along a face: both ends touch and one point would let the capsule pivot, so clip the segment to the face.
     const f32 alignment = std::abs(Math::dot(capsuleAxis, out.normal));
     if (alignment < 0.05f)
     {
-        // The box face TOWARDS the capsule, which is its extreme against the
-        // normal - the normal runs from capsule to box, so supporting along
-        // it lands on the far side of the box instead.
+        // The box face TOWARDS the capsule: the normal runs capsule to box, so supporting along it lands on the far side.
         const Math::vec3 onBoxFace = b.support(transformB, -out.normal);
         const f32 faceOffset = Math::dot(out.normal, onBoxFace);
 
@@ -714,8 +645,7 @@ bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::mat4& transformA
         u32 written = 0;
         for (u32 i = 0; i < 2; ++i)
         {
-            // The capsule's own surface is its segment pushed a radius ALONG
-            // the normal, that being the direction of the box.
+            // Capsule surface is its segment pushed a radius ALONG the normal (towards the box).
             const Math::vec3 surface = points[i] + out.normal * a.radius();
             const f32 depth = Math::dot(out.normal, surface) - faceOffset;
             if (depth < -margin)
@@ -734,8 +664,7 @@ bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::mat4& transformA
         }
     }
 
-    // Anything else is one point: the closest point on the segment to the
-    // box, pushed out by the radius.
+    // Otherwise one point: closest point on the segment to the box, pushed out by the radius.
     const Math::vec3 boxCenter(transformB[3]);
     const Math::vec3 nearSegment = closestPointOnSegment(lower, upper, boxCenter);
     const Math::vec3 localNear = Math::transpose(rotationB) * (nearSegment - boxCenter);
@@ -745,8 +674,7 @@ bool Narrowphase::capsuleBox(const CapsuleShape& a, const Math::mat4& transformA
 
     out.count = 1;
     out.points[0].penetration = bestPenetration;
-    // Midway between the box's surface and the capsule's, which is its
-    // segment pushed a radius along the normal - towards the box, not away.
+    // Midway between box surface and capsule surface (segment pushed a radius along the normal, towards the box).
     out.points[0].position = (onBox + (refined + out.normal * a.radius())) * 0.5f;
     out.points[0].normalImpulse = 0.0f;
     out.points[0].tangentImpulse[0] = 0.0f;
@@ -758,10 +686,7 @@ bool Narrowphase::convexHullSphere(const ConvexHullShape& a, const Math::mat4& t
                                    const SphereShape& b, const Math::mat4& transformB,
                                    ContactManifold& out, f32 margin)
 {
-    // A sphere has no faces or edges of its own to separate on, so the
-    // hull's own face normals are the only axes SAT needs - the same
-    // reasoning sphereBox() uses for its single face-or-corner test, just
-    // over however many faces the hull has instead of six.
+    // A sphere has no faces or edges of its own, so the hull's face normals are the only SAT axes needed.
     const u32 faceCount = a.faceCount();
     if (faceCount == 0)
         return false;
@@ -800,10 +725,7 @@ bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::mat4& 
     Math::vec3 hullEdges[kHullArrayCapacity];
     const u32 hullEdgeCount = hullEdgeDirections(a, transformA, hullEdges, kHullArrayCapacity);
 
-    // The hull's own face normals, the capsule's axis, and the cross of that
-    // axis with every one of the hull's edge directions - the same three
-    // groups capsuleBox() tests against a box's three faces and three edge
-    // directions, generalized to however many the hull actually has.
+    // Hull face normals, capsule axis, and the axis crossed with every hull edge direction.
     Math::vec3 axes[kHullArrayCapacity * 2 + 1];
     u32 axisCount = 0;
     const u32 axisFaceCount = Math::min(hullFaceCount, kHullArrayCapacity);
@@ -836,10 +758,7 @@ bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::mat4& 
     const f32 alignment = std::abs(Math::dot(capsuleAxis, out.normal));
     if (alignment < 0.05f && hullFaceCount > 0)
     {
-        // The hull face TOWARDS the capsule - out.normal already points hull
-        // to capsule, so the reference face is whichever one's own normal
-        // agrees with it most, the same max-dot search boxBox() runs for its
-        // reference face.
+        // Hull face TOWARDS the capsule: out.normal points hull to capsule, so pick the face whose normal agrees with it most.
         u32 referenceFace = 0;
         f32 bestDot = -1.0e30f;
         for (u32 face = 0; face < hullFaceCount; ++face)
@@ -862,10 +781,7 @@ bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::mat4& 
             u32 written = 0;
             for (u32 i = 0; i < 2; ++i)
             {
-                // The capsule's own surface, pushed a radius towards the
-                // hull - which is -out.normal here, since out.normal points
-                // hull to capsule and this end has to face back the other
-                // way.
+                // Capsule surface pushed a radius towards the hull, i.e. along -out.normal (which points hull to capsule).
                 const Math::vec3 surface = points[i] - out.normal * b.radius();
                 const f32 depth = faceOffset - Math::dot(out.normal, surface);
                 if (depth < -margin)
@@ -887,9 +803,7 @@ bool Narrowphase::convexHullCapsule(const ConvexHullShape& a, const Math::mat4& 
         }
     }
 
-    // Anything else is one point: the support points on each shape along the
-    // separating normal, the same fallback boxBox() and capsuleBox() both
-    // take when there is no face to clip against.
+    // Otherwise one point: support points on each shape along the separating normal (fallback shared with boxBox()/capsuleBox()).
     supportPointContact(a, transformA, b, transformB, bestPenetration, out);
     return true;
 }
@@ -899,18 +813,13 @@ bool Narrowphase::convexHullBox(const ConvexHullShape& a, const Math::mat4& tran
                                 ContactManifold& out, f32 margin)
 {
     const Math::mat3 rotationB(transformB);
-    // Clamped once here and used for every axis-array index below, so the
-    // fixed-size arrays and the bestAxis category thresholds stay in
-    // agreement even on a hull with more faces than kHullArrayCapacity.
+    // Clamped once for every axis-array index below, so the fixed-size arrays and bestAxis thresholds agree on a hull with more faces than kHullArrayCapacity.
     const u32 hullFaceCount = Math::min(a.faceCount(), kHullArrayCapacity);
 
     Math::vec3 hullEdges[kHullArrayCapacity];
     const u32 hullEdgeCount = hullEdgeDirections(a, transformA, hullEdges, kHullArrayCapacity);
 
-    // The hull's own face normals stand in for boxBox()'s first three axes,
-    // the box's three faces are its second three, and the cross products run
-    // over the hull's actual edge directions against the box's three instead
-    // of a fixed 3x3 grid.
+    // Hull face normals stand in for boxBox()'s first three axes, box faces are the next three, then hull edges crossed with the box's three.
     Math::vec3 axes[kHullArrayCapacity + 3 + kHullArrayCapacity * 3];
     u32 axisCount = 0;
     for (u32 face = 0; face < hullFaceCount; ++face)
@@ -957,7 +866,6 @@ bool Narrowphase::convexHullBox(const ConvexHullShape& a, const Math::mat4& tran
 
     if (bestAxis < hullFaceCount)
     {
-        // The hull is the reference shape: its own face pointing at the box.
         u32 referenceFace = 0;
         f32 bestDot = -1.0e30f;
         for (u32 face = 0; face < hullFaceCount; ++face)
@@ -983,8 +891,6 @@ bool Narrowphase::convexHullBox(const ConvexHullShape& a, const Math::mat4& tran
     }
     else
     {
-        // The box is the reference shape, pointing at the hull - the same
-        // inline max-dot search boxBox() runs for its own reference face.
         u32 referenceFace = 0;
         f32 bestDot = -1.0e30f;
         for (u32 face = 0; face < 6; ++face)
@@ -1019,9 +925,7 @@ bool Narrowphase::convexHullConvexHull(const ConvexHullShape& a, const Math::mat
                                        const ConvexHullShape& b, const Math::mat4& transformB,
                                        ContactManifold& out, f32 margin)
 {
-    // Clamped once here and used for every axis-array index below, so the
-    // fixed-size arrays and the bestAxis category thresholds stay in
-    // agreement even on a hull with more faces than kHullArrayCapacity.
+    // Clamped once for every axis-array index below, so the fixed-size arrays and bestAxis thresholds agree on a hull with more faces than kHullArrayCapacity.
     const u32 faceCountA = Math::min(a.faceCount(), kHullArrayCapacity);
     const u32 faceCountB = Math::min(b.faceCount(), kHullArrayCapacity);
 
@@ -1030,10 +934,7 @@ bool Narrowphase::convexHullConvexHull(const ConvexHullShape& a, const Math::mat
     Math::vec3 edgesB[kHullArrayCapacity];
     const u32 edgeCountB = hullEdgeDirections(b, transformB, edgesB, kHullArrayCapacity);
 
-    // A's face normals, B's face normals, then the cross product of every
-    // unique edge direction of A against every unique edge direction of B -
-    // the same 3x3 edge grid boxBox() runs, generalized to however many edges
-    // either hull actually has.
+    // A's face normals, B's face normals, then every unique A edge crossed with every unique B edge.
     Math::vec3 axes[kHullArrayCapacity * 2 + kHullArrayCapacity * kHullArrayCapacity];
     u32 axisCount = 0;
     for (u32 face = 0; face < faceCountA; ++face)
@@ -1183,8 +1084,7 @@ bool Narrowphase::collide(const CollisionShape& a, const Math::mat4& transformA,
 
     if (a.type() == ShapeType::Box && b.type() == ShapeType::Sphere)
     {
-        // Solved in the other order and flipped, so there is one sphere-box
-        // routine to be right rather than two to keep agreeing.
+        // Solved in the other order and flipped: one routine per pair to get right.
         if (!sphereBox(static_cast<const SphereShape&>(b), transformB,
                        static_cast<const BoxShape&>(a), transformA, out, margin))
             return false;
@@ -1197,9 +1097,6 @@ bool Narrowphase::collide(const CollisionShape& a, const Math::mat4& transformA,
         return boxBox(static_cast<const BoxShape&>(a), transformA,
                       static_cast<const BoxShape&>(b), transformB, out, margin);
 
-    // Every capsule pair is solved with the capsule first and the result
-    // flipped when it was asked the other way round, so there is one routine
-    // per pair to be right about rather than two to keep in agreement.
     if (a.type() == ShapeType::Capsule && b.type() == ShapeType::Sphere)
         return capsuleSphere(static_cast<const CapsuleShape&>(a), transformA,
                              static_cast<const SphereShape&>(b), transformB, out, margin);
@@ -1220,9 +1117,6 @@ bool Narrowphase::collide(const CollisionShape& a, const Math::mat4& transformA,
         return true;
     }
 
-    // Every hull pair is solved with the hull first and the result flipped
-    // when it was asked the other way round, the same rule every other pair
-    // above already follows.
     if (a.type() == ShapeType::ConvexHull && b.type() == ShapeType::ConvexHull)
         return convexHullConvexHull(static_cast<const ConvexHullShape&>(a), transformA,
                                     static_cast<const ConvexHullShape&>(b), transformB, out,
@@ -1254,13 +1148,8 @@ bool Narrowphase::collide(const CollisionShape& a, const Math::mat4& transformA,
 namespace
 {
 
-// The normal a triangle contact should push along, A towards B.
-//
-// On the face it is the face normal. On a rim edge it is the direction to the
-// closest point, which is what makes a body slide off a real edge. On an edge
-// or corner SHARED with another triangle it is the face normal again: that
-// seam is interior to the surface, and pushing along it is what stops a
-// character dead when he walks from one triangle onto the next.
+// Normal a triangle contact pushes along, A towards B: face normal on the face; direction to the closest point on a rim edge (slides off real edges);
+// face normal again on an edge/corner SHARED with another triangle, since that seam is interior and pushing along it stops a walking character dead.
 bool triangleContactNormal(const TriangleShape& triangle, const Math::mat4& transform,
                            TriangleFeature feature, const Math::vec3& offset, f32 distanceSquared,
                            Math::vec3& out)
@@ -1277,8 +1166,7 @@ bool triangleContactNormal(const TriangleShape& triangle, const Math::mat4& tran
     if (length < kEpsilon)
         return false;
     Math::vec3 faceNormal = raw / length;
-    // Oriented to agree with which side the convex is actually on, so a body
-    // under a ceiling triangle is not pushed up through it.
+    // Oriented to the side the convex is actually on, so a body under a ceiling triangle is not pushed up through it.
     if (!degenerate && Math::dot(faceNormal, offset) < 0.0f)
         faceNormal = -faceNormal;
     out = faceNormal;
@@ -1334,8 +1222,7 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::mat4& transformA,
         return false;
     const Math::vec3 faceNormal = faceNormalRaw / faceLength;
 
-    // Thirteen axes: the box's three face normals, the triangle's one, and
-    // the nine cross products of the box's edges with the triangle's.
+    // Thirteen axes: box's three face normals, triangle's one, and nine edge cross products.
     const Math::vec3 triangleEdges[3] = {v1 - v0, v2 - v1, v0 - v2};
     Math::vec3 axes[13];
     u32 axisCount = 0;
@@ -1355,8 +1242,6 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::mat4& transformA,
         Math::vec3 normal(0.0f);
         if (!axisOverlap(a, transformA, b, transformB, axes[i], margin, penetration, normal))
             return false;
-        // Same trap boxBox() guards: a zero-length cross product carries no
-        // information, and must not win the contest with a stale zero.
         if (Math::length(axes[i]) < kEpsilon)
             continue;
         if (penetration < bestPenetration)
@@ -1370,8 +1255,6 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::mat4& transformA,
     out.normal = bestNormal;
     out.buildTangents();
 
-    // Edge against edge, with no face on either side to clip: one point,
-    // where the two are closest. Same fallback boxBox() takes.
     if (bestAxis > 3)
     {
         out.count = 1;
@@ -1401,7 +1284,6 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::mat4& transformA,
 
     if (bestAxis < 3)
     {
-        // Box face is the reference: the one pointing at the triangle.
         u32 referenceFace = 0;
         f32 bestDot = -1.0e30f;
         for (u32 face = 0; face < 6; ++face)
@@ -1430,8 +1312,7 @@ bool Narrowphase::boxTriangle(const BoxShape& a, const Math::mat4& transformA,
     }
     else
     {
-        // Triangle is the reference. Its outward normal has to face the box,
-        // which is the opposite of the A-to-B normal.
+        // Triangle is the reference: its outward normal must face the box, opposite the A-to-B normal.
         referenceNormal = -out.normal;
         referenceOffset = Math::dot(referenceNormal, v0);
         referenceInterior = (v0 + v1 + v2) / 3.0f;
@@ -1497,9 +1378,7 @@ bool Narrowphase::capsuleTriangle(const CapsuleShape& a, const Math::mat4& trans
     const Math::vec3 v1 = Math::vec3(transformB * Math::vec4(b.vertex(1), 1.0f));
     const Math::vec3 v2 = Math::vec3(transformB * Math::vec4(b.vertex(2), 1.0f));
 
-    // Closest point on the triangle to each end and to the segment against
-    // each edge; the nearest of those is the contact. Cheaper and steadier
-    // than SAT here, because a capsule has no faces to separate on.
+    // Closest point on the triangle to each segment end and segment-vs-edge; the nearest is the contact. Steadier than SAT: a capsule has no faces.
     TriangleFeature bestFeature = TriangleFeature::Face;
     Math::vec3 bestOnSegment = lower;
     Math::vec3 bestOnTriangle = closestPointOnTriangle(v0, v1, v2, lower, &bestFeature);
@@ -1557,25 +1436,19 @@ bool Narrowphase::convexTrimesh(const CollisionShape& convex, const Math::mat4& 
                                 const TrimeshShape& mesh, const Math::mat4& meshTransform,
                                 std::vector<ContactManifold>& out, f32 margin)
 {
-    // The convex's world bounds, brought into the mesh's own space: the tree
-    // was built there and moving one box in is cheaper than moving every
-    // triangle out.
+    // Convex's world bounds brought into the mesh's space: moving one box in is cheaper than moving every triangle out.
     AABB worldBox = convex.bounds(convexTransform);
     worldBox.min -= Math::vec3(margin);
     worldBox.max += Math::vec3(margin);
 
-    // A body transform is rotation and translation only - RigidBody builds it
-    // from a normalized quaternion and never writes a scale - so the inverse
-    // is the transpose, not a general 4x4 inverse. This runs per pair per
-    // substep against a terrain that never moves.
+    // A body transform is rotation+translation only (normalized quaternion, no scale), so the inverse is the transpose; this runs per pair per substep.
     const Math::mat3 rotation(meshTransform);
     const Math::mat3 inverseRotation = Math::transpose(rotation);
     Math::mat4 inverseTransform(inverseRotation);
     inverseTransform[3] = Math::vec4(-(inverseRotation * Math::vec3(meshTransform[3])), 1.0f);
     const AABB localBox = transformAABB(worldBox, inverseTransform);
 
-    // Reused rather than allocated per call, the same way the reference keeps
-    // its render queues (wiRenderer's `static thread_local RenderQueue`).
+    // Reused rather than allocated per call.
     static thread_local std::vector<u32> candidates;
     mesh.query(localBox, candidates);
     if (candidates.empty())

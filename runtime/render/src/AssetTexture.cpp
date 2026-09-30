@@ -57,11 +57,8 @@ std::string resolveTextureFile(const std::string& filename)
     return filename;
 }
 
-// One suffix set per authoring convention, already ordered +X -X +Y -Y +Z -Z
-// to match GL's cube-face order. FR/BK (and Front/Back) are the classic
-// front-back ambiguity between tools that export skyboxes - if a loaded sky
-// reads mirrored front-to-back, swap the last two entries of the offending
-// table below.
+// Suffix sets per convention, ordered +X -X +Y -Y +Z -Z (GL cube-face order). FR/BK vs Front/Back is ambiguous between tools;
+// if a loaded sky reads mirrored front-to-back, swap the last two entries of the offending table.
 struct CubemapConvention
 {
     const char* suffix[6];
@@ -89,8 +86,6 @@ bool tryCubemapConvention(const std::string& baseName, const CubemapConvention& 
 }
 
 } // namespace
-
-// ----------------------------------------------------------------- textures
 
 TextureHandle AssetManager::reloadTexture(const std::string& filename, ColorSpace space,
                                           bool generateMips, u32 mipLimit)
@@ -125,9 +120,7 @@ TextureHandle AssetManager::loadTexture(const std::string& filename, ColorSpace 
     if (cached != mLoadedTextures.end())
         return mTextures[cached->second].handle;
 
-    // Not logged per texture - a Bistro-sized material file pulls thousands
-    // and the console becomes useless. Only the ones slow enough to be worth
-    // knowing about are named, which is what a load that stalls needs.
+    // Not logged per texture (Bistro-sized materials pull thousands); only slow loads are named.
     const auto started = std::chrono::steady_clock::now();
     DecodedTexture decoded =
         decodeTextureFile(resolveTextureFile(filename), space, generateMips, mipLimit);
@@ -165,11 +158,7 @@ TextureHandle AssetManager::loadTextureAsync(const std::string& filename, ColorS
     if (cached != mLoadedTextures.end())
         return mTextures[cached->second].handle;
 
-    // Opaque mid-grey, 1x1 - unique to this request. Never the shared default
-    // checker: AsyncTextureLoader::processCompleted() rebuilds whatever GPU
-    // object sits behind this exact handle once decoding finishes, and doing
-    // that to the shared checker would corrupt it for every other user still
-    // relying on it looking like a checker.
+    // Opaque mid-grey 1x1, unique to this request. Never the shared checker: processCompleted() rebuilds the object behind this handle, which would corrupt the checker for other users.
     const u32 placeholderColor = 0xFF808080u;
     TextureDesc placeholderDesc;
     placeholderDesc.type = TextureType::Tex2D;
@@ -228,10 +217,7 @@ TextureHandle AssetManager::loadCubemap(const std::string faces[6], const std::s
             releaseConverted();
             return TextureHandle();
         }
-        // Anything that is not already RGBA, not just the 3-component case:
-        // the faces are packed below at a fixed four bytes per pixel, so a
-        // one- or two-channel face would be read past its own buffer and
-        // uploaded as a format it is not.
+        // Anything not already RGBA, not just 3-component: faces are packed at four bytes per pixel, so fewer channels would be read past the buffer.
         converted[i] = pixmaps[i].components != 4 ? pixmaps[i].convert_to_rgba() : nullptr;
         source[i] = converted[i] ? converted[i] : &pixmaps[i];
     }
@@ -257,9 +243,7 @@ TextureHandle AssetManager::loadCubemap(const std::string faces[6], const std::s
         }
     }
 
-    // The GL backend uploads all six faces with one glTextureSubImage3D call
-    // (depth = 6), so they have to sit back to back in one buffer, in GL's
-    // +X -X +Y -Y +Z -Z order, before the GPU ever sees them.
+    // The GL backend uploads all six faces with one glTextureSubImage3D call (depth = 6), so they must sit back to back in one buffer in +X -X +Y -Y +Z -Z order.
     const usize faceBytes = static_cast<usize>(width) * static_cast<usize>(height) * 4;
     std::vector<u8> buffer(faceBytes * 6);
     for (int i = 0; i < 6; ++i)
@@ -318,10 +302,7 @@ std::vector<std::string> AssetManager::listCubemaps(const std::string& directory
     std::vector<std::string> names;
     FileSystem& files = FileSystem::getSingleton();
 
-    // `directory` is relative to a search path, the way a texture name is,
-    // but listing needs a real path - so the search paths are walked here.
-    // The same name can turn up under more than one of them, hence the
-    // dedupe at the end.
+    // `directory` is relative to a search path, but listing needs a real path, so search paths are walked; a name under several of them is deduped at the end.
     for (const std::string& root : files.getSearchPaths())
     {
         const std::string path = root.empty() ? directory : root + "/" + directory;
@@ -340,9 +321,7 @@ std::vector<std::string> AssetManager::listCubemaps(const std::string& directory
                 continue;
             }
 
-            // Match only the first face of each convention: the other five
-            // name the same cubemap, and matching them too would list it six
-            // times over.
+            // Match only the first face of each convention; the other five name the same cubemap and would list it six times.
             for (const CubemapConvention* convention : {&kConventionRTLF, &kConventionPXNX})
             {
                 const std::string suffix = convention->suffix[0];
@@ -474,8 +453,7 @@ void AssetManager::destroyTexture(TextureHandle handle)
 
     GPU::getSingleton().destroy(handle);
 
-    // Tombstone rather than swap-erase: indices already handed out by
-    // getByIndex() must stay valid for entries that were not destroyed.
+    // Tombstone, not swap-erase: indices handed out by getByIndex() must stay valid.
     mTextures[index] = TextureEntry();
 }
 

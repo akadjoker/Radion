@@ -1,9 +1,3 @@
-// ScriptTests.cpp - smoke tests for the radion_script library (runtime/script).
-//
-// Runs short Zen scripts through Radion::ScriptVM and checks that
-// radion.version() round-trips through the VM, and that compile/runtime
-// errors come back as return values instead of being printed by ScriptVM.
-
 #include "PCH.h"
 
 #include "ScriptVM.h"
@@ -99,10 +93,7 @@ void testMissingFileIsReturned()
     CHECK(!error.empty());
 }
 
-// The builtin modules a script may import. Checked by actually importing
-// each one and touching a name on it: a module that is compiled in but never
-// registered looks exactly like one that is not there at all, and net/http
-// are only useful if a script can reach them.
+// A module compiled in but never registered looks like a missing one; import each and touch a name.
 void testBuiltinModulesAreImportable()
 {
     ScriptVM vm;
@@ -120,8 +111,7 @@ void testBuiltinModulesAreImportable()
         "import http\n"
         "assert math.floor(2.7) == 2, \"math\"\n"
         "assert json.stringify([1]) != \"\", \"json\"\n"
-        // No port, so nothing is bound and no packet leaves the machine -
-        // this only proves the module is wired up and its socket path runs.
+        // No port: nothing is bound and no packet is sent; proves the module is wired up.
         "s = net.udp_create()\n"
         "assert s != None, \"net.udp_create() returned nothing\"\n"
         "assert net.close(s), \"net.close() failed\"\n";

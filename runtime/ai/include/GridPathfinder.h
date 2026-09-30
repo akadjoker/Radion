@@ -1,13 +1,7 @@
 #ifndef RADION_AI_GRIDPATHFINDER_H
 #define RADION_AI_GRIDPATHFINDER_H
 
-// GridPathfinder.h - search over a GridMap.
-//
-// Single findPath() call over the grid. The search algorithm is selectable:
-// A*, Dijkstra, greedy Best-First or Breadth-First, all using 8-directional
-// neighbours (diagonals cost the same as orthogonal moves). The informed
-// searches use g = parent.g + cell cost and h = the chosen heuristic scaled
-// by the heuristic weight; the open list pops the lowest f.
+// g = parent.g + cell cost, h = heuristic * weight; the open list pops the lowest f.
 
 #include "GridMap.h"
 
@@ -16,13 +10,8 @@
 namespace Radion::AI
 {
 
-// With diagonals costing the same as orthogonal moves, the true remaining
-// cost between two open cells is max(|dx|, |dy|) - so MaxDxDy (the default)
-// is the only heuristic here that never overestimates, and the only one A*
-// is guaranteed optimal with. Manhattan and Euclidean overestimate whenever
-// a diagonal shortcut exists; picking them for A* trades path optimality for
-// fewer expansions, the same bounded-suboptimal deal as heuristicWeight > 1.
-// Best-First is greedy either way, so there they are purely a flavor choice.
+// Diagonals cost the same as orthogonal moves, so only MaxDxDy never overestimates; Manhattan/Euclidean
+// trade A* optimality for fewer expansions.
 enum class GridHeuristic
 {
     Manhattan, // |dx| + |dy|
@@ -58,10 +47,7 @@ public:
     {
     }
 
-    // Runs the configured search from (startX, startY) to (endX, endY). On
-    // success fills outPath with the full cell list from start to end
-    // inclusive (start first) and returns true; returns false if the goal is
-    // unreachable.
+    // Fills outPath start..end inclusive; false if the goal is unreachable.
     bool findPath(int startX, int startY, int endX, int endY,
                   std::vector<GridCellCoord>& outPath) const;
 
@@ -77,7 +63,6 @@ public:
 private:
     int goalEstimate(int x, int y, int endX, int endY) const;
 
-    // Shared weighted search for A* (useHeuristic) and Dijkstra (no heuristic).
     bool searchInformed(int startX, int startY, int endX, int endY, bool useHeuristic,
                         std::vector<GridCellCoord>& outPath) const;
     bool searchBestFirst(int startX, int startY, int endX, int endY,

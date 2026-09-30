@@ -29,10 +29,7 @@ bool hasDdsExtension(const std::string& path)
 
 } // namespace
 
-// DDS carries no colour-space tag of its own, so the caller's requested
-// space picks between the linear and sRGB GPU format - same job formatFor()
-// does for uncompressed sources below. BC5 has no sRGB variant: it only ever
-// holds normal maps, which are linear anyway.
+// DDS has no colour-space tag: the requested space picks the linear or sRGB format. BC5 has no sRGB variant (normal maps are linear).
 Format ddsFormatFor(Format base, ColorSpace space)
 {
     if (space != ColorSpace::sRGB)
@@ -121,16 +118,13 @@ DecodedTexture decodeTextureFile(const std::string& filename, ColorSpace space, 
         return result;
     }
 
-    // The GPU has no plain RGB8 format, only RGBA8 - a 3-component source
-    // needs a padded alpha channel before it can be uploaded.
+    // No plain RGB8 GPU format: pad a 3-component source to RGBA8.
     Pixmap* converted = pixmap->components == 3 ? pixmap->convert_to_rgba() : nullptr;
     Pixmap* source = converted ? converted : pixmap;
     if (converted)
         delete pixmap;
 
-    // R8/RG8 have no sRGB counterpart here, so a one- or two-channel file asked
-    // for as colour would sample undecoded and quietly read too bright. Say so
-    // instead of letting it pass.
+    // R8/RG8 have no sRGB counterpart, so a 1-2 channel colour file would read too bright.
     if (space == ColorSpace::sRGB && source->components < 3)
         Log::warning("TextureDecode: '%s' has %d channel(s) and cannot be sRGB; loading it linear",
                      filename.c_str(), source->components);

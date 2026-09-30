@@ -45,9 +45,7 @@ void EditorToasts::push(ToastKind kind, std::string message)
 {
     if (message.empty())
         return;
-    // The same message arriving again refreshes the one on screen instead of
-    // stacking a duplicate - a bake that reports per step would otherwise
-    // push the corner off the screen.
+    // A repeated message refreshes the on-screen one instead of stacking a duplicate.
     for (Toast& toast : mToasts)
     {
         if (toast.kind == kind && toast.message == message)

@@ -158,11 +158,7 @@ ParticleSystem::Emitter ParticleEffect::presetBulletImpact()
 
 ParticleSystem::Emitter ParticleEffect::presetBlood()
 {
-    // Slower and shorter-lived than a spark (presetBulletImpact): a droplet
-    // arcs and falls, it does not ricochet - the caller pairing this with a
-    // ballistic drop of its own (a demo tracking a few points against the
-    // level, one gravity integration per frame) wants the visible burst to
-    // finish at roughly the same time those land.
+    // Slower and shorter-lived than a spark: a droplet arcs and falls; the caller pairs it with its own ballistic drop.
     ParticleSystem::Emitter e;
     e.rate = 0.0f;
     e.direction = Math::vec3(0.0f, 1.0f, 0.0f);
@@ -186,7 +182,7 @@ ParticleSystem::Emitter ParticleEffect::presetExplosion()
     ParticleSystem::Emitter e;
     e.rate = 0.0f;
     e.direction = Math::vec3(0.0f, 1.0f, 0.0f);
-    e.spread = 3.14159265f; // full sphere
+    e.spread = 3.14159265f;
     e.speedMin = 2.0f;
     e.speedMax = 9.0f;
     e.lifeMin = 0.6f;
@@ -207,11 +203,7 @@ ParticleSystem::Emitter ParticleEffect::presetFirework()
     e.rate = 0.0f;
     e.direction = Math::vec3(0.0f, 1.0f, 0.0f);
     e.spread = 3.14159265f;
-    // Speed kept in a narrow band on purpose - fireworks read as one
-    // expanding shell when every particle is roughly the same distance out
-    // at any given moment; a wide speedMin/speedMax spread thins some of
-    // the shell out ahead of the rest and the burst looks patchy instead of
-    // one coherent wave.
+    // Narrow speed band on purpose: fireworks read as one shell when all particles are about equally far out; a wide spread looks patchy.
     e.speedMin = 8.0f;
     e.speedMax = 10.0f;
     e.lifeMin = 0.9f;
@@ -226,27 +218,19 @@ ParticleSystem::Emitter ParticleEffect::presetFirework()
     return e;
 }
 
-// Ambient motes drifting in still air (a sunbeam, a dusty room) - a large
-// startRadius spawns them through a whole volume rather than from a point,
-// spread = PI (full sphere) sends each one drifting in its own random
-// direction instead of all rising together, and the long life keeps the
-// volume populated at a low, steady rate. gravity/drag are global on the
-// ParticleSystem though (ParticleDraws().system()), not per-emitter - a
-// scene using this preset alongside a falling effect (sparks, debris) has
-// to keep gravity near zero, or the dust falls too.
+// Large startRadius spawns through a volume, spread = PI sends each mote in its own direction, long life keeps it populated.
+// gravity/drag are global on ParticleSystem (ParticleDraws().system()), so keep gravity near zero when mixing with falling effects.
 ParticleSystem::Emitter ParticleEffect::presetDust()
 {
     ParticleSystem::Emitter e;
     e.rate = 3.0f;
     e.direction = Math::vec3(0.0f, 1.0f, 0.0f);
-    e.spread = 3.14159265f; // full sphere
+    e.spread = 3.14159265f;
     e.speedMin = 0.03f;
     e.speedMax = 0.15f;
     e.lifeMin = 4.0f;
     e.lifeMax = 8.0f;
-    // Small enough to read as a mote, not so small it falls under a pixel at
-    // normal viewing distance and vanishes - the fragment shader's falloff
-    // (particle.frag) already shrinks the visible core well inside the quad.
+    // Small enough to read as a mote but not under a pixel at normal distance.
     e.sizeBegin = 0.05f;
     e.sizeEnd = 0.08f;
     e.colorBegin = Math::vec4(1.0f, 1.0f, 0.95f, 0.85f);

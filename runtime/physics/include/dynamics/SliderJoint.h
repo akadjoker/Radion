@@ -45,12 +45,8 @@ public:
     f32 motorMaxForce() const;
     bool motorEnabled() const;
 
-    // Hold a position along the axis instead of a speed - the linear half of
-    // HingeJoint::setServo(), and what a two-finger gripper closes with.
-    // Clamped into the joint's limits; held until changed.
-    // maxSpeed is the actuator's rated speed; 0 leaves it uncapped, which is
-    // only stable when the force budget is tight - see the note on
-    // HingeJoint::setServo().
+    // Hold a position along the axis (linear half of HingeJoint::setServo()); clamped to the limits, held until changed.
+    // maxSpeed is the rated speed; 0 is uncapped, stable only with a tight force budget (see HingeJoint::setServo()).
     void setServo(f32 targetPosition, f32 maxForce, f32 maxSpeed = 0.0f);
     void disableServo();
     f32 servoTargetPosition() const;

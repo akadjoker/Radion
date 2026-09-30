@@ -16,16 +16,10 @@ namespace Radion
 namespace
 {
 
-// Named render target the reflection tier and up bind by name, the way
-// WaterPass resolves kReflectionTargetName. Not shared with WaterPass: the
-// ocean plane is its own draw, but the reflection texture underneath it is
-// the very same one - whoever renders the mirrored sub-pass this frame
-// publishes once and both passes can read it.
+// Reflection target shared by name with WaterPass: whoever renders the mirrored sub-pass publishes once and both read it.
 constexpr const char* kOceanReflectionTarget = kReflectionTargetName;
 
-// Mirrors OceanUniforms in ocean_uniforms.glsl, field for field. std140 pairs
-// each vec3 with the scalar that follows it - see GrassUniforms for the same
-// convention.
+// Mirrors OceanUniforms in ocean_uniforms.glsl; std140 pairs each vec3 with the following scalar.
 struct alignas(16) OceanUniforms
 {
     Math::mat4 model = Math::mat4(1.0f);
@@ -90,9 +84,7 @@ struct alignas(16) OceanUniforms
     Math::vec4 opticalStrengths = Math::vec4(1.0f);
 };
 
-// GLSL requires #version to stay the file's first line, so a variant #define
-// cannot simply be prepended - it goes right after it, the same trick
-// MaterialManager::withVariantDefines uses for materials.
+// #version must stay first, so variant #defines go right after it.
 std::string withOceanDefines(const std::string& source, OceanQuality quality)
 {
     const usize versionEnd = source.find('\n');
@@ -143,11 +135,7 @@ public:
         cubeSampler.wrapW = Wrap::Clamp;
         mCubeSampler = gpu.createSampler(cubeSampler);
 
-        // Bound whenever the frame has no sky cube of its own: GL counts a
-        // samplerCube as used the moment the shader names it, so the draw
-        // needs something valid on that unit even down the branch that never
-        // reads it. Six pixels and not one - a cube upload reads all six faces
-        // out of a single buffer.
+        // Bound when the frame has no sky cube: GL counts a samplerCube as used once named; six pixels, since a cube upload reads six faces.
         const u8 black[4 * 6] = {0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255,
                                  0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255};
         TextureDesc placeholder;
@@ -170,9 +158,7 @@ public:
         if (commands.empty())
             return;
 
-        // A clip plane means this is a mirrored sub-pass, and the surface must
-        // not appear in its own reflection. The queue is global rather than
-        // per-list, so this is the only place that can tell the two apart.
+        // A clip plane means a mirrored sub-pass: the surface must not appear in its own reflection.
         if (frame.clipPlane != Math::vec4(0.0f))
             return;
 
@@ -232,8 +218,7 @@ private:
             return false;
         }
 
-        // Positions only (Mesh::depthLayout): the wave sum reads nothing else
-        // from the vertex, the same stream Terrain's depth/shadow draws use.
+        // Positions only (Mesh::depthLayout): the wave sum reads nothing else.
         VertexLayout layout;
         layout.streamCount = 1;
         layout.streams[0].stride = sizeof(Math::vec3);
@@ -251,9 +236,7 @@ private:
             desc.vs = {vs.c_str(), 0, "ocean.vert"};
             desc.fs = {fs.c_str(), 0, "ocean.frag"};
             desc.layout = layout;
-            // Seen from both sides: a mirrored reflection sub-pass flips
-            // winding, and the ocean plane itself is drawn once for every
-            // camera, never culled from below when the demo dips under it.
+            // Both sides: a mirrored sub-pass flips winding and the plane must not cull from below.
             desc.raster.cull = CullMode::None;
             desc.blend.mode = BlendMode::Alpha;
             desc.debugName = "ocean.draw";
@@ -378,20 +361,12 @@ private:
         uniforms.debugMode = command.debugMode;
         uniforms.screenSize = Math::vec2(frame.viewport.width, frame.viewport.height);
 
-        // Below the surface the shader takes the Snell's-window path instead.
-        // Measured against the plane's own height rather than against anything
-        // the caller passes: the surface knows where it is, and a demo that
-        // had to tell it would be one more thing to get out of step. The wave
-        // amplitude is not subtracted - a crest passing over the camera is a
-        // frame of the wrong path, against a hard switch every frame the
-        // camera sits near the surface.
+        // Below the surface the shader takes the Snell's-window path; measured against the plane's own height, wave amplitude not subtracted (avoids a hard switch near the surface).
         const f32 waterLevel = command.model[3].y;
         uniforms.underwaterCamera = frame.cameraPosition.y < waterLevel ? 1 : 0;
         uniforms.underwaterColor = command.underwaterColor;
 
-        // Whichever cube the frame is actually showing: an environment probe
-        // if one was captured, otherwise the sky's own cubemap. Anything else
-        // and the water reflects a sky nobody can see.
+        // Environment probe if captured, else the sky's own cubemap.
         TextureHandle skyCube = frame.environmentCube;
         if (!skyCube.valid() && frame.sky && frame.sky->enabled &&
             frame.sky->mode == SkyMode::Cubemap)

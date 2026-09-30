@@ -11,11 +11,7 @@ namespace Radion
 {
 class GameObject;
 
-// Drag payload for a Hierarchy row: the data is the dragged GameObject's id
-// (u64, not null-terminated/typed - construct via
-// *static_cast<const u64*>(payload->Data)). Whoever accepts it (another
-// Hierarchy row for reparenting, InspectorPanel's BoneAttachment target slot)
-// resolves it back through Scene::findGameObject().
+// Drag payload for a Hierarchy row: the dragged GameObject's id as u64 (*static_cast<const u64*>(payload->Data)); resolve via Scene::findGameObject().
 constexpr const char* kGameObjectDragPayload = "RADION_GAME_OBJECT";
 
 class HierarchyPanel final : public EditorPanel
@@ -38,11 +34,7 @@ private:
         Hills
     };
 
-    // A primitive picked from Create > 3D does not land in the tree right
-    // away: the shape is queued here, the popup asks for its dimensions,
-    // and only its OK button actually builds the mesh and creates the
-    // GameObject - Cancel (or dismissing the popup) leaves the scene
-    // untouched.
+    // Primitives are queued here; the popup asks for dimensions and only OK creates the GameObject.
     struct PendingPrimitive
     {
         bool open = false;
@@ -52,9 +44,7 @@ private:
         f32 uvTiles = 16.0f;
         int segmentsA = 0;
         int segmentsB = 0;
-        // Hills only: the red channel becomes displacement (0..1 * height
-        // scale, dimensions.z below) - dropped from Assets, same drag-drop
-        // slot a material's own texture fields use.
+        // Hills only: the red channel becomes displacement (0..1 * height scale, dimensions.z).
         std::string heightmapFile;
         f32 heightScale = 5.0f;
     };
@@ -90,9 +80,7 @@ private:
     void drawCreateMenu(GameObject* parent);
     void drawObjectActions();
     void drawSearchField();
-    // With a filter typed the tree is replaced by a flat list of whatever
-    // matches, anywhere in the hierarchy - a match six levels down is no use
-    // if the six parents have to be expanded by hand to reach it.
+    // With a filter typed, the tree becomes a flat list of matches anywhere in the hierarchy.
     void drawFilteredList(GameObject& object, u32& shown);
     bool matchesSearch(const GameObject& object) const;
     void drawNode(GameObject& object);
@@ -102,11 +90,7 @@ private:
     void drawPendingGridDuplicatePopup();
     void queuePendingPrimitive(PrimitiveKind kind, GameObject* parent);
 
-    // "Save as Prefab..." on a Hierarchy node's context menu - mSavePrefabSource
-    // is the object id the dialog was opened for, looked back up through
-    // Scene::findGameObject() on Accept rather than kept as a raw pointer
-    // (the dialog stays open across frames, plenty of time for the object to
-    // be deleted from under it).
+    // mSavePrefabSource is an object id looked up again on Accept, not a raw pointer: the object may be deleted while the dialog is open.
     void drawSavePrefabPopup();
     ImGuiFileDialog mSavePrefabDialog;
     u64 mSavePrefabSource = 0;
@@ -116,13 +100,9 @@ private:
     PendingOcean mPendingOcean;
     PendingGridDuplicate mPendingGridDuplicate;
     std::string mSearch;
-    // Selection commits on mouse release, not press: a press that turns into
-    // a drag must keep the current object in the Inspector, or its drop
-    // targets disappear before the payload can land on them.
+    // Selection commits on release, not press, so a press that becomes a drag keeps the Inspector's drop targets alive.
     u64 mPendingSelect = 0;
-    // Drag across rows to select a run of them, the way a file list does -
-    // the tree is where a batch is actually picked, so the band lives here
-    // rather than over the 3D view.
+    // Drag across rows to select a run; lives here rather than over the 3D view.
     bool mDragSelecting = false;
 };
 

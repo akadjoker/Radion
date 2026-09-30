@@ -1,12 +1,7 @@
 #ifndef RADION_AI_STATEMACHINE_H
 #define RADION_AI_STATEMACHINE_H
 
-// StateMachine.h - finite state machine for the Radion AI library.
-//
-// A StateMachine owns a set of States (raw pointers, deleted on destruction).
-// iterate() runs the current state's per-frame actions and then checks its
-// transitions; the first transition that fires exits the current state,
-// enters the target state and stops the scan.
+// iterate(): the first transition that fires exits the current state, enters the target and stops the scan.
 
 #include <string>
 #include <vector>
@@ -24,8 +19,7 @@ public:
     StateMachine() = default;
     virtual ~StateMachine();
 
-    // Ownership: the StateMachine owns every state added via addState() and
-    // deletes them on destruction or when removed.
+    // Owns every state added; deleted on destruction or removal.
     void addState(State* state);
     void removeState(State* state);
     State* findState(const std::string& name) const;
@@ -46,12 +40,10 @@ public:
         return mStates;
     }
 
-    // Graphviz .dot dump of states and transitions, for debugging.
     std::string toDot() const;
 
 protected:
-    // Factory hook (mirrors cStateMachine::ConstructState) so derived machines
-    // can build State subclasses. Returns a new State owned by the machine.
+    // Factory hook so derived machines can build State subclasses; the machine owns the result.
     virtual State* constructState(const std::string& name);
 
     StateList mStates;

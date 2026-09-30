@@ -207,10 +207,7 @@ void testCountTwoSegmentDoesNotCrash()
     hull.compute(&points[0].x, sizeof(Math::vec3), (int)points.size(), 0.0f, 0.0f);
 
     CHECK(allVerticesFinite(hull.vertices));
-    // Two vertices joined by a single edge pair still produce one degenerate
-    // "face" loop when the output edge/face structure is walked (the reference
-    // does not special-case this); what matters is that it is not fabricated
-    // garbage.
+    // Two vertices give one degenerate face loop (as in the reference); it must not be garbage.
     CHECK(hull.faces.size() <= 1);
 }
 
@@ -268,13 +265,7 @@ void testTinyJitterDoesNotFragmentCubeFaces()
     ConvexHullComputer hull;
     hull.compute(&corners[0].x, sizeof(Math::vec3), (int)corners.size(), 0.0f, 0.0f);
 
-    // The hull uses exact integer predicates on quantized coordinates (no
-    // coplanarity tolerance), so jitter far smaller than the quantization step
-    // can still break exact coplanarity of a nominal face and legitimately
-    // split it into a few extra triangular micro-faces. This is inherited,
-    // correct behavior of the reference algorithm, not a defect: it is the
-    // exact convex hull of the (no-longer-exactly-planar) input. We only check
-    // that it stays in a sane range and produces no crash/NaN.
+    // Exact integer predicates: tiny jitter can split a face into micro-triangles (reference behaviour); only check a sane range, no crash/NaN.
     CHECK(allVerticesFinite(hull.vertices));
     CHECK(hull.vertices.size() == 8);
     CHECK(hull.faces.size() >= 6 && hull.faces.size() <= 16);

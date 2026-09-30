@@ -28,17 +28,10 @@ struct BakeBlock
     Math::vec4 params;
     // rgb = sky light; see LightmapBakeSettings::ambient.
     Math::vec4 ambientSky;
-    // xy = this sample's rasterization offset, in clip space. Jittering WHERE
-    // the texel is rasterized (as opposed to jitterSunDirection(), which
-    // jitters the light) is what stops a chart's border texels from being
-    // decided by one arbitrary sample position - the artifact along every
-    // seam. Halton, so successive samples fill the pixel evenly instead of
-    // clumping the way a random pair does at low counts.
+    // xy = this sample's rasterization offset in clip space (Halton); jittering the texel position stops border texels depending on one sample, the seam artifact.
     Math::vec4 jitter;
 };
 
-// Van der Corput in `base`, the one-dimensional building block of a Halton
-// sequence: index 1,2,3... reflected about the radix point.
 f32 halton(u32 index, u32 base)
 {
     f32 result = 0.0f;
@@ -51,10 +44,7 @@ f32 halton(u32 index, u32 base)
     return result;
 }
 
-// The eight corners of `bounds` in `view` space, as a min/max pair. What the
-// sun's ortho frustum is fitted to: sizing it from the box's radius instead
-// means sizing it to the box's DIAGONAL, which on a wide flat map is close to
-// half the texels spent on empty space either side of the geometry.
+// Corners of `bounds` in `view` space as min/max; sizing the sun frustum from the box radius would use the diagonal and waste texels.
 void projectBounds(const AABB& bounds, const Math::mat4& view, Math::vec3& minimum,
                    Math::vec3& maximum)
 {
@@ -71,13 +61,7 @@ void projectBounds(const AABB& bounds, const Math::mat4& view, Math::vec3& minim
     }
 }
 
-// Chart interiors are the only texels the raster pass ever touches; the
-// padding xatlas reserved around each chart stays at the clear colour
-// (alpha 0). Bilinear sampling right at a chart edge blends real colour
-// with that empty padding, which reads as a dark seam along every chart
-// boundary. Growing real texels outward into the padding by a few texels
-// (alpha as the coverage mask) is what every lightmap baker does to hide
-// this - not a bug in the raster itself, just a required extra step.
+// Bleed real texels outward into xatlas chart padding (alpha = coverage) so bilinear sampling at chart edges shows no dark seam.
 void dilateLightmap(std::vector<f32>& pixels, u32 resolution, u32 iterations)
 {
     for (u32 iteration = 0; iteration < iterations; ++iteration)
@@ -125,10 +109,7 @@ void dilateLightmap(std::vector<f32>& pixels, u32 resolution, u32 iterations)
     }
 }
 
-// Vogel disk offset for sample `index` of `count`, in [-1, 1]^2. Same
-// distribution lit.frag's own VOGEL[] table uses for cascade PCF - low
-// discrepancy without the periodic banding a regular grid gives at low
-// counts.
+// Vogel disk offset in [-1,1]^2; same distribution as lit.frag's VOGEL[] for cascade PCF.
 Math::vec2 vogelDisk(u32 index, u32 count)
 {
     const f32 goldenAngle = 2.39996323f;
@@ -137,12 +118,7 @@ Math::vec2 vogelDisk(u32 index, u32 count)
     return radius * Math::vec2(Math::cos(theta), Math::sin(theta));
 }
 
-// Rotates `direction` by up to `angularRadius` degrees towards a point on
-// the sun's disk, sample `index` of `count`. Jittering the direction (not
-// the shadow frustum's eye position) is the correct thing to do for an
-// orthographic light: it turns the whole bundle of parallel rays by a tiny
-// angle, exactly what a different point on a distant, angularly-small sun
-// would produce.
+// Jitters the direction (not the eye position): correct for an orthographic light, equals sampling a point on the sun's disk.
 Math::vec3 jitterSunDirection(const Math::vec3& direction, f32 angularRadius, u32 index, u32 count)
 {
     if (angularRadius <= 0.0f || count <= 1)
@@ -171,10 +147,7 @@ PipelineHandle makePipeline(const char* vertexName, const char* fragmentName,
     desc.depth.func = Compare::LessEqual;
     desc.blend.writeRGB = !depthOnly;
     desc.blend.writeA = !depthOnly;
-    // Soft shadows come from averaging several samples of the sun's angular
-    // disk (see bake()'s sample loop below) - additive blend lets each
-    // sample accumulate straight into the target instead of a separate
-    // readback+average step per sample.
+    // Additive blend accumulates soft-shadow samples straight into the target.
     desc.blend.mode = depthOnly ? BlendMode::Opaque : BlendMode::Additive;
     desc.debugName = depthOnly ? "lightmap.shadow" : "lightmap.bake";
     return GPU::getSingleton().createPipeline(desc);
@@ -252,8 +225,7 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const Math::mat4& model, cons
 
     GPU& gpu = GPU::getSingleton();
     resolution = Math::clamp(resolution, 64u, 4096u);
-    // Only a depth texture, never read back - it can afford to be larger than
-    // the atlas, which is the whole point of letting it be set apart.
+    // Depth only, never read back, so it may be larger than the atlas.
     const u32 shadowResolution =
         Math::clamp(settings.shadowResolution ? settings.shadowResolution : resolution, 64u, 16384u);
 
@@ -310,10 +282,7 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const Math::mat4& model, cons
     }
 
     const Math::vec3 direction = Math::normalize(lightDirection);
-    // `bounds` is in the mesh's own object space; the vertex shader draws
-    // aPosition through uModel, so the shadow frustum has to be built from
-    // the same transformed box or it ends up sized/placed for geometry that
-    // is not where the actual (scaled, rotated, moved) mesh is.
+    // `bounds` is object space; build the shadow frustum from the transformed box to match the drawn mesh.
     const AABB worldBounds = transformAABB(bounds, model);
     const Math::vec3 center = worldBounds.center();
     const Math::vec3 extents = worldBounds.extents();
@@ -325,9 +294,7 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const Math::mat4& model, cons
         clear.bits = shadowPass ? ClearDepth : (clearColor ? ClearColor : 0u);
         clear.depth = 1.0f;
         clear.color[0] = clear.color[1] = clear.color[2] = 0.0f;
-        // Alpha starts at 0 and the bake fragment shader always writes 1 -
-        // it doubles as a coverage mask so save() can tell a real chart
-        // texel from empty padding and bleed colour into the padding.
+        // Alpha starts 0 and the bake shader writes 1: a coverage mask so save() can bleed colour into padding.
         clear.color[3] = 0.0f;
         gpu.setTarget(target, clear);
         const f32 side = static_cast<f32>(shadowPass ? shadowResolution : resolution);
@@ -360,10 +327,7 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const Math::mat4& model, cons
             up = Math::vec3(1.0f, 0.0f, 0.0f);
         const Math::mat4 shadowView = Math::lookAt(center - sampleDirection * radius * 2.5f, center, up);
 
-        // Fitted to where the geometry actually lands in the sun's own view,
-        // not to a box sized by the scene's radius. Math::lookAt looks down -z,
-        // so the box's near/far are -maximum.z and -minimum.z; both get a
-        // margin so a caster sitting exactly on the plane is not clipped away.
+        // Fitted to the geometry in the sun's view; Math::lookAt looks down -z so near/far are -max.z/-min.z, with margin so a caster on the plane is not clipped.
         Math::vec3 viewMinimum, viewMaximum;
         projectBounds(worldBounds, shadowView, viewMinimum, viewMaximum);
         const f32 margin = Math::max(radius * 0.01f, 0.01f);
@@ -378,12 +342,7 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const Math::mat4& model, cons
         block.model = model;
         block.lightDirection = Math::vec4(sampleDirection, 0.0f);
         block.lightColor = Math::vec4(lightColor, 1.0f);
-        // Bias, from texels to world units to the ortho's own [0,1] depth,
-        // against the frustum this sample actually ended up with. Doing it
-        // here rather than asking the caller for a depth fraction is what
-        // keeps one setting working at any scene size - and what lets the
-        // frustum fit above tighten the depth range without silently changing
-        // the meaning of everyone's bias.
+        // Bias from texels to world units to ortho depth against this sample's frustum: one setting works at any scene size.
         const f32 depthRange = Math::max(farPlane - nearPlane, 0.001f);
         const f32 texelWorldSize =
             (viewMaximum.x - viewMinimum.x + 2.0f * margin) / static_cast<f32>(shadowResolution);
@@ -392,10 +351,7 @@ bool LightmapBakePass::bake(MeshHandle meshHandle, const Math::mat4& model, cons
         block.params = Math::vec4(worldBias / depthRange, settings.ambientGround,
                                  settings.filterRadius, weight);
         block.ambientSky = Math::vec4(settings.ambient, 0.0f);
-        // Bases 2 and 3, centred on the texel and widened a little past one
-        // texel so the samples reach into the neighbour a border texel is
-        // missing coverage from - the reference boosts its own by the same
-        // sort of factor for the same reason.
+        // Bases 2 and 3, widened slightly past one texel so samples reach neighbours a border texel lacks coverage from.
         const f32 texelWidth = 2.0f / static_cast<f32>(mResolution);
         block.jitter =
             Math::vec4((halton(sample, 2) * 2.0f - 1.0f) * texelWidth * 0.7f,
@@ -440,13 +396,7 @@ bool LightmapBakePass::save(const std::string& filename) const
                             static_cast<u8>(Math::clamp(pixels[i + 1], 0.0f, 1.0f) * 255.0f),
                             static_cast<u8>(Math::clamp(pixels[i + 2], 0.0f, 1.0f) * 255.0f), 255);
         }
-    // No flip: AssetManager::loadTexture() never flips a PNG on load either
-    // (nothing in this engine does, every other texture already relies on
-    // that), so row 0 here has to stay GL's own row 0 - the same convention
-    // the bake vertex shader used to write it (aUV2.y=0 -> row 0). Flipping
-    // only this file would make it round-trip backwards: uv2 samples land on
-    // the wrong side of the atlas, mostly the gaps between charts, which is
-    // the clear colour - black.
+    // No flip: row 0 stays GL's row 0, matching AssetManager::loadTexture() and the bake vertex shader (aUV2.y=0 -> row 0).
     const bool saved = image.save(filename.c_str());
     if (!saved)
         Log::error("LightmapBakePass: failed to save '%s'", filename.c_str());
@@ -456,8 +406,7 @@ bool LightmapBakePass::save(const std::string& filename) const
 void LightmapBakePass::applyToMaterials(std::vector<Material>& materials, const VertexLayout& colorLayout,
                                         TextureHandle lightmapTexture, const std::string& lightmapFile)
 {
-    // Clamp, not the default Repeat: sampling past a chart at the very edge
-    // of the atlas must not wrap into the opposite side's unrelated chart.
+    // Clamp, not Repeat: sampling at the atlas edge must not wrap into an unrelated chart.
     SamplerDesc samplerDesc;
     samplerDesc.filter = Filter::Linear;
     samplerDesc.wrapU = Wrap::Clamp;
@@ -466,11 +415,7 @@ void LightmapBakePass::applyToMaterials(std::vector<Material>& materials, const 
 
     for (Material& material : materials)
     {
-        // Lit stays on: dropping it routed the whole material through
-        // unlit.frag, which has no idea point/spot lights or their shadows
-        // exist - only the sun's own real-time contribution is redundant
-        // with the bake (see HAS_LIGHTMAP in lit.frag), so only its flag
-        // (ReceiveShadow, which gates the cascade lookup) comes off.
+        // Lit stays on: unlit.frag ignores point/spot lights. Only ReceiveShadow comes off (sun is baked; HAS_LIGHTMAP in lit.frag).
         material.flags &= ~MaterialReceiveShadow;
         material.textures[SlotLightmap].texture = lightmapTexture;
         material.textures[SlotLightmap].sampler = sampler;

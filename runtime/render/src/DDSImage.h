@@ -10,11 +10,7 @@
 namespace Radion
 {
 
-// Parses a DDS file straight into its block-compressed mip chain - no
-// decoding, no recompression, just the bytes the GPU can upload as-is. Only
-// the block formats the pipeline actually authors textures in are understood
-// (BC1/DXT1, BC3/DXT5, BC5/ATI2, and BC7 through the DX10 extended header);
-// anything else fails to load rather than guessing at a format.
+// Parses a DDS into its block-compressed mip chain (BC1, BC3, BC5, BC7 via DX10 header); no decoding.
 class DDSImage
 {
 public:
@@ -28,8 +24,7 @@ public:
         return mFormat != Format::Unknown;
     }
 
-    // Always the linear variant (DDS carries no colour-space information) -
-    // the caller picks the sRGB one when the slot calls for it.
+    // Always the linear variant; the caller picks sRGB.
     Format format() const
     {
         return mFormat;

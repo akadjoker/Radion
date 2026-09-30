@@ -42,8 +42,7 @@ void SelfDestroy::onUpdate(f32 deltaTime)
     if (mElapsed < mLifetime)
         return;
 
-    // dispose() only flags the object for the Scene's end-of-frame sweep,
-    // so guard against calling it again every frame the object still lives.
+    // dispose() only flags the object for the end-of-frame sweep; do not call it every frame.
     mDisposed = true;
     owner()->dispose();
 }

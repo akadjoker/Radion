@@ -27,9 +27,7 @@ bool ShadowPass::createResources()
     GPU& gpu = GPU::getSingleton();
     const u32 cascadeResolution = Math::max(mCalculator.settings.resolution, 1u);
     const u32 cascadeCount = Math::clamp(mCalculator.settings.count, 1u, MaxShadowCascades);
-    // PSSM4 is four equal quadrants. Keeping the public resolution as the
-    // resolution of one split preserves the old array quality: 2048 in the
-    // editor becomes the same 4096 atlas layout described in the Godot code.
+    // PSSM4 is four equal quadrants; the public resolution is one split's, so 2048 becomes a 4096 atlas.
     const u32 resolution = cascadeCount >= 3 ? cascadeResolution * 2u : cascadeResolution;
     TextureDesc texture;
     texture.type = TextureType::Tex2D;
@@ -122,13 +120,7 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
 {
     RADION_PROFILE_SCOPE("Directional shadows");
 
-    // frame.directionalShadow* are left at their default (invalid) values
-    // until every early-return below has had its chance to fail: publishing
-    // mTexture/mSampler up front used to mean a resolution change that made
-    // createResources() destroy and then fail to rebuild them left the frame
-    // pointing at handles that were already gone. ForwardPass only binds the
-    // shadow map when both the texture and the block are valid, so leaving
-    // them unset here is exactly "render this frame without shadows".
+    // Leave frame.directionalShadow* invalid until every early return has passed: publishing handles early pointed the frame at destroyed ones. ForwardPass binds the shadow map only when texture and block are valid.
 
     DirectionalShadowBlock block;
     if (!mCalculator.settings.enabled)
@@ -151,18 +143,13 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
         GPU::getSingleton().updateBuffer(mBlock, 0, sizeof(block), &block);
         return;
     }
-    // Compared against the normalised value, not the raw setting: mResolution
-    // is always max(setting, 1) once createResources() has run, so comparing
-    // it to a raw 0 setting never agrees and recreated the cascades every
-    // single frame.
+    // Compare against the normalised value: mResolution is max(setting, 1), so a raw 0 would recreate cascades every frame.
     const u32 cascadeResolution = Math::max(mCalculator.settings.resolution, 1u);
     const u32 cascadeCount = Math::clamp(mCalculator.settings.count, 1u, MaxShadowCascades);
     const u32 wantedResolution = cascadeCount >= 3 ? cascadeResolution * 2u : cascadeResolution;
     if (mResolution != wantedResolution && !createResources())
     {
-        // createResources() destroys the old cascades before building the
-        // new ones, so a failure here has nothing valid left to fall back
-        // to - not even what existed before this call.
+        // createResources() destroys the old cascades first, so a failure leaves nothing valid to fall back to.
         reportSkip(ShadowSkipReason::ResourcesFailed);
         GPU::getSingleton().updateBuffer(mBlock, 0, sizeof(block), &block);
         return;
@@ -218,8 +205,7 @@ void ShadowPass::execute(ShadowCasterSource& casters, FrameContext& frame, Depth
     GPU& gpu = GPU::getSingleton();
     gpu.updateBuffer(mBlock, 0, sizeof(block), &block);
 
-    // Resources are confirmed valid and the block just written matches them -
-    // only now is it correct to point the frame at them.
+    // Resources are valid and the block matches them: only now point the frame at them.
     frame.directionalShadow = mTexture;
     frame.directionalShadowSampler = mSampler;
     frame.directionalShadowRawSampler = mRawSampler;

@@ -1,11 +1,7 @@
 #ifndef RADION_AI_TRANSITION_H
 #define RADION_AI_TRANSITION_H
 
-// Transition.h - state transitions for the Radion AI state machine.
-//
-// A transition is a predicate on the source state; when it fires, the state
-// machine moves from the source to the target state. Transitions do NOT own
-// their states - the StateMachine owns all states.
+// Transitions do NOT own their states; the StateMachine does.
 
 #include "State.h"
 
@@ -57,7 +53,6 @@ protected:
     State* mTarget; // non-owning; owned by the StateMachine
 };
 
-// Comparison functor used by ComparitorTransition.
 class Comparitor
 {
 public:
@@ -144,7 +139,6 @@ public:
     }
 };
 
-// Fires when source().value() compares against a fixed threshold.
 class ComparitorTransition final : public Transition
 {
 public:
@@ -181,9 +175,6 @@ private:
     Comparitor* mFunc; // owned by this transition
 };
 
-// Callback transition - the C++ replacement for the demo's Python scripted
-// transitions (GI_AISDK ScriptedTransition). Fires when the user functor
-// returns true; capture the owning entity in the lambda.
 class CallbackTransition final : public Transition
 {
 public:

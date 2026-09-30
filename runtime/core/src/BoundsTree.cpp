@@ -9,10 +9,7 @@ namespace Radion
 
 namespace
 {
-// Deep enough for any tree that splits a real scene, and the size the
-// traversal stack is built for. A build that would go deeper stops splitting
-// instead, which costs a slightly worse tree - never a wrong answer, which is
-// what silently running out of stack during a query would give.
+// Deep enough for real scenes; also the traversal stack size. Past it splitting stops (worse tree, never a wrong answer).
 constexpr u32 kMaxDepth = 48;
 
 f32 surfaceArea(const AABB& box)
@@ -45,10 +42,7 @@ void BoundsTree::build(const AABB* bounds, u32 count)
     if (!bounds || count == 0)
         return;
 
-    // A binary tree whose leaves hold at least one item each needs at most
-    // 2n-1 nodes. Leaves here hold up to mLeafCapacity, so this is an upper
-    // bound with room to spare and the vector never reallocates mid-build -
-    // which matters, because subdivide() holds a reference into it.
+    // 2n-1 nodes bounds a binary tree; reserved up front because subdivide() holds a reference into mNodes.
     mNodes.resize(static_cast<usize>(count) * 2u);
     mBounds.assign(bounds, bounds + count);
     mOrder.resize(count);
@@ -80,17 +74,13 @@ void BoundsTree::subdivide(u32 nodeIndex, const AABB* bounds, u32 depth)
     if (depth >= kMaxDepth)
         return;
 
-    // Read out what is needed before recursing: the recursive calls take
-    // their own references into mNodes, and holding one across them is how a
-    // subtle aliasing bug gets in even when the vector cannot reallocate.
+    // Read what is needed before recursing: recursive calls take their own references into mNodes.
     const u32 count = mNodes[nodeIndex].count;
     const u32 offset = mNodes[nodeIndex].offset;
     if (count <= mLeafCapacity)
         return;
 
-    // Split down the middle of the longest axis. Not a surface-area
-    // heuristic: this is rebuilt often and refitted constantly, and the time
-    // an SAH build costs is worth more than the traversal it saves here.
+    // Middle of the longest axis, not SAH: rebuilt and refitted often, and SAH build time costs more than it saves.
     const Math::vec3 extent = mNodes[nodeIndex].bounds.max - mNodes[nodeIndex].bounds.min;
     u32 axis = 0;
     if (extent.y > extent.x)
@@ -99,7 +89,6 @@ void BoundsTree::subdivide(u32 nodeIndex, const AABB* bounds, u32 depth)
         axis = 2;
     const f32 split = mNodes[nodeIndex].bounds.min[axis] + extent[axis] * 0.5f;
 
-    // In-place partition of this node's own run of the order array.
     u32 left = offset;
     u32 right = offset + count;
     while (left < right)
@@ -113,16 +102,14 @@ void BoundsTree::subdivide(u32 nodeIndex, const AABB* bounds, u32 depth)
     }
 
     u32 leftCount = left - offset;
-    // Everything landed on one side - which happens whenever the centres
-    // coincide, and would otherwise recurse forever on the same set. Split
-    // the run down the middle instead so the tree still gets built.
+    // All on one side (e.g. coincident centres) would recurse forever; split the run down the middle.
     if (leftCount == 0 || leftCount == count)
         leftCount = count / 2;
 
     const u32 leftChild = mNodeCount++;
     const u32 rightChild = mNodeCount++;
     mNodes[nodeIndex].left = leftChild;
-    mNodes[nodeIndex].count = 0; // no longer a leaf
+    mNodes[nodeIndex].count = 0;
 
     mNodes[leftChild] = Node();
     mNodes[leftChild].offset = offset;
@@ -141,15 +128,12 @@ bool BoundsTree::refit(const AABB* bounds, u32 count)
 {
     if (mNodeCount == 0 || !bounds)
         return false;
-    // The tree's shape encodes which item is in which leaf, so it is only
-    // valid for the exact set it was built from.
+    // Only valid for the exact set it was built from.
     if (count != static_cast<u32>(mOrder.size()))
         return false;
     std::copy(bounds, bounds + count, mBounds.begin());
 
-    // Backwards over the nodes: build() only ever gives a child a higher
-    // index than its parent, so one linear pass in reverse always meets both
-    // children before the parent that merges them. No recursion, no stack.
+    // Reverse pass: children always have higher indices than their parent, so no recursion is needed.
     for (u32 i = mNodeCount; i > 0; --i)
     {
         Node& node = mNodes[i - 1];
@@ -246,9 +230,7 @@ void BoundsTree::queryCandidates(const Frustum& frustum, std::vector<u32>& out) 
     if (mNodeCount == 0)
         return;
 
-    // Nodes fully inside are marked, and everything under them is taken
-    // without another plane test - which is most of a large tree once the
-    // camera is anywhere but on top of it.
+    // Fully-inside nodes are marked; everything under them is taken without further plane tests.
     mStack.clear();
     mStack.push_back(0);
     mStack.push_back(0); // 0 = must test, 1 = wholly inside
@@ -302,11 +284,7 @@ void BoundsTree::queryCandidates(const Ray& ray, f32 maxDistance, std::vector<u3
         f32 distance = 0.0f;
         if (!ray.intersects(node.bounds, distance))
             continue;
-        // Ray::intersects() reports the EXIT distance when the origin is
-        // inside the box - the entry distance a range prune wants is 0 there.
-        // Without this, a short ray cast from inside the tree's own bounds (a
-        // wheel's suspension probe standing on a large mesh, e.g.) culled the
-        // root and returned nothing.
+        // Ray::intersects() reports the EXIT distance from inside the box; a range prune needs entry distance 0 there.
         if (distance > maxDistance && !node.bounds.contains(ray.origin))
             continue;
         if (node.isLeaf())

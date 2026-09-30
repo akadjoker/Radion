@@ -56,9 +56,7 @@ private:
     void drawMeshRenderer(GameObject& object, class MeshRenderer& renderer);
     void drawMeshMaterial(class MeshRenderer& renderer);
     bool drawMaterialFields(struct Material& material);
-    // Gives one submesh its own material slot, copied from whatever it
-    // shares today, so editing it stops reaching every other submesh still
-    // on the old slot - see the slot-sharing note on drawMeshMaterial().
+    // Gives one submesh its own material slot copied from its shared one, so edits stop reaching the others (see drawMeshMaterial()).
     bool makeSubmeshMaterialUnique(MeshHandle handle, u32 slot, s32 submeshIndex);
     void drawReflectionProbe(class ReflectionProbe& probeComponent);
     void drawCameraComponent(class Camera& camera);
@@ -91,12 +89,7 @@ private:
     void drawTerrainComponent(class Terrain& terrain);
     void drawTiledTerrainComponent(class TiledTerrain& terrain);
     void drawRoadComponent(GameObject& object, class Road& road);
-    // "Add Component" - today just Animator, the one this editor otherwise
-    // has no way at all to attach to an already-existing object (import only
-    // ever adds MeshRenderer). Converts any .fbx picked here to .rskel/
-    // .ranim next to itself through AssetManager::importSkeleton()/
-    // importAnimation() - Animator::bind()/SceneSerializer both require the
-    // Radion format, never a raw FBX.
+    // "Add Component": Animator only. Converts a picked .fbx to .rskel/.ranim via AssetManager::importSkeleton()/importAnimation(); Animator needs the Radion format.
     void drawAddComponentSection(GameObject& object);
 
     PrimitiveSettings mPrimitiveSettings;
@@ -112,28 +105,21 @@ private:
     std::vector<std::string> mNewAnimatorClipFiles;
     ImGuiFileDialog mAnimatorSkeletonDialog;
     ImGuiFileDialog mAnimatorClipDialog;
-    // One dialog for both directions - only one of the two target ids is
-    // ever set, which is what says whether the result is a save or a load.
+    // One dialog for both directions; which of the two target ids is set says save or load.
     ImGuiFileDialog mNavMeshDialog;
     u64 mNavMeshSaveTarget = 0;
     u64 mNavMeshLoadTarget = 0;
     bool mAnimatorSkeletonDialogPending = false;
     bool mAnimatorClipDialogPending = false;
     char mBoneFilter[64] = ""; // the Select Bone popup's search box
-    // The Animator panel's "add event" row - one time and name shared by
-    // every clip, since only one is being edited at a time.
     char mAnimationEventName[64] = "";
     f32 mAnimationEventTime = 0.0f;
-    // The path field's own edit buffer, refreshed from scriptPath() whenever
-    // the selected object's ZenBehaviour changes - otherwise every keystroke
-    // fights the field back to whatever loadFile() last reported.
+    // Edit buffer for the path field, refreshed when the selected ZenBehaviour changes; otherwise keystrokes fight loadFile()'s value.
     u64 mZenBehaviourObjectId = 0;
     char mZenScriptPathBuffer[256] = "";
     ImGuiFileDialog mZenScriptDialog;
     u64 mZenScriptDialogTarget = 0;
-    // Set by "Create" on failure and shown inline - createAnimator() only
-    // ever logged before, so a failure looked exactly like nothing having
-    // happened at all.
+    // Set on "Create" failure and shown inline (createAnimator() only logged).
     std::string mNewAnimatorError;
 };
 

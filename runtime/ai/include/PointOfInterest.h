@@ -1,11 +1,6 @@
 #ifndef RADION_AI_POINTOFINTEREST_H
 #define RADION_AI_POINTOFINTEREST_H
 
-// PointOfInterest.h - named locations a squad can be ordered to.
-//
-// A small registry class (PointsOfInterest) that OWNS the PointOfInterest
-// objects added to it.
-
 #include "Types.h"
 
 #include "Math.h"
@@ -25,8 +20,7 @@ public:
     {
     }
 
-    // Assigned lazily on first call so default-constructed POIs never waste
-    // an id until they are actually registered.
+    // Assigned lazily so default-constructed POIs do not consume an id.
     PointOfInterestID id() const;
 
     const Math::vec3& position() const
@@ -70,10 +64,8 @@ public:
     void clear();
     PointOfInterest* find(PointOfInterestID poiID) const;
 
-    // Random POI that is not the one given.
     PointOfInterest* selectRandom(PointOfInterestID current) const;
 
-    // POI nearest to position.
     PointOfInterest* findNearest(const Math::vec3& position) const;
 
     const Map& map() const

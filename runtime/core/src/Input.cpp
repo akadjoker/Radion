@@ -1,8 +1,5 @@
 #include "PCH.h"
 
-/** ****************************************************************************
-  Radion Platform - Input implementation (SDL2 backend).
-**************************************************************************** */
 #include "Input.h"
 
 #include <SDL2/SDL.h>
@@ -45,10 +42,6 @@ SDL_FingerID Input::touchId[Input::MAX_TOUCH_POINTS];
 int Input::touchPointCount = 0;
 
 static Math::vec2 sMouseDeltaAccum;
-
-// ------------------------------------------------------------------------
-// Lifecycle
-// ------------------------------------------------------------------------
 
 void Input::init()
 {
@@ -108,10 +101,6 @@ void Input::update()
                 32767.0f;
     }
 }
-
-// ------------------------------------------------------------------------
-// Event feed (called from the platform event pump)
-// ------------------------------------------------------------------------
 
 void Input::onMouseDown(const SDL_MouseButtonEvent& event)
 {
@@ -177,8 +166,7 @@ void Input::onTouchUp(const SDL_TouchFingerEvent& event)
     {
         if (touchId[i] != event.fingerId)
             continue;
-        // Swap-remove: touch point order isn't meaningful, so this avoids
-        // shifting the rest of the (tiny) array down by one.
+        // Swap-remove: touch order is not meaningful.
         touchId[i] = touchId[touchPointCount - 1];
         touchPosition[i] = touchPosition[touchPointCount - 1];
         --touchPointCount;
@@ -196,10 +184,6 @@ void Input::onTouchMove(const SDL_TouchFingerEvent& event)
         break;
     }
 }
-
-// ------------------------------------------------------------------------
-// Touch queries
-// ------------------------------------------------------------------------
 
 int Input::getTouchPointCount()
 {
@@ -219,10 +203,6 @@ long long Input::getTouchPointId(int index)
         return -1;
     return static_cast<long long>(touchId[index]);
 }
-
-// ------------------------------------------------------------------------
-// Mouse queries
-// ------------------------------------------------------------------------
 
 bool Input::isMousePressed(MouseButton button)
 {
@@ -294,17 +274,17 @@ float Input::getMouseWheelMoveV()
 void Input::setMouseCursor(MouseCursor cursor)
 {
     static const SDL_SystemCursor map[] = {
-        SDL_SYSTEM_CURSOR_ARROW,     // DEFAULT
-        SDL_SYSTEM_CURSOR_ARROW,     // ARROW
-        SDL_SYSTEM_CURSOR_IBEAM,     // IBEAM
-        SDL_SYSTEM_CURSOR_CROSSHAIR, // CROSSHAIR
-        SDL_SYSTEM_CURSOR_HAND,      // POINTING_HAND
-        SDL_SYSTEM_CURSOR_SIZEWE,    // RESIZE_EW
-        SDL_SYSTEM_CURSOR_SIZENS,    // RESIZE_NS
-        SDL_SYSTEM_CURSOR_SIZENWSE,  // RESIZE_NWSE
-        SDL_SYSTEM_CURSOR_SIZENESW,  // RESIZE_NESW
-        SDL_SYSTEM_CURSOR_SIZEALL,   // RESIZE_ALL
-        SDL_SYSTEM_CURSOR_NO         // NOT_ALLOWED
+        SDL_SYSTEM_CURSOR_ARROW,
+        SDL_SYSTEM_CURSOR_ARROW,
+        SDL_SYSTEM_CURSOR_IBEAM,
+        SDL_SYSTEM_CURSOR_CROSSHAIR,
+        SDL_SYSTEM_CURSOR_HAND,
+        SDL_SYSTEM_CURSOR_SIZEWE,
+        SDL_SYSTEM_CURSOR_SIZENS,
+        SDL_SYSTEM_CURSOR_SIZENWSE,
+        SDL_SYSTEM_CURSOR_SIZENESW,
+        SDL_SYSTEM_CURSOR_SIZEALL,
+        SDL_SYSTEM_CURSOR_NO
     };
 
     if (mouseCursor)
@@ -317,10 +297,6 @@ void Input::setMouseCursor(MouseCursor cursor)
         SDL_SetCursor(mouseCursor);
     currentCursor = cursor;
 }
-
-// ------------------------------------------------------------------------
-// Keyboard queries
-// ------------------------------------------------------------------------
 
 bool Input::isKeyPressed(KeyCode key)
 {
@@ -363,10 +339,6 @@ int Input::getCharPressed()
     --charPressedQueueCount;
     return c;
 }
-
-// ------------------------------------------------------------------------
-// Gamepad queries
-// ------------------------------------------------------------------------
 
 bool Input::isGamepadAvailable(int gamepad)
 {
@@ -429,12 +401,7 @@ float Input::getGamepadAxisMovement(int gamepad, GamepadAxis axis)
     return gamepadAxisState[gamepad][axis];
 }
 
-// ------------------------------------------------------------------------
-// Helpers - pure SDL enum conversions, kept out of the class (and out of
-// Input.h) since they touch no Input state and would otherwise force the
-// public header to name SDL_Scancode/SDL_GameControllerButton, which can't
-// be forward-declared without pulling in <SDL2/SDL.h>.
-// ------------------------------------------------------------------------
+// Pure SDL enum conversions, kept out of Input.h so it need not name SDL types (not forward-declarable).
 
 namespace
 {

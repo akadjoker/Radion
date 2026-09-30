@@ -44,8 +44,6 @@ bool WaterPass::setup()
     environmentDesc.debugName = "water.environment";
     mEnvironmentBuffer = gpu.createBuffer(environmentDesc);
 
-    // One water plane's worth up front; grown the same way ForwardPass grows
-    // its own if more instances ever submit.
     BufferDesc instanceDesc;
     instanceDesc.size = sizeof(Math::mat4);
     instanceDesc.usage = BufferStorage;
@@ -80,12 +78,7 @@ void WaterPass::execute(const FrameContext& frame)
     GPU& gpu = GPU::getSingleton();
     AssetManager& assets = Assets();
 
-    // Taken while frame.target is still exactly what Forward/Grass/Trees/Sky
-    // left in it, and before this pass starts drawing into that same target -
-    // see resolveSceneCopy(). Not optional: without an owned copy, refraction
-    // either reads a texture nobody in the engine ever wrote (only the water
-    // example published one manually) or samples the target it is currently
-    // bound to.
+    // Taken while frame.target holds what Forward/Grass/Trees/Sky drew, before this pass draws into it (see resolveSceneCopy()): refraction needs an owned copy.
     const TextureHandle refraction =
         assets.resolveRenderTarget(hashName(kRefractionTargetName));
     const TextureHandle refractionDepth =
@@ -107,9 +100,7 @@ void WaterPass::execute(const FrameContext& frame)
     gpu.updateBuffer(mEnvironmentBuffer, 0, sizeof(EnvironmentBlock), &environment);
     gpu.bindUniform(BindingEnvironment, mEnvironmentBuffer);
 
-    // Recovered from the projection rather than taken from FrameContext,
-    // which carries a near plane but no far one. Both are needed to turn the
-    // refraction depth sample back into a distance.
+    // Recovered from the projection: FrameContext has a near plane but no far one; both turn the refraction depth sample into a distance.
     const Math::mat4& projection = frame.projection;
     WaterBlock water;
     water.timeNearFar.x = frame.time;
@@ -119,21 +110,15 @@ void WaterPass::execute(const FrameContext& frame)
     gpu.updateBuffer(mWaterBuffer, 0, sizeof(WaterBlock), &water);
     gpu.bindUniform(BindingWater, mWaterBuffer);
 
-    // Always bind something: an unbound slot keeps whatever the previous
-    // pass left there, which is how the water shader ended up reading a
-    // normal map or an atlas page as if it were the sky.
+    // Always bind something: an unbound slot keeps the previous pass's texture, which the water shader read as sky.
     const TextureHandle reflection = assets.resolveRenderTarget(hashName(kReflectionTargetName));
     gpu.bindTexture(BindingReflection, reflection.valid() ? reflection : mFallbackBlack);
     gpu.bindTexture(BindingRefraction, hasRefraction ? refraction : mFallbackBlack);
-    // Black reads as the near plane, so without a copy every pixel comes out
-    // at zero depth - shallow everywhere, which switches the surface off
-    // rather than leaving it wrong in some harder-to-read way.
+    // Black reads as the near plane: without a copy depth is zero everywhere and the surface switches off.
     gpu.bindTexture(BindingRefractionDepth,
                     refractionDepth.valid() ? refractionDepth : mFallbackBlack);
 
-    // Water is never the bulk of a scene's geometry, so this is a plain
-    // one-model-per-draw loop - no run-merging like ForwardPass, which exists
-    // for thousands of grouped instances, not a handful of water planes.
+    // Plain one-model-per-draw loop: water is never the bulk of a scene, unlike ForwardPass's run-merging.
     for (const RenderPacket& packet : packets)
     {
         const RenderInstance& instance = frame.list->instance(packet.instance);
@@ -149,8 +134,7 @@ void WaterPass::execute(const FrameContext& frame)
         gpu.setPipeline(instance.pipeline);
         gpu.bindUniform(BindingMaterial, material.paramsBuffer);
 
-        // The ripple noise is the one texture the surface owns itself, so it
-        // comes off the material rather than from a target published upstream.
+        // The ripple noise comes off the material, the one texture the surface owns.
         const MaterialTexture& noise = material.textures[SlotAlbedo];
         gpu.bindTexture(BindingAlbedo, noise.texture.valid() ? noise.texture : mFallbackBlack,
                         noise.sampler);

@@ -47,10 +47,7 @@ bool LensFlarePass::ensurePipeline()
     GPU& gpu = GPU::getSingleton();
     AssetManager& assets = Assets();
 
-    // Deferred to first use, not setup(): setup() runs inside
-    // Engine::initialize(), before a demo has registered its own asset
-    // search paths - loading here the way GrassRender/TreeRender defer their
-    // own shaders to ensurePipelines() rather than setup().
+    // Deferred to first use: setup() runs before a demo registers its asset search paths.
     SamplerDesc depthDesc;
     depthDesc.filter = Filter::Point;
     depthDesc.wrapU = Wrap::Clamp;
@@ -133,8 +130,7 @@ void LensFlarePass::execute(const FrameContext& frame, PostProcessStack& post)
     if (!ensurePipeline() || !ensureTarget(post))
         return;
 
-    // Directional light, sun at infinity: place it far along the sun
-    // direction from the camera, the way Wicked does (POS = eye + D * -zFar).
+    // Sun at infinity: placed far along the sun direction (POS = eye + D * -zFar), as Wicked does.
     const Math::vec3 toSunDir = Math::normalize(frame.sky->sunDirection);
     const Math::vec3 sunWorld = frame.cameraPosition + toSunDir * sunDistance;
     const Math::vec4 clip = frame.viewProjection * Math::vec4(sunWorld, 1.0f);

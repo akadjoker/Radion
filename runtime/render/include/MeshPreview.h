@@ -11,14 +11,8 @@ namespace Radion
 
 struct Material;
 
-// Renders one mesh, alone, into an offscreen target an editor panel can show
-// with ImGui::Image. Without it, changing one of twenty generator parameters
-// meant travelling to a real instance in the scene to see what it did.
-//
-// Deliberately not a RenderTechnique: it does not belong to the frame's pass
-// list, has no FrameContext, and runs when a panel asks rather than once per
-// frame in a fixed order. It draws with the material's own pipeline, so what
-// shows is the same shader the scene uses, not an approximation of it.
+// Renders one mesh alone into an offscreen target for an editor panel (ImGui::Image).
+// Not a RenderTechnique: no FrameContext, runs when a panel asks. Uses the material's own pipeline so it matches the scene's shader.
 class MeshPreview
 {
 public:
@@ -30,16 +24,11 @@ public:
         return mScene.valid() && mResolved.valid();
     }
 
-    // Frames the mesh by its bounding sphere and orbits `yaw` radians around
-    // it. `materials` is indexed by SubMesh::materialSlot, the same way
-    // RenderList::submit() takes overrides; a slot without one falls back to
-    // the mesh's own material.
+    // Frames the mesh by bounding sphere, orbiting `yaw` radians. `materials` is indexed by SubMesh::materialSlot; a slot without one uses the mesh's own.
     void render(MeshHandle mesh, const Material* materials, u32 materialCount, f32 yaw,
                 f32 pitch = 0.35f);
 
-    // What ImGui::Image needs: the backend's own id, not our handle. Zero
-    // until create() has succeeded. The image is bottom-up, so a panel has to
-    // pass uv0=(0,1), uv1=(1,0).
+    // Backend texture id for ImGui::Image; zero until create() succeeds. The image is bottom-up: pass uv0=(0,1), uv1=(1,0).
     u32 textureId() const;
 
     TextureHandle texture() const
@@ -50,24 +39,16 @@ public:
 private:
     bool ensureResolvePipeline();
 
-    // Two targets, for the same reason the scene has two: a Lit shader writes
-    // linear HDR, and showing that straight in a panel is the washed-out dark
-    // image gamma always gives. mScene takes the draw, mResolved takes the
-    // tonemapped, gamma-encoded copy - which is what ImGui shows.
+    // mScene takes the linear HDR draw; mResolved takes the tonemapped, gamma-encoded copy that ImGui shows.
     OffscreenTarget mScene;
     OffscreenTarget mResolved;
 
     BufferHandle mCameraBuffer;
-    // The vertex shaders shared with the scene compute a motion vector from
-    // this block. A preview is a still frame, so both matrices hold the same
-    // camera - leaving the block unbound would divide by a zero w instead.
+    // Shared vertex shaders read a motion vector from this block; a still preview holds the same camera in both matrices (unbound would divide by zero w).
     BufferHandle mTemporalBuffer;
     BufferHandle mInstanceBuffer;
 
-    // Its own lighting, not the frame's. Inheriting the scene's left a preview
-    // that was dark or half-lit depending on where the camera happened to be
-    // standing, and fully shadowed whenever the mesh fell outside the
-    // cascades the main camera's frustum fitted.
+    // Own lighting, not the frame's: inheriting the scene's made previews dark or fully shadowed depending on the camera.
     BufferHandle mEnvironmentBuffer;
     BufferHandle mShadowBuffer;
 

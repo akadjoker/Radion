@@ -26,10 +26,7 @@ private:
     void drawProbePreviews();
 
     OffscreenTarget mPreview;
-    // One target per cascade rather than mPreview reused behind a slider -
-    // there is enough width to lay every cascade out side by side, and that
-    // is a straight comparison ("is the far one starving for resolution")
-    // a one-at-a-time view never gave without flipping back and forth.
+    // One target per cascade, laid out side by side for direct comparison.
     OffscreenTarget mCascadePreviews[MaxShadowCascades];
     OffscreenTarget mProbePreviews[EnvironmentProbe::FaceCount];
     bool mEnabled = false;

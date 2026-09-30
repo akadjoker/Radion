@@ -10,9 +10,7 @@
 namespace Radion
 {
 
-// One planted tree. Four floats plus four, matching TreeInstance in tree.vert.
-// `normal` is unused by the shader today and kept because the layout is shared
-// with the impostor path, which orients its quad by it.
+// One planted tree, matching TreeInstance in tree.vert. `normal` is unused by the shader but kept because the impostor path shares the layout and orients its quad by it.
 struct TreeInstanceData
 {
     Math::vec3 position = Math::vec3(0.0f);
@@ -21,26 +19,19 @@ struct TreeInstanceData
     f32 rotation = 0.0f; // radians
 };
 
-// One species' worth of trees for the frame. The pass reads the instance array
-// straight out of the component, so nothing is copied on the way.
-//
-// One command per species: same mesh, same three textures, so the whole
-// species draws as two instanced calls (trunk, then leaves).
+// One species' worth of trees for the frame; instance arrays are read in place. Same mesh and textures, so a species draws as two instanced calls (trunk, leaves).
 struct TreeDrawCommand
 {
     MeshHandle mesh;
     const TreeInstanceData* instances = nullptr;
     u32 instanceCount = 0;
 
-    // Submesh 0 is the bark, submesh 1 the twig cards - the order
-    // AssetManager::buildTree() writes them in.
+    // Submesh 0 is the bark, submesh 1 the twig cards (the order AssetManager::buildTree() writes).
     TextureHandle bark;
     TextureHandle barkNormal;
     TextureHandle twigTexture;
 
-    // The mesh's own height in metres. Forest scales each species to its
-    // target height at build time, so the shader needs this only to turn a
-    // vertex's height back into a 0..1 fraction for the wind and the AO.
+    // The mesh's height in metres; the shader turns a vertex height back into a 0..1 fraction for wind and AO.
     f32 modelHeight = 1.0f;
 
     f32 wind = 1.0f;
@@ -48,27 +39,18 @@ struct TreeDrawCommand
     f32 bumpForce = 1.0f;
     bool castShadow = true;
 
-    // ---- Impostors ----
-    //
-    // Beyond `swapDistance` a tree is a photographed quad instead of a mesh.
-    // The caller splits its own instances into the two lists: those inside
-    // swapDistance + swapBand go in `instances` above and draw as geometry,
-    // those outside swapDistance - swapBand come here. The overlap is the band,
-    // where both draw and the impostor fades in over the mesh.
+    // Beyond `swapDistance` a tree is a photographed quad. Instances inside swapDistance + swapBand go in `instances` as geometry; those outside swapDistance - swapBand go here.
+    // In the overlap band both draw and the impostor fades in.
     const TreeInstanceData* impostorInstances = nullptr;
     u32 impostorInstanceCount = 0;
     bool impostorsEnabled = false;
     f32 swapDistance = 120.0f;
     f32 swapBand = 12.0f;
 
-    // Quad width over height. A tree is taller than it is wide, and a square
-    // quad would leave the crown floating in empty space.
+    // Quad width over height; a square quad would leave the crown floating in empty space.
     f32 impostorWidth = 0.85f;
 
-    // Identifies the species across frames, so the pass knows whose photographs
-    // it already holds. Bump `impostorRevision` when the mesh changes and the
-    // pass re-photographs it - with a fixed mesh this was ambiguous; here it is
-    // known exactly.
+    // Identifies the species across frames so the pass knows which photographs it holds; bump `impostorRevision` when the mesh changes to re-photograph it.
     u32 impostorKey = 0;
     u32 impostorRevision = 0;
 };
@@ -88,11 +70,7 @@ private:
 
 TreeRenderQueue& TreeDraws();
 
-// Instanced draw with the tree pipeline, which is what the generic mesh path
-// could not give: the wind is a vertex-shader displacement that needs the
-// vertex's own local position, and the leaves need a depth shader that
-// alpha-tests. Both live here rather than in lit.vert/depth.frag, where they
-// would cost every other mesh in the scene a branch it never takes.
+// Instanced draw with the tree pipeline: wind is a vertex displacement needing local position, and leaves need an alpha-testing depth shader. Kept here rather than in lit.vert/depth.frag so other meshes pay no extra branch.
 RenderTechnique* createTreePass();
 
 } // namespace Radion

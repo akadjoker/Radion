@@ -23,9 +23,7 @@ f64 milliseconds(std::chrono::steady_clock::time_point begin,
     return std::chrono::duration<f64, std::milli>(end - begin).count();
 }
 
-// A pile of falling boxes: broadphase, narrowphase and solver all under
-// load at once. Reported per step over the second half of the run, once the
-// pile has mostly landed and the contact count is at its worst.
+// Falling boxes: reported per step over the second half, once the pile has landed and contacts peak.
 void benchBoxPile(u32 count)
 {
     BoxShape groundShape(Math::vec3(60.0f, 0.5f, 60.0f));
@@ -329,11 +327,7 @@ void buildTerrainGrid(u32 quadsPerSide, std::vector<Math::vec3>& positions,
         }
 }
 
-// Free soft-body particles thrown against a level-sized trimesh - the blood
-// splash zombie_night spawns per hit, several of them alive at once. What it
-// measures is the per-particle contact search: a search radius tied to
-// anything other than the particle's own travel turns each of these into a
-// walk over thousands of the level's triangles.
+// Soft-body particles vs a level-sized trimesh: a search radius not tied to the particle's own travel walks thousands of triangles.
 void benchSoftBodySplashes(u32 splashCount, u32 particlesPerSplash)
 {
     std::vector<Math::vec3> positions;
@@ -385,10 +379,7 @@ void benchSoftBodySplashes(u32 splashCount, u32 particlesPerSplash)
         worst = Math::max(worst, elapsed);
     }
 
-    // Without this the timing means nothing: a search radius small enough to
-    // find no surface at all is the fastest possible answer and the wrong
-    // one. Every particle is thrown upward from above the mesh, so by the
-    // last step every one of them must be resting on it.
+    // Every particle must end resting on the mesh; a radius too small to find any surface is fastest and wrong.
     u32 landed = 0;
     for (const SoftBody& splash : splashes)
         for (u32 p = 0; p < splash.particleCount(); ++p)
@@ -401,10 +392,7 @@ void benchSoftBodySplashes(u32 splashCount, u32 particlesPerSplash)
                 splashCount * particlesPerSplash);
 }
 
-// A million-triangle static mesh, the scale of a whole scanned-in level
-// used as one collider. Build cost, ray cost through its tree, and dynamic
-// boxes resting on it are the three numbers that decide whether a big map
-// can simply BE the collision world.
+// Million-triangle static mesh: build cost, ray cost and resting boxes decide whether a map can be the collision world.
 void benchLargeTrimesh(u32 quadsPerSide)
 {
     std::vector<Math::vec3> positions;

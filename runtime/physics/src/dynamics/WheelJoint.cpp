@@ -80,9 +80,7 @@ void WheelJoint::rebuild()
     RigidBody* chassisBody = other->getComponent<RigidBody>();
     if (!wheelBody || !chassisBody)
         return;
-    // The owner is the wheel and the connected body the chassis: a car is
-    // authored as four wheel objects hanging off one chassis, so the joint
-    // lives on the part there are several of.
+    // Owner is the wheel, connected body the chassis: a car is four wheel objects off one chassis, so the joint lives on the part there are several of.
     Scene* scene = self->scene();
     if (!scene)
         return;
@@ -93,10 +91,7 @@ void WheelJoint::rebuild()
     mBuilt = true;
 }
 
-// Both only record the axis and drop the built flag, the way
-// HingeJoint::setAuthoredAxis() does - the Scene rebuilds an unbuilt joint
-// on its own. Rebuilding here would run before the object is even in a
-// scene, which is where owner()->scene() is still null.
+// Only records the axis and drops the built flag (as HingeJoint::setAuthoredAxis()); rebuilding here would run before the object is in a scene (owner()->scene() null).
 void WheelJoint::setAuthoredSuspensionAxis(const Math::vec3& axis)
 {
     if (Math::length(axis) <= 1.0e-6f)
@@ -166,8 +161,7 @@ void WheelJoint::setSteeringServo(f32 targetAngle, f32 maxTorque, f32 maxAngular
     if (!std::isfinite(targetAngle) || !std::isfinite(maxTorque) ||
         !std::isfinite(maxAngularVelocity))
         return;
-    // See HingeJoint::setServo(): a new target on a sleeping wheel is an
-    // order the solver never steps.
+    // A new target on a sleeping wheel would go unstepped; wake it (see HingeJoint::setServo()).
     if (targetAngle != mSteeringServoTargetAngle || !mSteeringServoEnabled)
         wakeBodies();
     mSteeringServoTargetAngle = targetAngle;
@@ -354,10 +348,7 @@ void WheelJoint::applyAngularImpulse(const Math::vec3& impulse)
                                    mWheel->inverseInertiaTensorWorld() * impulse);
 }
 
-// F = -k*x - c*v, applied once per step like a real spring: nothing here is
-// clamped or warm started, it is recomputed fresh from the current travel
-// and closing speed every setup() the same way gravity is reapplied every
-// step rather than carried over.
+// F = -k*x - c*v applied once per step like a real spring: nothing clamped or warm started, recomputed from current travel and closing speed each setup().
 void WheelJoint::calculateSuspensionProperties(f32 duration)
 {
     if (mSuspensionStiffness <= 0.0f && mSuspensionDamping <= 0.0f)
@@ -367,8 +358,7 @@ void WheelJoint::calculateSuspensionProperties(f32 duration)
         return;
     }
 
-    // The row is the suspension axis itself, with the same arms the two
-    // perpendicular rows use (calculatePositionLockProperties()).
+    // Row is the suspension axis itself, with the same arms as the perpendicular rows (calculatePositionLockProperties()).
     const Math::vec3 armAPlusOffset = mArmA + mOffset;
     const Math::vec3 r1 = Math::cross(armAPlusOffset, mAxisA);
     const Math::vec3 r2 = Math::cross(mArmB, mAxisA);
@@ -382,10 +372,8 @@ void WheelJoint::calculateSuspensionProperties(f32 duration)
         return;
     }
 
-    // C is how far the strut sits from where the spring wants it. Compressed
-    // (slide below rest) is negative, and solveVelocity subtracts the bias,
-    // so a compressed strut pushes the wheel away along mAxisA - which is
-    // the direction that axis points, chassis towards ground.
+    // C is the strut's distance from where the spring wants it; compressed is negative and solveVelocity subtracts the bias,
+    // so a compressed strut pushes the wheel away along mAxisA (chassis towards ground).
     const f32 positionError = mSlidePosition - mSuspensionRestLength;
     mSuspensionSpring.calculate(duration, inverseEffectiveMass, 0.0f, positionError,
                                 mSuspensionStiffness, mSuspensionDamping, mSuspensionEffectiveMass);
@@ -397,17 +385,13 @@ void WheelJoint::setup(f32 duration)
     calculatePositionLockProperties();
     calculatePerpendicularityProperties();
     calculateAngles();
-    // The steering servo feeds the motor below, so it runs before the motor's
-    // properties are worked out - and after calculateAngles(), which is what
-    // refreshes the steering angle the error is measured from. Clamped into
-    // the steering limits: a rack cannot be commanded past its own stops.
+    // Steering servo runs before the motor properties and after calculateAngles() (which refreshes the angle the error uses); clamped to the steering limits.
     if (mSteeringServoEnabled && duration > 0.0f)
     {
         f32 target = mSteeringServoTargetAngle;
         if (mHasSteeringLimits)
             target = Math::clamp(target, mSteeringLimitsMin, mSteeringLimitsMax);
         const f32 error = target - mSteeringAngle;
-        // See HingeJoint::setup().
         if (std::abs(error) > 0.001f)
             wakeBodies();
         f32 velocity = error / duration;
@@ -474,10 +458,7 @@ void WheelJoint::solveVelocity()
 
     if (mSpinMotorEnabled)
     {
-        // chassis - wheel, matching applyAngularImpulse's sign convention
-        // (subtracts from chassis, adds to wheel) - using wheel - chassis
-        // here turns the servo into positive feedback instead of driving the
-        // relative velocity to the target.
+        // chassis - wheel, matching applyAngularImpulse's sign convention; wheel - chassis turns the servo into positive feedback.
         const f32 relative = Math::dot(mAxisB, mChassis->angularVelocity() - mWheel->angularVelocity());
         const f32 impulse = (relative + mSpinMotorTargetVelocity) * mSpinMotorEffectiveMass;
         const f32 previous = mTotalSpinMotorImpulse;
@@ -498,17 +479,13 @@ void WheelJoint::solveVelocity()
     mTotalPositionLockImpulse += positionImpulse;
     applyLinearImpulse(mN1 * positionImpulse.x + mN2 * positionImpulse.y);
 
-    // The suspension is the third row of the same position constraint - the
-    // one along the axis - left soft instead of locked.
     if (mSuspensionEffectiveMass > 0.0f)
     {
         const f32 suspensionJv =
             Math::dot(mAxisA, deltaLinear) +
             Math::dot(Math::cross(armAPlusOffset, mAxisA), mChassis->angularVelocity()) -
             Math::dot(Math::cross(mArmB, mAxisA), mWheel->angularVelocity());
-        // The rows above solve lambda = +mass * Jv, with Jv measured
-        // chassis - wheel; the spring's bias is written for the usual
-        // lambda = -mass * (Jv + bias), so here it subtracts.
+        // The rows above solve lambda = +mass * Jv (Jv = chassis - wheel); the spring bias assumes lambda = -mass * (Jv + bias), so here it subtracts.
         const f32 impulse = mSuspensionEffectiveMass *
                             (suspensionJv - mSuspensionSpring.bias(mTotalSuspensionImpulse));
         mTotalSuspensionImpulse += impulse;

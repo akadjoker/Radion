@@ -11,20 +11,12 @@
 namespace Radion
 {
 
-// Projected decals, the way Wicked shades them: a decal is not geometry, it
-// is a box and a matrix. Every lit fragment asks "am I inside this box?",
-// and if so blends the sampled texture into albedo/normal/surface before the
-// light loop runs - see ApplyDecals() in lit.frag.
-//
-// They ride the same entity SSBO and the same tile culling the lights
-// already use: Lighting::submitDecals() is what appends them, sharing the
-// lights' entity and matrix budget. A decal that does not fit is dropped
-// rather than pushed past that limit.
+// Projected decals: a box and a matrix, not geometry. Each lit fragment tests whether it is inside the box and blends the decal before the light loop (ApplyDecals() in lit.frag).
+// Shares the lights' entity SSBO, tile culling and budget (Lighting::submitDecals()); a decal that does not fit is dropped.
 class DecalSystem
 {
 public:
-    // A decal placed in the scene. The box is unit-sized in local space
-    // ([-1,1]^3); `size` gives it its world dimensions.
+    // Box is unit-sized in local space ([-1,1]^3); `size` gives world dimensions.
     struct Decal
     {
         Math::vec3 position = Math::vec3(0.0f);
@@ -34,9 +26,7 @@ public:
         Math::vec3 color = Math::vec3(1.0f); // tint, multiplied by the texture
         f32 opacity = 1.0f;
 
-        // Exponent of the slope fade: a surface whose normal turns away from
-        // the decal's own gets less of it. This is what keeps a floor decal
-        // from smearing up the walls its box happens to clip. 0 disables it.
+        // Exponent of the slope fade (surfaces turning away from the decal's normal get less); 0 disables.
         f32 slopePower = 8.0f;
 
         f32 normalStrength = 1.0f; // 0 ignores the normal map
@@ -45,8 +35,6 @@ public:
         bool enabled = true;
     };
 
-    // Global multipliers, so a panel can tune every decal at once without
-    // overwriting the values authored per decal.
     f32 globalOpacity = 1.0f;
     f32 normalStrengthScale = 1.0f;
     f32 slopePowerOverride = -1.0f; // < 0 uses the decal's own
@@ -54,9 +42,6 @@ public:
     bool create(u32 textureDim = 256, u32 maxLayers = 16);
     void shutdown();
 
-    // Procedural placeholders: there is no decal art in the asset tree yet,
-    // and a procedural mask still exercises all three maps with data that
-    // agrees with itself - a crater has to have both relief and roughness.
     enum class Procedural
     {
         BulletHole, // impact: dark hole, chipped edge, crater
@@ -66,7 +51,7 @@ public:
     };
     s32 addProcedural(Procedural kind, u32 seed = 1u);
 
-    // Loads from file. normalPath/surfacePath may be empty.
+    // normalPath/surfacePath may be empty.
     s32 addFromFiles(const std::string& albedoPath, const std::string& normalPath = std::string(),
                      const std::string& surfacePath = std::string());
 
@@ -92,18 +77,15 @@ public:
         mDecals.clear();
     }
 
-    // Places a decal centred on a hit surface, its box's +Z rotated onto
-    // `normal` - the same axis the slope fade compares the surface against.
+    // Centres on a hit surface with the box's +Z rotated onto `normal` (the axis the slope fade uses).
     s32 placeOnSurface(const Math::vec3& position, const Math::vec3& normal, s32 layer, f32 size,
                        f32 thickness, f32 rotationRadians, const Math::vec3& color = Math::vec3(1.0f),
                        f32 opacity = 1.0f);
 
-    // World -> decal box ([-1,1]^3), with the layer index hidden in the 4th
-    // row. Public because Lighting::submitDecals() needs it too.
+    // World -> decal box ([-1,1]^3), layer index in the 4th row; public for Lighting::submitDecals().
     static Math::mat4 makeProjection(const Decal& decal);
 
-    // Radius of the sphere enclosing the box, for the same tile culling the
-    // lights go through.
+    // Bounding-sphere radius, for tile culling.
     static f32 boundingRadius(const Decal& decal)
     {
         return Math::length(decal.size) * 0.5f;

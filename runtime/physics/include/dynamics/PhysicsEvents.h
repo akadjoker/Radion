@@ -10,11 +10,7 @@ namespace Radion::Physics
 
 class RigidBody;
 
-// What happened to a pair this step. The three are what a component's
-// onCollisionEnter/Stay/Exit are built from, and they fall out of the same
-// per-pair bookkeeping warm starting already needs - the cache that carries
-// impulses from one step to the next is exactly the record of which pairs
-// were touching last step.
+// What happened to a pair this step (builds onCollisionEnter/Stay/Exit); falls out of the warm-starting pair cache, which records which pairs touched last step.
 enum class ContactEvent : u8
 {
     Enter,
@@ -42,9 +38,7 @@ struct WorldRayHit
 };
 
 using ContactEventCallback = void (*)(const ContactEventInfo& info, void* userData);
-// Called once per fixed step, after that step's velocities have been
-// integrated into position - the same point in the loop where an action
-// like a vehicle updates itself against the freshly moved world.
+// Called once per fixed step after velocities are integrated into position.
 using PhysicsStepCallback = void (*)(f32 step, void* userData);
 
 } // namespace Radion::Physics

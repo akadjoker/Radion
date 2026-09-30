@@ -12,9 +12,6 @@ namespace Radion
 
 class Scene;
 
-// Object pool for one-shot particle effects. Reuses GameObjects with a
-// ParticleEffect component instead of creating/destroying them every time a
-// bullet hits or an explosion fires.
 class ParticleEffectPool
 {
 public:
@@ -23,13 +20,10 @@ public:
     void initialize(Scene& scene);
     void shutdown();
 
-    // Spawns a one-shot effect at the given world position. If direction is
-    // non-zero the spawned GameObject is rotated to face it.
     ParticleEffect* spawn(const ParticleSystem::Emitter& emitter, u32 burstCount,
                           const Math::vec3& position,
                           const Math::vec3& direction = Math::vec3(0.0f));
 
-    // Moves finished one-shots back to the available list and disables them.
     // Call once per frame after Scene::update().
     void reclaim();
 

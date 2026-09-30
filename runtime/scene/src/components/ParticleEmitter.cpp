@@ -18,8 +18,6 @@ constexpr f32 kRadToDeg = 180.0f / 3.14159265f;
 constexpr u32 kDefaultMaxParticles = 200;
 }
 
-// ── Affectors ──
-
 void GravityAffector::apply(Particle& particle, f32)
 {
     if (enabled)
@@ -73,8 +71,6 @@ void SizeOverLifetimeAffector::apply(Particle& particle, f32)
     if (enabled)
         particle.size = Math::mix(startSize, endSize, particle.timeAlive / particle.lifetime);
 }
-
-// ── ParticleEmitter ──
 
 ParticleEmitter::ParticleEmitter() : Component(Type, ComponentEventLateUpdate)
 {
@@ -414,10 +410,7 @@ void ParticleEmitter::play()
 {
     mPlaying = true;
     mPaused = false;
-    // Forget where continuous emission last measured the owner from - if
-    // the owner was moved (or this is the first play() ever), the next
-    // emitContinuous() must not treat that gap as travel to smear a batch
-    // across.
+    // Forget the last emit position: if the owner was moved (or first play()), the next emitContinuous() must not treat that gap as travel to smear across.
     mHasLastEmitPosition = false;
     if (mEmissionMode == ParticleEmissionMode::OneShot && !mHasEmittedOneShot)
     {
@@ -550,14 +543,7 @@ void ParticleEmitter::emitContinuous(f32 deltaTime)
     mLastEmitPosition = currentPosition;
     mHasLastEmitPosition = true;
 
-    // Smears this frame's whole batch back along the distance the owner
-    // traveled since the last continuous emit, oldest-first. Without this,
-    // every particle in the batch spawns at today's single instantaneous
-    // position - fine for a still or slow emitter, but a fast-moving one
-    // (a climbing firework rocket, e.g.) spawning dozens of particles a
-    // frame stacks all of them on one point, and the next frame's batch on
-    // the next point, beading the trail into visible gaps instead of a
-    // smooth one.
+    // Smears this frame's batch back along the owner's travel since the last emit, oldest first; otherwise a fast emitter (a climbing rocket) stacks a frame's particles on one point and beads the trail.
     for (u32 i = 0; i < count; ++i)
     {
         Particle* p = freeParticle();
@@ -590,9 +576,7 @@ void ParticleEmitter::emitPulseMode(f32 deltaTime)
     }
 }
 
-// Pool never grows: an inactive slot is reused if there is one; otherwise
-// the particle furthest through its life (past 90%) is recycled early
-// rather than refusing the new one.
+// Pool never grows: reuse an inactive slot, else recycle the particle furthest through its life (past 90%).
 Particle* ParticleEmitter::freeParticle()
 {
     for (Particle& p : mParticles)
@@ -627,11 +611,7 @@ void ParticleEmitter::initParticle(Particle& particle)
     particle.color = mColorStart;
     particle.rotation = rnd(0.0f, kTau);
     particle.rotationSpeed = rnd(mRotationSpeedMin, mRotationSpeedMax);
-    // A random cell per particle, not a shared current-frame index: the
-    // system this was ported from tracked a "current frame" that nothing
-    // ever advanced, so every particle always drew atlas cell 0. Picking at
-    // random here is a deliberate fix, not a faithfully-ported behavior -
-    // an atlas grid that always shows its first cell has no reason to exist.
+    // A random cell per particle: the ported system's "current frame" was never advanced, so every particle drew cell 0. A deliberate fix.
     if (mUseAtlas && !mAtlasFrames.empty())
     {
         const u32 index = Math::min((u32)(mDist01(mRng) * (f32)mAtlasFrames.size()),
@@ -645,13 +625,7 @@ void ParticleEmitter::initParticle(Particle& particle)
     particle.active = true;
 }
 
-// Point/Sphere/Box offsets are computed in the owner's LOCAL space and
-// rotated into world space through its full transform, same as the system
-// this was ported from. Cone/Circle/Ring build their offset directly from
-// the owner's own WORLD-space right/up axes - ported fixing a bug in the
-// original, where that already-world-space offset was rotated by the
-// owner's transform a second time, spinning the spawn disk further than
-// intended whenever the emitter itself wasn't axis-aligned.
+// Point/Sphere/Box offsets are local and rotated through the owner's transform; Cone/Circle/Ring use the owner's world-space right/up directly (the original rotated them twice, spinning the disk on non-axis-aligned emitters).
 Math::vec3 ParticleEmitter::calcEmissionPosition() const
 {
     GameObject* object = owner();
@@ -738,9 +712,7 @@ void ParticleEmitter::updateParticles(f32 deltaTime)
         const f32 t = p.timeAlive / p.lifetime;
         p.color = Color::lerp(p.colorStart, p.colorEnd, t);
         p.size = Math::mix(p.sizeStart, p.sizeEnd, t);
-        // Reset for this frame's affectors to build back up; consumed as
-        // last frame's acceleration on the NEXT call, same one-frame-delayed
-        // shape the system this was ported from used.
+        // Reset for this frame's affectors; consumed as last frame's acceleration on the next call (one-frame-delayed, as the ported system).
         p.acceleration = mGravity;
     }
 }
@@ -818,21 +790,16 @@ void ParticleEmitter::presetBulletImpact(ParticleEmitter& emitter)
 void ParticleEmitter::presetDust(ParticleEmitter& emitter)
 {
     emitter.setContinuous(3.0f);
-    emitter.setShapeSphere(2.0f); // call setShapeSphere() again to change the volume's radius
+    emitter.setShapeSphere(2.0f);
     emitter.setEmissionDirection(Math::vec3(0.0f, 1.0f, 0.0f));
-    emitter.setSpreadAngle(180.0f); // full sphere: drifts every which way, not just "up"
+    emitter.setSpreadAngle(180.0f);
     emitter.setSpeed(0.03f, 0.15f);
     emitter.setLifetime(15.0f, 25.0f);
-    // Small enough to read as a fine speck, not so small it falls under a
-    // pixel at normal viewing distance and vanishes. Near-constant size -
-    // a mote drifting in a sunbeam doesn't visibly grow the way smoke does.
+    // Small enough for a fine speck but not under a pixel. Near-constant size, unlike smoke.
     emitter.setSize(Math::vec2(0.02f), Math::vec2(0.025f));
     emitter.setColor(Color(255, 255, 242, 230), Color(255, 255, 242, 0));
     emitter.setRotationSpeed(-0.2f, 0.2f);
-    // The whole point of this being its own CPU emitter: gravity/drag are
-    // this emitter's own, not ParticleSystem's shared setting, so dust can
-    // float while a bullet impact or explosion sharing the GPU pool still
-    // falls normally.
+    // The point of this CPU emitter: its own gravity/drag, so dust floats while impacts sharing the GPU pool still fall.
     emitter.setGravity(Math::vec3(0.0f));
     emitter.setDrag(0.1f);
 }

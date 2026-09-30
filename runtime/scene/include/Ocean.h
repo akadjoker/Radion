@@ -9,23 +9,13 @@
 namespace Radion
 {
 
-// A Gerstner-wave sea surface: a tessellated grid plus the CPU side of the
-// same wave sum the vertex shader runs, so gameplay (buoyancy, a boat's hull,
-// a splash at the shoreline) can ask where the surface sits without reading
-// the GPU back.
-//
-// The component owns the wave set and the grid; drawing belongs to the ocean
-// pass, the same split Grass/GrassRender use. Nothing here talks to the GPU
-// beyond building the grid mesh once.
+// CPU side of the Gerstner wave sum the vertex shader runs, so gameplay can query surface height.
 class Ocean final : public Component
 {
 public:
     static constexpr ComponentType Type = ComponentType::Ocean;
 
-    // Builds the tessellated grid the surface displaces, centred on the
-    // owner's origin. `segments` is per side, so the vertex count is
-    // (segments+1)^2 - keep this in mind before doubling it, a plain forward
-    // draw with no LOD pays for every one of them every frame.
+    // (segments+1)^2 vertices, drawn with no LOD.
     bool build(f32 size, u32 segments);
     f32 size() const;
     u32 segments() const;
@@ -33,20 +23,12 @@ public:
     void setQuality(OceanQuality quality);
     OceanQuality quality() const;
 
-    // Up to kOceanMaxWaves; index beyond that is ignored. Direction is
-    // normalised on read, not on write, so a panel can drag it through zero
-    // without the call failing.
+    // Direction is normalised on read, not write.
     void setWave(u32 index, const Math::vec2& direction, f32 wavelength, f32 amplitude);
     const OceanWave& wave(u32 index) const;
     void setWaveCount(u32 count);
     u32 waveCount() const;
 
-    // One multiplier over every wave's amplitude. The wave set is authored at
-    // some scale - a 1200-unit lagoon, say - and reusing it on a 3200-unit
-    // ocean otherwise means retuning six amplitudes by hand. It scales the
-    // horizontal displacement along with the height - a Gerstner particle
-    // traces a circle, and scaling one axis without the other flattens it into
-    // a sine wave.
     void setWaveScale(f32 scale);
     f32 waveScale() const;
 
@@ -124,11 +106,7 @@ public:
     void setDebugMode(s32 mode);
     s32 debugMode() const;
 
-    // Same Gerstner sum the vertex shader runs, evaluated on the CPU. Takes
-    // `time` explicitly rather than an internal clock: the caller passes the
-    // exact value it hands the frame (FrameContext::time), which is the only
-    // way the two are guaranteed to agree - a clock ticking independently on
-    // the CPU would drift a frame or a stutter away from what the GPU drew.
+    // Takes time explicitly (FrameContext::time) so CPU and GPU agree.
     f32 heightAt(f32 x, f32 z, f32 time) const;
     Math::vec3 normalAt(f32 x, f32 z, f32 time) const;
 
@@ -142,8 +120,6 @@ private:
     void submit(const Math::mat4& transform);
 
     MeshHandle mMesh;
-    // World units between two vertices, from build(). The Gerstner sum runs
-    // per vertex, so this is the sampling rate the wave set has to fit in.
     f32 mSpacing = 1.0f;
     f32 mSize = 0.0f;
     u32 mSegments = 0;

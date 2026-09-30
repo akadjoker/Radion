@@ -1,9 +1,6 @@
 #ifndef RADION_AI_INTERNAL_H
 #define RADION_AI_INTERNAL_H
 
-// AIInternal.h - small math helpers shared by the AI implementation files.
-// Not part of the public API (not installed with the public headers).
-
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -20,19 +17,16 @@ inline Math::vec3 safeNormalize(const Math::vec3& v)
     return v / len;
 }
 
-// Component of v parallel to a unit basis vector.
 inline Math::vec3 parallelComponent(const Math::vec3& v, const Math::vec3& unitBasis)
 {
     return unitBasis * Math::dot(v, unitBasis);
 }
 
-// Component of v perpendicular to a unit basis vector.
 inline Math::vec3 perpendicularComponent(const Math::vec3& v, const Math::vec3& unitBasis)
 {
     return v - parallelComponent(v, unitBasis);
 }
 
-// Clamps the length of v to maxLength.
 inline Math::vec3 truncateLength(const Math::vec3& v, float maxLength)
 {
     float maxLengthSquared = maxLength * maxLength;
@@ -42,13 +36,11 @@ inline Math::vec3 truncateLength(const Math::vec3& v, float maxLength)
     return v * (maxLength / std::sqrt(vecLengthSquared));
 }
 
-// Uniform random float in [0,1].
 inline float frandom01()
 {
     return static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
 }
 
-// Constrain x to [min, max].
 inline float clip(float x, float min, float max)
 {
     if (x < min)
@@ -69,7 +61,6 @@ inline int intervalComparison(float x, float lowerBound, float upperBound)
     return 0;
 }
 
-// Random walk of `initial` by at most `walkspeed`, clamped to [min, max].
 inline float scalarRandomWalk(float initial, float walkspeed, float min, float max)
 {
     const float next = initial + (((frandom01() * 2.0f) - 1.0f) * walkspeed);

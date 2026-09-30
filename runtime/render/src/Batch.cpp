@@ -24,7 +24,6 @@ double getTimeMilliseconds()
 
 } // namespace
 
-// Font atlas constants
 static const int FONT_COLS = 16;
 static const int FONT_ATLAS_W = 128; // 16 cols * 8px
 static const int FONT_ATLAS_H = 48;  // 6 rows * 8px
@@ -32,11 +31,7 @@ static const int FONT_ATLAS_H = 48;  // 6 rows * 8px
 static const float PI = 3.14159265359f;
 static const float DEG2RAD = PI / 180.0f;
 
-// ---------------------------------------------------------------------------
-// Shader sources. Desktop GLSL 330 core; for GLES/WebGL the sources would need
-// a different #version/precision preamble, but this matches the OpenGL 3.3 core
-// context created by the Radion Window.
-// ---------------------------------------------------------------------------
+// Desktop GLSL 330 core, matching the GL 3.3 core context.
 static const char* VERTEX_SHADER_SOURCE = R"(#version 450 core
 layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec2 a_texcoord;
@@ -73,10 +68,6 @@ void main()
 }
 )";
 
-// ---------------------------------------------------------------------------
-// Constructor / Destructor
-// ---------------------------------------------------------------------------
-
 BatchRenderer::BatchRenderer()
     : mCurrentColor(0xFFFFFFFF), mCurrentMode(ModeTriangles), mInBeginEnd(false),
       mCurrentBlendMode(BlendMode::Alpha), mWindowWidth(800), mWindowHeight(600),
@@ -94,20 +85,14 @@ BatchRenderer::~BatchRenderer()
     shutdown();
 }
 
-// ---------------------------------------------------------------------------
-// Initialization
-// ---------------------------------------------------------------------------
-
 bool BatchRenderer::init(const Config& config)
 {
     mConfig = config;
 
-    // Reserve capacity for vertex data
     mVertices.reserve(mConfig.maxVertices);
-    mIndices.reserve(mConfig.maxVertices * 2); // Rough estimate
+    mIndices.reserve(mConfig.maxVertices * 2);
     mDrawCalls.reserve(mConfig.maxDrawCalls);
 
-    // Reserve matrix stack
     mMatrixStack.reserve(mConfig.stackDepth);
 
     mGpu = &GPU::getSingleton();
@@ -116,7 +101,6 @@ bool BatchRenderer::init(const Config& config)
     setupTexture();
     setupFontTexture();
 
-    // Setup projection
     updateProjection();
 
     resetStats();
@@ -132,9 +116,7 @@ void BatchRenderer::shutdown()
     if (!mGpu)
         return;
 
-    // Never dereference the cached device after Engine::shutdown(). Normal
-    // renderer teardown reaches here while it is alive; this guard also
-    // makes a later/destructor cleanup harmless if ownership order changes.
+    // Never dereference the cached device after Engine::shutdown().
     GPU* gpu = GPU::tryGet();
     if (gpu == mGpu)
     {
@@ -164,10 +146,6 @@ void BatchRenderer::shutdown()
     mMatrixStack.clear();
 }
 
-// ---------------------------------------------------------------------------
-// Window management
-// ---------------------------------------------------------------------------
-
 bool BatchRenderer::resize(int width, int height)
 {
     if (width <= 0 || height <= 0)
@@ -185,10 +163,6 @@ void BatchRenderer::getWindowSize(int& width, int& height) const
     width = mWindowWidth;
     height = mWindowHeight;
 }
-
-// ---------------------------------------------------------------------------
-// Transform stack (like rlgl)
-// ---------------------------------------------------------------------------
 
 void BatchRenderer::pushMatrix()
 {
@@ -232,10 +206,6 @@ void BatchRenderer::scale(float x, float y, float z)
 {
     mCurrentMatrix = Math::scale(mCurrentMatrix, Math::vec3(x, y, z));
 }
-
-// ---------------------------------------------------------------------------
-// State management
-// ---------------------------------------------------------------------------
 
 void BatchRenderer::setColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
 {
@@ -281,10 +251,6 @@ void BatchRenderer::setDefault3DState()
     mCullFaceEnabled = false;
 }
 
-// ---------------------------------------------------------------------------
-// Soft clip
-// ---------------------------------------------------------------------------
-
 void BatchRenderer::setClipRect(float x, float y, float width, float height)
 {
     mClipRect = FloatRect{x, y, width, height};
@@ -302,10 +268,7 @@ void BatchRenderer::clearClipRect()
     mClipEnabled = false;
 }
 
-// Sutherland-Hodgman: clips a convex polygon (with UV) against the current
-// clip rect, one half-plane at a time. `out` must hold at least inCount+4
-// vertices (each pass can add at most one vertex per edge crossed). Returns
-// the number of vertices written to `out` (0 if fully clipped away).
+// Sutherland-Hodgman polygon clip; `out` needs inCount+4 vertices.
 int BatchRenderer::clipPolygonToRect(const ClipVertex* in, int inCount, ClipVertex* out) const
 {
     const float minX = mClipRect.x;
@@ -317,7 +280,6 @@ int BatchRenderer::clipPolygonToRect(const ClipVertex* in, int inCount, ClipVert
     const ClipVertex* src = in;
     int srcCount = inCount;
 
-    // Each plane clips `src` -> `dst`, then dst becomes the next src.
     for (int plane = 0; plane < 4; ++plane)
     {
         ClipVertex* dst = (plane % 2 == 0) ? tmp : out;
@@ -334,24 +296,23 @@ int BatchRenderer::clipPolygonToRect(const ClipVertex* in, int inCount, ClipVert
             case 0:
                 curIn = cur.x >= minX;
                 prevIn = prev.x >= minX;
-                break; // left
+                break;
             case 1:
                 curIn = cur.x <= maxX;
                 prevIn = prev.x <= maxX;
-                break; // right
+                break;
             case 2:
                 curIn = cur.y >= minY;
                 prevIn = prev.y >= minY;
-                break; // top
+                break;
             case 3:
                 curIn = cur.y <= maxY;
                 prevIn = prev.y <= maxY;
-                break; // bottom
+                break;
             }
 
             if (curIn != prevIn)
             {
-                // Edge crosses the plane — interpolate the intersection point.
                 float t = 0.f;
                 switch (plane)
                 {
@@ -389,7 +350,6 @@ int BatchRenderer::clipPolygonToRect(const ClipVertex* in, int inCount, ClipVert
             return 0;
     }
 
-    // If we ended on `tmp` (odd number of planes before the last), copy to out.
     if (src == tmp)
     {
         for (int i = 0; i < srcCount; ++i)
@@ -398,8 +358,7 @@ int BatchRenderer::clipPolygonToRect(const ClipVertex* in, int inCount, ClipVert
     return srcCount;
 }
 
-// Liang-Barsky line-clip against the current clip rect. Returns false if the
-// segment lies entirely outside (nothing to draw).
+// Liang-Barsky line clip; false if fully outside.
 bool BatchRenderer::clipSegmentToRect(float& x0, float& y0, float& x1, float& y1) const
 {
     const float minX = mClipRect.x;
@@ -419,7 +378,7 @@ bool BatchRenderer::clipSegmentToRect(float& x0, float& y0, float& x1, float& y1
         if (p[i] == 0.f)
         {
             if (q[i] < 0.f)
-                return false; // parallel and outside
+                return false;
         }
         else
         {
@@ -457,7 +416,6 @@ void BatchRenderer::submitClippedQuad(float x0, float y0, float x1, float y1, fl
     if (n < 3)
         return;
 
-    // Fan-triangulate the resulting convex polygon.
     for (int i = 1; i + 1 < n; ++i)
     {
         submitVertex(out[0].x, out[0].y, 0.f, out[0].u, out[0].v);
@@ -526,10 +484,6 @@ void BatchRenderer::emitTexturedTriangle(float x0, float y0, float u0, float v0,
     }
 }
 
-// ---------------------------------------------------------------------------
-// Immediate mode vertex submission
-// ---------------------------------------------------------------------------
-
 void BatchRenderer::vertex2(float x, float y)
 {
     vertex3(x, y, 0.0f);
@@ -540,10 +494,8 @@ void BatchRenderer::vertex3(float x, float y, float z)
     if (!mInBeginEnd)
         return;
 
-    // Apply current transform
     applyTransform(x, y, z);
 
-    // Add vertex
     Vertex v;
     v.x = x;
     v.y = y;
@@ -554,16 +506,11 @@ void BatchRenderer::vertex3(float x, float y, float z)
 
     mVertices.push_back(v);
 
-    // Check capacity and flush if needed
     if (mVertices.size() >= mConfig.maxVertices)
     {
         flushBatch();
     }
 }
-
-// ---------------------------------------------------------------------------
-// Drawing primitives (immediate mode style)
-// ---------------------------------------------------------------------------
 
 void BatchRenderer::begin(int mode)
 {
@@ -576,9 +523,7 @@ void BatchRenderer::begin(int mode)
     mInBeginEnd = true;
     mCurrentMode = mode;
 
-    // Start new draw call if mode, texture, or render state changed since the
-    // last one — this makes state flag changes (setDepthTest/setBlend/...)
-    // take effect immediately per draw call, regardless of flush timing.
+    // New draw call when mode, texture or render state changed.
     if (mDrawCalls.empty() || mDrawCalls.back().mode != mode ||
         mDrawCalls.back().texture != mCurrentTexture ||
         mDrawCalls.back().blendMode != mCurrentBlendMode ||
@@ -589,7 +534,7 @@ void BatchRenderer::begin(int mode)
         DrawCall call;
         call.mode = mode;
         call.vertexCount = 0;
-        call.vertexAlignment = mVertices.size(); // vertices before this draw call
+        call.vertexAlignment = mVertices.size();
         call.texture = mCurrentTexture;
         call.blendMode = mCurrentBlendMode;
         call.depthTest = mDepthTestEnabled;
@@ -607,7 +552,6 @@ void BatchRenderer::end()
 
     mInBeginEnd = false;
 
-    // update current draw call vertex count
     if (!mDrawCalls.empty())
     {
         mDrawCalls.back().vertexCount = mVertices.size() - mDrawCalls.back().vertexAlignment;
@@ -871,10 +815,6 @@ void BatchRenderer::drawPolygon(float cx, float cy, int sides, float radius, flo
     }
 }
 
-// ---------------------------------------------------------------------------
-// 3D debug primitives
-// ---------------------------------------------------------------------------
-
 void BatchRenderer::drawLine3D(float x0, float y0, float z0, float x1, float y1, float z1)
 {
     setTexture(mWhiteTexture);
@@ -928,7 +868,6 @@ void BatchRenderer::drawWireBox(float minX, float minY, float minZ, float maxX, 
 {
     setTexture(mWhiteTexture);
     begin(ModeLines);
-    // Bottom face
     vertex3(minX, minY, minZ);
     vertex3(maxX, minY, minZ);
     vertex3(maxX, minY, minZ);
@@ -937,7 +876,6 @@ void BatchRenderer::drawWireBox(float minX, float minY, float minZ, float maxX, 
     vertex3(minX, minY, maxZ);
     vertex3(minX, minY, maxZ);
     vertex3(minX, minY, minZ);
-    // Top face
     vertex3(minX, maxY, minZ);
     vertex3(maxX, maxY, minZ);
     vertex3(maxX, maxY, minZ);
@@ -946,7 +884,6 @@ void BatchRenderer::drawWireBox(float minX, float minY, float minZ, float maxX, 
     vertex3(minX, maxY, maxZ);
     vertex3(minX, maxY, maxZ);
     vertex3(minX, maxY, minZ);
-    // Verticals
     vertex3(minX, minY, minZ);
     vertex3(minX, maxY, minZ);
     vertex3(maxX, minY, minZ);
@@ -988,14 +925,11 @@ void BatchRenderer::drawWireCylinder(float cx, float cy, float cz, float radius,
         float a0 = i * step, a1 = (i + 1) * step;
         float x0 = radius * cosf(a0), z0 = radius * sinf(a0);
         float x1 = radius * cosf(a1), z1 = radius * sinf(a1);
-        // bottom ring
         vertex3(cx + x0, cy - halfH, cz + z0);
         vertex3(cx + x1, cy - halfH, cz + z1);
-        // top ring
         vertex3(cx + x0, cy + halfH, cz + z0);
         vertex3(cx + x1, cy + halfH, cz + z1);
     }
-    // 4 vertical lines
     for (int i = 0; i < 4; ++i)
     {
         float a = i * (PI * 0.5f);
@@ -1011,11 +945,10 @@ void BatchRenderer::drawWireCapsule(float cx, float cy, float cz, float radius, 
     float halfH = height * 0.5f;
     float step = 2.0f * PI / (float)segments;
     int hsegs = segments / 2;
-    float hstep = PI / (float)hsegs; // full meridian (equator -> pole -> equator)
+    float hstep = PI / (float)hsegs;
 
     setTexture(mWhiteTexture);
     begin(ModeLines);
-    // Cylinder rings
     for (int i = 0; i < segments; ++i)
     {
         float a0 = i * step, a1 = (i + 1) * step;
@@ -1024,15 +957,12 @@ void BatchRenderer::drawWireCapsule(float cx, float cy, float cz, float radius, 
         vertex3(cx + radius * cosf(a0), cy + halfH, cz + radius * sinf(a0));
         vertex3(cx + radius * cosf(a1), cy + halfH, cz + radius * sinf(a1));
     }
-    // 4 vertical lines
     for (int i = 0; i < 4; ++i)
     {
         float a = i * (PI * 0.5f);
         vertex3(cx + radius * cosf(a), cy - halfH, cz + radius * sinf(a));
         vertex3(cx + radius * cosf(a), cy + halfH, cz + radius * sinf(a));
     }
-    // Top hemisphere — full meridians through the pole (XZ front/back and left/right),
-    // matching the equator points used by the vertical lines above.
     for (int i = 0; i < hsegs; ++i)
     {
         float t0 = i * hstep, t1 = (i + 1) * hstep;
@@ -1041,7 +971,6 @@ void BatchRenderer::drawWireCapsule(float cx, float cy, float cz, float radius, 
         vertex3(cx, cy + halfH + radius * sinf(t0), cz + radius * cosf(t0));
         vertex3(cx, cy + halfH + radius * sinf(t1), cz + radius * cosf(t1));
     }
-    // Bottom hemisphere — mirrored meridians, dome hanging below.
     for (int i = 0; i < hsegs; ++i)
     {
         float t0 = i * hstep, t1 = (i + 1) * hstep;
@@ -1058,42 +987,36 @@ void BatchRenderer::drawSolidBox(float minX, float minY, float minZ, float maxX,
 {
     setTexture(mWhiteTexture);
     begin(ModeTriangles);
-    // Bottom (Y-)
     vertex3(minX, minY, minZ);
     vertex3(maxX, minY, maxZ);
     vertex3(maxX, minY, minZ);
     vertex3(minX, minY, minZ);
     vertex3(minX, minY, maxZ);
     vertex3(maxX, minY, maxZ);
-    // Top (Y+)
     vertex3(minX, maxY, minZ);
     vertex3(maxX, maxY, minZ);
     vertex3(maxX, maxY, maxZ);
     vertex3(minX, maxY, minZ);
     vertex3(maxX, maxY, maxZ);
     vertex3(minX, maxY, maxZ);
-    // Front (Z-)
     vertex3(minX, minY, minZ);
     vertex3(maxX, maxY, minZ);
     vertex3(minX, maxY, minZ);
     vertex3(minX, minY, minZ);
     vertex3(maxX, minY, minZ);
     vertex3(maxX, maxY, minZ);
-    // Back (Z+)
     vertex3(minX, minY, maxZ);
     vertex3(minX, maxY, maxZ);
     vertex3(maxX, maxY, maxZ);
     vertex3(minX, minY, maxZ);
     vertex3(maxX, maxY, maxZ);
     vertex3(maxX, minY, maxZ);
-    // Left (X-)
     vertex3(minX, minY, minZ);
     vertex3(minX, maxY, maxZ);
     vertex3(minX, minY, maxZ);
     vertex3(minX, minY, minZ);
     vertex3(minX, maxY, minZ);
     vertex3(minX, maxY, maxZ);
-    // Right (X+)
     vertex3(maxX, minY, minZ);
     vertex3(maxX, minY, maxZ);
     vertex3(maxX, maxY, maxZ);
@@ -1147,18 +1070,15 @@ void BatchRenderer::drawSolidCylinder(float cx, float cy, float cz, float radius
         float a0 = i * step, a1 = (i + 1) * step;
         float x0 = radius * cosf(a0), z0 = radius * sinf(a0);
         float x1 = radius * cosf(a1), z1 = radius * sinf(a1);
-        // side
         vertex3(cx + x0, cy - halfH, cz + z0);
         vertex3(cx + x1, cy - halfH, cz + z1);
         vertex3(cx + x1, cy + halfH, cz + z1);
         vertex3(cx + x0, cy - halfH, cz + z0);
         vertex3(cx + x1, cy + halfH, cz + z1);
         vertex3(cx + x0, cy + halfH, cz + z0);
-        // bottom cap
         vertex3(cx, cy - halfH, cz);
         vertex3(cx + x1, cy - halfH, cz + z1);
         vertex3(cx + x0, cy - halfH, cz + z0);
-        // top cap
         vertex3(cx, cy + halfH, cz);
         vertex3(cx + x0, cy + halfH, cz + z0);
         vertex3(cx + x1, cy + halfH, cz + z1);
@@ -1175,7 +1095,6 @@ void BatchRenderer::drawSolidCapsule(float cx, float cy, float cz, float radius,
 
     setTexture(mWhiteTexture);
     begin(ModeTriangles);
-    // Cylinder side
     for (int i = 0; i < segments; ++i)
     {
         float a0 = i * sstep, a1 = (i + 1) * sstep;
@@ -1188,7 +1107,6 @@ void BatchRenderer::drawSolidCapsule(float cx, float cy, float cz, float radius,
         vertex3(cx + x1, cy + halfH, cz + z1);
         vertex3(cx + x0, cy + halfH, cz + z0);
     }
-    // Top hemisphere (theta 0..PI/2, offset +halfH)
     for (int r = 0; r < rings; ++r)
     {
         float t0 = r * hstep, t1 = (r + 1) * hstep;
@@ -1211,7 +1129,6 @@ void BatchRenderer::drawSolidCapsule(float cx, float cy, float cz, float radius,
             vertex3(cx + x01, cy + halfH + y01, cz + z01);
         }
     }
-    // Bottom hemisphere (theta PI/2..PI, offset -halfH)
     for (int r = 0; r < rings; ++r)
     {
         float t0 = PI * 0.5f + r * hstep, t1 = PI * 0.5f + (r + 1) * hstep;
@@ -1242,19 +1159,16 @@ void BatchRenderer::drawAxis(float x, float y, float z, float size)
     unsigned int savedColor = mCurrentColor;
     setTexture(mWhiteTexture);
 
-    // X - red
     setColor((unsigned char)255, (unsigned char)0, (unsigned char)0, (unsigned char)255);
     begin(ModeLines);
     vertex3(x, y, z);
     vertex3(x + size, y, z);
     end();
-    // Y - green
     setColor((unsigned char)0, (unsigned char)255, (unsigned char)0, (unsigned char)255);
     begin(ModeLines);
     vertex3(x, y, z);
     vertex3(x, y + size, z);
     end();
-    // Z - blue
     setColor((unsigned char)0, (unsigned char)0, (unsigned char)255, (unsigned char)255);
     begin(ModeLines);
     vertex3(x, y, z);
@@ -1337,10 +1251,6 @@ void BatchRenderer::drawTexture(TextureHandle texture, float dstX, float dstY, f
     }
 }
 
-// ---------------------------------------------------------------------------
-// Batch flushing and rendering
-// ---------------------------------------------------------------------------
-
 void BatchRenderer::drawRenderBatch()
 {
     flushBatch();
@@ -1348,8 +1258,7 @@ void BatchRenderer::drawRenderBatch()
 
 void BatchRenderer::update()
 {
-    // Per-frame counters start over here; frameCount is a running total and
-    // survives, which is why this is not a plain resetStats().
+    // frameCount is a running total and survives, unlike resetStats().
     mStats.drawCalls = 0;
     mStats.verticesDrawn = 0;
     mStats.indicesDrawn = 0;
@@ -1366,7 +1275,6 @@ void BatchRenderer::flip()
 {
     const double start = getTimeMilliseconds();
 
-    // Flush any pending data
     if (mInBeginEnd)
     {
         end();
@@ -1387,10 +1295,6 @@ void BatchRenderer::flip()
         mStats.batchTime = mStats.totalTime - mStats.renderTime;
     }
 }
-
-// ---------------------------------------------------------------------------
-// Statistics
-// ---------------------------------------------------------------------------
 
 void BatchRenderer::resetStats()
 {
@@ -1415,18 +1319,10 @@ void BatchRenderer::printStats() const
     printf("===========================\n");
 }
 
-// ---------------------------------------------------------------------------
-// Projection matrix
-// ---------------------------------------------------------------------------
-
 void BatchRenderer::setProjection(const Math::mat4& matrix)
 {
     mProjection = matrix;
 }
-
-// ---------------------------------------------------------------------------
-// Color utilities
-// ---------------------------------------------------------------------------
 
 unsigned int BatchRenderer::packColor(unsigned char r, unsigned char g, unsigned char b,
                                       unsigned char a)
@@ -1444,10 +1340,6 @@ void BatchRenderer::unpackColor(unsigned int packed, unsigned char& r, unsigned 
     a = (packed >> 24) & 0xFF;
 }
 
-// ---------------------------------------------------------------------------
-// Internal methods
-// ---------------------------------------------------------------------------
-
 void BatchRenderer::updateProjection()
 {
     mProjection = Math::ortho(0.0f, static_cast<float>(mWindowWidth),
@@ -1462,7 +1354,6 @@ void BatchRenderer::flushBatch()
     usize vertexBufferSize = mVertices.size() * sizeof(Vertex);
     mGpu->updateBuffer(mVertexBuffer, 0, vertexBufferSize, mVertices.data());
 
-    // Generate indices for quads
     mIndices.clear();
 
     for (usize i = 0; i < mDrawCalls.size(); ++i)
@@ -1491,7 +1382,6 @@ void BatchRenderer::flushBatch()
         mGpu->updateBuffer(mIndexBuffer, 0, indexBufferSize, mIndices.data());
     }
 
-    // Draw all draw calls
     applyDrawCalls();
 
     if (mConfig.enableProfiling)
@@ -1502,7 +1392,6 @@ void BatchRenderer::flushBatch()
         mStats.batchesFlushed++;
     }
 
-    // Clear for next frame
     mVertices.clear();
     mIndices.clear();
     mDrawCalls.clear();
@@ -1661,7 +1550,6 @@ void BatchRenderer::setupTexture()
 
 void BatchRenderer::setupFontTexture()
 {
-    // Generate white RGBA font atlas from embedded 8x8 bitmap font
     u8* atlas = new u8[FONT_ATLAS_W * FONT_ATLAS_H * 4];
     memset(atlas, 0, FONT_ATLAS_W * FONT_ATLAS_H * 4);
 
@@ -1718,10 +1606,6 @@ void BatchRenderer::applyTransform(float& x, float& y, float& z)
     y = transformed.y;
     z = transformed.z;
 }
-
-// ---------------------------------------------------------------------------
-// Text rendering with embedded 8x8 font
-// ---------------------------------------------------------------------------
 
 Math::vec4 fontGlyphUVRect(unsigned char code)
 {

@@ -20,25 +20,15 @@ public:
     void execute(const FrameContext& frame) override;
     void shutdown() override;
 
-    // A shadow atlas tile for a point light: writes distance to `lightPosition`
-    // over `range` (see depth_point.frag) instead of ordinary perspective
-    // depth, because six of these tiles share one straight 2D texture and the
-    // shader that samples them (SamplePointShadowAtlas in lit.frag) needs a
-    // value it can compare without knowing which face produced it.
+    // Point-light shadow atlas tile: writes distance to `lightPosition` over `range` (see depth_point.frag) so SamplePointShadowAtlas can compare without knowing the face.
     void executePoint(const FrameContext& frame, const Math::vec3& lightPosition, f32 range,
                       f32 bias);
 
-    // Same draw as execute(), plus a depth bias applied through
-    // GPU::setDepthBias after each pipeline switch. A separate entry point
-    // rather than a defaulted parameter on execute(): the pipeline cache is
-    // shared with the ordinary (bias-free) depth prepass, and the bias has to
-    // be a per-call override on top of it, not baked into the pipeline.
+    // Same as execute() plus a depth bias via GPU::setDepthBias after each pipeline switch; per-call because the pipeline cache is shared with the bias-free prepass.
     void executeBiased(const FrameContext& frame, f32 biasSlope, f32 biasConstant,
                        bool cullFront = false);
 
-    // Directional shadow variant: casters draw both faces and the vertex
-    // shader flattens geometry behind the far plane instead of clipping it
-    // away.
+    // Directional shadow variant: casters draw both faces and the vertex shader flattens geometry behind the far plane instead of clipping it.
     void executeShadow(const FrameContext& frame);
 
 private:
@@ -68,9 +58,7 @@ private:
         u32 baseInstance;
     };
 
-    // One glMultiDrawElementsIndirect batch: every submesh sharing a mesh and
-    // a depth pipeline. Kept alive between calls, commands and all - a shadow
-    // frame runs this once per cascade per category.
+    // One glMultiDrawElementsIndirect batch: submeshes sharing a mesh and depth pipeline. Kept between calls (once per cascade per category).
     struct DrawGroup
     {
         MeshHandle mesh;
@@ -78,19 +66,13 @@ private:
         std::vector<IndirectCommand> commands;
     };
 
-    // Rebuilds mInstances/mPalettes from the list's opaque packets. Shared by
-    // execute() and executePoint(): both draw the same geometry, only the
-    // pipeline and the extra per-pass uniforms differ.
+    // Rebuilds mInstances/mPalettes from the opaque packets; shared by execute() and executePoint().
     bool collectInstances(const FrameContext& frame, RenderCategory category);
     void drawCategory(const FrameContext& frame, RenderCategory category, f32 biasSlope,
                       f32 biasConstant, bool cullFront, bool pancake = false,
                       bool forceTwoSided = false);
     void drawPointCategory(const FrameContext& frame, RenderCategory category);
-    // Slot for this mesh/pipeline pair among the groups built so far, opening
-    // a new one when there is none. mGroupKeys is scanned rather than mGroups
-    // itself: the packets arrive sorted by pipeline then texture then mesh,
-    // so the last group answers nearly every call, and a miss walks packed
-    // keys instead of striding over the groups' own command vectors.
+    // Finds or opens the group for this mesh/pipeline. Scans mGroupKeys because packets arrive sorted, so the last group answers nearly every call.
     DrawGroup& groupFor(MeshHandle mesh, PipelineHandle pipeline);
     bool ensureInstanceCapacity(u32 count);
     bool ensurePaletteCapacity(u32 count);
@@ -112,9 +94,7 @@ private:
     std::vector<Math::mat4> mPalettes;
     std::vector<PipelineEntry> mPipelines;
     std::vector<PipelineEntry> mPointPipelines;
-    // Grown, never shrunk: mGroupCount says how many of mGroups the call in
-    // progress owns, so the unused tail keeps its commands' capacity for the
-    // next cascade instead of being freed with it.
+    // Grown, never shrunk: mGroupCount is how many the current call owns; the tail keeps its command capacity.
     std::vector<DrawGroup> mGroups;
     std::vector<u64> mGroupKeys;
     usize mGroupCount = 0;

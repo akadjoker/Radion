@@ -35,19 +35,13 @@ enum class BillboardMode : u8
     Fixed    // no auto-facing, uses the instance's own stored right/up axes
 };
 
-// Right/up axes for one facing mode. Free and Upright derive from the
-// frame's camera basis; Fixed ignores it and returns fixedRight/fixedUp
-// unchanged. Shared by Billboard and Text3D so both facing rules stay in
-// exactly one place.
+// Right/up axes for one facing mode. Free and Upright derive from the camera basis; Fixed returns fixedRight/fixedUp unchanged. Shared by Billboard and Text3D.
 void resolveBillboardAxes(BillboardMode mode, const Math::vec3& cameraRight,
                           const Math::vec3& cameraUp, const Math::vec3& cameraForward,
                           const Math::vec3& fixedRight, const Math::vec3& fixedUp,
                           Math::vec3& outRight, Math::vec3& outUp);
 
-// One camera-facing quad. Submitted with the instance's own transform only -
-// the camera isn't known at the component's onLateUpdate() - and expanded
-// into world-space triangles by TrailPass::execute() once the frame's
-// camera axes are.
+// One camera-facing quad. Submitted with the instance transform only (camera unknown at onLateUpdate()); TrailPass::execute() expands it to world-space triangles.
 struct BillboardInstance
 {
     Math::vec3 position = Math::vec3(0.0f);
@@ -63,19 +57,14 @@ struct BillboardInstance
     bool depthTest = true;
 };
 
-// One glyph within a MeshTextInstance: offset from the string's base
-// position, in world units along the string's own right/up axes (not
-// pixels), plus that glyph's cell in the font atlas.
+// One glyph of a MeshTextInstance: offset from the string's base position in world units along its right/up axes, plus its font atlas cell.
 struct MeshGlyph
 {
     Math::vec2 offset = Math::vec2(0.0f);
     Math::vec4 uvRect = Math::vec4(0.0f);
 };
 
-// A whole string of glyphs sharing one base position, facing mode and
-// texture - one draw command instead of one BillboardInstance per
-// character. `glyphs` points into the owning Text3D component's own
-// buffer, which outlives the frame this instance is submitted on.
+// A string of glyphs sharing base position, facing mode and texture, as one draw command. `glyphs` points into the owning Text3D's buffer, which outlives the frame.
 struct MeshTextInstance
 {
     Math::vec3 position = Math::vec3(0.0f);
@@ -104,10 +93,7 @@ public:
     const std::vector<BillboardInstance>& billboards() const;
     const std::vector<MeshTextInstance>& texts() const;
 
-    // The embedded 8x8 font atlas TrailPass renders MeshTextInstances with.
-    // Set once by the pass in its setup(); Text3D reads it back to fill
-    // MeshTextInstance::texture, since a component has no other way to
-    // reach the pass that will draw it.
+    // The embedded 8x8 font atlas TrailPass draws MeshTextInstances with; set in its setup(), read back by Text3D since a component cannot reach the pass.
     void setFontTexture(TextureHandle texture);
     TextureHandle fontTexture() const;
 

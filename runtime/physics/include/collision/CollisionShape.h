@@ -29,9 +29,7 @@ enum class ShapeType : u8
     Count
 };
 
-// Pure geometry in the body's own space. A shape holds no transform and no
-// back-pointer to a body - the caller passes the transform in - so one shape
-// serves any number of bodies from any number of threads.
+// Pure geometry in body space; no transform or body pointer, so one shape serves any bodies from any threads.
 class CollisionShape
 {
 public:
@@ -39,22 +37,17 @@ public:
 
     virtual ShapeType type() const = 0;
 
-    // Moment of inertia about the centre of mass, body space.
     virtual Math::mat3 inertia(f32 mass) const = 0;
 
-    // World AABB under `transform` - what the broadphase sorts and prunes on.
     virtual AABB bounds(const Math::mat4& transform) const = 0;
 
-    // Furthest point of the shape along `direction` (world space, direction
-    // need not be normalized). The one primitive SAT projection is built on.
+    // Support point along `direction` (world space, need not be normalized): the primitive SAT projection uses.
     virtual Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const = 0;
 
-    // Extent of the shape's shadow on `axis`, world space.
     void project(const Math::mat4& transform, const Math::vec3& axis, f32& minimum,
                  f32& maximum) const;
 
-    // Emitted through DebugDraw3D, which is already a batch - a hundred
-    // colliders cost one draw call, not a hundred.
+    // Emitted through batched DebugDraw3D: many colliders cost one draw call.
     virtual void debugDraw(const Math::mat4& transform, Color color) const = 0;
 };
 
@@ -99,10 +92,8 @@ public:
     {
         return mHalfExtents;
     }
-    // The eight corners in world space, in the order the face table below
-    // indexes them.
+    // World-space corners, in the order the face table indexes them.
     void corners(const Math::mat4& transform, Math::vec3 out[8]) const;
-    // Outward normal and the four corner indices of face `index`, 0..5.
     static const u8* faceCorners(u32 index);
     static Math::vec3 faceNormal(const Math::mat4& transform, u32 index);
 
@@ -110,16 +101,11 @@ private:
     Math::vec3 mHalfExtents;
 };
 
-// A segment along the body's local Y with a radius around it. Everything a
-// capsule does is the sphere case applied to the closest point on that
-// segment, which is why it is the cheapest shape to be right about and the
-// one a character controller wants: no corners to catch on a step.
+// Segment along local Y with a radius: the sphere case at the closest point on the segment.
 class CapsuleShape final : public CollisionShape
 {
 public:
-    // `halfHeight` is half the length of the SEGMENT, not of the whole
-    // capsule - the total height is 2*(halfHeight + radius). Measuring the
-    // segment is what keeps the two ends spherical whatever the radius.
+    // `halfHeight` is half the SEGMENT, not the capsule: total height is 2*(halfHeight + radius).
     CapsuleShape(f32 radius, f32 halfHeight);
 
     ShapeType type() const override
@@ -139,7 +125,6 @@ public:
     {
         return mHalfHeight;
     }
-    // The two ends of the inner segment, world space.
     void segment(const Math::mat4& transform, Math::vec3& lower, Math::vec3& upper) const;
 
 private:
@@ -175,8 +160,7 @@ private:
     f32 mConstant;
 };
 
-// Which part of a triangle a closest-point query landed on. Edge i runs from
-// vertex i to vertex i+1.
+// Edge i runs from vertex i to vertex i+1.
 enum class TriangleFeature : u8
 {
     Face,
@@ -188,9 +172,7 @@ enum class TriangleFeature : u8
     Vertex2
 };
 
-// One triangle of a TrimeshShape, in that mesh's own space. Built and thrown
-// away inside the trimesh narrowphase, never owned by a body: it has no
-// volume, so no mass and no inertia to speak of.
+// One triangle of a TrimeshShape in mesh space; built transiently in the trimesh narrowphase, never owned by a body.
 class TriangleShape final : public CollisionShape
 {
 public:
@@ -209,20 +191,14 @@ public:
     {
         return mVertices[index];
     }
-    // Unnormalized when the triangle is degenerate - callers check the length
-    // rather than trusting a normalize() of nothing.
+    // Unnormalized when degenerate; callers check the length.
     Math::vec3 rawNormal() const;
 
-    // An edge another triangle also uses is inside the surface, not on its
-    // rim. A contact there must be pushed out along the face, never along the
-    // edge: the edge direction is what catches a character walking over a
-    // seam and stops him dead on flat ground.
+    // A shared edge is interior, not a rim: a contact there must push out along the face or a character catches on the seam.
     bool edgeIsShared(u32 edge) const
     {
         return (mSharedEdges & (1u << edge)) != 0;
     }
-    // True when the normal for `feature` has to be taken from the face rather
-    // than from the closest-point direction.
     bool featureIsInternal(TriangleFeature feature) const;
 
 private:
@@ -230,14 +206,11 @@ private:
     u8 mSharedEdges = 0;
 };
 
-// A static concave mesh. Dynamics has no meaning for one - a concave body has
-// no single inertia tensor - so a body carrying this must be static or
-// kinematic, which Scene::addBody() enforces.
+// Static concave mesh: no single inertia tensor, so a body with it must be static or kinematic (enforced by Scene::addBody()).
 class TrimeshShape final : public CollisionShape
 {
 public:
-    // Copies both arrays: a shape outlives whatever MeshData it was built
-    // from, and the tree indexes into this copy.
+    // Copies both arrays: the shape outlives the MeshData and the tree indexes into this copy.
     TrimeshShape(const Math::vec3* vertices, u32 vertexCount, const u32* indices, u32 indexCount);
 
     ShapeType type() const override
@@ -249,16 +222,11 @@ public:
     Math::vec3 support(const Math::mat4& transform, const Math::vec3& direction) const override;
     void debugDraw(const Math::mat4& transform, Color color) const override;
 
-    // One line per triangle, from its centre along the normal the WINDING
-    // gives - which is the normal collision actually uses. The normals stored
-    // on the mesh are the renderer's and can disagree: a model can light
-    // perfectly and still be walked through.
+    // Normals come from the WINDING (what collision uses), not the mesh's renderer normals, which can disagree.
     void debugDrawFaceNormals(const Math::mat4& transform, f32 length, Color color,
                               Color flippedColor) const;
 
-    // Triangles wound against their neighbours. Two triangles sharing an edge
-    // should traverse it in opposite directions; when they do not, one of
-    // them faces backwards and a one-sided sweep passes straight through it.
+    // Shared edges should be traversed in opposite directions; otherwise a triangle faces backwards and a one-sided sweep passes through.
     void windingErrors(std::vector<u32>& out) const;
 
     u32 triangleCount() const
@@ -266,56 +234,39 @@ public:
         return static_cast<u32>(mIndices.size() / 3);
     }
     TriangleShape triangle(u32 index) const;
-    // Triangles whose bounds meet `box`, expressed in this mesh's own space.
     void query(const AABB& localBox, std::vector<u32>& out) const;
 
-    // Geometry queries for everything that is not the solver: picking with
-    // the mouse, a line of sight, deciding where a prop can stand. All in
-    // this mesh's own space - the caller brings the ray or the sphere in.
+    // Non-solver queries (picking, line of sight, prop placement), all in this mesh's space.
     struct RayHit
     {
         u32 triangle = 0;
         f32 distance = 0.0f;
         Math::vec3 point{0.0f};
-        // Face normal, unit length, as wound in the mesh.
         Math::vec3 normal{0.0f, 1.0f, 0.0f};
     };
 
     struct SweepHit
     {
         u32 triangle = 0;
-        // Fraction of `velocity` travelled before contact, in [0, 1]. Negative
-        // means the shape already overlapped, and the value is the depth.
+        // Fraction of `velocity` travelled before contact, in [0, 1]; negative means already overlapping, and the value is the depth.
         f32 t = 0.0f;
         Math::vec3 normal{0.0f, 1.0f, 0.0f};
     };
 
-    // Moves an ellipsoid of `radii` from `centre` along `velocity` and reports
-    // the first thing it meets.
-    //
-    // A sweep, not a push-out: a character needs "how far can I go before I
-    // hit" and "what did I land on", and no amount of pushing out gives
-    // either.
+    // Sweeps an ellipsoid of `radii` from `centre` along `velocity` and reports the first hit. A sweep, not a push-out:
+    // characters need distance-to-hit and what they landed on.
     bool sweepEllipsoid(const Math::vec3& localCentre, const Math::vec3& radii,
                         const Math::vec3& velocity, SweepHit& hit) const;
     bool sweepSphere(const Math::vec3& localCentre, f32 radius, const Math::vec3& velocity,
                      SweepHit& hit) const;
 
-    // Third-person camera collision: sweeps a sphere of `radius` from `from`
-    // (the camera anchor, usually the player's eye) to `to` (the desired
-    // camera position) and returns where the camera can actually sit. A wall
-    // on the way pulls the camera back to the first contact, so it hugs the
-    // surface instead of clipping through it - and because `from` is the
-    // player, the camera can never lose him, it only gets closer. `margin`
-    // keeps the camera sphere clear of the surface so it does not z-fight.
-    // All in this mesh's own space, like the other queries.
+    // Third-person camera collision: sweeps a sphere of `radius` from `from` (anchor) to `to`, returning where the camera can sit,
+    // pulled back to the first contact. `margin` keeps it clear of the surface (z-fighting).
     Math::vec3 slideCamera(const Math::vec3& from, const Math::vec3& to, f32 radius,
                           f32 margin = 0.02f) const;
 
-    // Nearest triangle the ray meets within `maxDistance`, or false.
     bool raycast(const Ray& localRay, f32 maxDistance, RayHit& hit) const;
-    // Triangles actually within `radius` of `centre`, not merely whose boxes
-    // are - the tree narrows it down, this confirms.
+    // Triangles truly within `radius` of `centre` (the tree only narrows by box).
     void overlapSphere(const Math::vec3& localCentre, f32 radius, std::vector<u32>& out) const;
 
 private:
@@ -329,24 +280,17 @@ private:
     AABB mBounds;
 };
 
-// An arbitrary convex polyhedron: the vertices/edges/faces of a
-// ConvexHullComputer half-edge mesh, kept as three flat arrays rather than a
-// pointer to one - a shape outlives whatever Shard or ConvexHullComputer it
-// was built from. Meant for Voronoi shatter debris: bodies with a handful of
-// faces and tens of vertices, not for anything a broadphase would call large.
+// Arbitrary convex polyhedron from a ConvexHullComputer half-edge mesh, copied into flat arrays (the shape outlives the source).
+// For Voronoi shatter debris.
 class ConvexHullShape final : public CollisionShape
 {
 public:
     using Edge = Radion::Geometry::ConvexHullComputer::Edge;
 
-    // `faces` holds one edge index per face, matching ConvexHullComputer's
-    // own convention - walking that edge with getNextEdgeOfFace() visits the
-    // whole face in order.
+    // `faces` holds one edge index per face (ConvexHullComputer convention); walk it with getNextEdgeOfFace().
     ConvexHullShape(const Math::vec3* vertices, u32 vertexCount, const Edge* edges, u32 edgeCount,
                     const int* faces, u32 faceCount);
-    // Copies a shatter shard's own hull straight in - the shard's vertices are
-    // already relative to its own centroid, which is exactly the local space
-    // a CollisionShape is expected to be defined in.
+    // Copies a shard's hull; its vertices are already relative to its centroid, the local space a CollisionShape expects.
     explicit ConvexHullShape(const Radion::Geometry::Shard& shard);
 
     ShapeType type() const override
@@ -381,19 +325,13 @@ private:
     std::vector<int> mFaces;
 };
 
-// Closest point on the segment [a,b] to `point`.
 Math::vec3 closestPointOnSegment(const Math::vec3& a, const Math::vec3& b, const Math::vec3& point);
 
-// Closest point on triangle [a,b,c] to `point`, by Voronoi regions rather
-// than by projecting and clamping.
-// The region it lands in is also which feature it lands on, so `feature` costs
-// nothing to report and is what tells an edge contact from a face one.
+// Closest point on triangle by Voronoi regions; the region is also the `feature`, telling an edge contact from a face one.
 Math::vec3 closestPointOnTriangle(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c,
                                  const Math::vec3& point, TriangleFeature* feature = nullptr);
 
-// Closest pair of points between two segments. Handles the parallel and
-// degenerate cases, which is the whole difficulty - two capsules lying side
-// by side are exactly the case a naive solve divides by zero on.
+// Closest points between two segments; handles the parallel/degenerate cases a naive solve divides by zero on.
 void closestPointsBetweenSegments(const Math::vec3& p1, const Math::vec3& q1, const Math::vec3& p2,
                                   const Math::vec3& q2, Math::vec3& c1, Math::vec3& c2);
 

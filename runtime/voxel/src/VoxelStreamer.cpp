@@ -224,8 +224,7 @@ void VoxelStreamer::collectFinished()
 
 void VoxelStreamer::unloadDistant()
 {
-    // A chunk only leaves the radius when the origin moves, so this walks the
-    // world on that frame and on no other.
+    // A chunk only leaves the radius when the origin moves, so walk the world only then.
     mWorld.collectCoordinates(mLoaded);
     for (const ChunkCoord& coordinate : mLoaded)
     {
@@ -262,8 +261,7 @@ void VoxelStreamer::rebuildCandidates()
         }
     }
 
-    // Furthest first, so dispatch takes from the back and never has to shift
-    // the front of the queue.
+    // Furthest first, so dispatch takes from the back without shifting the queue front.
     std::sort(mCandidates.begin(), mCandidates.end(), &VoxelStreamer::furthestFirst);
 }
 
@@ -276,8 +274,7 @@ void VoxelStreamer::dispatchGeneration()
     {
         const ChunkCoord coordinate = mCandidates.back().coordinate;
         mCandidates.pop_back();
-        // The queue was built before some of these arrived, so what is
-        // already here or already in flight is simply dropped.
+        // The queue predates some arrivals; what is already here or in flight is dropped.
         if (mWorld.findChunk(coordinate) || mGenerating.find(coordinate) != mGenerating.end())
             continue;
         if (!wanted(coordinate))
@@ -299,9 +296,7 @@ void VoxelStreamer::dispatchMeshing()
     if (mMeshing.size() >= mSettings.maxMeshJobs)
         return;
 
-    // Only chunks that were touched are looked at. Walking the loaded world
-    // instead costs the main thread a full scan every frame, which is what a
-    // large view radius turns into a stall.
+    // Only touched chunks are looked at: scanning the loaded world every frame stalls the main thread at large radii.
     mMeshCandidates.clear();
     for (auto it = mDirty.begin(); it != mDirty.end();)
     {
@@ -317,15 +312,13 @@ void VoxelStreamer::dispatchMeshing()
             it = mDirty.erase(it);
             continue;
         }
-        // Waiting on a neighbour that has not arrived: stays in the set and
-        // is looked at again when it does.
+        // Waiting on a missing neighbour: stays in the set and is revisited on arrival.
         if (!neighboursLoaded(coordinate))
         {
             ++it;
             continue;
         }
-        // Open sky: no faces to build, but the renderer still has to be told
-        // the chunk is empty so an old mesh of it goes away.
+        // Open sky: no faces, but the renderer must be told the chunk is empty so an old mesh goes away.
         if (chunk->empty())
         {
             chunk->clearDirty();
@@ -346,8 +339,7 @@ void VoxelStreamer::dispatchMeshing()
             continue;
         if (mMeshing.size() >= mSettings.maxMeshJobs)
         {
-            // Over budget: back into the set, so the next frame picks it up
-            // without another scan of the world.
+            // Over budget: back into the set for next frame, avoiding another world scan.
             mDirty.insert(coordinate);
             continue;
         }
@@ -412,8 +404,7 @@ bool VoxelStreamer::neighboursLoaded(ChunkCoord coordinate) const
                                       coordinate.z + offset.z};
         if (mWorld.findChunk(neighbour))
             continue;
-        // Never generated and never will be: outside the world's vertical band
-        // or outside a bounded world, which is air for good.
+        // Never generated: outside the vertical band or a bounded world, air for good.
         if (neighbour.y < mMinChunkY || neighbour.y > mMaxChunkY || !insideBounds(neighbour))
             continue;
         if (!mTerrain->intersects(neighbour))
@@ -444,8 +435,7 @@ void VoxelStreamer::markNeighboursDirty(ChunkCoord coordinate)
 
 bool VoxelStreamer::popChunkMesh(ChunkMesh& mesh)
 {
-    // Drained through a cursor: erasing at the front would move every mesh
-    // still queued, and each one carries its whole vertex and index arrays.
+    // Drained through a cursor: erasing at the front would move every queued mesh and its arrays.
     while (mUploadsThisUpdate < mSettings.maxUploadsPerFrame && mReadyCursor < mReadyMeshes.size())
     {
         ChunkMesh& ready = mReadyMeshes[mReadyCursor++];
@@ -491,8 +481,7 @@ bool VoxelStreamer::setBlock(VoxelCoord position, BlockId block)
         return false;
 
     mEdits.record(position, block);
-    // The world already flagged the chunk and any neighbour across the
-    // boundary; the streamer needs their coordinates in its own queue.
+    // The world flagged the chunk and its boundary neighbours; the streamer needs their coordinates in its own queue.
     const ChunkCoord coordinate = VoxelWorld::chunkFor(position);
     markDirty(coordinate);
     markNeighboursDirty(coordinate);
@@ -540,10 +529,8 @@ void VoxelStreamer::reset()
 
 void VoxelStreamer::waitForJobs()
 {
-    // Unconditional: a group with nothing outstanding returns at once, and
-    // asking mSettings first would skip the wait for work enqueued before
-    // somebody turned jobs off - with the terrain generator deleted from
-    // under a worker still reading it.
+    // Unconditional: a group with nothing outstanding returns at once, and checking mSettings first would skip waiting for
+    // work enqueued before jobs were turned off, deleting the terrain generator under a worker still reading it.
     Jobs().wait(mJobs);
 }
 

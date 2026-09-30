@@ -7,13 +7,8 @@
 namespace Radion::Physics
 {
 
-// Prismatic and revolute freedom along the same axis - a shock absorber or
-// MacPherson strut, where SliderJoint or HingeJoint alone would only give
-// one of the two. The DOF split (2 translation + 2 rotation locked, 1
-// translation + 1 rotation free, each independently limited and motored)
-// follows ODE's Piston joint (fisica/ODE/ode/src/joints/piston.cpp); the
-// constraint math itself is our own, reusing the rotation-lock this file
-// shares with HingeJoint and the position-lock it shares with SliderJoint.
+// Prismatic and revolute freedom along the same axis (shock absorber, MacPherson strut). The DOF split follows ODE's Piston joint
+// (fisica/ODE/ode/src/joints/piston.cpp); the constraint math is our own, sharing the rotation-lock with HingeJoint and the position-lock with SliderJoint.
 class PistonJoint final : public Joint
 {
 public:

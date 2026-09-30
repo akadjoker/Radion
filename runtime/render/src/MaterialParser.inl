@@ -80,10 +80,7 @@ public:
                 materials.clear();
                 return false;
             }
-            // A duplicate name used to fail the whole file - one bad entry
-            // discarding every other material in it, thousands strong on a
-            // Bistro-sized export, is a worse outcome than the file itself.
-            // Keep the first occurrence and skip the rest instead.
+            // Duplicate name: keep the first, skip the rest, rather than failing the whole file.
             bool duplicate = false;
             for (const MaterialDefinition& existing : materials)
             {
@@ -237,8 +234,7 @@ private:
                     material.params.surface.w = value;
                 else if (equals(name, "distortion"))
                     material.params.custom0.x = value;
-                // unlit.frag's flat-ambient path (200-233); 0 keeps the
-                // shader's own default instead of forcing it to zero.
+                // unlit.frag's flat-ambient path (200-233); 0 keeps the shader default.
                 else if (equals(name, "ambientStrength"))
                     material.params.custom1.x = value;
                 else if (equals(name, "diffuseStrength"))
@@ -595,7 +591,7 @@ private:
             equals(name, "parallaxMap"))
             return SlotHeight;
 
-        for (u8 slot = SlotDetail; slot < MaterialSlotCount; ++slot) // Detail..Height
+        for (u8 slot = SlotDetail; slot < MaterialSlotCount; ++slot)
         {
             bool occupied = false;
             for (const MaterialTextureSource& texture : used)
@@ -829,8 +825,6 @@ private:
             if (mPos >= mText.size())
             {
                 // Do not accept a truncated path/name as if EOF closed it.
-                // Keeping a non-text token makes the surrounding production
-                // fail at the exact unterminated value.
                 mToken.kind = TokenKind::End;
                 return;
             }

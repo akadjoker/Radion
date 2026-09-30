@@ -10,10 +10,7 @@
 namespace Radion
 {
 
-// A stable root sampled from the scalp in bind pose. Four dominant bone
-// influences are enough to keep it attached to the same deformation as the
-// source mesh without making the compute shader decode MeshSkinVertex's
-// packed/interleaved vertex format.
+// Root sampled from the scalp in bind pose; four bone influences avoid decoding MeshSkinVertex's packed format in compute.
 struct alignas(16) HairRoot
 {
     Math::vec4 positionLength = Math::vec4(0.0f, 0.0f, 0.0f, 1.0f);

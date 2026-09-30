@@ -52,9 +52,7 @@ bool queued(const std::vector<GameObject*>& queue, const GameObject* object)
     return std::find(queue.begin(), queue.end(), object) != queue.end();
 }
 
-// The listener rides the active camera. Orientation goes with the position:
-// a listener that only moves pans every spatial voice wrongly the moment
-// the camera turns on the spot.
+// The listener rides the active camera, orientation included, or spatial voices pan wrongly when the camera turns.
 void syncAudioListener(const Camera* camera)
 {
     AudioEngine& audio = Audio();
@@ -67,11 +65,7 @@ void syncAudioListener(const Camera* camera)
     audio.setListenerOrientation(owner->forward(), owner->up());
 }
 
-// Nearest live, captured probe to `position` - render/'s RenderInstance
-// carries a resolved RenderProbe rather than a ReflectionProbe* because
-// render/ cannot depend on scene/'s component types. A default-constructed
-// (invalid cubemap) result when no probe qualifies is exactly what tells
-// ForwardPass to fall back to the frame's single default probe.
+// Nearest live, captured probe. An invalid (default) result tells ForwardPass to fall back to the frame's single default probe.
 RenderProbe resolveNearestProbe(const std::vector<ReflectionProbe*>& probes,
                                 const Math::vec3& position)
 {
@@ -83,19 +77,8 @@ RenderProbe resolveNearestProbe(const std::vector<ReflectionProbe*>& probes,
         if (!candidate->active() || !candidate->probe().ready())
             continue;
         const EnvironmentProbe& env = candidate->probe();
-        // A probe only influences objects near it. Without this gate, one
-        // small local probe placed anywhere would win "nearest" for every
-        // object in the scene, however far away, and silently steal
-        // reflections from Engine's own single global probe
-        // (frame.environmentCube), which ForwardPass only falls back to when
-        // nothing here qualifies.
-        //
-        // influenceRadius answers that on its own, which is what lets a probe
-        // serve its object while leaving extents at zero - and zero extents
-        // is not "covers nowhere", it is the shader's no-parallax path
-        // (EnvironmentProbe::extents' own doc): a plain mirror of what was
-        // captured, sampled straight. A probe that sets only extents keeps
-        // being selected by its box exactly as before.
+        // A probe only influences objects within influenceRadius; otherwise one local probe would win "nearest" everywhere and steal from the global probe.
+        // Zero extents mean the shader's no-parallax path, not "covers nowhere".
         const Math::vec3 offset = position - env.position;
         if (env.influenceRadius > 0.0f)
         {
@@ -127,11 +110,7 @@ RenderProbe resolveNearestProbe(const std::vector<ReflectionProbe*>& probes,
     return result;
 }
 
-// One dynamic renderer into the camera's list, whole mesh at a time - the
-// octree indexes a renderer, not a submesh, so there is nothing to narrow
-// down the way the BVH path does. Reached from four places in
-// buildRenderList() (octree hits, the skinned fallback, statics with static
-// culling off, and the no-octree scan).
+// Whole mesh at a time: the octree indexes a renderer, not a submesh. Reached from four places in buildRenderList().
 void submitDynamicRenderer(MeshRenderer* renderer, RenderList& list, AssetManager& assets,
                            MaterialManager& materials,
                            const std::vector<ReflectionProbe*>& probes)
@@ -167,8 +146,7 @@ void submitDynamicRenderer(MeshRenderer* renderer, RenderList& list, AssetManage
                 palette, &probe, &object->previousGlobalTransform(), prevPalette);
 }
 
-// True when this caster's box is entirely behind one of the cascade's own
-// cull planes - the slice cannot see it, whatever the frustum test said.
+// True when the caster's box is entirely behind one of the cascade's cull planes.
 bool outsideCasterVolume(const std::vector<Plane>* casterPlanes, const AABB& bounds)
 {
     if (!casterPlanes)
@@ -185,8 +163,7 @@ bool outsideCasterVolume(const std::vector<Plane>* casterPlanes, const AABB& bou
     return false;
 }
 
-// Depth-buffer pixel -> view-space position, for pickSurface()'s centre pixel
-// and its 3x3 neighbours.
+// Depth pixel to view-space position, for pickSurface()'s centre pixel and 3x3 neighbours.
 Math::vec3 viewPositionFromDepth(s32 x, s32 y, f32 depth, u32 depthWidth, u32 depthHeight,
                                 const Math::mat4& inverseProjection)
 {
@@ -203,19 +180,18 @@ struct OcclusionBlock
     Math::mat4 model;
 };
 
-// One shared cube, [-1, 1]^3 - every entry's own model matrix scales it to
-// that entry's world AABB (extents already half-size, matching this).
+// Unit cube [-1, 1]^3; each entry's model matrix scales it to its world AABB (half-size extents).
 const Math::vec3 kOcclusionCubeVertices[8] = {
     {-1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, -1.0f}, {-1.0f, 1.0f, -1.0f},
     {-1.0f, -1.0f, 1.0f},  {1.0f, -1.0f, 1.0f},  {1.0f, 1.0f, 1.0f},  {-1.0f, 1.0f, 1.0f},
 };
 constexpr u16 kOcclusionCubeIndices[36] = {
-    0, 1, 2, 0, 2, 3, // back
-    4, 6, 5, 4, 7, 6, // front
-    0, 4, 5, 0, 5, 1, // bottom
-    3, 2, 6, 3, 6, 7, // top
-    0, 3, 7, 0, 7, 4, // left
-    1, 5, 6, 1, 6, 2, // right
+    0, 1, 2, 0, 2, 3,
+    4, 6, 5, 4, 7, 6,
+    0, 4, 5, 0, 5, 1,
+    3, 2, 6, 3, 6, 7,
+    0, 3, 7, 0, 7, 4,
+    1, 5, 6, 1, 6, 2,
 };
 } // namespace
 
@@ -240,16 +216,11 @@ Scene::~Scene()
         delete object;
     mRoot.deleteChildrenRaw();
     mRoot.mScene = nullptr;
-    // Whatever is left is loose bodies (tests, ragdolls, characters) never
-    // attached to a GameObject - deleteChildrenRaw() above already unregistered
-    // every attached one through componentRemoved(). Detach them rather than
-    // leave them pointing at a Scene about to go away.
+    // Loose bodies never attached to a GameObject; detach them rather than leave them pointing at a dying Scene.
     clearPhysics();
     clearAI();
 
-    // mStaticIndex's own destructor releases the per-entry queries; only the
-    // shared occlusion-pass resources (created lazily, see
-    // setupOcclusionQueryResources()) are this class's own to free.
+    // mStaticIndex releases the per-entry queries; only the shared occlusion-pass resources are freed here.
     if (GPU::ready())
     {
         GPU& gpu = GPU::getSingleton();
@@ -329,10 +300,7 @@ usize Scene::countByTag(const std::string& tag) const
 
 void Scene::stampId(GameObject* object)
 {
-    // Anything born here already has an id nothing else can hold. Only a
-    // branch that came from another Scene through add() can arrive holding
-    // one of ours, or none at all, and it is renumbered rather than refused:
-    // add() has already accepted it by this point.
+    // Only a branch from another Scene through add() can arrive with a clashing or missing id; it is renumbered, not refused.
     const auto clash = mObjectsById.find(object->mId);
     if (object->mId == 0 || (clash != mObjectsById.end() && clash->second != object))
     {
@@ -347,8 +315,7 @@ void Scene::stampId(GameObject* object)
     mObjectsById[object->mId] = object;
 }
 
-// Deleting an object takes its children with it (~GameObject), so the whole
-// branch has to leave the map, not just the root of it.
+// Deleting an object takes its children (~GameObject), so the whole branch leaves the map.
 void Scene::forgetIdBranch(GameObject* object)
 {
     for (usize i = 0; i < object->childCount(); ++i)
@@ -509,17 +476,12 @@ void Scene::update(f32 deltaTime)
             }
         }
     }
-    // Layout and hit-test every UI control once, before the component update
-    // below draws them: a control renders the rectangle this pass just gave
-    // it, not the one from last frame.
+    // Layout and hit-test UI controls before the component update draws them, so they render this frame's rect.
     {
         RADION_PROFILE_SCOPE("UI update");
         UiSystems().refresh();
     }
-    // Capture the count: a component attached from on_start/on_update joins
-    // the list immediately, but must not run until the next frame. Removal
-    // writes a tombstone, so callbacks can safely remove themselves or one
-    // another without invalidating this iteration.
+    // Capture the count: a component attached mid-loop must not run until next frame. Removal tombstones, so callbacks can remove themselves safely.
     {
         RADION_PROFILE_SCOPE("Component update");
         const usize updateCount = mUpdateComponents.size();
@@ -540,25 +502,16 @@ void Scene::update(f32 deltaTime)
             if (attachment->active() && attachment->owner()->isActiveInHierarchy())
                 attachment->update();
     }
-    // Obstacle transforms follow their owner unconditionally, in and out of
-    // Play - the shape has to track the gizmo while the scene is being
-    // edited, not just while running (2b.2). Runs before AI update so this
-    // same frame's ObstacleAvoidanceBehavior reads the current position.
+    // Obstacles follow their owner in and out of Play (shape tracks the gizmo), before AI so avoidance reads the current position.
     {
         RADION_PROFILE_SCOPE("Obstacle transform sync");
         for (Obstacle* obstacle : mObstacleComponents)
             obstacle->pushOwnerTransform();
-        // Nothing announces a component being switched off, so the live set
-        // is refilled here rather than tracked. Clearing a vector and
-        // refilling it costs no allocation after the first frame.
+        // Nothing announces a component being switched off, so the live set is refilled here.
         rebuildObstacleGroup();
     }
-    // AI runs after Animation update and before Physics step, same reasoning
-    // as the physics block below: an order given by script in onUpdate reaches
-    // the agent the same frame, and the velocity AI produces is integrated by
-    // physics the same frame instead of lagging by one. In the editor agents
-    // only track their owner's pose, so nothing steers while it is being
-    // placed and Play starts from where it was left.
+    // AI runs after Animation and before Physics so script orders reach the agent this frame and AI velocity is integrated this frame.
+    // In the editor agents only track their owner's pose.
     {
         RADION_PROFILE_SCOPE("AI update");
         for (Agent* agent : mAgents)
@@ -572,13 +525,8 @@ void Scene::update(f32 deltaTime)
                     agent->pullAgentPose();
         }
     }
-    // Physics runs after Component update, so this frame's scripted forces
-    // and impulses (applied from onUpdate) are already on the bodies before
-    // they are integrated, and before Collision contacts and Late component
-    // update, so a trigger, a character sweep, or a follow camera all read
-    // the pose the simulation just produced instead of lagging it by a
-    // frame. In the editor the bodies only track their objects, so nothing
-    // falls while it is being placed and Play starts from where it was left.
+    // Physics runs after Component update (scripted forces are applied first) and before Late update, so triggers, character sweeps and follow cameras see this frame's pose.
+    // In the editor bodies only track their objects.
     {
         RADION_PROFILE_SCOPE("Physics step");
         for (Physics::RigidBody* body : mRigidBodies)
@@ -620,8 +568,7 @@ void Scene::update(f32 deltaTime)
 
     ParticleEffectPool::getSingleton().reclaim();
 
-    // After late update, so a camera controller that moved this frame is
-    // already where the listener should hear from.
+    // After late update, so a camera controller that moved this frame positions the listener.
     {
         RADION_PROFILE_SCOPE("Audio update");
         syncAudioListener(mActiveCamera);
@@ -691,20 +638,12 @@ DirectionalLight* Scene::electedSunLight() const
 
 void Scene::rebuildStaticIndex()
 {
-    // add()/addComponent() only queue - a MeshRenderer created right before
-    // this call has not reached mRenderers yet, only mPendingAdd. Without
-    // this the BVH silently builds from whatever was already flushed, which
-    // right after loading a level is nothing.
+    // add()/addComponent() only queue; flush first or the BVH builds from what was already flushed (nothing, right after a level load).
     flushChanges();
     mStaticIndex.build(mRenderers);
     mStaticIndexDirty = false;
 
-    // Every static material's pipeline, resolved once here rather than left
-    // to whichever list happens to submit it first. buildRenderList() and
-    // buildShadowList() both narrow the static set by their own frustum (the
-    // camera's, a cascade's) before touching a single material - a submesh
-    // neither has looked at yet still needs a valid material.pipeline the
-    // first time either one finally does, or emitSubmesh() silently drops it.
+    // Resolve every static material's pipeline up front: buildRenderList() and buildShadowList() narrow by frustum first, and emitSubmesh() drops a submesh without a valid pipeline.
     AssetManager& assets = Assets();
     MaterialManager& materials = MaterialManager::getSingleton();
     for (MeshRenderer* renderer : mRenderers)
@@ -732,14 +671,11 @@ void Scene::rebuildStaticIndex()
 
 void Scene::rebuildDynamicIndex()
 {
-    // Same idea as rebuildStaticIndex(): add()/addComponent() only queue, so
-    // flush first or the octree builds from a half-populated mRenderers.
+    // add()/addComponent() only queue; flush first.
     flushChanges();
     clearDynamicBoundsQueue();
 
-    // A rebuild may already be in flight against the OLD set. Waiting for it
-    // here before touching the arrays is the whole of the thread safety:
-    // nothing else in this class ever touches them while a job is running.
+    // A rebuild may be in flight against the old set; waiting here is the thread safety.
     if (mDynamicBuildPending)
     {
         Jobs().wait(mDynamicBuildJob);
@@ -760,9 +696,7 @@ void Scene::rebuildDynamicIndex()
         Mesh* mesh = assets.getMesh(renderer->mesh());
         if (!mesh)
             continue;
-        // A skinned mesh's box follows the pose, not the transform, so
-        // nothing the dirty queue reports would keep it current. It stays on
-        // the linear path, cached here rather than rediscovered per frame.
+        // A skinned mesh's box follows the pose, so it stays on the linear path (cached).
         if (mesh->isSkinned())
         {
             mDynamicLinearFallback.push_back(renderer);
@@ -802,27 +736,20 @@ void Scene::refreshDynamicBounds()
 
 void Scene::updateDynamicTree()
 {
-    // Last frame's rebuild, if it has finished. Checked rather than waited
-    // on: the point of firing it in the background is that this frame never
-    // blocks for it. A build that is still going simply gets picked up next
-    // frame instead.
+    // Checked, not waited on: this frame never blocks; an unfinished build is picked up next frame.
     if (mDynamicBuildPending && Jobs().finished(mDynamicBuildJob))
     {
         std::swap(mDynamicTree, mDynamicTreeNext);
         mDynamicBuildPending = false;
     }
 
-    // The swapped-in tree was built from a snapshot taken a frame ago, so its
-    // SHAPE is a frame stale - but the boxes it answers with are this
-    // frame's, because refit runs after the swap and before any query. A
-    // stale shape costs a little traversal, never a wrong answer.
+    // The swapped-in tree's shape is a frame stale but its boxes are this frame's (refit follows the swap): a little extra traversal, never a wrong answer.
     mDynamicTree.refit(mDynamicBounds.data(), static_cast<u32>(mDynamicBounds.size()));
 
     if (mDynamicBuildPending || mDynamicBounds.empty())
         return;
 
-    // Its own copy, so the main thread is free to keep updating the live
-    // boxes while this runs.
+    // Its own copy, so the main thread can keep updating the live boxes.
     mDynamicBuildBounds = mDynamicBounds;
     mDynamicTreeNext.setLeafCapacity(mDynamicTree.leafCapacity());
     Jobs().enqueue(mDynamicBuildJob, &Scene::buildDynamicTreeJob, this);
@@ -850,7 +777,7 @@ void Scene::setDynamicCullingEnabled(bool enabled)
         return;
     mDynamicCullingEnabled = enabled;
     if (enabled)
-        mDynamicIndexDirty = true; // build it on the next buildRenderList()
+        mDynamicIndexDirty = true;
     else
         clearDynamicBoundsQueue();
 }
@@ -894,10 +821,7 @@ bool Scene::setupOcclusionQueryResources()
 
     GPU& gpu = GPU::getSingleton();
 
-    // Stride between entries in mOcclusionBlock has to respect the device's
-    // own uniform-buffer offset alignment - binding at an arbitrary byte
-    // offset is not portable even though this particular driver tolerates
-    // it (see GPUCaps).
+    // Stride must respect the device's uniform-buffer offset alignment (see GPUCaps).
     const u32 alignment = Math::max(gpu.caps().uniformOffsetAlignment, 4u);
     mOcclusionBlockStride = ((sizeof(OcclusionBlock) + alignment - 1) / alignment) * alignment;
     if (!ensureOcclusionBlockCapacity(64))
@@ -935,12 +859,10 @@ bool Scene::setupOcclusionQueryResources()
     desc.vs = {vertexSource.c_str(), 0, "occlusion_query.vert"};
     desc.fs = {fragmentSource.c_str(), 0, "occlusion_query.frag"};
     desc.layout = layout;
-    // Testing coverage, not the box's own visibility, so which way its
-    // triangles wind does not matter.
+    // Tests coverage, so triangle winding does not matter.
     desc.raster.cull = CullMode::None;
     desc.depth.test = true;
-    // Must never perturb the values the depth prepass just wrote - only
-    // ever compares against them.
+    // Must only compare against the depth prepass values, never write.
     desc.depth.write = false;
     desc.depth.func = Compare::LessEqual;
     desc.blend.writeRGB = false;
@@ -958,18 +880,14 @@ bool Scene::ensureOcclusionResultCapacity(u32 count)
         return true;
 
     GPU& gpu = GPU::getSingleton();
-    // Anything already resolved into the old buffers is dropped: their
-    // mappings are about to go away, and a verdict is only ever allowed to
-    // make something MORE visible, so losing one costs a draw and nothing
-    // more.
+    // Dropped: mappings are going away, and losing a verdict only costs a draw (verdicts only make things more visible).
     for (u32 i = 0; i < kOcclusionResultBuffers; ++i)
     {
         gpu.destroy(mOcclusionResults[i]);
         mOcclusionResultOwners[i].clear();
     }
 
-    // Grown in steps rather than to exactly what was asked for, so a scene
-    // gaining a few entries a frame does not reallocate and remap every time.
+    // Grown in steps so a scene gaining a few entries per frame does not reallocate and remap every time.
     mOcclusionResultCapacity = Math::max(count + count / 2u, 256u);
     for (u32 i = 0; i < kOcclusionResultBuffers; ++i)
     {
@@ -1014,33 +932,13 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const Math::mat4& v
         return;
 
 
-    // Results are no longer polled at all. A query is resolved into a GPU
-    // buffer right after it is issued, and that buffer is read from its own
-    // mapping two frames later - by which time the GPU is long past it, so
-    // the read is a plain memory access with nothing to synchronise.
-    //
-    // What this replaced: asking the driver per query whether the result was
-    // ready. Even the non-blocking form is not free, because it has to flush
-    // the command buffer the query's own end packet is still sitting in, and
-    // that flush drags the frame's submission forward into a wait. The fix
-    // then was a latency heuristic - wait a frame before asking - which
-    // traded freshness for the flush without removing it. The reference does
-    // not have the problem at all (wiRenderer's OcclusionCulling_Resolve),
-    // and neither does this now.
+    // Results are not polled: a query is resolved into a GPU buffer and read from its mapping two frames later, a plain memory access (as the reference's OcclusionCulling_Resolve).
 
-    // The camera standing inside an entry's own box is the other case
-    // apparent size alone does not catch - radius/distance grows without
-    // bound as distance goes to zero, so that ratio alone would call this
-    // entry huge right when the box-vs-real-geometry test is least
-    // meaningful (the query would mostly measure the near/far faces of a
-    // box wrapped around the camera itself).
+    // The camera inside an entry's box is the other case apparent size misses: radius/distance blows up as distance goes to zero.
 
     GPU& gpu = GPU::getSingleton();
 
-    // Pass 1: read every entry's previous verdict and decide which ones are
-    // worth a new query this frame. No GPU state touched yet - this is the
-    // part that has to run for every hit regardless, so it stays separate
-    // from the part that only runs for the ones that qualify.
+    // Pass 1: read previous verdicts and pick entries worth a new query; no GPU state touched.
     std::vector<OcclusionCandidate>& candidates = mOcclusionCandidates;
     candidates.clear();
     candidates.reserve(mStaticHits.size());
@@ -1053,47 +951,21 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const Math::mat4& v
             if (!query.valid())
                 continue;
 
-            // Still in flight: not relaunched, because that would reset the
-            // clock on the result this entry is already waiting for. Nothing
-            // is POLLED here any more - the result arrives on its own when
-            // readOcclusionResults() walks the buffer the GPU finished
-            // writing two frames ago.
+            // Still in flight: not relaunched (would reset its clock); the result arrives via readOcclusionResults().
             if (mStaticIndex.queryPending(hit.entryIndex))
             {
                 ++pending;
                 continue;
             }
 
-            // Already computed once in SceneBVH::build() from this same
-            // object's (static, so unchanging) transform - no reason to
-            // redo that matrix multiply for every hit, every frame.
+            // Computed once in SceneBVH::build() from the static transform.
             const AABB& worldBounds = mStaticIndex.entryBounds(hit.entryIndex);
 
-            // The camera literally inside this entry's own box is the one
-            // case a query cannot answer - it would measure the near and far
-            // faces of a box wrapped around the viewer. The reference makes
-            // the same single exclusion and no other.
-            //
-            // There used to be an apparent-size threshold here too, skipping
-            // anything small on screen because a query cost real driver time
-            // whatever the box behind it. That cost was the result POLLING,
-            // and it is gone: a query is now a uniform bind, 36 indices, and
-            // a copy the GPU makes on its own. The threshold outlived its
-            // reason and had turned into a bug - far enough away, radius over
-            // distance fell under it, the entry was never queried again, and
-            // it kept whatever verdict it had from when it was close. Which
-            // was "visible", so distant geometry could never become occluded.
+            // The camera inside this entry's box is the one case a query cannot answer (it would measure faces around the viewer); same single exclusion as the reference.
             if (worldBounds.contains(cameraPosition))
                 continue;
 
-            // Spread over N frames so the query pass costs the same every
-            // frame instead of everything at once. It buys that by making a
-            // verdict older: an entry measured every N frames, plus the two
-            // frames the result takes to come back, can stay wrongly hidden
-            // for N+2 frames after whatever covered it has moved.
-            //
-            // Ours, not the reference's - it queries everything every frame.
-            // One is the reference's behaviour.
+            // Spread over N frames: constant per-frame cost, but a verdict can stay wrongly hidden N+2 frames after the occluder moved. The reference queries every frame (1).
             if (mOcclusionStagger > 1 &&
                 (hit.entryIndex + mFrameNumber) % mOcclusionStagger != 0u)
                 continue;
@@ -1106,25 +978,14 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const Math::mat4& v
     if (candidates.empty())
         return;
 
-    // Pass 2: one write covering every candidate, each at its own offset -
-    // see mOcclusionBlockStride's own comment for why not one write per draw.
+    // Pass 2: one write covering every candidate, each at its own offset (see mOcclusionBlockStride).
     if (!ensureOcclusionBlockCapacity(static_cast<u32>(candidates.size())) ||
         !ensureOcclusionResultCapacity(static_cast<u32>(candidates.size())))
         return;
     mOcclusionBlockScratch.resize(static_cast<usize>(mOcclusionBlockStride) * candidates.size());
     for (usize i = 0; i < candidates.size(); ++i)
     {
-        // Grown a hair before it is drawn. The pipeline's Compare::LessEqual
-        // already lets a box face sitting at exactly the object's own depth
-        // pass, but "exactly" is the problem: the box corner comes from
-        // centre +/- extents and the mesh vertex from its own transform, so
-        // the two never land on the same float. A face that ends up a fraction
-        // BEHIND the surface fails the test and the object reports itself
-        // occluded - which reads as a solid thing blinking out of existence
-        // at certain angles. The reference extrudes by a flat 0.001; relative
-        // to the box instead, because an absolute number means different
-        // things at different scene scales, with a floor for a box that is
-        // nearly flat on one axis.
+        // Padded relative to the box (reference: flat 0.001) because box corners and mesh vertices never land on the same float; a face slightly behind the surface would report the object occluded and make it blink.
         constexpr f32 kOcclusionBoxPadding = 0.002f;
         const Math::vec3 extents = candidates[i].worldBounds.extents();
         const Math::vec3 padded =
@@ -1140,8 +1001,7 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const Math::mat4& v
     gpu.updateBuffer(mOcclusionBlock, 0, mOcclusionBlockScratch.size(),
                      mOcclusionBlockScratch.data());
 
-    // bits == 0: no clear. The depth prepass already wrote this frame's real
-    // values here - the whole point is to test against them, not erase them.
+    // bits == 0: no clear; the prepass depth is what we test against.
     gpu.setTarget(depthTarget, {});
     gpu.setPipeline(mOcclusionPipeline);
 
@@ -1183,9 +1043,7 @@ void Scene::updateOcclusionQueries(TargetHandle depthTarget, const Math::mat4& v
         }
     }
 
-    // The buffer written kOcclusionResultBuffers frames ago, which the GPU
-    // has long finished with. Read through the mapping - no driver call, no
-    // flush, nothing to wait for.
+    // The buffer written kOcclusionResultBuffers frames ago; read through the mapping, nothing to wait for.
     mOcclusionResultIndex = (mOcclusionResultIndex + 1) % kOcclusionResultBuffers;
     readOcclusionResults(mOcclusionResultIndex);
 }
@@ -1326,11 +1184,7 @@ bool Scene::buildRenderList(RenderList& list, const Math::mat4& viewProjection,
     AssetManager& assets = Assets();
     MaterialManager& materials = MaterialManager::getSingleton();
 
-    // Static geometry: SceneBVH already narrowed "everything" down to the
-    // submeshes the frustum could not reject, so only their own material
-    // gets resolved/synced - not the whole mesh's, which for one big merged
-    // static mesh (an exported level) can be hundreds of materials nothing
-    // this frame draws.
+    // Static: SceneBVH already narrowed to submeshes the frustum could not reject, so only those materials are resolved/synced (a merged level mesh can have hundreds).
     if (occlusionView)
         ++mFrameNumber;
     if (mStaticCullingEnabled && mStaticIndex.entryCount() > 0)
@@ -1339,13 +1193,7 @@ bool Scene::buildRenderList(RenderList& list, const Math::mat4& viewProjection,
         staticHits.clear();
         mStaticIndex.query(list.frustum(), staticHits);
         list.addCulled(mStaticIndex.stats().entryCount - mStaticIndex.stats().entriesAccepted);
-        // The BVH answers one hit per SUBMESH, so a merged level mesh brings
-        // the same GameObject back hundreds of times in a row, and the probe
-        // search is a linear scan over every probe in the scene. Nothing
-        // moves inside this loop, so the same object gives the same answer:
-        // remembering the last one turns that scan from per-submesh back into
-        // per-object. The hits arrive grouped by entry, so a single slot is
-        // all it takes.
+        // The BVH returns one hit per submesh and the probe search is linear: remember the last object's answer (hits arrive grouped by entry).
         const GameObject* probeOwner = nullptr;
         RenderProbe probeCache;
         for (const SceneBVH::Hit& hit : staticHits)
@@ -1354,36 +1202,14 @@ bool Scene::buildRenderList(RenderList& list, const Math::mat4& viewProjection,
             GameObject* object = renderer->owner();
             if (!renderer->active() || !object->isActiveAndVisibleInHierarchy())
                 continue;
-            // Last frame's occlusion verdict - see updateOcclusionQueries().
-            // The entry is still measured every frame regardless (the query
-            // pass runs off this same mStaticHits list further down the
-            // frame), so a wrong skip here corrects itself next frame
-            // instead of getting stuck invisible. justEnteredView() covers
-            // the other direction: an entry that was off-screen (not just
-            // occluded) for a while is carrying a verdict from whenever it
-            // was last actually tested, which says nothing about what is in
-            // front of it now that it is back in frustum - trusting a stale
-            // "occluded" here is exactly the 1-frame pop-in a fast turn or a
-            // newly opened doorway would otherwise show.
+            // Last frame's occlusion verdict; the entry is still measured every frame, so a wrong skip self-corrects. justEnteredView() distrusts a verdict from before the entry left the frustum (avoids pop-in).
             if (occlusionView)
             {
             const bool justEntered = mStaticIndex.justEnteredView(hit.entryIndex, mFrameNumber);
             mStaticIndex.markSeenThisFrame(hit.entryIndex, mFrameNumber);
-            // A verdict is only worth acting on while it still describes what
-            // is in front of this entry. Nothing is re-measured every frame -
-            // a query in flight is left alone until it answers - so an entry
-            // that stayed in view the whole time can still be carrying an
-            // "occluded" from several frames back, which is what a moving
-            // camera turns into geometry blinking in and out. Past this many
-            // frames the entry is simply drawn until a fresh measurement says
-            // otherwise: drawing something that turns out to be hidden costs
-            // one draw call, skipping something that turns out to be visible
-            // costs a hole in the image.
+            // A verdict only counts while fresh; drawing something hidden costs one draw call, skipping something visible costs a hole in the image.
             constexpr u32 kVerdictLifetimeFrames = 1;
-            // A verdict also stays valid while this entry's next query is in
-            // flight: the round-trip is two frames against a one-frame
-            // lifetime, so without this every entry alternated between
-            // stale-drawn and fresh-culled at frame rate.
+            // Also valid while the next query is in flight (round trip is two frames vs a one-frame lifetime), else entries alternate stale-drawn and fresh-culled.
             const bool verdictFresh =
                 mStaticIndex.verdictAge(hit.entryIndex, mFrameNumber) <= kVerdictLifetimeFrames ||
                 mStaticIndex.queryPending(hit.entryIndex);
@@ -1426,16 +1252,14 @@ bool Scene::buildRenderList(RenderList& list, const Math::mat4& viewProjection,
         }
     }
 
-    // Dynamic geometry. When the octree is on, query it instead of the scan;
-    // when off, the exact per-renderer loop below runs as it always has.
+    // When the octree is on, query it instead of the scan.
     if (mDynamicCullingEnabled && mDynamicIndexDirty)
         rebuildDynamicIndex();
 
     if (mDynamicCullingEnabled && !mDynamicRenderers.empty())
     {
         {
-            // Same name as the query below, so the two halves of the tree's
-            // work add up into one row instead of spending two slots.
+            // Same name as the query below so both halves add up into one profile row.
             RADION_PROFILE_SCOPE("Dynamic tree");
             refreshDynamicBounds();
             updateDynamicTree();
@@ -1448,8 +1272,7 @@ bool Scene::buildRenderList(RenderList& list, const Math::mat4& viewProjection,
             RADION_PROFILE_SCOPE("Dynamic tree");
             const Frustum& frustum = list.frustum();
             mDynamicTree.queryCandidates(frustum, mDynamicCandidates);
-            // Candidates, not the answer: the tree returns everything sharing
-            // a leaf with something visible, and the exact test is this.
+            // Candidates only: the tree returns everything sharing a leaf with something visible; this is the exact test.
             for (u32 item : mDynamicCandidates)
                 if (frustum.intersects(mDynamicBounds[item]))
                     dynamicHits.push_back(mDynamicRenderers[item]);
@@ -1458,13 +1281,11 @@ bool Scene::buildRenderList(RenderList& list, const Math::mat4& viewProjection,
         for (MeshRenderer* renderer : dynamicHits)
             submitDynamicRenderer(renderer, list, assets, materials, mReflectionProbes);
 
-        // Renderers the tree cannot index (skinned - the box follows the
-        // pose, not the transform) are cached when the index is rebuilt.
+        // Renderers the tree cannot index (skinned) are cached when the index is rebuilt.
         for (MeshRenderer* renderer : mDynamicLinearFallback)
             submitDynamicRenderer(renderer, list, assets, materials, mReflectionProbes);
 
-        // With static culling disabled there is intentionally no spatial
-        // index for statics, so their linear submission is unavoidable.
+        // With static culling disabled there is no spatial index for statics, so linear submission is unavoidable.
         if (!mStaticCullingEnabled || mStaticIndex.entryCount() == 0)
         {
             for (MeshRenderer* renderer : mRenderers)
@@ -1604,9 +1425,7 @@ bool Scene::buildShadowList(RenderList& list, const Math::mat4& viewProjection, 
                             bool reflectionCapture, const std::vector<Plane>* casterPlanes,
                             f32 minCasterExtent)
 {
-    // Shadow lists can also be built without a preceding camera list. Flush
-    // and refresh here as well so a queued deletion can never leave the BVH
-    // handing out a freed MeshRenderer pointer to the shadow pass.
+    // Shadow lists can be built without a camera list: flush and refresh so a queued deletion cannot leave a freed MeshRenderer in the BVH.
     flushChanges();
     if (mStaticIndexDirty)
         rebuildStaticIndex();
@@ -1616,24 +1435,13 @@ bool Scene::buildShadowList(RenderList& list, const Math::mat4& viewProjection, 
     if (cullSphere)
         list.setCullSphere(*cullSphere);
 
-    // Static geometry: same BVH buildRenderList() uses for the camera, now
-    // queried against the cascade's own frustum instead - a caster the
-    // camera cannot see may still throw a shadow the camera can, and the
-    // camera's own frustum-narrowed BVH query never had it to begin with.
-    // Pipelines for the *static* set are resolved once, up front, in
-    // rebuildStaticIndex() - not here, and not by buildRenderList() either,
-    // because with the camera's own BVH query narrowing what it resolves to
-    // only what it can currently see, a wall behind the camera casting a
-    // shadow onto ground the camera can see would otherwise have an
-    // unresolved pipeline the first time anything ever asks for its shadow,
-    // and emitSubmesh() drops anything whose pipeline is not valid.
+    // Static casters queried against the cascade's own frustum: a caster the camera cannot see may still shadow what it sees.
+    // Pipelines are resolved up front in rebuildStaticIndex(), since emitSubmesh() drops unresolved ones.
     AssetManager& assets = Assets();
     if (mStaticIndex.entryCount() > 0)
     {
         mShadowStaticHits.clear();
-        // cullSphere here prunes whole subtrees during the descent - a
-        // point/spot shadow face's frustum is often wide, but nothing
-        // outside the light's own range can ever be lit regardless.
+        // cullSphere prunes subtrees: nothing outside the light's range can be lit.
         mStaticIndex.query(list.frustum(), mShadowStaticHits, cullSphere, casterPlanes);
         list.addCulled(mStaticIndex.stats().entryCount - mStaticIndex.stats().entriesAccepted);
         for (const SceneBVH::Hit& hit : mShadowStaticHits)
@@ -1665,12 +1473,7 @@ bool Scene::buildShadowList(RenderList& list, const Math::mat4& viewProjection, 
         }
     }
 
-    // Dynamic objects only - counted in dozens/hundreds, not worth a spatial
-    // index (see docs/TAREFA_SCENE_CULLING.md). isVisibleInHierarchy() is a
-    // manual show/hide flag, not frustum visibility, so every caster
-    // buildRenderList touched is prepared here too, whether or not the
-    // camera itself could see it - their own pipelines are still resolved by
-    // buildRenderList()'s dynamic loop every frame, unconditionally.
+    // Dynamic objects: isVisibleInHierarchy() is a show/hide flag, not frustum visibility, so every caster is prepared here whether or not the camera sees it.
     for (MeshRenderer* renderer : mRenderers)
     {
         GameObject* object = renderer->owner();
@@ -1708,10 +1511,7 @@ bool Scene::buildShadowList(RenderList& list, const Math::mat4& viewProjection, 
                     palette, nullptr, &object->previousGlobalTransform(), prevPalette);
     }
 
-    // Terrain never entered this list before chunking: buildShadowList() only
-    // ever walked mRenderers, so it never cast its own shadow onto anything -
-    // it could only ever receive one. submitShadow() already skips chunks
-    // with no slope, so this stays cheap on the flat majority of a terrain.
+    // Terrain casts its own shadow only via this list; submitShadow() skips flat chunks so it stays cheap.
     for (Terrain* terrain : mTerrains)
     {
         GameObject* object = terrain->owner();
@@ -1720,11 +1520,7 @@ bool Scene::buildShadowList(RenderList& list, const Math::mat4& viewProjection, 
         terrain->submitShadow(list, object->globalTransform());
     }
 
-    // Forest::submit() already tests each species' materials against
-    // list.filter() through list.submit() - MaterialCastShadow here, the same
-    // way buildRenderList() lets it through unfiltered. Without this loop a
-    // tree just never appeared in any shadow view: buildShadowList() only
-    // ever walked mRenderers.
+    // Forest::submit() tests materials against list.filter() (MaterialCastShadow here); without this loop trees never appear in shadow views.
     const Math::vec3 cameraPosition =
         mActiveCamera ? mActiveCamera->owner()->globalPosition() : Math::vec3(0.0f);
     for (Forest* forest : mForests)
@@ -1735,8 +1531,7 @@ bool Scene::buildShadowList(RenderList& list, const Math::mat4& viewProjection, 
         forest->submit(list, object->globalTransform(), cameraPosition);
     }
 
-    // Only chunks with slope enter here (Landscape::submitShadow) - flat
-    // ground never shadows itself, and most of an open world is flat ground.
+    // Only sloped chunks enter (Landscape::submitShadow); flat ground never shadows itself.
     for (Landscape* landscape : mLandscapes)
     {
         GameObject* object = landscape->owner();
@@ -1847,11 +1642,7 @@ void Scene::componentRemoved(Component* component)
         removeFromEventList(mLateUpdateComponents, component->mSceneLateUpdateIndex);
     mComponentListsDirty = mComponentListsDirty || removedUpdate || removedLate;
 
-    // A script that fetched this component holds a handle wrapping its
-    // address, and those handles are cached by pointer and never collected -
-    // the class is persistent. Left in the cache, the next component to be
-    // allocated at the same address inherits the handle, and a script calling
-    // through the old one reaches freed memory.
+    // Script handles are cached by pointer and never collected; a stale one would be inherited by a component allocated at the same address and reach freed memory.
     if (ScriptCache::alive())
         ScriptCache::getSingleton().forgetInstance(component);
 
@@ -2028,9 +1819,7 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
         windowHeight == 0)
         return false;
 
-    // Window -> render target. They are different resolutions: the scene draws
-    // at a fixed internal size independent of the window. And Y flips, because
-    // the window counts from the top and GL counts from the bottom.
+    // Window to render target: different resolutions (fixed internal size), and Y flips (window counts from the top, GL from the bottom).
     const s32 px =
         static_cast<s32>(mouseX / static_cast<f32>(windowWidth) * static_cast<f32>(depthWidth));
     const s32 py = static_cast<s32>((1.0f - mouseY / static_cast<f32>(windowHeight)) *
@@ -2039,7 +1828,7 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
         py >= static_cast<s32>(depthHeight) - 1)
         return false;
 
-    // 3x3 around the pixel: the neighbours are what the normal comes from.
+    // 3x3 around the pixel: the normal comes from the neighbours.
     f32 d[9] = {};
     if (!GPU::getSingleton().readDepthPixels(depth, static_cast<u32>(px - 1),
                                              static_cast<u32>(py - 1), 3, 3, d, 9))
@@ -2052,17 +1841,8 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
     const Math::vec3 position =
         viewPositionFromDepth(px, py, centre, depthWidth, depthHeight, inverseProjection);
 
-    // The normal comes from differences, but taking the NEAREST neighbour on
-    // each axis instead of always the right and the top one.
-    //
-    // Why: on a silhouette, one of the neighbours lands on the object behind.
-    // The difference then crosses the gap between the two and the normal comes
-    // out nearly perpendicular to the view - garbage. The decal was laid flat,
-    // the slope fade killed it, and the click looked like it did nothing.
-    // Comparing |dz| and keeping the side that does not jump fixes the common
-    // case. Indices of the 3x3 block:  0 1 2   (y-1)
-    //                                  3 4 5   (y)
-    //                                  6 7 8   (y+1)
+    // Use the nearest neighbour on each axis: on a silhouette a neighbour lands on the object behind and the difference gives a near-perpendicular garbage normal.
+    // Compare abs(dz) and keep the side that does not jump. 3x3 indices: 0 1 2 (y-1), 3 4 5 (y), 6 7 8 (y+1).
     const bool useRight = std::fabs(d[5] - centre) <= std::fabs(d[3] - centre);
     const bool useUp = std::fabs(d[7] - centre) <= std::fabs(d[1] - centre);
 
@@ -2081,11 +1861,10 @@ bool Scene::pickSurface(TextureHandle depth, u32 depthWidth, u32 depthHeight, f3
     Math::vec3 normal = Math::cross(dX, dY);
     const f32 length = Math::length(normal);
     if (length < 1e-8f)
-        return false; // degenerate neighbours
+        return false;
     normal /= length;
 
-    // In view space the camera looks down -Z, so a visible surface must have a
-    // positive Z normal. Flip it if it came out the other way.
+    // View space looks down -Z, so a visible surface has a positive Z normal; flip otherwise.
     if (normal.z < 0.0f)
         normal = -normal;
 
@@ -2160,9 +1939,7 @@ GameObject* Scene::pickDynamicObject(const Ray& ray, f32* outDistance)
     if (mDynamicIndexDirty)
         rebuildDynamicIndex();
 
-    // Candidates, then the nearest by exact box distance. The old octree
-    // returned the nearest NODE's entry, which is not the same thing: a big
-    // box far away can start closer than a small one in front of it.
+    // Nearest by exact box distance: a far big box can start closer than a small one in front (the old octree returned the nearest node's entry).
     mDynamicTree.queryCandidates(ray, std::numeric_limits<f32>::max(), mDynamicCandidates);
     GameObject* best = nullptr;
     f32 bestT = std::numeric_limits<f32>::max();
@@ -2224,14 +2001,9 @@ s32 Scene::pickSubmeshAtPoint(const GameObject& object, const Math::vec3& point,
     return best;
 }
 
-// ----------------------------------------------------------------- physics
-
 namespace
 {
-// How close a new contact point has to be to a cached one to count as the
-// same point. Too tight and the impulse is thrown away every step, which is
-// warm starting not happening at all; too loose and a point that slid across
-// a face inherits an impulse meant for somewhere else.
+// Too tight: impulses are dropped every step (no warm starting); too loose: a point that slid inherits an impulse meant elsewhere.
 constexpr f32 kMatchDistance = 0.02f;
 
 bool finiteVector(const Math::vec3& value)
@@ -2259,8 +2031,6 @@ bool bodyCollides(const RigidBody* body)
 }
 } // namespace
 
-// ----------------------------------------------------------------- bodies
-
 void Scene::addBody(RigidBody& body)
 {
     if (mPhysicsStepping)
@@ -2280,8 +2050,7 @@ void Scene::addBody(RigidBody& body)
     }
     body.mScene = this;
     body.mBodyKey = mNextBodyKey++;
-    // Sleep becomes this scene's decision the moment a body joins it - see
-    // propagateSleep() for why it cannot be the body's own.
+    // Sleep is this scene's decision once a body joins (see propagateSleep()).
     body.setSleepDeferred(true);
     body.pushOwnerPose();
     mRigidBodies.push_back(&body);
@@ -2321,9 +2090,7 @@ void Scene::removeBody(RigidBody& body)
     *found = mRigidBodies.back();
     mRigidBodies.pop_back();
 
-    // Every cached pair naming it goes too, or a body handed this key later
-    // would inherit impulses from one that no longer exists; a queued event
-    // naming it must not reach a callback that could dereference it.
+    // Drop every cached pair and queued event naming it, so a reused key inherits nothing and no callback dereferences it.
     const u32 key = body.mBodyKey;
     for (auto it = mContactCache.begin(); it != mContactCache.end();)
     {
@@ -2381,8 +2148,6 @@ void Scene::clearPhysics()
     mPhysicsStepIndex = 0;
 }
 
-// ----------------------------------------------------------------- joints
-
 void Scene::addJoint(Joint* joint)
 {
     if (!joint || !joint->bodyA() || !joint->bodyB())
@@ -2407,8 +2172,6 @@ void Scene::removeJoint(Joint* joint)
     mJoints.pop_back();
 }
 
-// ------------------------------------------------------------------- AI
-
 void Scene::addAgent(Agent& agent)
 {
     if (agent.mScene == this)
@@ -2416,9 +2179,7 @@ void Scene::addAgent(Agent& agent)
     if (agent.mScene)
         agent.mScene->removeAgent(agent);
     agent.mScene = this;
-    // Same as addBody(): the agent starts where its object already stands,
-    // instead of at the origin until the first frame that notices the owner
-    // moved. A caller stepping updateAgents() directly never gets that frame.
+    // The agent starts where its object stands, not at the origin (as addBody()).
     agent.pushOwnerPose();
     mAgents.push_back(&agent);
 }
@@ -2429,13 +2190,7 @@ void Scene::removeAgent(Agent& agent)
         return;
     if (mAgentsUpdating)
     {
-        // Mid-update, the entry is left as a hole and swept up afterwards -
-        // the same trick the component event lists use. Compacting here
-        // would move an agent the loop has not reached yet down into a slot
-        // it has already passed, silently skipping its update; erasing would
-        // invalidate the loop outright. Refusing the removal is not an
-        // option: the agent is being destroyed either way, and a stale
-        // pointer left in the list is exactly what this avoids.
+        // Mid-update the entry is left as a hole and swept afterwards: compacting would skip an agent's update, erasing would invalidate the loop.
         for (Agent*& entry : mAgents)
             if (entry == &agent)
                 entry = nullptr;
@@ -2448,10 +2203,7 @@ void Scene::removeAgent(Agent& agent)
 
 void Scene::updateAgents(f32 deltaTime)
 {
-    // By index and re-reading size(): an agent's behaviors and state machine
-    // run user callbacks, and those can destroy an agent (leaving a hole
-    // above) or create one, which reallocates. A range-for over this would
-    // be walking a vector that moved.
+    // By index, re-reading size(): callbacks can destroy (hole) or create (reallocate) agents.
     mAgentsUpdating = true;
     for (usize i = 0; i < mAgents.size(); ++i)
     {
@@ -2515,8 +2267,6 @@ void Scene::rebuildObstacleGroup()
     }
 }
 
-// --------------------------------------------------------------- settings
-
 void Scene::setGravity(const Math::vec3& gravity)
 {
     mGravity = gravity;
@@ -2561,8 +2311,6 @@ void Scene::markStaticBroadphaseDirty()
     mStaticBroadphaseDirty = true;
 }
 
-// ------------------------------------------------------------- broadphase
-
 void Scene::rebuildStaticBroadphase()
 {
     mStaticBounds.clear();
@@ -2583,8 +2331,6 @@ void Scene::rebuildStaticBroadphase()
     mStaticBroadphaseDirty = false;
 }
 
-// ---------------------------------------------------------- contact cache
-
 u64 Scene::pairKey(const RigidBody& a, const RigidBody& b)
 {
     const u32 low = a.mBodyKey < b.mBodyKey ? a.mBodyKey : b.mBodyKey;
@@ -2599,9 +2345,7 @@ void Scene::warmStartFromCache(const CachedContactPair* cached, ContactManifold&
     for (u32 i = 0; i < manifold.count; ++i)
     {
         ContactPoint& point = manifold.points[i];
-        // Matched by position, not by an index: the narrowphase can emit the
-        // same patch in a different order from one step to the next, and
-        // carrying impulses by slot would then swap them around the face.
+        // Matched by position, not index: the narrowphase can emit patches in a different order each step.
         f32 best = kMatchDistance;
         const CachedContactPoint* match = nullptr;
         for (u32 j = 0; j < cached->count; ++j)
@@ -2624,9 +2368,7 @@ void Scene::warmStartFromCache(const CachedContactPair* cached, ContactManifold&
 void Scene::storeInCache(const RigidBody& a, const RigidBody& b, const ContactManifold& manifold)
 {
     CachedContactPair& cached = mContactCache[pairKey(a, b)];
-    // The first manifold of this step starts the list; the rest of the pair's
-    // manifolds append to it rather than replacing what came before, or only
-    // the last triangle a body rests on keeps its impulses.
+    // The first manifold of this step starts the list; later ones append, or only the last triangle keeps its impulses.
     if (cached.lastStep != mPhysicsStepIndex)
         cached.count = 0;
     for (u32 i = 0; i < manifold.count && cached.count < CachedContactPair::MaxPoints; ++i)
@@ -2649,9 +2391,7 @@ void Scene::emitContactExits()
             ++it;
             continue;
         }
-        // Not touched this step, so the pair stopped touching. Reported once
-        // and then dropped, which is also what stops the cache growing with
-        // every pair that ever met.
+        // Not touched this step: the pair stopped touching. Reported once, then dropped (also bounds the cache).
         if (it->second.reported)
         {
             ContactEventInfo info;
@@ -2664,14 +2404,11 @@ void Scene::emitContactExits()
     }
 }
 
-// ------------------------------------------------------------------ sleep
-
 u32 Scene::islandRoot(u32 index)
 {
     while (mIslandParent[index] != index)
     {
-        // Path halving: every lookup shortens the chain it walked, so a long
-        // stack does not pay for its own depth on every query.
+        // Path halving.
         mIslandParent[index] = mIslandParent[mIslandParent[index]];
         index = mIslandParent[index];
     }
@@ -2686,10 +2423,7 @@ void Scene::propagateSleep()
     for (usize i = 0; i < count; ++i)
         mIslandParent[i] = static_cast<u32>(i);
 
-    // Static and kinematic bodies are deliberately left out. They never sleep
-    // and never wake, and joining them would put every dynamic body resting
-    // on the same floor into one island - which would mean a box dropped at
-    // one end of the level keeping a stack awake at the other.
+    // Static and kinematic bodies are left out of islands: they never sleep, and joining them would put every body on one floor in one island.
     for (const Contact& contact : mContacts)
     {
         if (!contact.a->isDynamic() || !contact.b->isDynamic())
@@ -2700,9 +2434,7 @@ void Scene::propagateSleep()
             mIslandParent[rootB] = rootA;
     }
 
-    // An island sleeps only when EVERY body in it has gone quiet. One still
-    // moving keeps the whole island awake, which is what stops a box
-    // dropping out of a stack that has not finished settling.
+    // An island sleeps only when every body in it is quiet.
     for (usize i = 0; i < count; ++i)
     {
         const RigidBody* body = mRigidBodies[i];
@@ -2722,8 +2454,6 @@ void Scene::propagateSleep()
             body->setAwake(shouldBeAwake);
     }
 }
-
-// ---------------------------------------------------------------- bullets
 
 void Scene::solveBulletSweeps()
 {
@@ -2762,8 +2492,6 @@ void Scene::solveBulletSweeps()
     }
 }
 
-// ------------------------------------------------------------------- step
-
 void Scene::stepPhysics(f32 duration)
 {
     if (duration <= 0.0f || !std::isfinite(duration))
@@ -2787,18 +2515,12 @@ void Scene::stepPhysics(f32 duration)
     mDynamicBroadphase.reserve(mRigidBodies.size());
     mDynamicProxies.clear();
     mDynamicProxies.reserve(mRigidBodies.size());
-    // Gravity/mStepSlot and dynamic-proxy building are one pass over
-    // mRigidBodies: both only ever read or write the body at the current
-    // index, so there is no ordering dependency between them and no reason to
-    // walk the list twice.
+    // Gravity/mStepSlot and proxy building share one pass; neither depends on the other.
     for (u32 i = 0; i < mRigidBodies.size(); ++i)
     {
         RigidBody* body = mRigidBodies[i];
         body->mStepSlot = i;
-        // Gravity is set on every dynamic body rather than added as a force,
-        // so it reaches them whatever their mass - and so a body the caller
-        // gave its own acceleration keeps it only until the scene overwrites
-        // it, which is the honest behaviour for a scene that owns gravity.
+        // Gravity is set, not added as a force, so it applies whatever the mass and overrides a caller-given acceleration.
         if (body->enabled() && body->isDynamic())
         {
             body->setAcceleration(mGravity);
@@ -2811,10 +2533,7 @@ void Scene::stepPhysics(f32 duration)
         proxy.filter = body->filter();
         proxy.movable = true;
         proxy.bounds = body->shape()->bounds(body->transform());
-        // Grown by the contact margin, or the broadphase throws away exactly
-        // the pairs the margin exists to keep: a body resting on a surface
-        // has its AABB ending where the other one starts, they do not
-        // overlap, and the narrowphase is never even asked.
+        // Grown by the contact margin, or the broadphase drops resting pairs whose AABBs only touch.
         proxy.bounds.min -= Math::vec3(mContactMargin);
         proxy.bounds.max += Math::vec3(mContactMargin);
         mDynamicBroadphase.add(proxy);
@@ -2847,14 +2566,12 @@ void Scene::stepPhysics(f32 duration)
         RigidBody& a = *mRigidBodies[pair.a];
         RigidBody& b = *mRigidBodies[pair.b];
 
-        // A trimesh answers with one manifold per triangle touched, so the
-        // single-manifold path cannot serve it. Both go through the same
-        // vector below and become one Contact each.
+        // A trimesh answers with one manifold per triangle touched, so the single-manifold path cannot serve it.
         mManifolds.clear();
         const bool aIsMesh = a.shape()->type() == ShapeType::Trimesh;
         const bool bIsMesh = b.shape()->type() == ShapeType::Trimesh;
         if (aIsMesh && bIsMesh)
-            continue; // two static meshes never move; nothing to solve
+            continue;
         if (aIsMesh || bIsMesh)
         {
             const RigidBody& convex = aIsMesh ? b : a;
@@ -2863,8 +2580,7 @@ void Scene::stepPhysics(f32 duration)
                                             static_cast<const TrimeshShape&>(*mesh.shape()),
                                             mesh.transform(), mManifolds, mContactMargin))
                 continue;
-            // convexTrimesh() reports convex-to-mesh. When the mesh is body A
-            // the contact's normal has to run A to B like every other pair.
+            // convexTrimesh() reports convex-to-mesh; when the mesh is body A the normal must still run A to B.
             if (aIsMesh)
                 for (ContactManifold& flipped : mManifolds)
                 {
@@ -2895,8 +2611,7 @@ void Scene::stepPhysics(f32 duration)
             contact.a = &a;
             contact.b = &b;
             contact.manifold = current;
-            // Combined the usual way: the geometric mean for friction, the
-            // larger for restitution, so one bouncy body is enough to bounce.
+            // Geometric mean for friction, the larger for restitution.
             contact.friction = std::sqrt(a.friction() * b.friction());
             contact.restitution = Math::max(a.restitution(), b.restitution());
             mContacts.push_back(contact);
@@ -2904,9 +2619,7 @@ void Scene::stepPhysics(f32 duration)
 
         if (isNew)
         {
-            // A new contact is the one moment a sleeping body has to wake -
-            // the solver deliberately does not, because a resting stack has
-            // contacts every single step.
+            // A new contact is the moment a sleeping body wakes; the solver does not (a resting stack has contacts every step).
             a.setAwake(true);
             b.setAwake(true);
         }
@@ -2918,8 +2631,7 @@ void Scene::stepPhysics(f32 duration)
         info.point = manifold.points[0].position;
         info.penetration = manifold.points[0].penetration;
         mContactEventQueue.push_back(info);
-        // Reuses the iterator found above for a pair that was already in the
-        // cache, rather than hashing and probing the same key a second time.
+        // Reuses the iterator found above instead of hashing the key twice.
         CachedContactPair& cached = isNew ? mContactCache[key] : existing->second;
         cached.bodyA = &a;
         cached.bodyB = &b;
@@ -2930,8 +2642,7 @@ void Scene::stepPhysics(f32 duration)
     mContactSolver.solve(mContacts.data(), static_cast<u32>(mContacts.size()), mJoints.data(),
                          static_cast<u32>(mJoints.size()), duration);
 
-    // Stored after solving, so what carries into the next step is the impulse
-    // the solver settled on rather than the one it started from.
+    // Stored after solving, so the next step carries the settled impulse.
     for (const Contact& contact : mContacts)
         storeInCache(*contact.a, *contact.b, contact.manifold);
 
@@ -2948,15 +2659,11 @@ void Scene::stepPhysics(f32 duration)
 
     solveBulletSweeps();
 
-    // Actions - a vehicle, anything else that reaches into bodies each step -
-    // run here, once positions for this step are final and before sleep
-    // state is decided from them.
+    // Actions (vehicles etc.) run once positions are final and before sleep state is decided.
     if (mPhysicsStepCallback)
         mPhysicsStepCallback(duration, mPhysicsStepUserData);
 
-    // After integrating, because the motion average this reads is what
-    // integrate() has just updated. Bodies added to this scene have their own
-    // sleep deferred, so nothing has dropped out on its own in the meantime.
+    // After integrating: the motion average it reads was just updated. Bodies in this scene have their own sleep deferred.
     propagateSleep();
     mPhysicsStepping = false;
     dispatchContactEvents();
@@ -2970,9 +2677,7 @@ void Scene::dispatchContactEvents()
         return;
     }
 
-    // Callbacks are deliberately outside the simulation lock. A body removed
-    // by one callback is scrubbed from the events still queued behind it, so
-    // a later event never hands the callback a body that is already gone.
+    // Callbacks run outside the simulation lock; a body removed by one is scrubbed from events still queued.
     mContactEventsDispatching.swap(mContactEventQueue);
     mDispatchingContactEvents = true;
     for (usize i = 0; i < mContactEventsDispatching.size(); ++i)
@@ -3000,18 +2705,13 @@ void Scene::updatePhysics(f32 deltaTime)
     }
 }
 
-// -------------------------------------------------------------- debug draw
-
 void Scene::debugDrawPhysicsShapes() const
 {
     for (const RigidBody* body : mRigidBodies)
     {
         if (!bodyCollides(body))
             continue;
-        // Hue says which shape it is, brightness says what the simulation is
-        // doing with it. Both matter and they do not compete: telling a
-        // capsule from a box at a glance is how a wrong collider is spotted,
-        // and a body that never dims is one that never settled.
+        // Hue = shape, brightness = simulation state.
         Color color = Color::Gray;
         if (body->bodyType() == BodyType::Kinematic)
             color = Color(230, 200, 60, 255);
@@ -3025,8 +2725,7 @@ void Scene::debugDrawPhysicsShapes() const
             case ShapeType::ConvexHull: color = Color(230, 150, 60, 255); break;
             default:                 color = Color::White; break;
             }
-            // Asleep is the same colour at a third of the brightness, so a
-            // stack settling reads as the whole tower dimming together.
+            // Asleep = a third of the brightness.
             if (!body->awake())
                 color = Color(static_cast<u8>(color.r() / 3), static_cast<u8>(color.g() / 3),
                               static_cast<u8>(color.b() / 3), 255);
@@ -3041,8 +2740,7 @@ void Scene::debugDrawPhysicsContacts() const
         for (u32 i = 0; i < contact.manifold.count; ++i)
         {
             const Math::vec3& point = contact.manifold.points[i].position;
-            // The normal is drawn scaled by the impulse it is carrying, so a
-            // stack shows where the weight actually goes.
+            // Normal scaled by the impulse it carries.
             const f32 scale = 0.05f + contact.manifold.points[i].normalImpulse * 0.02f;
             DebugDraw().line(point, point + contact.manifold.normal * scale, Color::Red);
         }
@@ -3065,9 +2763,7 @@ void Scene::debugDrawPhysicsJoints() const
 
 void Scene::debugDrawObstacles() const
 {
-    // The live set only: an obstacle switched off steers nobody, so drawing
-    // it here would show a wall that is not there. Selecting it in the
-    // editor still draws it, switched off or not.
+    // Live set only: a switched-off obstacle steers nobody. Selecting it in the editor still draws it.
     const Color obstacleColor(200, 80, 220, 255);
     for (const Obstacle* obstacle : mObstacleComponents)
     {
@@ -3095,16 +2791,14 @@ void Scene::debugDrawObstacleShape(const Obstacle& obstacle, Color color)
     const Math::mat4 transform =
         Math::translate(Math::mat4(1.0f), position) * Math::mat4_cast(object->globalRotation());
 
-    // Where the normal arrow(s) start from - the surface, not the centre, so
-    // it reads as pointing away from the shape rather than through it.
+    // Arrow starts at the surface so it points away from the shape.
     Math::vec3 arrowOrigin = position;
 
     switch (obstacle.shape())
     {
     case ObstacleShape::Sphere:
         SphereShape(obstacle.radius()).debugDraw(transform, color);
-        // A sphere has no single face normal; the forward axis stands in as
-        // one sampled meridian, just to show which way seenFrom() points.
+        // A sphere has no single face normal; the forward axis stands in as one sampled meridian to show seenFrom().
         arrowOrigin = position + forwardAxis * obstacle.radius();
         break;
     case ObstacleShape::Box:
@@ -3128,8 +2822,7 @@ void Scene::debugDrawObstacleShape(const Obstacle& obstacle, Color color)
     }
     }
 
-    // seenFrom() decides which side steers agents away and is invisible in
-    // the geometry above - the arrow(s) are the only place it shows.
+    // seenFrom() is invisible in the geometry; the arrows are the only place it shows.
     const AI::ObstacleSeenFrom seenFrom = obstacle.seenFrom();
     if (seenFrom != AI::ObstacleSeenFrom::Inside)
         DebugDraw().arrow(arrowOrigin, arrowOrigin + forwardAxis * kNormalArrowLength, 0.0f,
@@ -3138,8 +2831,6 @@ void Scene::debugDrawObstacleShape(const Obstacle& obstacle, Color color)
         DebugDraw().arrow(arrowOrigin, arrowOrigin - forwardAxis * kNormalArrowLength, 0.0f,
                           kNormalArrowHead, color);
 }
-
-// ---------------------------------------------------------------- queries
 
 bool Scene::raycast(const Ray& ray, f32 maxDistance, const QueryFilter& filter,
                     WorldRayHit& hit) const
@@ -3190,8 +2881,6 @@ void Scene::queryAABB(const AABB& bounds, const QueryFilter& filter,
             out.push_back(body);
     }
 }
-
-// ---------------------------------------------------------- area effects
 
 u32 Scene::applyRadialImpulse(const Math::vec3& centre, f32 radius, f32 strength,
                               const QueryFilter& filter)

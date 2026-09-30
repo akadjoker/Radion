@@ -1,8 +1,3 @@
-// PathfindBehavior.cpp - waypoint-path steering behavior.
-//
-// applyAvoidance() rotates the desired move away from nearby agents around
-// the up vector on the XZ plane. It stays off by default (avoidDistance <= 0).
-
 #include "PCH.h"
 
 #include "PathfindBehavior.h"
@@ -118,8 +113,6 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
     const WaypointVisibility& visibility =
         mSettings.visibility ? *mSettings.visibility : defaultVisibility;
 
-    // If we can see the destination, short-circuit the pathfinding and go
-    // straight there.
     mSinceRepath += timeDelta;
     squadmate.incrementTimeSinceLOSTest(timeDelta);
     if (squadmate.timeSinceLOSTest() > mSettings.maxTimeBeforeLineOfSight)
@@ -135,7 +128,6 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
 
     if (wpID == 0 && !path.empty())
     {
-        // Pop the next waypoint.
         wpID = path.front();
         path.pop_front();
         squadmate.setNextWaypoint(wpID);
@@ -147,7 +139,6 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
         desiredMoveAdj.y = 0.0f;
         if (Math::length(desiredMoveAdj) < squadmate.goalRadius())
         {
-            // We made it - stand around.
             entity.setDesiredMove(-entity.velocity());
             applyAvoidance(entity);
             squadmate.resetTimeSinceWaypointReached();
@@ -155,11 +146,7 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
         }
         else if (!squadmate.losStatus() && mSinceRepath >= mSettings.repathInterval)
         {
-            // No waypoint, no path, no line of sight and not at the goal:
-            // generate a fresh path to get there. Rate limited, because a
-            // search that finds nothing leaves the path empty and lands right
-            // back here on the next frame - unbounded, that is a full A* per
-            // agent per frame for as long as the goal stays unreachable.
+            // Rate limited: a failed search leaves the path empty and would rerun A* every frame per agent.
             mSinceRepath = 0.0f;
             network->findPath(entityPos, squadmate.goal(), visibility, path);
             squadmate.setPath(path);
@@ -175,7 +162,6 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
         desiredMoveAdj.y = 0.0f;
         if (Math::length(desiredMoveAdj) < wp->radius())
         {
-            // Close enough - advance to the next waypoint.
             squadmate.setCurrentWaypoint(wp->id());
             if (!path.empty())
             {
@@ -191,7 +177,6 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
             }
             else
             {
-                // No more waypoints - walk toward the goal.
                 desiredMoveAdj = squadmate.goal() - entityPos;
                 squadmate.setNextWaypoint(0);
                 if (Math::length(desiredMoveAdj) < mSettings.goalRadius)
@@ -205,15 +190,12 @@ void PathfindBehavior::iterate(float timeDelta, Agent& entity)
         }
     }
 
-    // Move in the direction of the next path node or the goal position.
     squadmate.incrementTimeSinceWaypointReached(timeDelta);
     Math::vec3 currentDesiredMove = entity.desiredMove();
     currentDesiredMove += normalizedScaled(desiredMoveAdj, mSettings.turnRate) * gain();
 
-    // Do we need to agitate a bit to get back on track?
     if (squadmate.timeSinceWaypointReached() > mSettings.maxTimeBeforeAgitation)
     {
-        // Nudge the desired move with a vector perpendicular to its direction.
         currentDesiredMove = Math::cross(currentDesiredMove, mSettings.upVector);
         squadmate.resetTimeSinceWaypointReached();
         squadmate.resetTimeSinceGoalReached();

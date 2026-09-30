@@ -124,8 +124,7 @@ f32 Billboard::atlasFps() const
     return mAtlasFps;
 }
 
-// Normalized (u0, v0, width, height) for whichever atlas cell mAtlasTime
-// lands on - row-major order, looping once it runs past the last cell.
+// Row-major cell at mAtlasTime, looping past the last cell.
 Math::vec4 Billboard::currentUVRect() const
 {
     if (!mAnimated)

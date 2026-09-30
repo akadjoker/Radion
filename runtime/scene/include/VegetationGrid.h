@@ -33,26 +33,22 @@ public:
 
     VegetationGrid();
 
-    // Square grid covering [-worldSize/2, worldSize/2] in local X and Z.
+    // Covers [-worldSize/2, worldSize/2] in local X and Z.
     bool create(u32 gridSize, f32 worldSize, const Math::mat4& localToWorld = Math::mat4(1.0f));
 
-    // Rectangular grid covering [-worldSizeX/2, worldSizeX/2] in X and
-    // [-worldSizeZ/2, worldSizeZ/2] in Z.
+    // Covers [-worldSizeX/2, worldSizeX/2] in X and [-worldSizeZ/2, worldSizeZ/2] in Z.
     bool create(u32 width, u32 depth, f32 worldSizeX, f32 worldSizeZ,
                 const Math::mat4& localToWorld = Math::mat4(1.0f));
 
     void clear();
 
-    // Change the local-to-world transform used for painting and terrain sampling.
     void setTransform(const Math::mat4& localToWorld);
     const Math::mat4& transform() const;
 
-    // Paint using world coordinates. The point is transformed to local space,
-    // mapped to a cell, and the occupancy rules are applied.
     bool paintGrass(const Math::vec3& worldPos, f32 scale = 1.0f);
     bool paintTree(const Math::vec3& worldPos, u32 species, f32 scale = 1.0f, f32 yawDegrees = 0.0f);
 
-    // Paint by cell index. Fails if out of bounds.
+    // Fails if out of bounds.
     bool paintGrassAt(u32 x, u32 z, f32 scale = 1.0f);
     bool paintTreeAt(u32 x, u32 z, u32 species, f32 scale = 1.0f, f32 yawDegrees = 0.0f);
 

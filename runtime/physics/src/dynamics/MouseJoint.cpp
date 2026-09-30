@@ -114,14 +114,11 @@ void MouseJoint::setup(f32 duration)
     mSoftBias = error * beta;
     mMaxImpulse = mMaxForce * h;
 
-    // A tensioned spring is not a body at rest: without this, sleep puts the
-    // grabbed body back down the frame after the spring wakes it, and the
-    // cursor drags nothing.
+    // A tensioned spring is not at rest: without this, sleep puts the grabbed body back down after the spring wakes it.
     if (Math::dot(error, error) > 1.0e-6f)
         mBody->setAwake(true);
 
-    // The reference bleeds a little angular velocity so a grabbed body does
-    // not spin forever around the cursor.
+    // Bleeds a little angular velocity (as the reference) so a grabbed body does not spin forever.
     mBody->setAngularVelocity(mBody->angularVelocity() *
                               Math::max(0.0f, 1.0f - 0.02f * (60.0f * h)));
 
@@ -165,8 +162,7 @@ void MouseJoint::solveVelocity()
 
 void MouseJoint::solvePosition(f32)
 {
-    // Soft constraint: the spring bias in the velocity pass is the whole
-    // correction, exactly as in the reference.
+    // Soft constraint: the spring bias in the velocity pass is the whole correction (as the reference).
 }
 
 }

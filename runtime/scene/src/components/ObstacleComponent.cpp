@@ -15,8 +15,7 @@ Obstacle::Obstacle() : Component(Type)
 
 Obstacle::~Obstacle()
 {
-    // Same reasoning as Agent/RigidBody: a loose obstacle outliving nothing
-    // but itself would leave the Scene's group holding a dangling pointer.
+    // A loose obstacle would leave the Scene's group holding a dangling pointer (as Agent/RigidBody).
     if (mScene)
         mScene->removeObstacle(*this);
     delete mObstacle;
@@ -81,10 +80,7 @@ void Obstacle::rebuildOwnedShape()
     }
     mObstacle->setSeenFrom(mSeenFrom);
 
-    // The Scene's ObstacleGroup holds this component's old AI::Obstacle* -
-    // deleted above - by address, so it has to be refilled here and not at
-    // the next frame, or an ObstacleAvoidanceBehavior stepped in between
-    // reads freed memory.
+    // The Scene's ObstacleGroup holds the deleted AI::Obstacle* by address; refill now or an avoidance step reads freed memory.
     if (mScene)
         mScene->rebuildObstacleGroup();
     pushOwnerTransform();

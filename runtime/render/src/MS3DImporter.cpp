@@ -125,8 +125,7 @@ MS3DFile parseMS3D(ByteArray& data)
             t.normal[i].y = data.readF32();
             t.normal[i].z = data.readF32();
         }
-        // MS3D stores the three s (u) values contiguously, then the three t
-        // (v) values contiguously - not interleaved per corner.
+        // The three s values are contiguous, then the three t values: not interleaved per corner.
         f32 s[3];
         f32 v[3];
         for (int i = 0; i < 3; ++i)
@@ -199,9 +198,7 @@ MS3DFile parseMS3D(ByteArray& data)
     if (data.canRead(4))
         data.readS32();
 
-    // The joints/keyframes chunk is optional - a purely static export can
-    // legitimately end right here. Missing it is not a parse failure, just
-    // an empty file.joints.
+    // The joints chunk is optional: a static export may end here.
     if (data.canRead(2))
     {
         const u16 jointCount = data.readU16();
@@ -254,9 +251,7 @@ std::string directoryOf(const std::string& filename)
     return slash == std::string::npos ? std::string() : filename.substr(0, slash + 1);
 }
 
-// MS3D embeds a Windows path for a material's texture, relative or
-// absolute - never trusted directly. Only the filename is kept; the real
-// mesh directory (directoryOf(filename) above) supplies the rest.
+// Only the filename of the embedded Windows path is kept; the mesh directory supplies the rest.
 std::string textureBasename(const std::string& reference)
 {
     const usize slash = reference.find_last_of("/\\");

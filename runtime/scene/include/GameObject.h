@@ -48,13 +48,7 @@ public:
     GameObject(const GameObject&) = delete;
     GameObject& operator=(const GameObject&) = delete;
 
-    // Unique within the owning Scene, and only there: the counter lives in
-    // Scene, not in a global, so the same id can name a different object in
-    // another Scene. Stable for the object's whole life, and the key a saved
-    // scene uses for every reference it stores (parent, target object,
-    // active camera), which is why Scene::createGameObject() can be asked to
-    // restore a specific one on load. 0 means the object is not in a Scene
-    // yet - the root's id, and never a valid reference.
+    // Unique within the owning Scene; 0 means not in a Scene yet (the root's id), never a valid reference.
     u64 id() const;
     Scene* scene() const;
     const std::string& name() const;
@@ -68,10 +62,6 @@ public:
     void setVisible(bool visible);
     bool isActiveInHierarchy() const;
     bool isVisibleInHierarchy() const;
-    // Both of the above in one walk up the parents. The two flags share a
-    // word, so a level costs one load and one mask test instead of two
-    // separate chains - and every submission loop in Scene wants them
-    // together anyway.
     bool isActiveAndVisibleInHierarchy() const;
     bool isStatic() const;
     void setStatic(bool isStatic);
@@ -92,12 +82,8 @@ public:
     usize childIndex(const GameObject* child) const;
     GameObject* findChild(const std::string& name, bool recursive = true) const;
 
-    // Only safe on objects neither side has registered with a Scene yet -
-    // building a detached hierarchy before Scene::add() puts its root in.
-    // Once either object is registered, these refuse and warn instead of
-    // silently moving/deleting a branch Scene's own mObjects/mRenderers/
-    // mLights/mCameras never hear about: use Scene::add()/remove()/destroy()
-    // on a registered object instead. See docs/review.md finding 9.
+    // Only safe before either object is registered with a Scene; otherwise refuses and warns.
+    // Use Scene::add()/remove()/destroy() on registered objects.
     bool addChild(GameObject* child);
     GameObject* removeChild(GameObject* child);
     bool deleteChild(GameObject* child);
@@ -151,9 +137,7 @@ public:
         return count;
     }
 
-    // Visits every concrete T in insertion order without repeatedly walking
-    // the sibling list as getComponentAt<T>() would. Do not remove a
-    // component from this callback; defer removal until the iteration ends.
+    // Do not remove a component from this callback; defer until iteration ends.
     template <class T, class Function> void forEachComponent(Function&& function) const
     {
         for (Component* component = mComponents[static_cast<u8>(T::Type)]; component;
@@ -162,10 +146,6 @@ public:
                 function(*static_cast<T*>(component));
     }
 
-    // Whether ANY component slot is occupied - what tells a genuine "empty"
-    // marker node (a spawn point, a rope anchor) apart from an object that
-    // just happens not to have the one component a particular caller asked
-    // about.
     bool hasAnyComponent() const
     {
         for (const Component* component : mComponents)
@@ -194,18 +174,13 @@ public:
         return count;
     }
 
-    // Whether the object carries exactly a T, consulting the class's own
-    // discriminator through ComponentMatch - which is what tells a spot light
-    // from a point light, since the ComponentType cannot.
+    // Consults ComponentMatch, which tells a spot light from a point light.
     template <class T> bool contains() const
     {
         return getComponent<T>() != nullptr;
     }
 
-    // getComponent<T>() with that same check: null when the slot holds a
-    // different class, instead of a pointer to something T is not. Named to
-    // find rather than get because, unlike getComponent<T>(), it is expected
-    // to come back empty.
+    // Null when the slot holds a different class.
     template <class T> T* findComponent() const
     {
         return getComponent<T>();
@@ -218,9 +193,6 @@ public:
 
     bool removeComponent(Component* component);
 
-    // SceneSerializer reserves an authored local ID immediately before it
-    // creates a component. Runtime callers should never need this: normal
-    // attachments receive the next available ID automatically.
     void reserveNextComponentId(u32 id);
     void clearReservedComponentId();
 
@@ -263,13 +235,8 @@ private:
 
     explicit GameObject(const std::string& name = std::string());
 
-    // The unguarded mechanics addChild()/removeChild()/deleteChildren() wrap.
-    // Scene calls these directly - it is the one caller that is allowed to
-    // move/delete a registered branch, because it is the one caller that
-    // also updates mObjects/mRenderers/mLights/mCameras and mScene to match.
-    // The destructor uses removeChildRaw() too: detaching from a parent that
-    // is still registered must always succeed, or the parent is left holding
-    // a pointer into freed memory.
+    // Unguarded mechanics; only Scene calls them directly since it also updates its own lists.
+    // The destructor uses removeChildRaw() so detaching always succeeds.
     bool addChildRaw(GameObject* child);
     GameObject* removeChildRaw(GameObject* child);
     void deleteChildrenRaw();
@@ -299,13 +266,7 @@ private:
     std::vector<GameObject*> mChildren;
     Component* mComponents[static_cast<u8>(ComponentType::Count)]{};
     Component* mComponentTails[static_cast<u8>(ComponentType::Count)]{};
-    // A component whose onStart()/onUpdate()/onLateUpdate() calls
-    // removeComponent<Self>() on its own owner used to be an implicit
-    // `delete this`: the slot cleared immediately, but so did the component
-    // object, out from under the very callback still running on it. The
-    // slot still clears immediately here - getComponent<T>() must stop
-    // seeing it right away - only the delete is deferred until the callback
-    // loop that might still be on this component's stack has finished.
+    // Deferred delete: the slot clears immediately, the component outlives the running callback loop.
     std::vector<Component*> mPendingComponentDeletes;
     u32 mComponentCallbackDepth = 0;
     u32 mNextComponentId = 1;

@@ -62,18 +62,13 @@ struct RenderTextureSettings
     bool ambientOcclusion = true;
     bool volumetrics = true;
     bool lensFlares = true;
-    // Temporal accumulation also jitters the projection. Editor/navigation
-    // views can disable it without affecting the Game View or main render.
+    // Temporal accumulation jitters the projection; editor views can disable it.
     bool temporalAA = true;
     // Explicit-view renders only: show the game camera's occlusion verdicts.
     bool previewOcclusionCulling = false;
 };
 
-// A viewpoint to render from that is not backed by any Scene entity - an
-// editor's own free-look observer camera, chiefly, which has no business
-// owning a GameObject just to hold a view/projection pair. Every field
-// renderInternal() would otherwise have read off a Camera component,
-// gathered by hand instead.
+// A viewpoint not backed by a Scene entity (an editor's free-look camera).
 struct RenderView
 {
     Math::mat4 view = Math::mat4(1.0f);
@@ -93,13 +88,10 @@ struct EngineConfig
     bool resizable = true;
     bool fullscreen = false;
 
-    // Off for offscreen tools (the lightmap baker CLI, say) - still a real
-    // window with a real GL context underneath, SDL just never shows it.
+    // Off for offscreen tools; still a real window and GL context, just never shown.
     bool visible = true;
 
-    // On in Debug builds: the driver's own diagnostics cost nothing to have
-    // and a demo that runs without them hides its mistakes until something
-    // looks wrong on screen, which is the expensive way to find them.
+    // On in Debug builds: driver diagnostics are free and expose mistakes early.
 #ifdef RADION_DEBUG
     bool debugContext = true;
 #else
@@ -137,54 +129,26 @@ public:
     bool render(Scene& scene);
     bool renderToTexture(Scene& scene, u32 width, u32 height, RenderTextureOutput& output,
                          const RenderTextureSettings& settings = RenderTextureSettings());
-    // Same, from a RenderView instead of scene.activeCamera() - an editor
-    // observer's own render, so its every frame does not mean saving and
-    // restoring every field of whatever Camera happens to be the scene's
-    // real one (position, rotation, FOV, ortho/perspective, ...) around a
-    // borrowed render, the fragile shape that kept re-breaking in one field
-    // or another. Nothing past FrameContext setup ever reads
-    // scene.activeCamera() again - shadows/lighting/decals/everything else
-    // only ever reads frame.* - so this path does not touch the scene's
-    // real camera at all, not even to read it.
-    // Renders every Camera in the scene that has recording() on into its own
-    // texture, at its own resolution, and leaves the handle on the camera.
-    // Called at the top of render(); public so a custom render loop that does
-    // not use render() can still drive the sensors. Returns how many were
-    // rendered.
-    //
-    // Each one is a full render of the scene from that camera, so the cost is
-    // per recording camera - which is why the resolution is the camera's own
-    // and usually small.
+    // Same, from a RenderView: never touches scene.activeCamera(), so no save/restore of its fields.
+    // Renders every recording() Camera into its own texture; called at the top of render().
+    // Returns how many; cost is per camera.
     u32 renderRecordingCameras(Scene& scene);
 
     bool renderToTexture(Scene& scene, const RenderView& view, u32 width, u32 height,
                          RenderTextureOutput& output,
                          const RenderTextureSettings& settings = RenderTextureSettings());
-    // Custom render loops can provide their list so the built-in profiler
-    // displays the same counters they rendered. Scene-driven loops omit it.
+    // Custom render loops pass their list so the profiler shows their counters.
     void flip(const RenderList* profileList = nullptr);
 
-    // Presents one black frame carrying `stage` centred on it, and returns
-    // false once the window has been asked to close. Everything a caller
-    // loading a large level needs between its own steps, so the window keeps
-    // drawing instead of freezing while a mesh streams in - the async loads
-    // update() pumps are what finishes during these frames.
-    // `progress` in [0,1] draws a bar under the text; negative draws none.
-    //
-    // Deliberately draws nothing but itself: no scene is rendered, because
-    // during a load the scene is half of one, and the passes have their own
-    // render state to set up and tear down that a loading frame has no
-    // business walking through.
+    // Presents one black frame with `stage` centred; false once the window is asked to close.
+    // `progress` in [0,1] draws a bar; negative draws none. Draws no scene: it is half loaded during a load.
     bool presentLoadingFrame(const char* stage, f32 progress = -1.0f);
 
-    // Pumps loading frames until every async mesh and texture queued by a
-    // scene load has landed, reporting how far along it is. False when the
-    // window closed part-way through, which leaves the scene incomplete and
-    // is the caller's cue to quit rather than carry on.
+    // Pumps loading frames until async mesh/texture loads land. False if the window closed part-way,
+    // leaving the scene incomplete: the caller should quit.
     bool waitForAsyncLoads(const char* stage);
 
-    // Captures the presented backbuffer as an animated GIF. Recording is
-    // sampled by flip(), so callers only need to toggle it around their loop.
+    // Recording is sampled by flip().
     bool startGifRecording();
     void stopGifRecording();
     bool isGifRecording() const;
@@ -194,14 +158,8 @@ public:
     {
         mBuiltinPanelsVisible = visible;
     }
-    // Whether flip() composites ImGui's draw data onto the backbuffer at
-    // all - unlike setBuiltinPanelsVisible() (which only skips the engine's
-    // own profiler/post-process/sky panels), this hides everything ImGui
-    // drew this frame, a demo's own windows included, with no cooperation
-    // needed from the demo itself: NewFrame() still runs every update() so
-    // ImGui::Begin()/SliderFloat()/etc. stay perfectly safe to call, only
-    // ImGui::Render() and the actual draw call are skipped. A clean shot of
-    // the game with no UI at all.
+    // Whether flip() composites ImGui's draw data; hides all ImGui including a demo's own windows.
+    // NewFrame() still runs each update(), so ImGui calls stay safe.
     void setImGuiVisible(bool visible)
     {
         mImGuiVisible = visible;
@@ -210,9 +168,7 @@ public:
     {
         return mImGuiVisible;
     }
-    // False while ImGui is hidden, since a panel nobody can see must not eat
-    // the game's input. Game code that picks with the mouse or reads keys
-    // asks these before acting.
+    // False while ImGui is hidden, so an invisible panel does not eat game input.
     bool uiWantsMouse() const
     {
         return mImGuiVisible && mImGui.wantsMouse();
@@ -238,10 +194,7 @@ public:
         mWindow.requestClose();
     }
 
-    // Set once by EngineSettings::load() so shutdown() can save back to the
-    // same file without every demo remembering to call it on the way out -
-    // that is how window position/size survives a plain window-close instead
-    // of only the "Guardar settings" button.
+    // Set by EngineSettings::load() so shutdown() saves back to the same file.
     void setSettingsFile(const std::string& filename)
     {
         mSettingsFile = filename;
@@ -307,9 +260,6 @@ public:
     void setSpotShadows(bool enabled);
     bool spotShadows();
 
-    // The environment probe, for image-based reflections. Owned here for the
-    // same reason the sky is: it is frame-wide state every lit surface reads,
-    // not something a single object carries.
     EnvironmentProbe& environmentProbe()
     {
         return mProbe;
@@ -321,17 +271,10 @@ public:
         return mSky;
     }
 
-    // Loads the six faces through AssetManager::loadCubemap() and, on
-    // success, points mSky at the result and switches its mode to Cubemap.
-    // An empty name clears the handle and the name instead of loading
-    // anything. Kept on Engine (not just AssetManager) because it also owns
-    // where in SkySettings the result lands and which mode follows it.
+    // Loads the six faces and switches the sky to Cubemap; an empty name clears the handle.
     void setSkyCubemap(const std::string& baseName);
 
-    // What the scene is rendered into, see RenderResolution. Lowering it buys
-    // back fill rate and bandwidth - the two things a full-screen effect
-    // spends. The UI is drawn afterwards at window resolution, so it stays
-    // crisp whatever this is set to.
+    // What the scene is rendered into; the UI is drawn afterwards at window resolution.
     void setRenderResolution(const RenderResolution& resolution);
     const RenderResolution& renderResolution() const
     {
@@ -342,8 +285,7 @@ public:
         return mRenderResolution;
     }
 
-    // Raw shadow textures blitted into the backbuffer's corners - cascades
-    // bottom-left, atlas bottom-right. See ShadowDebugView.
+    // Shadow textures blitted into the backbuffer's corners (cascades left, atlas right).
     bool debugShowShadowCascades = false;
     bool debugShowShadowAtlas = false;
 
@@ -351,9 +293,7 @@ public:
     bool debugShowPhysicsContacts = false;
     bool debugShowPhysicsJoints = false;
 
-    // Every Radion::Obstacle's shape and seenFrom() arrow - Scene::
-    // debugDrawObstacles(), same family as the physics flags above. The
-    // selected object's own Obstacle draws regardless, in ViewportPanel.cpp.
+    // Draws every Obstacle's shape and seenFrom() arrow; the selected one always draws in ViewportPanel.cpp.
     bool debugShowAIObstacles = false;
 
 private:
@@ -376,7 +316,6 @@ private:
                         RenderTextureOutput* output,
                         const RenderTextureSettings* textureSettings = nullptr,
                         const RenderView* explicitView = nullptr);
-    // The pixel size the scene buffers get this frame.
     void resolveRenderSize(const Rect& rect, u32& width, u32& height) const;
 
     Platform::Window mWindow;
@@ -394,16 +333,11 @@ private:
     bool mProbeCaptureDeferred = false;
     RenderResolution mRenderResolution;
     TemporalState mTemporal[3];
-    // How long the last flip() spent on the overlay and on present() - both
-    // reported to the profiler from update(), since the frame they belong to
-    // is already closed by the time they run.
+    // Reported to the profiler from update(): the frame they belong to is already closed.
     f32 mOverlayMilliseconds = 0.0f;
     f32 mPresentMilliseconds = 0.0f;
-    // Built on the first loading frame and kept for the rest of the run: a
-    // level reload wants it again, and it is a few kilobytes.
+    // Built on first loading frame, kept for level reloads.
     BatchRenderer* mLoadingBatch = nullptr;
-    // Draws the ScreenDraw queue over the resolved window frame - built on
-    // first use, same reasoning as mLoadingBatch.
     ScreenDrawPass* mScreenDrawPass = nullptr;
     bool mInitialized = false;
     bool mFrameActive = false;

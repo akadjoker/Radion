@@ -104,10 +104,7 @@ bool ManualMesh::end()
 void ManualMesh::clear()
 {
     mData.clear();
-    // end() hands mMesh a new GPU mesh every rebuild without ever freeing
-    // the one it replaces - releasing it here, the one place both begin()
-    // and a standalone clear() funnel through, is what stops every rebuild
-    // after the first leaking the previous mesh's buffers.
+    // end() hands mMesh a new GPU mesh each rebuild; release the old one here (begin() and clear() both funnel through) or every rebuild leaks its buffers.
     if (mMesh.valid())
         Assets().destroyMesh(mMesh);
     mMesh = MeshHandle();

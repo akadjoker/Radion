@@ -111,8 +111,7 @@ void Camera::setRecording(bool recording)
     mRecording = recording;
     if (!mRecording)
     {
-        // The texture belongs to the render target the Engine hands out each
-        // frame, so stopping just forgets it rather than freeing anything.
+        // The texture belongs to the render target the Engine hands out each frame; stopping just forgets it.
         mRecordTexture = TextureHandle();
         mRecordDepthTexture = TextureHandle();
     }

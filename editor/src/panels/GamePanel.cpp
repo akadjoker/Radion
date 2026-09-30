@@ -67,9 +67,7 @@ void GamePanel::onImGui()
         ImGui::EndCombo();
     }
     app().settings().gameResolutionPreset = mResolutionPreset;
-    // Only the live view submits the scene (EditorApplication::ViewMode) -
-    // while Scene is live this panel keeps showing the last frame it drew
-    // rather than paying for a second full render of everything.
+    // Only the live view submits the scene; while Scene is live this shows the last frame drawn.
     const bool live = app().viewMode() == EditorApplication::ViewMode::Game;
     if (!live)
     {
@@ -102,9 +100,7 @@ void GamePanel::onImGui()
 
     if (mOutput.valid())
     {
-        // The stale frame keeps the size it was rendered at, which is not
-        // necessarily the panel's current one - scale from the texture's own
-        // dimensions so a resize while paused does not stretch it.
+        // Scale from the texture's own size so a resize while paused does not stretch it.
         const f32 textureWidth = static_cast<f32>(mOutput.width);
         const f32 textureHeight = static_cast<f32>(mOutput.height);
         const f32 scale = Math::min(available.x / textureWidth, available.y / textureHeight);

@@ -1,8 +1,3 @@
-// ScriptBench.cpp - the cost of the C++/script boundary itself: one native
-// call through a Zen handle, at the counts a gameplay script actually makes
-// them, isolated from Scene::update()'s own per-frame overhead by keeping
-// the whole loop inside a single on_start() the way a real script would.
-
 #include "PCH.h"
 
 #include "GameObject.h"
@@ -28,12 +23,7 @@ f64 milliseconds(std::chrono::steady_clock::time_point begin,
     return std::chrono::duration<f64, std::milli>(end - begin).count();
 }
 
-// Loads `script` onto the scene's one ZenBehaviour and runs exactly one
-// Scene::update() - which is what invokes on_start() and, inside it, the
-// script's own "for" loop of `iterations` native calls. Timed around that one
-// update() call rather than around each call individually, matching how the
-// script actually crosses into C++: as one VM invocation running a loop, not
-// as `iterations` separate round trips through Scene::update().
+// One Scene::update() runs on_start() and its native-call loop; timed around that one call, as a script crosses into C++ as one VM invocation.
 void runScenario(Scene& scene, GameObject* object, const char* label, const std::string& script,
                  u64 iterations)
 {

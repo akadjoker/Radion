@@ -43,25 +43,12 @@ f32 sampleHeightmapPixel(const std::vector<u8>& data, u32 width, s32 px, s32 py)
     return static_cast<f32>(data[i]) / 255.0f;
 }
 
-// One vertex's non-position attributes, interleaved: normal, uv, weights.
-// 36 bytes, matching the stride landscape.vert's stream 1 declares. Built as
-// raw floats rather than a struct so nothing here depends on how a compiler
-// happens to pad Math::vec4 - the GPU reads exactly the bytes this writes.
+// Interleaved normal, uv, weights: 36 bytes, matching landscape.vert's stream 1. Raw floats so nothing depends on Math::vec4 padding.
 constexpr u32 kAttribFloats = 3 + 2 + 4;
 
-// ---------------------------------------------------------------------------
-// The shared index buffer: crack-free LOD in two sentences.
-//
-// A chunk is Landscape::ChunkWidth x ChunkWidth vertices, ALWAYS, at every
-// LOD - the outer ring never changes density, only the interior is walked
-// with a step of (1 << lod). That is what makes the shared edge between two
-// chunks at different LODs always have the same vertex count on both sides,
-// so it always coincides - no cracks, no skirts, no per-neighbour-LOD index
-// variants.
-//
-// Built once, for the whole world: switching a chunk's LOD is switching which
-// range of THIS buffer its one SubMesh points at. Zero uploads, zero copies.
-// ---------------------------------------------------------------------------
+// The shared index buffer: crack-free LOD. Every chunk is ChunkWidth x ChunkWidth vertices at every LOD; the outer ring never changes density, only the interior steps by (1 << lod),
+// so shared edges always have equal vertex counts (no cracks, skirts or per-neighbour variants).
+// Built once; switching LOD switches the SubMesh's range of this buffer, with no uploads.
 struct LandscapeLod
 {
     u32 indexOffset = 0;
@@ -86,8 +73,7 @@ private:
         LandscapeIndices state;
 
         constexpr s32 width = static_cast<s32>(Landscape::ChunkWidth);
-        // log2(64) + 1 = 7: one LOD per halving of the interior's resolution,
-        // down to the coarsest step that still fits inside the interior.
+        // log2(64) + 1 = 7: one LOD per halving of the interior, down to the coarsest step that fits.
         const s32 maxLod = static_cast<s32>(std::log2(width - 3)) + 1;
 
         std::vector<u32> indices;
@@ -99,8 +85,6 @@ private:
 
             if (lod == 0)
             {
-                // LOD 0: the full grid, no distinction between border and
-                // interior.
                 for (s32 x = 0; x < width - 1; ++x)
                 {
                     for (s32 z = 0; z < width - 1; ++z)
@@ -123,9 +107,7 @@ private:
             {
                 const s32 step = 1 << lod;
 
-                // ---- interior, stepped ----
-                // 1 .. width-2: index 0 and width-1 are the border ring and
-                // are handled separately below.
+                // Interior 1 .. width-2 (index 0 and width-1 are the border ring, handled below).
                 for (s32 x = 1; x < width - 2; x += step)
                 {
                     for (s32 z = 1; z < width - 2; z += step)
@@ -144,11 +126,7 @@ private:
                     }
                 }
 
-                // ---- the four borders, WITHOUT the step ----
-                // 'connection' is the nearest interior vertex: dividing by
-                // step rounds the border column to its matching interior
-                // column, and the "+1"/"(step+1)/2" make that rounding land
-                // in the middle instead of always the same side.
+                // Borders without the step. 'connection' is the nearest interior vertex: dividing by step rounds to the matching interior column, "+1"/"(step+1)/2" centre the rounding.
                 auto fillTriangle = [&](s32 midStep, s32 current, s32 neighbour, s32 connection,
                                         s32 connectionPrev, bool flip)
                 {
@@ -181,7 +159,6 @@ private:
                     }
                 };
 
-                // bottom (z = 0)
                 for (s32 x = 0; x < width - 1; ++x)
                 {
                     const s32 z = 0;
@@ -194,8 +171,7 @@ private:
                     fillTriangle((x - 1) % step, current, neighbour, connection, connectionPrev,
                                 false);
                 }
-                // top (z = width-1) - winding flipped: this side faces the
-                // other way.
+                // top (z = width-1): winding flipped.
                 for (s32 x = 0; x < width - 1; ++x)
                 {
                     const s32 z = width - 1;
@@ -208,7 +184,6 @@ private:
                     fillTriangle((x - 1) % step, current, neighbour, connection, connectionPrev,
                                 true);
                 }
-                // left (x = 0)
                 for (s32 z = 0; z < width - 1; ++z)
                 {
                     const s32 x = 0;
@@ -221,7 +196,6 @@ private:
                     fillTriangle((z - 1) % step, current, neighbour, connection, connectionPrev,
                                 true);
                 }
-                // right (x = width-1)
                 for (s32 z = 0; z < width - 1; ++z)
                 {
                     const s32 x = width - 1;
@@ -240,21 +214,8 @@ private:
                 static_cast<u32>(indices.size()) - state.lods[static_cast<usize>(lod)].indexOffset;
         }
 
-        // ---- flip triangle winding ----
-        // Everything above is index for index the same algorithm as the
-        // reference. What differs is the front-face convention, and that does
-        // not come from the algorithm - it comes from the rasteriser state
-        // the reference's engine defaults to (clockwise front faces), where
-        // OpenGL defaults to counter-clockwise. Porting the index order as-is
-        // draws the terrain inside-out.
-        //
-        // The alternative would be glFrontFace(GL_CW) around every terrain
-        // draw - a literal translation of that state - but that is three call
-        // sites (cascades, prepass, scene) and three places the state could
-        // leak into the rest of the frame. Swapping the last two indices of
-        // every triangle once, here, has no state at all. Normals need no
-        // equivalent fix: they come from a cross product computed separately
-        // in buildChunk() and already point up.
+        // Flip triangle winding: the reference's engine defaults to clockwise front faces, OpenGL to counter-clockwise, so the ported index order draws inside-out.
+        // Swapping the last two indices once here avoids glFrontFace(GL_CW) state at three draw sites. Normals come from a separate cross product and already point up.
         for (usize i = 0; i + 2 < indices.size(); i += 3)
             std::swap(indices[i + 1], indices[i + 2]);
 
@@ -272,10 +233,10 @@ private:
         state.layout.streams[0].stride = sizeof(Math::vec3);
         state.layout.streams[1].stride = kAttribFloats * sizeof(f32);
         state.layout.attribCount = 4;
-        state.layout.attribs[0] = {0, 0, 0, AttribFormat::Float3}; // position
-        state.layout.attribs[1] = {1, 1, 0, AttribFormat::Float3}; // normal
-        state.layout.attribs[2] = {2, 1, 12, AttribFormat::Float2}; // uv
-        state.layout.attribs[3] = {3, 1, 20, AttribFormat::Float4}; // weights
+        state.layout.attribs[0] = {0, 0, 0, AttribFormat::Float3};
+        state.layout.attribs[1] = {1, 1, 0, AttribFormat::Float3};
+        state.layout.attribs[2] = {2, 1, 12, AttribFormat::Float2};
+        state.layout.attribs[3] = {3, 1, 20, AttribFormat::Float4};
 
         Log::info("Landscape: %d LODs, %zu shared indices (%zu KB)", maxLod, indices.size(),
                   indices.size() * sizeof(u32) / 1024);
@@ -317,13 +278,7 @@ void Landscape::restart()
     mChunks.clear();
     mPriorityInvalidation.clear();
 
-    // The SAME seed for every modifier, not a distinct one derived per
-    // modifier. An earlier version of this used an LCG to spread them out,
-    // and that broke Voronoi outright: at a seed in the billions, a float
-    // only has steps of a few hundred at that magnitude, so the variation in
-    // compute_sin(seed * hash) - where hash lives in [0,1] - disappears
-    // before it reaches the sine at all. One seed for everyone keeps it in a
-    // range where the perturbation still perturbs.
+    // The same seed for every modifier: an earlier per-modifier LCG broke Voronoi (at seeds in the billions a float has steps of hundreds, so seed * hash variation vanishes before the sine).
     for (Modifier& modifier : modifiers)
     {
         modifier.seed = config.seed;
@@ -335,8 +290,7 @@ void Landscape::restart()
 
 f32 Landscape::sampleHeight(const Math::vec2& worldPosition) const
 {
-    // Height accumulates in [0,1] through the modifier stack and only goes
-    // to world units at the very end.
+    // Height accumulates in [0,1] and only becomes world units at the end.
     f32 height = 0.0f;
     for (const Modifier& modifier : modifiers)
     {
@@ -356,10 +310,7 @@ f32 Landscape::sampleHeight(const Math::vec2& worldPosition) const
         case Modifier::Kind::Voronoi:
         {
             Math::vec2 p = worldPosition * modifier.frequency;
-            // The perturbation displaces the sample with Perlin BEFORE
-            // Voronoi evaluates it. Without this the cells look geometric and
-            // give themselves away as Voronoi immediately; with it the ridges
-            // meander.
+            // Perturbation displaces the sample with Perlin before Voronoi evaluates it, so ridges meander instead of looking geometric.
             if (modifier.perturbation > 0.0f)
             {
                 const f32 angle = modifier.perlin.compute(p.x, p.y, 0.0f, 6) * 6.283185307f;
@@ -384,11 +335,7 @@ f32 Landscape::sampleHeight(const Math::vec2& worldPosition) const
             const Math::vec2 pixel(p.x + static_cast<f32>(modifier.heightmapWidth) * 0.5f,
                                   p.y + static_cast<f32>(modifier.heightmapHeight) * 0.5f);
 
-            // Outside the image: the modifier does nothing. That is what lets
-            // an authored island sit in the middle of an otherwise infinite
-            // procedural world - the Perlin carries on alone past the image's
-            // edge with no seam, because nothing here ever touches height at
-            // all outside it.
+            // Outside the image the modifier does nothing, so an authored island sits in an infinite procedural world with no seam.
             if (pixel.x < 0.0f || pixel.x >= static_cast<f32>(modifier.heightmapWidth) ||
                 pixel.y < 0.0f || pixel.y >= static_cast<f32>(modifier.heightmapHeight))
                 break;
@@ -406,14 +353,7 @@ f32 Landscape::sampleHeight(const Math::vec2& worldPosition) const
                                    sampleHeightmapPixel(modifier.heightmapData, modifier.heightmapWidth, x1, y1), fx);
             const f32 value = Math::mix(a, b, fy);
 
-            // ---- fade out at the border ----
-            // Without this the image's edge is a STEP: height comes from the
-            // image with weight 0.85 just inside, and from the noise alone
-            // just outside, and the two values have no reason to agree - a
-            // vertical wall all the way round the image. The band lets the
-            // image's influence fall to zero before the edge, so the
-            // procedural takes over seamlessly. borderFadePixels at 0
-            // restores the un-faded behaviour.
+            // Fade out at the border: otherwise the image edge is a step (weight 0.85 just inside, noise alone outside) and a wall forms. borderFadePixels at 0 restores the un-faded behaviour.
             f32 influence = 1.0f;
             if (modifier.borderFadePixels > 0.0f)
             {
@@ -427,9 +367,7 @@ f32 Landscape::sampleHeight(const Math::vec2& worldPosition) const
             if (influence <= 0.0f)
                 break;
 
-            // Can't use the shared blendHeight(): it reads the modifier's
-            // plain weight, and this needs the weight ATTENUATED by the fade
-            // band. Same three blend modes, with that weight in its place.
+            // Cannot use blendHeight(): it reads the plain weight, this needs the weight attenuated by the fade band.
             const f32 v = value * modifier.heightmapAmount;
             const f32 w = modifier.weight * influence;
             switch (modifier.blend)
@@ -463,10 +401,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
     chunk.position = Math::vec3(static_cast<f32>(key.x) * chunkSpan, 0.0f,
                                static_cast<f32>(key.z) * chunkSpan);
 
-    // Height grid WITH PADDING: 68x68 instead of 67x67. Normals need the
-    // neighbour one step to the right and one step up, and without the
-    // padding that means re-evaluating the noise (expensive) or inventing a
-    // normal at the border (visible as a seam between chunks).
+    // Padded 68x68: normals need the right and up neighbours; without padding that means re-evaluating noise or a visible seam between chunks.
     constexpr u32 paddedWidth = ChunkWidth + 1;
     std::vector<f32> padded(static_cast<usize>(paddedWidth) * paddedWidth);
     for (u32 cz = 0; cz < paddedWidth; ++cz)
@@ -497,9 +432,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
             const f32 z = (static_cast<f32>(cz) - ChunkHalfWidth) * scale;
             const f32 height = padded[cx + cz * paddedWidth];
 
-            // Normal and tangent from the two neighbours. Real spacing
-            // (`scale`) rather than a literal +1, so this stays correct when
-            // chunkScale is not 1 - with chunkScale = 1 the two agree anyway.
+            // Real spacing (`scale`), not a literal +1, so it stays correct when chunkScale != 1.
             const Math::vec3 c0(x, height, z);
             const Math::vec3 c1(x + scale, padded[(cx + 1) + cz * paddedWidth], z);
             const Math::vec3 c2(x, padded[cx + (cz + 1) * paddedWidth], z + scale);
@@ -509,9 +442,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
             const Math::vec3 n = Math::normalize(Math::cross(t, b));
 
             const f32 slopeAmount = 1.0f - Math::clamp(n.y, 0.0f, 1.0f);
-            // One sloped vertex is enough to put the whole chunk in the
-            // shadow view: flat ground never shadows itself, so flat chunks
-            // stay out of it.
+            // One sloped vertex puts the whole chunk in the shadow view; flat chunks stay out.
             if (slopeAmount > 0.1f)
                 slopeCastShadow = true;
 
@@ -530,9 +461,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
                     : Math::smoothstep(0.0f, config.highAltitudeThreshold,
                                       inverseLerp(0.0f, config.topLevel, height));
 
-            // Slope SUBTRACTS from the altitude regions. Without this, snow
-            // climbs vertical cliff faces - the classic procedural-terrain
-            // tell. A 300m cliff gets rock, not snow.
+            // Slope subtracts from the altitude regions, or snow climbs vertical cliffs.
             regionLow = Math::clamp(regionLow - regionSlope, 0.0f, 1.0f);
             regionHigh = Math::clamp(regionHigh - regionSlope, 0.0f, 1.0f);
 
@@ -559,9 +488,7 @@ bool Landscape::buildChunk(const ChunkKey& key, Chunk& chunk)
     chunk.minimumY = minY;
     chunk.maximumY = maxY;
 
-    // Bounding sphere, in the chunk's OWN local space - see the note on
-    // Landscape's owner transform in cull(). Reference formula: a box's
-    // circumscribed sphere from its half-extents.
+    // In the chunk's own local space (see cull()). Reference formula: circumscribed sphere from half-extents.
     chunk.sphereCentre = chunk.position + Math::vec3(0.0f, (minY + maxY) * 0.5f, 0.0f);
     const f32 halfSpan = chunkSpan * 0.5f;
     const f32 halfY = (maxY - minY) * 0.5f;
@@ -663,9 +590,7 @@ void Landscape::update(const Math::vec3& cameraPosition)
             std::floor((cameraPosition.z + ChunkHalfWidth * config.chunkScale) / chunkSpan));
     }
 
-    // Remove chunks that fell outside the radius. Chebyshev distance, not
-    // Euclidean: the spiral grows in SQUARE rings, and Euclidean would trim a
-    // disc out of it and flicker the corners in and out every frame.
+    // Chebyshev, not Euclidean distance: the spiral grows in square rings, and Euclidean would flicker the corners.
     if (config.removal)
     {
         for (auto it = mChunks.begin(); it != mChunks.end();)
@@ -682,20 +607,17 @@ void Landscape::update(const Math::vec3& cameraPosition)
         }
     }
 
-    // Spiral generation, with a time budget.
+    // Spiral generation with a time budget.
     Timer buildTimer;
     mBuiltLastFrame = 0;
 
-    // Invalidation queue, BEFORE the spiral: an edit has to show up now, not
-    // once the whole world has finished generating. It is a QUEUE and not a
-    // list because it may not fit the budget - next frame picks up the older
-    // requests before the newer ones.
+    // Invalidation queue runs before the spiral so an edit shows now; a queue because it may not fit the budget (older requests first next frame).
     bool budgetSpent = false;
     while (!mPriorityInvalidation.empty())
     {
         const ChunkKey key = mPriorityInvalidation.front();
         auto it = mChunks.find(key);
-        // Can appear more than once in the queue; skip if already rebuilt.
+        // May appear more than once; skip if already rebuilt.
         if (it == mChunks.end() || !it->second.invalidated)
         {
             mPriorityInvalidation.pop_front();
@@ -709,7 +631,6 @@ void Landscape::update(const Math::vec3& cameraPosition)
         mPriorityInvalidation.pop_front();
     }
 
-    // Square spiral out from the centre.
     if (!budgetSpent && requestChunk(0, 0, buildTimer))
     {
         for (u32 growth = 0; growth < config.generationRadius; ++growth)
@@ -753,13 +674,7 @@ void Landscape::update(const Math::vec3& cameraPosition)
 
 void Landscape::cull(const Frustum& frustum)
 {
-    // Chunk spheres are tested in the LOCAL space they were built in - the
-    // same simplifying assumption Terrain already makes for its own patch
-    // culling in this engine: a terrain sits at its owner's origin and is not
-    // expected to be moved, rotated or scaled. RenderList::submit() still
-    // applies the real transform for the final safety-net test, so moving the
-    // GameObject cannot make anything draw wrong - only this pass's own
-    // visible/LOD bookkeeping would be measuring from the wrong place.
+    // Spheres are tested in local space, assuming the terrain sits at its owner's origin and is not moved, rotated or scaled (as Terrain). RenderList::submit() still applies the real transform as the final test.
     mVisible = 0;
     mShadowChunks = 0;
     for (auto& entry : mChunks)
@@ -785,10 +700,7 @@ u32 Landscape::pickLod(const Chunk& chunk, const Math::vec3& cameraPosition) con
     const s32 maxLod = static_cast<s32>(indices.lods.size()) - 1;
     const f32 chunkSpan = static_cast<f32>(ChunkWidth - 1) * config.chunkScale;
 
-    // Distance to the chunk's sphere, in "chunk widths". A chunk one width
-    // away sits at LOD 0, two away at LOD 1, four away at LOD 2: double the
-    // distance halves the density, which is what keeps a triangle's size on
-    // screen roughly constant.
+    // Distance in chunk widths: one away is LOD 0, two LOD 1, four LOD 2, so triangle size on screen stays roughly constant.
     const f32 distance =
         Math::max(0.0f, Math::distance(cameraPosition, chunk.sphereCentre) - chunk.sphereRadius);
     const f32 ratio = distance / chunkSpan;
@@ -823,9 +735,7 @@ void Landscape::submitCamera(RenderList& list, const Math::mat4& transform,
         if (!mesh || mesh->submeshes.empty())
             continue;
 
-        // Switching LOD is switching the submesh's index range - the one
-        // thing the shared index buffer buys. No upload, no buffer swap, no
-        // rebuilt geometry.
+        // Switching LOD switches the submesh's index range: no upload or rebuild.
         const u32 lod = pickLod(chunk, cameraPosition);
         chunk.lastLod = lod;
         if (lod < 8)
@@ -855,9 +765,7 @@ void Landscape::submitShadow(RenderList& list, const Math::mat4& transform,
     for (auto& entry : mChunks)
     {
         Chunk& chunk = entry.second;
-        // Only chunks with slope enter the shadow view: a flat chunk cannot
-        // shadow itself, and whatever stands on top of it is a different
-        // object with its own cast-shadow flag.
+        // Only chunks with slope enter the shadow view; what stands on a flat chunk has its own cast-shadow flag.
         if (!chunk.built || !chunk.castShadow)
             continue;
 
@@ -865,8 +773,7 @@ void Landscape::submitShadow(RenderList& list, const Math::mat4& transform,
         if (!mesh || mesh->submeshes.empty())
             continue;
 
-        // One LOD coarser than the scene view uses: the shadow map has no
-        // resolution to show the difference, and this halves the triangles.
+        // One LOD coarser than the scene view: the shadow map cannot show the difference and this halves the triangles.
         const u32 lod =
             static_cast<u32>(Math::clamp(static_cast<s32>(pickLod(chunk, cameraPosition)) + 1, 0,
                                         maxLod));
@@ -887,8 +794,7 @@ void Landscape::invalidateRegion(const Math::vec2& centreXZ, f32 radius)
         if (chunk.invalidated)
             continue; // already queued
 
-        // A VERTICAL cylinder, not a sphere: the chunk's height is exactly
-        // what is about to change, so it cannot be part of the test.
+        // A vertical cylinder, not a sphere: the chunk's height is what is about to change.
         const Math::vec2 centre(chunk.sphereCentre.x, chunk.sphereCentre.z);
         const f32 reach = radius + chunk.sphereRadius;
         if (Math::dot(centre - centreXZ, centre - centreXZ) > reach * reach)
@@ -917,10 +823,7 @@ u32 Landscape::pendingInvalidations() const
 
 f32 Landscape::heightAt(f32 worldX, f32 worldZ) const
 {
-    // Evaluates the modifier stack directly rather than reading a built
-    // chunk's height grid - more expensive, but it works anywhere, even
-    // where no chunk has been generated yet, which is what placing objects
-    // needs.
+    // Evaluates the modifier stack directly (costlier, but works where no chunk exists yet, as object placement needs).
     return sampleHeight(Math::vec2(worldX, worldZ));
 }
 
@@ -956,8 +859,7 @@ bool Landscape::sculpt(const Math::vec3& worldCenter, f32 radius, f32 amount, bo
     if (!target)
         return false;
 
-    // Same pixel conversion sampleHeight() uses for this modifier - keeps
-    // the brush aligned with what it is actually painting.
+    // Same pixel conversion as sampleHeight() so the brush aligns with what it paints.
     const Math::vec2 centerPixel(
         worldCenter.x * target->frequency + static_cast<f32>(target->heightmapWidth) * 0.5f,
         worldCenter.z * target->frequency + static_cast<f32>(target->heightmapHeight) * 0.5f);

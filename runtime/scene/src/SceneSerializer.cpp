@@ -61,9 +61,7 @@ namespace
 
 constexpr const char* kFormatName = "radion-scene";
 constexpr u32 kFormatVersion = 1;
-// GameObject::setScale() itself rejects a component this close to zero (see
-// GameObject.cpp) - kept in step so a scale the runtime would silently
-// reject is instead a load-time diagnostic with a json path.
+// Kept in step with GameObject::setScale(), which rejects a component this close to zero, so it becomes a load-time diagnostic.
 constexpr f32 kMinScaleComponent = 0.000001f;
 
 std::string indexPath(usize index)
@@ -71,11 +69,7 @@ std::string indexPath(usize index)
     return "scene.objects[" + std::to_string(index) + "]";
 }
 
-// A json value coming from parse() of "5" is number_unsigned; the identical
-// value built in C++ as a plain `int` (json field = 5) is number_integer -
-// nlohmann tells the two apart by how the value was produced, not by
-// whether it's actually negative. An id/version has no business caring
-// about that distinction, only about "is this a whole number >= 0".
+// number_unsigned vs number_integer depends on how the json was produced, not its sign; ids/versions only care about "whole number >= 0".
 bool readNonNegativeInteger(const nlohmann::json& field, u64& out)
 {
     if (field.is_number_unsigned())
@@ -105,8 +99,7 @@ bool readVec3(const nlohmann::json& array, Math::vec3& out)
     return std::isfinite(out.x) && std::isfinite(out.y) && std::isfinite(out.z);
 }
 
-// File order is [x, y, z, w]; Math::quat's own constructor takes (w, x, y, z)
-// - swapped from the file order, never confuse the two here or on write.
+// File order is [x, y, z, w]; Math::quat's constructor takes (w, x, y, z).
 bool readQuat(const nlohmann::json& array, Math::quat& out)
 {
     if (!array.is_array() || array.size() != 4)
@@ -121,9 +114,7 @@ bool readQuat(const nlohmann::json& array, Math::quat& out)
     if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) || !std::isfinite(w))
         return false;
     out = Math::quat(w, x, y, z);
-    // Matches GameObject's own valid() tolerance (GameObject.cpp): not
-    // degenerate, not necessarily already unit-length - setRotation()
-    // normalizes it regardless.
+    // Matches GameObject's valid() tolerance; setRotation() normalizes.
     return Math::dot(out, out) > 0.000001f;
 }
 
@@ -169,10 +160,7 @@ bool readFloatField(const nlohmann::json& json, const char* key, f32& out, const
     return true;
 }
 
-// A number field that always has a sensible fallback, for optional values a
-// caller is about to pass straight into a setter anyway - not worth a
-// SceneLoadResult entry when it is missing, unlike readFloatField()'s
-// always-written fields.
+// For optional values with a sensible fallback: a missing one is not worth a SceneLoadResult entry.
 f32 readNumberOr(const nlohmann::json& json, const char* key, f32 fallback)
 {
     const auto field = json.find(key);
@@ -214,8 +202,6 @@ bool readVec3Field(const nlohmann::json& json, const char* key, Math::vec3& out,
     }
     return true;
 }
-
-// ------------------------------------------------------------------- Camera
 
 const char* cameraProjectionName(CameraProjection mode)
 {
@@ -603,8 +589,7 @@ nlohmann::json writeTiledTerrain(TiledTerrain& terrain)
 nlohmann::json writeVoxelBlocks(VoxelWorldComponent& voxelWorld)
 {
     nlohmann::json blocks = nlohmann::json::array();
-    // Air is the registry's own and never authored, so the palette starts at
-    // the first real block.
+    // Air is the registry's own and never authored, so the palette starts at the first real block.
     for (Voxel::BlockId id = 1; id < voxelWorld.blockCount(); ++id)
     {
         const Voxel::BlockDefinition* definition = voxelWorld.blockDefinition(id);
@@ -1033,9 +1018,7 @@ void readHair(GameObject& object, const nlohmann::json& json, const std::string&
     if (texture != json.end() && texture->is_string() && !texture->get<std::string>().empty())
         hair->loadTexture(texture->get<std::string>());
     hair->setActive(readBoolOr(json, "active", true));
-    // Roots are deterministic derived data, so scene files stay compact.
-    // MeshRenderer precedes Hair in writeComponents(), making regeneration
-    // immediately possible for files produced by this serializer.
+    // Roots are derived data; MeshRenderer precedes Hair in writeComponents(), so regeneration works on load.
     if (!hair->generate())
         result.addWarning(path, "hair roots could not be regenerated; assign a rebuildable scalp mesh");
 }
@@ -1097,9 +1080,7 @@ void readTiledTerrain(GameObject& object, const nlohmann::json& json, const std:
         return;
     }
 
-    // Applied before loadTilemap() below so its own rebuild is the only one -
-    // each of these setters rebuilds immediately once the tile map is no
-    // longer empty, and the map is still empty at this point.
+    // Before loadTilemap(): each setter rebuilds once the map is non-empty, so this keeps its rebuild the only one.
     terrain->setTilesInSide(static_cast<int>(readNumberOr(json, "tilesInSide", 8.0f)));
     terrain->setPatchLength(readNumberOr(json, "patchLength", 1.0f));
     terrain->setTilesPerPatch(static_cast<int>(readNumberOr(json, "tilesPerPatch", 8.0f)));
@@ -1138,8 +1119,7 @@ void readVoxelBlocks(VoxelWorldComponent& voxelWorld, const nlohmann::json& json
     if (blocks == json.end() || !blocks->is_array() || blocks->empty())
         return;
 
-    // The palette is authoritative when the scene carries one: ids are
-    // positional, and a world's blocks refer to them by index.
+    // Palette ids are positional; blocks refer to them by index.
     voxelWorld.resetBlocksToDefault();
     Voxel::BlockId id = 1;
     for (const nlohmann::json& entry : *blocks)
@@ -1201,8 +1181,7 @@ void readVoxelWorld(GameObject& object, const nlohmann::json& json, const std::s
         seed <= std::numeric_limits<u32>::max())
         voxelWorld->setSeed(static_cast<u32>(seed));
     voxelWorld->setChunkRadius(static_cast<s32>(readNumberOr(json, "chunkRadius", 2.0f)));
-    // Both ends of each range go in together: setting them one at a time
-    // clamps the first against the value that has not been read yet.
+    // Both ends together: one at a time clamps the first against an unread value.
     voxelWorld->setWorldHeightRange(
         static_cast<s32>(readNumberOr(json, "minWorldY", 0.0f)),
         static_cast<s32>(readNumberOr(json, "maxWorldY", 127.0f)));
@@ -1243,8 +1222,7 @@ void readVoxelWorld(GameObject& object, const nlohmann::json& json, const std::s
     if (edits != json.end() && edits->is_string() && !edits->get<std::string>().empty())
     {
         const std::string file = edits->get<std::string>();
-        // A world whose edit file went missing still loads: the terrain is
-        // reproduced from the seed, and only what somebody changed is lost.
+        // A missing edit file still loads: terrain comes from the seed, only the edits are lost.
         if (!voxelWorld->loadEdits(file.c_str()))
             result.addError(path, "voxel edits '" + file + "' could not be read");
     }
@@ -1264,9 +1242,7 @@ nlohmann::json writeCamera(Camera& camera)
     json["version"] = 1;
     json["active"] = camera.active();
     json["projection"] = cameraProjectionName(camera.projectionMode());
-    // Both written unconditionally rather than only the one the current mode
-    // uses - a flat, always-present schema is simpler to read back than a
-    // shape that changes with "projection".
+    // Both written unconditionally: a flat schema is simpler to read back.
     json["fieldOfView"] = camera.fieldOfView();
     json["orthographicSize"] = camera.orthographicSize();
     json["aspect"] = camera.aspect();
@@ -1312,8 +1288,7 @@ void readCamera(GameObject& object, const nlohmann::json& json, const std::strin
     else
         camera->setOrthographic(orthographicSize, aspect, nearPlane, farPlane);
 
-    // Size before recording: turning it on with the wrong size would render
-    // one frame at the default resolution before the real one arrives.
+    // Size before recording, or one frame renders at the default resolution.
     camera->setRecordSize(static_cast<u32>(readNumberOr(json, "recordWidth", 640.0f)),
                           static_cast<u32>(readNumberOr(json, "recordHeight", 480.0f)));
     camera->setRecording(readBoolOr(json, "recording", false));
@@ -1322,8 +1297,6 @@ void readCamera(GameObject& object, const nlohmann::json& json, const std::strin
     if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
         camera->setActive(false);
 }
-
-// -------------------------------------------------------------------- Light
 
 const char* lightTypeName(LightType type)
 {
@@ -1521,9 +1494,7 @@ nlohmann::json writeLight(Light& light)
     json["castShadows"] = light.castsShadows();
     json["volumetric"] = light.volumetric();
 
-    // Every subtype field is written unconditionally, same convention as
-    // Camera's two projections above - unused ones for the current
-    // lightType just carry their subtype's default.
+    // Every subtype field is written unconditionally (like Camera's projections); unused ones carry the subtype default.
     f32 range = 0.0f, innerAngle = 0.0f, outerAngle = 0.0f, width = 0.0f, height = 0.0f;
     switch (light.lightType())
     {
@@ -1590,7 +1561,7 @@ void readLight(GameObject& object, const nlohmann::json& json, const std::string
     if (volumetricField != json.end() && volumetricField->is_boolean())
         volumetric = volumetricField->get<bool>();
 
-    // Only the fields the resolved subtype actually consumes are required.
+    // Only the fields the resolved subtype consumes are required.
     f32 range = 0.0f, innerAngle = 0.0f, outerAngle = 0.0f, width = 0.0f, height = 0.0f;
     const bool needsRange = lightType == LightType::Point || lightType == LightType::Spot ||
                             lightType == LightType::Rectangle;
@@ -1650,11 +1621,7 @@ void readLight(GameObject& object, const nlohmann::json& json, const std::string
         light->setActive(false);
 }
 
-// ------------------------------------------------------------------ Material
-
-// A material's flags are a bitmask, not one enum value - written as a list of
-// stable names so a bit's numeric position can move without breaking a saved
-// file, the same reasoning MaterialSlotNames.h already applies to slots.
+// Flags are a bitmask written as stable names so a bit's position can move without breaking files (as MaterialSlotNames.h).
 nlohmann::json writeMaterialFlags(u32 flags)
 {
     nlohmann::json array = nlohmann::json::array();
@@ -1796,10 +1763,7 @@ bool readMaterialParams(const nlohmann::json& json, MaterialParams& out, const s
     return ok;
 }
 
-// Persist every plain-file slot. Sequence and RenderTarget textures are
-// skipped with a warning because they need a richer schema than one path;
-// the static Detail/ColorMap slots are important for Terrain's fourth layer
-// and optional RGBA splat map.
+// Sequence and RenderTarget textures are skipped with a warning (need a richer schema); Detail/ColorMap slots matter for Terrain's fourth layer and splat map.
 constexpr MaterialSlot kSerializedSlots[] = {
     SlotAlbedo, SlotNormal, SlotSurface, SlotEmissive,
     SlotDetail, SlotColorMap, SlotLightmap, SlotHeight};
@@ -1842,8 +1806,7 @@ bool readMaterial(const nlohmann::json& json, Material& out, const std::string& 
     out.name = (nameField != json.end() && nameField->is_string()) ? nameField->get<std::string>()
                                                                    : std::string();
 
-    // Absent in scenes written before this field existed - the material keeps
-    // its default flags rather than failing the whole load.
+    // Absent in older scenes: keeps default flags.
     const auto flagsField = json.find("flags");
     if (flagsField != json.end())
         out.flags = readMaterialFlags(*flagsField, path + ".flags", result);
@@ -1899,11 +1862,7 @@ bool readMaterial(const nlohmann::json& json, Material& out, const std::string& 
                 continue;
             }
             const std::string file = fileField->get<std::string>();
-            // Async: a scene the size of Sponza has enough of these that
-            // loading them one at a time, synchronously, is what used to
-            // freeze the editor window for the whole file. This hands back a
-            // usable placeholder immediately - AsyncTextureLoader fills in
-            // the real image in place over the next several frames.
+            // Async: loading Sponza-sized textures synchronously froze the editor; a placeholder returns now and AsyncTextureLoader fills it in.
             const TextureHandle handle = Assets().loadTextureAsync(
                 file, Material::colorSpaceFor(static_cast<MaterialSlot>(slot), out.flags), true);
             if (!handle.valid())
@@ -1918,8 +1877,6 @@ bool readMaterial(const nlohmann::json& json, Material& out, const std::string& 
     }
     return true;
 }
-
-// -------------------------------------------------------------- MeshRenderer
 
 nlohmann::json writeMeshDesc(const MeshDesc& desc)
 {
@@ -1970,18 +1927,13 @@ nlohmann::json writeMeshRenderer(MeshRenderer& renderer)
     json["type"] = "MeshRenderer";
     json["version"] = 1;
     json["active"] = renderer.active();
-    // Written unconditionally rather than only when false: a reader that
-    // defaults it to true either way costs nothing, and a field that appears
-    // only sometimes is the kind a later reader forgets exists.
+    // Written unconditionally: a field that appears only sometimes gets forgotten by later readers.
     json["visibleInReflections"] = renderer.visibleInReflections();
 
     const MeshDesc& desc = Assets().meshDesc(renderer.mesh());
     if (desc.source == MeshSource::None)
     {
-        // An invalid handle is the editor's intentional blank Mesh Instance:
-        // it remains empty until the primitive creator or asset picker fills
-        // it. A valid handle with no recipe is genuinely anonymous and still
-        // cannot survive a save.
+        // An invalid handle is the editor's intentional blank Mesh Instance; a valid handle with no recipe is anonymous and cannot survive a save.
         if (renderer.mesh().valid())
             Log::error("SceneSerializer: MeshRenderer on '%s' has an anonymous mesh, not saved",
                        renderer.owner() ? renderer.owner()->name().c_str() : "?");
@@ -1992,12 +1944,8 @@ nlohmann::json writeMeshRenderer(MeshRenderer& renderer)
         json["mesh"] = writeMeshDesc(desc);
     }
 
-    // Material overrides are asset data, not scene data. The mesh loader
-    // restores the material from its .mat/.material sidecar; serializing
-    // copied materials here makes Save Scene embed stale/incomplete copies
-    // and can hide submeshes when the scene is reopened. The exception is a
-    // mesh with no file to own a sidecar (editor primitives): the scene is
-    // the only place its material can live.
+    // Material overrides are asset data: the mesh loader restores them from the .mat/.material sidecar, and saving copies embeds stale ones and can hide submeshes.
+    // Exception: meshes with no file (editor primitives) have no sidecar.
     json["materialOverrides"] = nlohmann::json::array();
     if (desc.source != MeshSource::File && renderer.materialOverrideCount() > 0)
         for (u32 i = 0; i < renderer.materialOverrideCount(); ++i)
@@ -2027,15 +1975,8 @@ void readMeshRenderer(GameObject& object, const nlohmann::json& json, const std:
             return;
         mesh = asyncFileLoad ? Assets().createMeshAsync(desc) : Assets().createMesh(desc);
     }
-    // Attached even when the mesh failed to resolve, same "keep the object,
-    // warn" policy as a missing texture below - a missing mesh should not
-    // take the whole load down.
-    //
-    // Known gap: MeshRenderer has no field of its own to remember `desc`
-    // when `mesh` comes back invalid, so a Save right after a failed
-    // resolve writes an anonymous mesh instead of preserving this
-    // reference - the plan's "preserve the logical name" policy needs an
-    // API addition on MeshRenderer to hold fully, not yet done.
+    // Attached even when the mesh failed to resolve (keep the object, warn).
+    // Known gap: MeshRenderer cannot remember `desc` for an invalid mesh, so a Save then writes an anonymous mesh.
     MeshRenderer* renderer = object.addComponent<MeshRenderer>(mesh);
     if (!renderer)
     {
@@ -2046,18 +1987,12 @@ void readMeshRenderer(GameObject& object, const nlohmann::json& json, const std:
         result.addWarning(path + ".mesh",
                           "could not resolve mesh '" + desc.key() + "', renderer left without one");
 
-    // Absent in scenes written before this field existed, and true is what
-    // they all meant - every object was in every capture back then.
+    // Absent in older scenes, which meant true (every object was in every capture).
     const auto reflectionsField = json.find("visibleInReflections");
     if (reflectionsField != json.end() && reflectionsField->is_boolean())
         renderer->setVisibleInReflections(reflectionsField->get<bool>());
 
-    // Legacy materialOverrides on file meshes are intentionally ignored.
-    // Materials belong to the mesh sidecar and must be loaded by AssetManager
-    // from its .mat or .material file, otherwise an old scene can restore
-    // stale partial overrides and make submeshes disappear. File-less meshes
-    // (editor primitives) have no sidecar, so the scene copy is authoritative
-    // for them.
+    // Legacy materialOverrides on file meshes are ignored (the sidecar is authoritative, stale ones hide submeshes); file-less meshes use the scene copy.
     const auto overridesField = json.find("materialOverrides");
     if (overridesField != json.end() && overridesField->is_array() &&
         !overridesField->empty() && desc.source != MeshSource::File)
@@ -2092,8 +2027,6 @@ void readMeshRenderer(GameObject& object, const nlohmann::json& json, const std:
         renderer->setActive(false);
 }
 
-// ----------------------------------------------------------- CharacterController
-
 nlohmann::json writeCharacterController(CharacterController& controller)
 {
     nlohmann::json json;
@@ -2108,10 +2041,7 @@ nlohmann::json writeCharacterController(CharacterController& controller)
     json["gravity"] = controller.gravity();
     json["maxFallSpeed"] = controller.maxFallSpeed();
     json["maxIterations"] = controller.maxIterations();
-    // Not written: octree() (RuntimeOnly - built from a level's static
-    // geometry, not authored per-object; the caller re-links it after load,
-    // same as it already does today) and every simulation field
-    // (moveInput/isGrounded/velocity/...).
+    // Not written: octree() (RuntimeOnly, re-linked by the caller after load) and simulation fields.
     return json;
 }
 
@@ -2153,8 +2083,6 @@ void readCharacterController(GameObject& object, const nlohmann::json& json,
         controller->setActive(false);
 }
 
-// ---------------------------------------------------------- camera controllers
-
 const char* mouseButtonName(MouseButton button)
 {
     switch (button)
@@ -2189,12 +2117,7 @@ bool mouseButtonFromName(const std::string& name, MouseButton& out)
     return false;
 }
 
-// KeyCode's values are not Radion's own enum ordinals - each one is pinned by
-// the header to an explicit external convention (KEY_A = 65, KEY_ESCAPE =
-// 256, matching GLFW's key codes), the same kind of stable external number an
-// asset path or a hash already is elsewhere in this file. Writing the raw
-// integer here does not carry the "reordering the enum breaks the file" risk
-// the plan's "stable strings, never ordinals" rule is about.
+// KeyCode values are pinned to external numbers (KEY_A = 65, GLFW's), so raw integers carry no enum-reordering risk.
 template <class ControllerType>
 void writeFreeLookKeys(nlohmann::json& json, ControllerType& controller)
 {
@@ -2222,11 +2145,7 @@ bool readFreeLookKeys(const nlohmann::json& json, ControllerType& controller,
         const auto entry = keysField->find(std::to_string(i));
         if (entry == keysField->end() || !entry->is_number_integer())
         {
-            // A warning, not addError()+return false: a scene saved before
-            // this action existed (Sprint, added after Forward..Down) simply
-            // never wrote one, and the constructor's own default for it is a
-            // perfectly good fallback - failing the whole controller over
-            // one missing binding would be a worse outcome than that.
+            // A warning, not an error: scenes saved before Sprint existed lack it, and the default is fine.
             result.addWarning(path + ".keys", "missing entry for action " + std::to_string(i) +
                                                   ", keeping its default binding");
             continue;
@@ -2285,9 +2204,7 @@ void readFreeLookController(GameObject& object, const nlohmann::json& json, cons
     if (!readFreeLookKeys(json, *controller, path, result))
         return;
     controller->setMoveSpeed(moveSpeed);
-    // Optional, not required like moveSpeed/lookSpeed/pitchLimit above - a
-    // scene saved before Sprint existed has no field for it at all, and
-    // should still load instead of failing this whole component.
+    // Optional: older scenes lack it and should still load.
     controller->setSprintMultiplier(json.value("sprintMultiplier", controller->sprintMultiplier()));
     controller->setLookSpeed(lookSpeed);
     controller->setPitchLimit(pitchLimit);
@@ -2305,8 +2222,6 @@ void readFreeLookController(GameObject& object, const nlohmann::json& json, cons
         controller->setActive(false);
 }
 
-// ---------------------------------------------------------------- Orbit/Maya
-
 nlohmann::json writeOrbitLike(const char* typeName, f32 yaw, f32 pitch, f32 pitchLimit,
                               f32 distance, GameObject* target, const Math::vec3& targetPoint)
 {
@@ -2317,17 +2232,13 @@ nlohmann::json writeOrbitLike(const char* typeName, f32 yaw, f32 pitch, f32 pitc
     json["pitch"] = pitch;
     json["pitchLimit"] = pitchLimit;
     json["distance"] = distance;
-    // targetPoint only matters when target is null, but is written
-    // unconditionally - same flat-schema convention as Camera/Light above.
+    // Written unconditionally (flat schema) though only used when target is null.
     json["targetPoint"] = {targetPoint.x, targetPoint.y, targetPoint.z};
     json["target"] = target ? nlohmann::json(target->id()) : nlohmann::json(nullptr);
     return json;
 }
 
-// Resolved immediately, not deferred like BoneAttachment: a target is a
-// GameObject, which createObjects() already guarantees exists for every id
-// in the file by the time any component is read - no component of the
-// target's has to exist yet, unlike BoneAttachment's Animator.
+// Resolved immediately, not deferred like BoneAttachment: createObjects() guarantees every target object exists.
 GameObject* readTargetField(const nlohmann::json& json, Scene& out, const std::string& path,
                             SceneLoadResult& result)
 {
@@ -2350,11 +2261,7 @@ nlohmann::json writeOrbit(Orbit& orbit)
 {
     nlohmann::json json = writeOrbitLike("Orbit", orbit.yaw(), orbit.pitch(), 0.0f,
                                          orbit.distance(), orbit.target(), orbit.targetPoint());
-    // Orbit has no pitchLimit()/orbitSpeed()/zoomSpeed()/orbitButton()/
-    // requireOrbitButton() getter - only setters. Written as the class's own
-    // defaults until an accessor exists; setYawPitch()'s pitch clamps against
-    // whatever limit is live in memory regardless, so this is a real
-    // round-trip gap, not a cosmetic one. Flagged rather than guessed at.
+    // Orbit has no getters for pitchLimit()/orbitSpeed()/zoomSpeed()/orbitButton()/requireOrbitButton(), so class defaults are written: a real round-trip gap.
     json["active"] = orbit.active();
     return json;
 }
@@ -2443,9 +2350,7 @@ void readThirdPerson(GameObject& object, const nlohmann::json& json, const std::
         result.addError(path, "object already has a ThirdPerson component");
         return;
     }
-    // Limits before the angles: setYawPitch() clamps the pitch against
-    // whatever limits are live, so reading them in the other order would
-    // clamp the saved pitch against the class defaults.
+    // Limits before angles: setYawPitch() clamps against the live limits.
     camera->setPitchLimits(minPitch, maxPitch);
     camera->setYawPitch(yaw, pitch);
     camera->setDistance(distance);
@@ -2507,18 +2412,13 @@ void readMaya(GameObject& object, const nlohmann::json& json, const std::string&
     if (target)
         maya->setTarget(target);
     maya->setDistance(distance);
-    // Optional, not required like distance/targetPoint above - a scene saved
-    // before yaw()/pitch() existed on Maya has neither field, and should
-    // still load with the construction default (yaw 0, pitch 17) rather than
-    // failing the whole component.
+    // Optional: scenes saved before Maya had yaw()/pitch() load with the defaults (yaw 0, pitch 17).
     maya->setYawPitch(json.value("yaw", maya->yaw()), json.value("pitch", maya->pitch()));
 
     const auto activeField = json.find("active");
     if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
         maya->setActive(false);
 }
-
-// -------------------------------------------------------------- RibbonTrail
 
 nlohmann::json writeRibbonTrail(RibbonTrail& trail)
 {
@@ -2527,7 +2427,7 @@ nlohmann::json writeRibbonTrail(RibbonTrail& trail)
     json["version"] = 1;
     json["active"] = trail.active();
     json["emitting"] = trail.emitting();
-    // The blade's base under "target", matching readTargetField on the way in.
+    // Base under "target", matching readTargetField.
     json["target"] = trail.base() ? nlohmann::json(trail.base()->id()) : nlohmann::json(nullptr);
     json["tip"] = trail.tip() ? nlohmann::json(trail.tip()->id()) : nlohmann::json(nullptr);
     json["lifetime"] = trail.lifetime();
@@ -2537,8 +2437,7 @@ nlohmann::json writeRibbonTrail(RibbonTrail& trail)
     json["endColor"] = trail.endColor().value();
     json["additive"] = trail.additive();
     json["depthTest"] = trail.depthTest();
-    // The texture is a live handle with no source path on the component, so
-    // it still cannot be saved - reattach it from code after load.
+    // The texture is a live handle with no source path; reattach from code after load.
     return json;
 }
 
@@ -2564,8 +2463,7 @@ void readRibbonTrail(GameObject& object, const nlohmann::json& json, const std::
     if (base && tip)
         trail->setBlade(base, tip);
 
-    // All optional with the component's construction defaults - scenes saved
-    // before these fields were written still load.
+    // All optional with construction defaults.
     trail->setLifetime(readNumberOr(json, "lifetime", trail->lifetime()));
     trail->setMinDistance(readNumberOr(json, "minDistance", trail->minDistance()));
     const auto smoothnessField = json.find("smoothness");
@@ -2594,8 +2492,6 @@ void readRibbonTrail(GameObject& object, const nlohmann::json& json, const std::
         trail->setActive(false);
 }
 
-// -------------------------------------------------------------- Billboard
-
 nlohmann::json writeBillboard(Billboard& billboard)
 {
     nlohmann::json json;
@@ -2606,9 +2502,7 @@ nlohmann::json writeBillboard(Billboard& billboard)
     json["color"] = billboard.color().value();
     json["mode"] = billboardModeName(billboard.mode());
     json["texture"] = billboard.textureFile();
-    // "additive" stays alongside "blend" - an older editor build reading this
-    // same file back still gets a sensible Additive/Alpha choice out of the
-    // bool, even though it cannot see Multiplied/AddColors/SubtractColors.
+    // "additive" stays beside "blend" so an older editor still gets an Additive/Alpha choice.
     json["additive"] = billboard.additive();
     json["blend"] = billboardBlendName(billboard.blendMode());
     json["depthTest"] = billboard.depthTest();
@@ -2656,8 +2550,7 @@ void readBillboard(GameObject& object, const nlohmann::json& json, const std::st
     if (textureField != json.end() && textureField->is_string())
         billboard->setTextureFile(textureField->get<std::string>());
 
-    // "blend" first - a scene saved before it existed only has "additive",
-    // which still resolves to a valid (if narrower) choice on its own.
+    // "blend" first; older scenes only have "additive".
     const auto blendField = json.find("blend");
     BatchRenderer::BlendMode blend = BatchRenderer::BlendMode::Additive;
     if (blendField != json.end() && blendField->is_string() &&
@@ -2697,8 +2590,6 @@ void readBillboard(GameObject& object, const nlohmann::json& json, const std::st
     if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
         billboard->setActive(false);
 }
-
-// ---------------------------------------------------------------- Text3D
 
 nlohmann::json writeText3D(Text3D& text)
 {
@@ -2768,8 +2659,6 @@ void readText3D(GameObject& object, const nlohmann::json& json, const std::strin
         text->setActive(false);
 }
 
-// ------------------------------------------------------ Waypoints
-
 nlohmann::json writeWaypoints(Waypoints& waypoints)
 {
     nlohmann::json json;
@@ -2784,7 +2673,7 @@ nlohmann::json writeWaypoints(Waypoints& waypoints)
         nlohmann::json entry;
         entry["position"] = {node.position.x, node.position.y, node.position.z};
         entry["radius"] = node.radius;
-        // Written as stored: once per pair, on the lower index.
+        // As stored: once per pair, on the lower index.
         entry["links"] = node.links;
         points.push_back(entry);
     }
@@ -2806,7 +2695,7 @@ void readWaypoints(GameObject& object, const nlohmann::json& json, const std::st
     if (points == json.end() || !points->is_array())
         return;
 
-    // Two passes: every node has to exist before any link can name one.
+    // Two passes: every node must exist before a link can name one.
     for (const nlohmann::json& entry : *points)
     {
         Math::vec3 position(0.0f);
@@ -2837,8 +2726,6 @@ void readWaypoints(GameObject& object, const nlohmann::json& json, const std::st
         waypoints->setActive(false);
 }
 
-// ------------------------------------------------------ NavMeshSurface
-
 nlohmann::json writeNavMeshSurface(NavMeshSurface& surface)
 {
     const AI::NavMeshConfig& config = surface.config();
@@ -2846,14 +2733,9 @@ nlohmann::json writeNavMeshSurface(NavMeshSurface& surface)
     json["type"] = "NavMeshSurface";
     json["version"] = 1;
     json["active"] = surface.active();
-    // Only the recipe is stored, never the baked Detour data: it would be
-    // megabytes in the scene file and stale the moment the level mesh
-    // changed. `baked` records that a surface HAD been built, so loading
-    // rebuilds it instead of coming back up saying it never was.
+    // Only the recipe is stored, never the baked Detour data (megabytes, stale on mesh change). `baked` records that a surface had been built so load rebuilds it.
     json["baked"] = surface.built();
-    // A baked surface saved to its own file is loaded straight back instead
-    // of rebuilt - the recipe below is then only what a future re-bake would
-    // use, not what this scene pays for on every open.
+    // A baked surface saved to its own file loads straight back instead of being rebuilt.
     json["navData"] = surface.navDataFile();
     const Math::vec3& seed = surface.groundSeed();
     json["groundSeed"] = {seed.x, seed.y, seed.z};
@@ -2914,10 +2796,7 @@ void readNavMeshSurface(GameObject& object, const nlohmann::json& json, const st
     if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
         surface->setActive(false);
 
-    // A surface that was baked when the scene was saved is restored here.
-    // Reading the baked file back is preferred over rebuilding: same result,
-    // none of the Recast pipeline's cost. Rebuilding is the fallback for a
-    // scene saved before any file existed, or one whose file has since gone.
+    // Restore a baked surface by reading its file; rebuild only for scenes saved before files existed or whose file is gone.
     const auto navDataField = json.find("navData");
     const std::string navDataFile =
         navDataField != json.end() && navDataField->is_string() ? navDataField->get<std::string>()
@@ -2930,8 +2809,6 @@ void readNavMeshSurface(GameObject& object, const nlohmann::json& json, const st
     if (wasBaked)
         surface->build();
 }
-
-// ------------------------------------------------------ SelfDestroy
 
 nlohmann::json writeSelfDestroy(SelfDestroy& selfDestroy)
 {
@@ -2961,8 +2838,6 @@ void readSelfDestroy(GameObject& object, const nlohmann::json& json, const std::
     if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
         selfDestroy->setActive(false);
 }
-
-// ------------------------------------------------------ AudioPlayer
 
 nlohmann::json writeAudioPlayer(AudioPlayer& player)
 {
@@ -2994,8 +2869,7 @@ void readAudioPlayer(GameObject& object, const nlohmann::json& json, const std::
         return;
     }
 
-    // Before setSource(): switching music on or off releases the loaded
-    // sound, so setting it afterwards would throw away the file just read.
+    // Before setSource(): toggling music releases the loaded sound.
     player->setMusic(readBoolOr(json, "music", false));
 
     const auto sourceField = json.find("source");
@@ -3012,8 +2886,7 @@ void readAudioPlayer(GameObject& object, const nlohmann::json& json, const std::
         player->setPitch(value);
     if (readFloatField(json, "pan", value, path, result))
         player->setPan(value);
-    // Distances before spatial(): setSpatial pushes min/max/rolloff to a
-    // live voice, and would push the defaults if it ran first.
+    // Distances before spatial(): setSpatial pushes min/max/rolloff to a live voice.
     if (readFloatField(json, "minDistance", value, path, result))
         player->setMinDistance(value);
     if (readFloatField(json, "maxDistance", value, path, result))
@@ -3024,8 +2897,6 @@ void readAudioPlayer(GameObject& object, const nlohmann::json& json, const std::
 
     player->setActive(readBoolOr(json, "active", true));
 }
-
-// ------------------------------------------------------ UiControl (shared)
 
 void writeUiControl(const UiControl& control, nlohmann::json& json)
 {
@@ -3051,8 +2922,6 @@ void readUiControl(UiControl& control, const nlohmann::json& json)
     control.setLayer(
         static_cast<s32>(readNumberOr(json, "layer", static_cast<f32>(control.layer()))));
 }
-
-// ------------------------------------------------------------- UiPanel
 
 nlohmann::json writeUiPanel(UiPanel& panel)
 {
@@ -3082,8 +2951,6 @@ void readUiPanel(GameObject& object, const nlohmann::json& json, const std::stri
 
     panel->setActive(readBoolOr(json, "active", true));
 }
-
-// ------------------------------------------------------------- UiLabel
 
 nlohmann::json writeUiLabel(UiLabel& label)
 {
@@ -3121,8 +2988,6 @@ void readUiLabel(GameObject& object, const nlohmann::json& json, const std::stri
     label->setActive(readBoolOr(json, "active", true));
 }
 
-// ------------------------------------------------------------ UiButton
-
 nlohmann::json writeUiButton(UiButton& button)
 {
     nlohmann::json json;
@@ -3151,8 +3016,6 @@ void readUiButton(GameObject& object, const nlohmann::json& json, const std::str
 
     button->setActive(readBoolOr(json, "active", true));
 }
-
-// ----------------------------------------------------------- UiCheckBox
 
 nlohmann::json writeUiCheckBox(UiCheckBox& checkBox)
 {
@@ -3185,8 +3048,6 @@ void readUiCheckBox(GameObject& object, const nlohmann::json& json, const std::s
     checkBox->setActive(readBoolOr(json, "active", true));
 }
 
-// ------------------------------------------------------------- UiSlider
-
 nlohmann::json writeUiSlider(UiSlider& slider)
 {
     nlohmann::json json;
@@ -3218,8 +3079,6 @@ void readUiSlider(GameObject& object, const nlohmann::json& json, const std::str
 
     slider->setActive(readBoolOr(json, "active", true));
 }
-
-// --------------------------------------------------------- Collider
 
 const char* colliderShapeName(ColliderShape shape)
 {
@@ -3298,10 +3157,7 @@ nlohmann::json writeCollider(Collider& collider)
     return json;
 }
 
-// The octree itself is never written - Mesh rebuilds it from the sibling
-// MeshRenderer's mesh asset, the way NavMeshSurface rebuilds its nav mesh
-// from the same source, so it must appear first in this object's component
-// array (writeComponents() already orders MeshRenderer ahead of Collider).
+// The octree is never written: Mesh rebuilds it from the sibling MeshRenderer's mesh, so MeshRenderer must come first (writeComponents() orders it so).
 void readCollider(GameObject& object, const nlohmann::json& json, const std::string& path,
                   SceneLoadResult& result)
 {
@@ -3364,8 +3220,6 @@ void readCollider(GameObject& object, const nlohmann::json& json, const std::str
     if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
         collider->setActive(false);
 }
-
-// ----------------------------------------------------- RigidBody
 
 const char* rigidBodyShapeName(Physics::RigidBodyShape shape)
 {
@@ -3523,8 +3377,6 @@ void readRigidBody(GameObject& object, const nlohmann::json& json, const std::st
         body->setActive(false);
 }
 
-// ----------------------------------------------------- Joint
-
 const char* jointKindName(Physics::JointKind kind)
 {
     switch (kind)
@@ -3585,9 +3437,7 @@ nlohmann::json writeJoint(Physics::Joint& joint)
                                            : nlohmann::json(nullptr);
     json["enabled"] = joint.enabled();
 
-    // Every subtype field is written unconditionally, same convention as
-    // Camera/Light above - unused ones for the current jointKind just carry
-    // the class's own default.
+    // Every subtype field is written unconditionally; unused ones carry the class default.
     Math::vec3 axis(0.0f, 1.0f, 0.0f);
     f32 minDistance = 0.0f, maxDistance = 1.0f;
     f32 minAngle = 0.0f, maxAngle = 0.0f;
@@ -3638,10 +3488,7 @@ nlohmann::json writeJoint(Physics::Joint& joint)
         break;
     case Physics::JointKind::Wheel:
     {
-        // The wheel carries two axes and a spring, so it writes its own
-        // fields rather than borrowing the shared ones above; `axis` stays
-        // the suspension one so a reader that only knows the common shape
-        // still gets something meaningful.
+        // The wheel has two axes and a spring and writes its own fields; `axis` stays the suspension one for readers that know only the common shape.
         Physics::WheelJoint& wheel = static_cast<Physics::WheelJoint&>(joint);
         axis = wheel.authoredSuspensionAxis();
         minAngle = wheel.minSteeringAngle();
@@ -3662,8 +3509,7 @@ nlohmann::json writeJoint(Physics::Joint& joint)
     default:
         break;
     }
-    // A servo holds an angle instead of a speed; without these two a joint
-    // set up as a servo comes back as a dead motor.
+    // A servo holds an angle, not a speed; without these a servo comes back as a dead motor.
     if (joint.kind() == Physics::JointKind::Hinge)
     {
         Physics::HingeJoint& hinge = static_cast<Physics::HingeJoint&>(joint);
@@ -3703,7 +3549,7 @@ void readJoint(GameObject& object, const nlohmann::json& json, const std::string
         return;
     }
 
-    // Only the fields the resolved kind actually consumes are required.
+    // Only the fields the resolved kind consumes are required.
     const bool needsAxis = kind == Physics::JointKind::Hinge ||
                            kind == Physics::JointKind::Slider ||
                            kind == Physics::JointKind::Piston ||
@@ -3810,8 +3656,7 @@ void readJoint(GameObject& object, const nlohmann::json& json, const std::string
                                     readNumberOr(json, "motorMaxTorque", 0.0f));
             wheel->setSpinMotor(readNumberOr(json, "driveTargetVelocity", 0.0f),
                                 readNumberOr(json, "driveMaxTorque", 0.0f));
-            // After setSteeringMotor above, since the two share the motor
-            // and the last one written is the one that holds.
+            // After setSteeringMotor: they share the motor and the last one written holds.
             if (readBoolOr(json, "steerServoEnabled", false))
                 wheel->setSteeringServo(readNumberOr(json, "steerServoTarget", 0.0f),
                                         readNumberOr(json, "motorMaxTorque", 0.0f),
@@ -3828,9 +3673,7 @@ void readJoint(GameObject& object, const nlohmann::json& json, const std::string
         return;
     }
 
-    // Applied after construction so it overrides the plain motor the kind
-    // may have just been given: a servo and a velocity motor share the same
-    // machinery, and whichever is written last wins.
+    // After construction so it overrides the plain motor; servo and velocity motor share machinery and the last written wins.
     if (readBoolOr(json, "servoEnabled", false))
     {
         const f32 servoTarget = readNumberOr(json, "servoTarget", 0.0f);
@@ -3852,8 +3695,6 @@ void readJoint(GameObject& object, const nlohmann::json& json, const std::string
         joint->setActive(false);
 }
 
-// ----------------------------------------------------- ZenBehaviour
-
 nlohmann::json writeZenBehaviour(ZenBehaviour& behaviour)
 {
     nlohmann::json json;
@@ -3862,9 +3703,7 @@ nlohmann::json writeZenBehaviour(ZenBehaviour& behaviour)
     json["active"] = behaviour.active();
     json["script"] = behaviour.scriptPath();
 
-    // Only the overrides. The defaults belong to the script's __init__, and
-    // writing them here would freeze a copy that goes stale the moment the
-    // script is edited - the scene would keep resurrecting the old value.
+    // Only the overrides: writing defaults would freeze a copy that goes stale when the script is edited.
     nlohmann::json properties = nlohmann::json::array();
     for (usize i = 0; i < behaviour.overrideCount(); ++i)
     {
@@ -3893,9 +3732,7 @@ nlohmann::json writeZenBehaviour(ZenBehaviour& behaviour)
     return json;
 }
 
-// The value field's own name carries the type, so a number that was written
-// as an int comes back as an int - a script testing "self.lives == 3" would
-// break against a 3.0 restored from the file.
+// The value field's name carries the type so an int stays an int ("self.lives == 3" breaks against 3.0).
 void readZenBehaviourProperty(ZenBehaviour& behaviour, const nlohmann::json& json,
                               const std::string& path, SceneLoadResult& result)
 {
@@ -3953,15 +3790,11 @@ void readZenBehaviour(GameObject& object, const nlohmann::json& json, const std:
     const std::string script = scriptField != json.end() && scriptField->is_string()
                                    ? scriptField->get<std::string>()
                                    : std::string();
-    // A script file that is gone or no longer compiles is a warning, not a
-    // load error: the component and its path come back either way, so the
-    // file can be fixed and reloaded from the inspector instead of the whole
-    // scene refusing to open.
+    // A missing or non-compiling script is a warning, not a load error, so it can be fixed and reloaded from the inspector.
     if (!script.empty() && !behaviour->loadFile(script))
         result.addWarning(path + ".script", behaviour->lastError());
 
-    // After the load, so the script's own declarations are known. The values
-    // only reach the VM when the instance is built, on the first update.
+    // After the load, so the script's declarations are known; values reach the VM when the instance is built on first update.
     const auto propertiesField = json.find("properties");
     if (propertiesField != json.end() && propertiesField->is_array())
     {
@@ -3975,8 +3808,6 @@ void readZenBehaviour(GameObject& object, const nlohmann::json& json, const std:
         behaviour->setActive(false);
 }
 
-// -------------------------------------------------------- ParticleEffect
-
 nlohmann::json writeParticleEffect(ParticleEffect& effect)
 {
     const ParticleSystem::Emitter& emitter = effect.emitter();
@@ -3989,8 +3820,7 @@ nlohmann::json writeParticleEffect(ParticleEffect& effect)
     json["autoDestroy"] = effect.autoDestroy();
     json["useOwnerDirection"] = effect.useOwnerDirection();
     json["playing"] = effect.isPlaying();
-    // emitter.position is set from the owner every frame while playing
-    // (see ParticleEffect::onUpdate()) - not worth round-tripping.
+    // emitter.position is set from the owner every frame while playing (ParticleEffect::onUpdate()).
     json["rate"] = emitter.rate;
     json["direction"] = {emitter.direction.x, emitter.direction.y, emitter.direction.z};
     json["spread"] = emitter.spread;
@@ -4068,8 +3898,6 @@ void readParticleEffect(GameObject& object, const nlohmann::json& json, const st
     if (activeField != json.end() && activeField->is_boolean() && !activeField->get<bool>())
         effect->setActive(false);
 }
-
-// ------------------------------------------------------- ParticleEmitter
 
 const char* particleEmitterShapeName(ParticleEmitterShape shape)
 {
@@ -4451,10 +4279,7 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
         billboardModeFromName(billboardModeField->get<std::string>(), billboardMode))
         emitter->setBillboardMode(billboardMode);
 
-    // Emission mode is set last: setContinuous()/setBurst()/setOneShot()/
-    // setPulse() each also assign the mode's own rate/count fields, which
-    // the calls above already read from more specific keys - this only
-    // fixes up which mode those values apply under.
+    // Emission mode last: setContinuous()/setBurst()/setOneShot()/setPulse() also assign the mode's rate/count, which earlier keys already set.
     const auto emissionModeField = json.find("emissionMode");
     ParticleEmissionMode emissionMode = ParticleEmissionMode::Continuous;
     if (emissionModeField != json.end() && emissionModeField->is_string() &&
@@ -4490,8 +4315,6 @@ void readParticleEmitter(GameObject& object, const nlohmann::json& json, const s
         emitter->setActive(false);
 }
 
-// -------------------------------------------------------------- Animator
-
 nlohmann::json writeAnimator(Animator& animator)
 {
     nlohmann::json json;
@@ -4521,10 +4344,7 @@ nlohmann::json writeAnimator(Animator& animator)
     }
     json["clip"] = clip;
     json["time"] = time;
-    // Known gap: AnimationLayer has no mode()/speed() getter (play()/
-    // setSpeed() are setter-only), so PlayMode and playback speed cannot be
-    // written back - a reload always restores Loop at speed 1. Only layer 0
-    // is covered; multi-layer blending and IK chains are not v1 scope.
+    // Known gap: AnimationLayer has no mode()/speed() getters, so a reload restores Loop at speed 1. Only layer 0; no multi-layer blending or IK.
     return json;
 }
 
@@ -4568,9 +4388,7 @@ void readAnimator(GameObject& object, const nlohmann::json& json, const std::str
     if (skeletonFile.empty())
         return; // valid: nothing bound yet
 
-    // AnimationManager::loadFromFiles() caches by (skeleton, clips) itself,
-    // so several Animators naming the same character within one load still
-    // only decode the files once - no cache needed here on top of it.
+    // AnimationManager::loadFromFiles() caches by (skeleton, clips), so no cache is needed here.
     const AnimationSetHandle handle = Animations().loadFromFiles(skeletonFile, clipFiles);
     if (!handle.valid())
     {
@@ -4587,12 +4405,7 @@ void readAnimator(GameObject& object, const nlohmann::json& json, const std::str
     }
 }
 
-// -------------------------------------------------------------- BoneAttachment
-
-// A bone is named, not indexed, in the file: an index is only stable within
-// one build of one skeleton, and BoneAttachment::bind() itself is content to
-// take either - see Skeleton::bone(index).name for how the name is read back
-// out for writing.
+// A bone is named, not indexed: an index is only stable within one build of one skeleton.
 struct PendingBoneAttachment
 {
     BoneAttachment* attachment = nullptr;
@@ -4625,10 +4438,7 @@ nlohmann::json writeBoneAttachment(BoneAttachment& attachment)
     return json;
 }
 
-// Only creates the component and records what it should end up bound to -
-// the bind() call itself waits for resolveBoneAttachments(), run once every
-// object's every component has been read, because the target's Animator may
-// not exist yet at this point (it can appear later in the array).
+// Only records what to bind to; bind() waits for resolveBoneAttachments() because the target's Animator may appear later in the array.
 void readBoneAttachment(GameObject& object, const nlohmann::json& json, const std::string& path,
                         std::vector<PendingBoneAttachment>& pending, SceneLoadResult& result)
 {
@@ -4685,29 +4495,15 @@ void resolveBoneAttachments(Scene& out, const std::vector<PendingBoneAttachment>
     }
 }
 
-// -------------------------------------------------------------- dispatch
-
-// Bundles what a handful of component readers need beyond their own
-// GameObject& and json - resolving a cross-object reference (Orbit/Maya's
-// target, RibbonTrail's base/tip) needs `out` to look objects up in;
-// BoneAttachment defers its bind() until every object's components exist
-// (see resolveBoneAttachments()). A struct instead of more parameters
-// growing on every read function down the chain as more components need
-// cross-cutting state.
+// Context for readers that need `out` (Orbit/Maya target, RibbonTrail base/tip) or deferred BoneAttachment binding, instead of growing every read function's parameters.
 struct ComponentReadContext
 {
     Scene& out;
     std::vector<PendingBoneAttachment>& pendingBoneAttachments;
 };
 
-// Fails to compile when a ComponentType is added or removed, which is the
-// only moment anyone can be told that this function needs a matching writer.
-// Nothing else catches it: writeComponents() asks for the types it knows and
-// therefore cannot notice the one it was never taught, so a new component
-// would save as nothing at all and the scene would come back missing it,
-// silently. On a break: add the writer and its reader, or list the type in
-// the "Not written" note at the bottom of writeComponents() with the reason,
-// then update this count.
+// Fails to compile when a ComponentType is added or removed: writeComponents() cannot notice a type it was never taught, so it would silently save as nothing.
+// Add the writer and reader, or list the type under "Not written" in writeComponents(), then update this count.
 static_assert(static_cast<u8>(ComponentType::Count) == 46,
               "ComponentType changed - teach writeComponents()/readComponent() about it (or "
               "record why it is deliberately not serialized) before updating this count");
@@ -4726,17 +4522,10 @@ void appendComponents(GameObject& object, nlohmann::json& array, Writer&& write)
 nlohmann::json writeComponents(GameObject& object)
 {
     nlohmann::json array = nlohmann::json::array();
-    // A switch over ComponentType would have to skip every type Grupo C
-    // still owns no writer for; checking each covered type directly is
-    // simpler while the list is this short. Revisit as a real dispatch table
-    // once more component types are covered (see PLANO_SERIALIZACAO_CENA.md).
+    // Each covered type is checked directly: a switch would have to skip every type still lacking a writer.
     appendComponents<Camera>(object, array, writeCamera);
     appendComponents<Light>(object, array, writeLight);
-    // A MeshRenderer that another component generated and owns is derived
-    // data, not authored data: its mesh is built in code and has no recipe to
-    // write, so trying produced an "anonymous mesh, not saved" error on every
-    // single save. The owning component writes its own settings and rebuilds
-    // the renderer on load, which is where that mesh actually comes back from.
+    // A renderer generated and owned by another component is derived data with no recipe; the owner rebuilds it on load.
     object.forEachComponent<MeshRenderer>([&](MeshRenderer& renderer)
     {
         if (!renderer.generated())
@@ -4778,9 +4567,7 @@ nlohmann::json writeComponents(GameObject& object)
     {
         return nlohmann::json{{"type", type}, {"version", 1}, {"active", component.active()}};
     };
-    // These components currently expose creation but no authoring controls
-    // in the editor. Persisting the component and active state still matters:
-    // an object created from Hierarchy must not reopen as an empty node.
+    // These expose creation but no authoring controls; persisting them still matters so an object from Hierarchy does not reopen as an empty node.
     appendComponents<Terrain>(object, array, writeTerrain);
     appendComponents<TiledTerrain>(object, array, writeTiledTerrain);
     appendComponents<Landscape>(object, array,
@@ -4794,15 +4581,8 @@ nlohmann::json writeComponents(GameObject& object)
     appendComponents<Ocean>(object, array, writeOcean);
     appendComponents<VoxelWorldComponent>(object, array, writeVoxelWorld);
     appendComponents<ZenBehaviour>(object, array, writeZenBehaviour);
-    // Not written: ActionRunner (no getters over its command queue - cannot
-    // be read back at all, see PLANO_SERIALIZACAO_CENA.md) and a C++
-    // ScriptComponent subclass other than ZenBehaviour (user extension slot,
-    // no fixed shape to write).
-    //
-    // Not written YET, and each one loses real authored work every save:
-    // Agent and Obstacle (docs/AI_AGENT_PLAN.md, Fase 6 - an Agent's
-    // behavior list writes itself from the BehaviorParam tables, so this is
-    // no longer blocked on anything).
+    // Not written: ActionRunner (no getters over its command queue) and C++ ScriptComponent subclasses other than ZenBehaviour (no fixed shape).
+    // Not written YET, losing authored work every save: Agent and Obstacle (docs/AI_AGENT_PLAN.md, Fase 6).
     return array;
 }
 
@@ -4933,10 +4713,7 @@ void readComponent(GameObject& object, const nlohmann::json& json, const std::st
     object.clearReservedComponentId();
 }
 
-// One GameObject entry read out of the "objects" array, before any Scene
-// call is made. Parsing and hierarchy validation happen entirely over this
-// - not over GameObject/Scene - so a malformed file never has a chance to
-// mutate `out` (see SceneSerializer.h's transactional contract).
+// Parsing and hierarchy validation run over this, not GameObject/Scene, so a malformed file never mutates `out`.
 struct ParsedObject
 {
     u64 id = 0; // 0 means the id field itself failed to parse
@@ -5055,18 +4832,13 @@ void parseObjects(const nlohmann::json& objectsJson, std::vector<ParsedObject>& 
                                 "expected [x, y, z] of finite, non-zero numbers");
         }
 
-        // Components are Fase 2's dispatch, not read here - the field is
-        // reserved by the format but simply skipped for now.
+        // Components are read in a later pass; the field is reserved and skipped here.
 
         parsed.push_back(object);
     }
 }
 
-// Validates the id/parent graph and returns a creation order where every
-// parent lands before its children - Scene::createGameObject() needs the
-// parent GameObject* to already exist. Repeated array sweeps (Kahn's
-// algorithm) rather than an adjacency list: scenes here are hundreds to
-// thousands of objects, not the size where the O(depth) extra sweeps show up.
+// Kahn's algorithm by repeated sweeps: parents land before children (Scene::createGameObject() needs the parent). Scenes are too small for the extra sweeps to matter.
 bool buildCreationOrder(const std::vector<ParsedObject>& parsed, std::vector<usize>& order,
                         SceneLoadResult& result)
 {
@@ -5090,7 +4862,7 @@ bool buildCreationOrder(const std::vector<ParsedObject>& parsed, std::vector<usi
     {
         const ParsedObject& object = parsed[i];
         if (object.id == 0 || !object.hasParent || object.parentId == object.id)
-            continue; // self-parent already reported by parseObjects
+            continue;
         if (idToIndex.find(object.parentId) == idToIndex.end())
             result.addError(indexPath(i) + ".parent",
                             "parent id " + std::to_string(object.parentId) + " does not exist");
@@ -5121,9 +4893,7 @@ bool buildCreationOrder(const std::vector<ParsedObject>& parsed, std::vector<usi
         }
         if (placedThisSweep == 0)
         {
-            // Every still-unplaced object's parent chain loops back on
-            // itself - direct self-parent is caught above, this is the
-            // longer A -> B -> A case.
+            // Every unplaced object's parent chain loops (longer A -> B -> A cycle; direct self-parent is caught above).
             for (usize i = 0; i < parsed.size(); ++i)
                 if (!placed[i])
                     result.addError(indexPath(i) + ".parent", "parent cycle");
@@ -5160,10 +4930,7 @@ bool createObjects(Scene& out, const std::vector<ParsedObject>& parsed,
     return true;
 }
 
-// Every object from createObjects() already exists (this only runs once that
-// pass succeeded in full), so components attach straight onto them - no id
-// resolution needed here, `objectsJson` and `parsed` still line up 1:1 by
-// array index the way parseObjects() built them.
+// Every object already exists; objectsJson and parsed line up 1:1 by array index.
 void readComponentsPass(Scene& out, const nlohmann::json& objectsJson,
                         const std::vector<ParsedObject>& parsed, ComponentReadContext& context,
                         SceneLoadResult& result)
@@ -5219,7 +4986,7 @@ nlohmann::json writeObject(GameObject& object, GameObject& root)
     const Math::quat& rotation = object.rotation();
     const Math::vec3& scale = object.scale();
     transform["position"] = {position.x, position.y, position.z};
-    // [x, y, z, w] on disk - see readQuat() for the constructor-order note.
+    // [x, y, z, w] on disk; see readQuat().
     transform["rotation"] = {rotation.x, rotation.y, rotation.z, rotation.w};
     transform["scale"] = {scale.x, scale.y, scale.z};
     json["transform"] = transform;
@@ -5228,8 +4995,6 @@ nlohmann::json writeObject(GameObject& object, GameObject& root)
 
     return json;
 }
-
-// --------------------------------------------------------- render settings
 
 nlohmann::json writeCascadeShadowSettings(const CascadeShadowSettings& settings)
 {
@@ -5384,8 +5149,7 @@ nlohmann::json writePostProcessSettings(const PostProcessStack& stack)
     json["taaSharpness"] = stack.taaSharpness;
     json["enabled"] = stack.enabled;
 
-    // Order matters (each layer draws into the next) - an array, not a set
-    // of per-effect enabled flags, so move()'d ordering round-trips too.
+    // Order matters (each layer draws into the next): an array, not per-effect flags, so move()'d ordering round-trips.
     nlohmann::json layers = nlohmann::json::array();
     for (const PostLayer& layer : stack.layers())
     {
@@ -5429,10 +5193,7 @@ void readPostProcessSettings(const nlohmann::json& json, PostProcessStack& out)
     const auto layersField = json.find("layers");
     if (layersField != json.end() && layersField->is_array())
     {
-        // Replaces the whole chain rather than patching it in place - a
-        // saved scene's layer list (which effects, what order) is the
-        // authority once one exists, the same way loading a scene's object
-        // list replaces whatever was there before, not merges with it.
+        // Replaces the whole chain: the saved layer list is authoritative.
         out.clear();
         for (const nlohmann::json& entry : *layersField)
         {
@@ -5640,9 +5401,7 @@ void SceneLoadResult::addError(const std::string& jsonPath, const std::string& m
 nlohmann::json SceneSerializer::toJson(const Scene& scene,
                                        const SceneRenderSettings* settings) const
 {
-    // root()/child()/parent() stay non-const even through a const Scene& -
-    // an existing pattern on GameObject (see GameObject.h), not something
-    // introduced here. Nothing below mutates the hierarchy.
+    // root()/child()/parent() stay non-const through a const Scene& (existing GameObject pattern); nothing here mutates the hierarchy.
     GameObject& root = const_cast<Scene&>(scene).root();
 
     std::vector<GameObject*> objects;
@@ -5668,9 +5427,7 @@ nlohmann::json SceneSerializer::toJson(const Scene& scene,
     document["version"] = kFormatVersion;
     document["scene"] = sceneJson;
 
-    // Absent entirely (not even an empty object) when the caller passed no
-    // settings, or owns none of the three - an old reader opening a file a
-    // new one wrote sees nothing different for a section it never asked for.
+    // Absent entirely when no settings were passed or none are owned, so an old reader sees nothing new.
     if (settings)
     {
         nlohmann::json renderSettingsJson = renderSettingsToJson(*settings);
@@ -5743,8 +5500,7 @@ bool SceneSerializer::fromJson(const nlohmann::json& root, Scene& out, SceneLoad
     }
     if (version < kFormatVersion)
     {
-        // No migrations exist yet - every version below current is
-        // unreadable until SceneSerializer grows a migrateVNtoVN+1() for it.
+        // No migrations exist yet: every older version is unreadable.
         result.addError("version", "file is version " + std::to_string(version) +
                                        " and no migration to " + std::to_string(kFormatVersion) +
                                        " exists yet");
@@ -5778,39 +5534,19 @@ bool SceneSerializer::fromJson(const nlohmann::json& root, Scene& out, SceneLoad
     if (!createObjects(out, parsed, order, result))
         return false;
 
-    // Components attach directly onto mComponents, independent of whether
-    // the owning object has been flushed into Scene's own lists yet (see the
-    // update(0.0f) comment right below) - so this can run before that flush
-    // and registerBranch() still picks every one of them up correctly.
+    // Components attach directly onto mComponents, independent of the Scene flush, so registerBranch() still picks them up.
     std::vector<PendingBoneAttachment> pendingBoneAttachments;
     ComponentReadContext context{out, pendingBoneAttachments};
     readComponentsPass(out, objectsJson, parsed, context, result);
 
-    // Fourth pass: cross-object references that needed every component to
-    // exist first - a BoneAttachment's target Animator may have been read
-    // after the BoneAttachment itself.
+    // Fourth pass: a BoneAttachment's target Animator may have been read after it.
     resolveBoneAttachments(out, pendingBoneAttachments, result);
 
-    // Scene::createGameObject() with no parent queues the object rather than
-    // linking it under root() right away (see Scene::add()'s mPendingAdd
-    // path) - by design, so code mid-frame never mutates mObjects out from
-    // under an iteration in progress. A load is not mid-frame: the caller
-    // expects `out` fully usable the moment this returns, so the queue is
-    // flushed here. deltaTime 0 means no component actually ticks - Fase 2
-    // is the first phase with components to create, so this is inert today.
-    // It also touches ParticleEffectPool (rebinds its singleton to `out`),
-    // consistent with `out` being expected fresh per this class's contract.
+    // createGameObject() without a parent queues the object (so mid-frame code never mutates mObjects under iteration); a load is not mid-frame, so flush here.
+    // deltaTime 0 ticks no component. Also rebinds ParticleEffectPool's singleton to `out`.
     out.update(0.0f);
 
-    // Scene::mSunLight is never itself part of a DirectionalLight's own
-    // serialized data (writeLight() has no field for it) - nothing else
-    // ever set it either (setSunLight() has exactly one caller in the whole
-    // tree, a demo's own main.cpp), so a scene reload always drops the link
-    // even when the object it pointed at is right there in the file. The
-    // first DirectionalLight found standing in for "whichever one the
-    // scene had" is the same convention SettingsPanel's own Shadows section
-    // already assumes when it says "Sun shadows" for a scene with exactly
-    // one directional light, the overwhelming majority of scenes.
+    // mSunLight is never serialized and setSunLight() has one caller (a demo), so a reload drops the link; the first DirectionalLight stands in (same convention as SettingsPanel's "Sun shadows").
     if (!out.sunLight())
         for (Light* light : out.lights())
             if (light->lightType() == LightType::Directional)
@@ -5830,9 +5566,7 @@ bool SceneSerializer::fromJson(const nlohmann::json& root, Scene& out, SceneLoad
         out.setOcclusionQueryEnabled(cullingField->value("occlusion", out.occlusionQueryEnabled()));
     }
 
-    // Active camera is resolved last, after readComponentsPass() above has
-    // had a chance to attach a Camera - and never fatal: a scene with no
-    // camera set is valid.
+    // Resolved last, after components exist; never fatal (a scene with no camera is valid).
     const auto activeCameraField = sceneField->find("activeCamera");
     if (activeCameraField != sceneField->end() && !activeCameraField->is_null())
     {
@@ -5853,10 +5587,7 @@ bool SceneSerializer::fromJson(const nlohmann::json& root, Scene& out, SceneLoad
         }
     }
 
-    // Best-effort, never a load error: a missing/malformed field just keeps
-    // whatever Engine already had (its own constructor defaults, most of the
-    // time), the same way a Play/Stop snapshot or an older scene file with no
-    // "renderSettings" section at all works today.
+    // Best-effort, never a load error: a missing/malformed field keeps Engine's current values.
     if (settings)
     {
         const auto renderSettingsField = root.find("renderSettings");
@@ -5955,15 +5686,7 @@ nlohmann::json SceneSerializer::subtreeToJson(GameObject& source) const
     objects.push_back(&source);
     collectPreOrder(source, objects);
 
-    // Written exactly like toJson() writes any other object - each entry's
-    // "parent" is whatever GameObject::parent() really is, which for every
-    // one of these except `source` itself already lands inside this same
-    // array (a descendant's parent is either `source` or another
-    // descendant). `source`'s own real parent lies outside the subtree (or
-    // is Scene's root, which nothing here was ever going to reference
-    // anyway) - forced to null right after so buildCreationOrder() never
-    // has to resolve an id it was never given. Whoever reads this document
-    // is what places the subtree; this only has to parse successfully.
+    // Each entry's "parent" lands inside the array except `source`'s, which points outside the subtree; it is nulled so buildCreationOrder() never needs an unknown id.
     nlohmann::json objectsJson = nlohmann::json::array();
     for (GameObject* object : objects)
         objectsJson.push_back(writeObject(*object, scene->root()));
@@ -5999,11 +5722,7 @@ GameObject* SceneSerializer::subtreeFromJson(const nlohmann::json& document, Sce
 
     nlohmann::json objectsJson = *objectsField;
 
-    // Fresh ids throughout, minted up front from the same counter
-    // createGameObject() itself draws from - creating these into `out` (very
-    // often the exact Scene the subtree was written from) must never collide
-    // with the originals sitting right next to them. One remap pass, applied
-    // to both "id" and every "parent" that points within this same set.
+    // Fresh ids minted up front from createGameObject()'s counter, since `out` is often the source Scene; one remap pass over "id" and in-set "parent".
     HashMap<u64, u64> remap;
     for (nlohmann::json& entry : objectsJson)
     {
@@ -6020,14 +5739,10 @@ GameObject* SceneSerializer::subtreeFromJson(const nlohmann::json& document, Sce
                 found != remap.end() ? nlohmann::json(found->second) : nlohmann::json(nullptr);
         }
 
-    // The subtree's own root is the first entry - subtreeToJson() writes it
-    // there and nulls its parent.
+    // The subtree root is the first entry (subtreeToJson() nulls its parent).
     const u64 rootId = objectsJson[0].value("id", u64(0));
 
-    // Built fresh rather than copied from the document: everything else a
-    // scene object can carry - the root's name, culling, render settings -
-    // belongs to the scene the subtree came from, and must not follow it
-    // into the one it is being dropped into.
+    // Built fresh: the root's name, culling and render settings belong to the source scene and must not follow the subtree.
     nlohmann::json sceneJson;
     sceneJson["objects"] = objectsJson;
     sceneJson["activeCamera"] = nullptr;
@@ -6050,8 +5765,7 @@ bool SceneSerializer::save(const Scene& scene, const std::string& filename,
                            const SceneRenderSettings* settings) const
 {
     const nlohmann::json document = toJson(scene, settings);
-    // Plain write for now, same convention as Scene::saveCamera(); Fase 3
-    // upgrades this to a tmp-file + atomic rename.
+    // Plain write; same convention as Scene::saveCamera().
     if (!FileSystem::getSingleton().writeText(filename, document.dump(4) + '\n'))
     {
         Log::error("SceneSerializer: could not write '%s'", filename.c_str());

@@ -16,14 +16,7 @@ namespace Radion
 namespace
 {
 
-// The one gate every mesh - procedural, imported, or handed in by a caller -
-// passes through on the way to the GPU. Individual importers validate
-// different subsets of this (RadionMeshImporter checks its chunk sizes,
-// ObjImporter checks its own indices), but nothing stopped custom/procedural
-// data from reaching upload() with an index past the vertex count or a
-// submesh range past the index buffer - both read GPU memory that was never
-// allocated for this mesh, silently, on whichever driver does not happen to
-// bounds-check.
+// The one gate every mesh passes through on the way to the GPU: rejects indices past the vertex count and submesh ranges past the index buffer, which would silently read unallocated GPU memory.
 bool validateMeshData(const MeshData& data, std::string& error)
 {
     for (usize i = 0; i < data.indices.size(); ++i)
@@ -40,9 +33,7 @@ bool validateMeshData(const MeshData& data, std::string& error)
     for (usize i = 0; i < data.submeshes.size(); ++i)
     {
         const SubMesh& submesh = data.submeshes[i];
-        // u64, not u32 + u32: a caller building MeshData directly (not
-        // through an importer's own count cap) can hand in two values that
-        // overflow the u32 sum before it is ever compared to indices.size().
+        // u64, not u32 + u32: directly-built MeshData can overflow the u32 sum before it is compared to indices.size().
         const u64 end = static_cast<u64>(submesh.indexOffset) + submesh.indexCount;
         if (end > data.indices.size())
         {
@@ -66,11 +57,7 @@ bool validateMeshData(const MeshData& data, std::string& error)
     return true;
 }
 
-// Grid resolution for splitSubMeshes(): one axis per extent, scaled so the
-// product of the three lands near triangleCount/targetTriangles. An axis
-// with near-zero extent (a flat wall, a floor) is forced to a single cell
-// instead of feeding a near-zero value into the scale, which would blow the
-// other two axes up trying to compensate.
+// Grid resolution for splitSubMeshes(): one axis per extent, product near triangleCount/targetTriangles. A near-zero-extent axis (flat wall/floor) is forced to one cell, else the other axes blow up compensating.
 void computeSplitGrid(const AABB& bounds, u32 triangleCount, u32 targetTriangles, int& gx, int& gy,
                       int& gz)
 {
@@ -92,11 +79,8 @@ void computeSplitGrid(const AABB& bounds, u32 triangleCount, u32 targetTriangles
     gz = flatZ ? 1 : std::clamp(static_cast<int>(std::round(ez * scale)), 1, 64);
 }
 
-// Reorders mesh.indices within submesh's own range by a uniform grid over
-// each triangle's centroid, and appends one SubMesh per non-empty cell to
-// `out`. Leaves both mesh and out untouched and returns false when the
-// submesh is already small enough or the grid comes out 1x1x1 - the caller
-// keeps the original SubMesh in that case.
+// Reorders mesh.indices within the submesh by a uniform grid over triangle centroids and appends one SubMesh per non-empty cell to `out`.
+// Leaves mesh and out untouched and returns false when the submesh is already small or the grid is 1x1x1.
 bool splitSubMeshGrid(MeshData& mesh, const SubMesh& submesh, u32 targetTriangles,
                       std::vector<SubMesh>& out)
 {
@@ -127,11 +111,7 @@ bool splitSubMeshGrid(MeshData& mesh, const SubMesh& submesh, u32 targetTriangle
     const u32 cellCount = static_cast<u32>(gx) * static_cast<u32>(gy) * static_cast<u32>(gz);
     const u32 invalidCell = cellCount;
 
-    // Counting sort by cell index: cellOf[t] is each triangle's bucket,
-    // offsets[c] becomes bucket c's start once prefix-summed. Two flat
-    // arrays and one pass to place every triangle - no per-cell allocation,
-    // and iterating cells in ascending index order makes the result
-    // deterministic without ever hashing anything.
+    // Counting sort by cell index: cellOf[t] is the bucket, offsets[c] becomes the bucket start once prefix-summed. Deterministic without hashing.
     std::vector<u32> cellOf(triangleCount, invalidCell);
     std::vector<u32> offsets(cellCount + 1, 0);
 
@@ -216,12 +196,7 @@ bool splitSubMeshGrid(MeshData& mesh, const SubMesh& submesh, u32 targetTriangle
     return true;
 }
 
-// Every primitive below that revolves around Y (sphere, cylinder/cone,
-// capsule, torus) shares this as its tangent direction: whatever the radius
-// at a given theta, position always carries (cos theta, sin theta) into x/z,
-// so d(position)/d(theta) always points this way regardless of which ring or
-// how far out it is. Computed inline, per vertex, alongside the normal - no
-// separate pass over the mesh once it already exists.
+// Shared tangent direction for primitives revolving around Y: position carries (cos theta, sin theta) into x/z, so d(position)/d(theta) points this way at any ring or radius.
 Math::vec4 revolveTangent(f32 theta)
 {
     return Math::vec4(-std::sin(theta), 0.0f, std::cos(theta), 1.0f);
@@ -234,9 +209,7 @@ Math::vec3 faceNormal(const Math::vec3& v0, const Math::vec3& v1, const Math::ve
     return length > 0.0f ? normal / length : Math::vec3(0.0f);
 }
 
-// The interior angle at each of the three vertices, from the law of cosines.
-// Weighting by angle stops a corner shared by many small triangles from
-// dragging the smooth normal towards them.
+// Interior angle at each vertex (law of cosines); angle weighting stops a corner shared by many small triangles from dragging the smooth normal.
 Math::vec3 angleWeights(const Math::vec3& v0, const Math::vec3& v1, const Math::vec3& v2)
 {
     const float a = Math::dot(v1 - v2, v1 - v2);
@@ -255,18 +228,14 @@ Math::vec3 angleWeights(const Math::vec3& v0, const Math::vec3& v1, const Math::
                      std::acos(Math::clamp((b - c + a) / (2.0f * bSqrt * aSqrt), -1.0f, 1.0f)));
 }
 
-// ------------------------------------------------------------ primitives
-
-// One quad's worth of shared vertices per face, so each face keeps its own
-// flat normal and uv island - a cube needs hard edges, not smooth ones.
+// One quad of vertices per face so each keeps its own flat normal and uv island (hard edges).
 void appendCubeFace(MeshData& data, const Math::vec3& normal, const Math::vec3& v0,
                     const Math::vec3& v1, const Math::vec3& v2, const Math::vec3& v3)
 {
     const u32 base = static_cast<u32>(data.positions.size());
     const Math::vec3 corners[4] = {v0, v1, v2, v3};
     const Math::vec2 uvs[4] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
-    // uv[0] -> uv[1] is exactly one step in U with none in V, so that edge
-    // already IS the tangent direction - nothing to derive.
+    // uv[0] -> uv[1] is one step in U and none in V, so that edge IS the tangent direction.
     const Math::vec4 tangent(Math::normalize(v1 - v0), 1.0f);
     for (u32 i = 0; i < 4; ++i)
     {
@@ -307,8 +276,7 @@ void buildPlane(MeshData& data, f32 width, f32 depth, u32 segX, u32 segZ, f32 uv
     data.positions.resize(static_cast<usize>(nx) * nz);
     data.normals.resize(data.positions.size());
     data.uvs.resize(data.positions.size());
-    // Flat and axis-aligned: U always runs along world +X, so the tangent is
-    // the same constant for every vertex - no per-vertex derivative needed.
+    // Flat and axis-aligned: U runs along world +X, so the tangent is constant.
     data.tangents.assign(data.positions.size(), Math::vec4(1.0f, 0.0f, 0.0f, 1.0f));
     for (u32 j = 0; j < nz; ++j)
     {
@@ -435,9 +403,7 @@ void buildTube(MeshData& data, f32 radius, f32 height, u32 slices, f32 topScale)
     }
 }
 
-// Bottom hemisphere (pole..equator) + an explicit second equator ring at
-// y=radius+height (the straight cylindrical body between the two) + top
-// hemisphere (equator..pole). uv.v runs 0 (bottom pole) to 1 (top pole).
+// Bottom hemisphere + explicit second equator ring at y=radius+height + top hemisphere. uv.v runs 0 (bottom pole) to 1 (top pole).
 void buildCapsule(MeshData& data, f32 radius, f32 height, u32 rings, u32 slices)
 {
     const f32 pi = Math::pi<f32>();
@@ -462,8 +428,7 @@ void buildCapsule(MeshData& data, f32 radius, f32 height, u32 rings, u32 slices)
         ++row;
     };
 
-    // Bottom hemisphere: pole (phi=pi, y=0) down to the equator (phi=pi/2).
-    // Its centre sits at y=radius, so the pole lands exactly on y=0.
+    // Bottom hemisphere: pole (phi=pi, y=0) to equator (phi=pi/2), centred at y=radius so the pole lands on y=0.
     for (u32 r = 0; r <= rings; ++r)
     {
         const f32 phi = pi * (1.0f - 0.5f * static_cast<f32>(r) / rings);
@@ -472,7 +437,6 @@ void buildCapsule(MeshData& data, f32 radius, f32 height, u32 rings, u32 slices)
     }
     // Straight body: the same equator, lifted to y=radius+height.
     addRing(radius + height, radius, 0.0f, 1.0f);
-    // Top hemisphere: equator (phi=pi/2) up to the pole (phi=0).
     for (u32 r = 1; r <= rings; ++r)
     {
         const f32 phi = pi * 0.5f * (1.0f - static_cast<f32>(r) / rings);
@@ -491,8 +455,7 @@ void buildCapsule(MeshData& data, f32 radius, f32 height, u32 rings, u32 slices)
     }
 }
 
-// Ring in the XZ plane, hole along Y: major angle theta sweeps the big circle
-// around Y, minor angle phi sweeps the tube cross-section around the tangent.
+// Ring in the XZ plane, hole along Y: theta sweeps the big circle around Y, phi the tube cross-section.
 void buildTorus(MeshData& data, f32 majorRadius, f32 minorRadius, u32 majorSegments,
                 u32 minorSegments)
 {
@@ -526,12 +489,7 @@ void buildTorus(MeshData& data, f32 majorRadius, f32 minorRadius, u32 majorSegme
     }
 }
 
-// Height at a point of the plane, read out of the heightmap. The image is
-// stretched across the plane's extent and sampled bilinearly, so the image's
-// resolution and the mesh's segment count stay independent; grayscale comes
-// off the red channel as 0..1, scaled by `scale`. Outside the plane - the
-// neighbour taps the normals need at the border - clamps to the edge pixel
-// rather than wrapping, so the rim does not fold over.
+// Height at a point of the plane from the heightmap: bilinear, red channel as 0..1 times `scale`, image stretched over the extent. Outside the plane (normal border taps) clamps to the edge pixel so the rim does not fold.
 f32 sampleHeightmap(const Pixmap& image, f32 u, f32 v, f32 scale)
 {
     const f32 px = Math::clamp(u, 0.0f, 1.0f) * static_cast<f32>(image.width - 1);
@@ -576,10 +534,7 @@ void buildHillsPlane(MeshData& data, f32 width, f32 depth, u32 segX, u32 segZ,
                 Math::vec2(static_cast<f32>(i) / segX, static_cast<f32>(j) / segZ) * uvTiles;
         }
     }
-    // Central-difference normals - cheap here since segX/segZ is small
-    // (decorative ground, not open-world terrain). The same hl/hr sample
-    // that tilts the normal along X is also the slope U (world +X) climbs
-    // at, so the tangent falls out of the same two heightmap taps.
+    // Central-difference normals (cheap: decorative ground). The hl/hr sample that tilts the normal along X also gives the slope U (+X) climbs at, so the tangent comes from the same taps.
     for (u32 j = 0; j < nz; ++j)
     {
         for (u32 i = 0; i < nx; ++i)
@@ -648,9 +603,7 @@ void buildHeightfield(MeshData& data, const f32* heights, u32 w, u32 h, f32 cell
     }
 }
 
-// One vertex per pixel: here the image's resolution is the mesh's, unlike
-// buildHillsPlane where the image is stretched over a plane that keeps its
-// own segment count.
+// One vertex per pixel: the image's resolution is the mesh's (unlike buildHillsPlane).
 void buildHeightfieldFromPixmap(MeshData& data, const Pixmap& heightmap, f32 cellSize,
                                 f32 heightScale, f32 uvTiles)
 {
@@ -663,8 +616,6 @@ void buildHeightfieldFromPixmap(MeshData& data, const Pixmap& heightmap, f32 cel
 }
 
 } // namespace
-
-// --------------------------------------------------------------- mesh data
 
 usize MeshData::vertexCount() const
 {
@@ -719,13 +670,9 @@ void MeshData::resizeVertices(usize count)
         skin.resize(count);
 }
 
-// -------------------------------------------------------- mesh descriptions
-
 namespace
 {
-// Indexed by MeshSource. These names reach a saved scene through
-// MeshDesc::key(), so renaming one - or reordering a recipe's parameters in
-// the factories below - is a format change, not a refactor.
+// Indexed by MeshSource. These names reach saved scenes via MeshDesc::key(), so renaming one or reordering a recipe's parameters is a format change.
 const char* const kMeshSourceNames[] = {"None",   "File",       "Box",        "Plane",
                                         "Sphere", "Cylinder",   "Cone",       "Capsule",
                                         "Torus",  "HillsPlane", "Heightfield"};
@@ -842,8 +789,7 @@ std::string MeshDesc::key() const
     std::string out = kMeshSourceNames[static_cast<u8>(source)];
     out += '|';
     out += file;
-    // A File mesh is identified by its path alone; its parameter slots are
-    // unused and would only put noise in the key.
+    // A File mesh is identified by path alone; its unused parameter slots would only add noise to the key.
     if (source == MeshSource::File)
         return out;
     char number[32];
@@ -894,17 +840,8 @@ void AssetManager::registerMeshDesc(MeshHandle handle, const MeshDesc& desc)
 
 namespace
 {
-// A texture reference an importer already joined against the mesh's own
-// directory (an OBJ's map_Kd, e.g.) but that still does not resolve gets one
-// more try with a textures/ subfolder inserted before the filename -
-// Sponza's own layout (map_Kd lines carry only the bare filename, the actual
-// files sit one level down in textures/). FileSystem's search-path list
-// cannot express this on its own: resolveOnDisk() only ever prepends a whole
-// extra root to the name as given, it never inserts a subfolder into a name
-// that already carries a directory of its own (see
-// AssetManager::importMeshFileData()'s own search-path registration right
-// above this, which is why that alone was not enough for a name shaped like
-// this).
+// A texture reference already joined against the mesh's directory that still does not resolve gets one more try with a textures/ subfolder inserted before the filename (Sponza's layout).
+// FileSystem's search paths cannot express this: resolveOnDisk() only prepends a whole root, never inserts a subfolder into a name that has a directory.
 void retryUnderTexturesSubfolder(FileSystem& files, std::vector<std::string>& paths)
 {
     for (std::string& path : paths)
@@ -932,25 +869,10 @@ bool AssetManager::importMeshFileData(const std::string& file, MeshData& data)
 
 void AssetManager::registerMeshSearchPaths(const std::string& file)
 {
-    // A foreign export commonly ships as "modelname/modelname.obj" next to
-    // "modelname/textures/" (Sponza is the standard example), and its own
-    // texture references are relative to the mesh's own directory, not that
-    // textures/ subfolder - only findable once that subfolder is itself a
-    // search path. This used to only happen inside AssetsPanel's Import
-    // button (see its own comment); anything else that loads the same mesh
-    // file later - reopening a saved scene, Mesh Tools' reimport - went
-    // through importMesh() directly and never got it, so every texture
-    // lookup failed silently (checker fallback) outside that one popup.
-    // Registered here instead, the one choke point every mesh load already
-    // goes through, so it happens exactly once regardless of which caller
-    // asked.
+    // A foreign export often ships as "modelname/modelname.obj" beside "modelname/textures/" (Sponza), with texture references relative to the mesh's directory, so textures/ must itself be a search path.
+    // Registered here, the one choke point every mesh load goes through, so reopening a scene or Mesh Tools reimport also gets it.
     {
-        // Resolved to a real disk path first - `file` itself is routinely
-        // just logical (relative to whichever search path already finds it),
-        // and addSearchPath()/isDirectory() both need a real one the same
-        // way every write path already established elsewhere this file
-        // needed FileSystem::resolve() first (see the .rskel/.ranim caching
-        // in InspectorPanel's Add Animator flow).
+        // Resolved to a real disk path first: `file` is often logical, and addSearchPath()/isDirectory() need a real one (see FileSystem::resolve()).
         FileSystem& files = FileSystem::getSingleton();
         const std::string resolved = files.resolve(file);
         const std::string base = resolved.empty() ? file : resolved;
@@ -968,9 +890,7 @@ void AssetManager::registerMeshSearchPaths(const std::string& file)
 
 bool AssetManager::importMeshGeometry(const std::string& file, MeshData& data)
 {
-    // Logged before the read, not after: on a large mesh this call is where
-    // the editor sits unresponsive for seconds, and a line that only appears
-    // once it finishes cannot say what it was waiting on.
+    // Logged before the read: on a large mesh this is where the editor stalls for seconds, and a line printed afterwards cannot say what it waited on.
     Log::info("AssetManager: loading mesh '%s'...", file.c_str());
     const auto meshLoadStarted = std::chrono::steady_clock::now();
 
@@ -980,8 +900,7 @@ bool AssetManager::importMeshGeometry(const std::string& file, MeshData& data)
         return false;
     }
 
-    // Done here rather than by each caller, so the same file always yields
-    // the same mesh however it was asked for.
+    // Done here rather than by each caller so the same file always yields the same mesh.
     recalculateTangents(data);
     computeBounds(data);
     computeSubMeshBounds(data);
@@ -1005,33 +924,20 @@ void AssetManager::applyMeshFileMaterials(const std::string& file, MeshData& dat
         retryUnderTexturesSubfolder(files, data.materialSurfaceFiles);
         retryUnderTexturesSubfolder(files, data.materialEmissiveFiles);
     }
-    // A mesh file's own materials are commonly a placeholder (.rmesh
-    // never embeds real ones; OBJ's are stand-ins) - the actual look
-    // lives in a same-named .material file, the convention every demo
-    // hand-rolls today. Applied here so it happens once, by file, and
-    // MeshRenderer's own overrides (Save/Load already covers those)
-    // still win by replacing whatever this loads.
+    // A mesh file's own materials are usually placeholders (.rmesh embeds none, OBJ's are stand-ins); the real look lives in a same-named .material file.
+    // Applied here once per file; MeshRenderer overrides still win by replacing what this loads.
     {
         const usize dot = file.find_last_of('.');
         const std::string stem = dot == std::string::npos ? file : file.substr(0, dot);
-        // Two sidecar spellings are both in real use across the asset tree
-        // today (.material for Sinbad/DamagedHelmet/the ninja, .mat for
-        // Sponza/city/flocking's fish) - .material tried first since it is
-        // the newer/more common one, .mat as a fallback rather than a
-        // second silent-flat-fallback for anything that only has that one.
+        // Two sidecar spellings are in use: .material (tried first, newer/more common) and .mat (Sponza, city, flocking fish).
         std::string materialFile = stem + ".material";
         if (!FileSystem::getSingleton().exists(materialFile))
             materialFile = stem + ".mat";
         if (FileSystem::getSingleton().exists(materialFile))
             MaterialManager::getSingleton().load(materialFile, data.materials);
         else
-            // No sidecar to say otherwise: every mesh importer (Fbx/Gltf/Ogre/
-            // MS3D/B3D) builds its Material with flags defaulted to just cast+
-            // receive shadow, never MaterialLit - imported straight in, the
-            // mesh would render through the unlit path despite carrying an
-            // albedo texture and looking like it should be shaded. Primitives
-            // get this same flag from defaultPrimitiveMaterial() (HierarchyPanel)
-            // for the same reason.
+            // No sidecar to say otherwise: importers build Materials with only cast+receive shadow, never MaterialLit, so an imported mesh would render unlit despite its albedo texture.
+            // Primitives get MaterialLit from defaultPrimitiveMaterial() (HierarchyPanel) for the same reason.
             for (Material& material : data.materials)
                 material.flags |= MaterialLit;
     }
@@ -1111,8 +1017,6 @@ bool AssetManager::buildMeshData(const MeshDesc& desc, MeshData& data)
     return true;
 }
 
-// ------------------------------------------------------------------- meshes
-
 std::vector<Material> AssetManager::materialsForSidecar(const MeshData& data) const
 {
     std::vector<Material> materials = data.materials;
@@ -1140,36 +1044,19 @@ void AssetManager::loadMeshMaterialTextures(Mesh& mesh, const MeshData& data)
     for (usize i = 0; i < mesh.materials.size() && i < data.materialTextureFiles.size(); ++i)
     {
         MaterialTexture& slot = mesh.materials[i].textures[SlotAlbedo];
-        // A same-named .material/.mat sidecar (importMeshFileData(), run
-        // before this) already replaced data.materials[i] wholesale,
-        // including this slot's own .file, when it has one for this
-        // material - the importer's own reference (an OBJ's map_Kd, joined
-        // against the mesh's directory, which is routinely wrong for an
-        // asset like Sponza that keeps its textures one level down in
-        // textures/) must never override a sidecar that got it right.
+        // A same-named .material/.mat sidecar (applied by importMeshFileData() earlier) already replaced data.materials[i] including this slot's .file; the importer's own reference (often wrong for Sponza's textures/ layout) must not override it.
         if (!data.materialTextureFiles[i].empty() && slot.file.empty())
         {
-            // Async, the same choice SceneSerializer already made for the
-            // textures a saved scene names: a mesh the size of the Bistro
-            // brings hundreds of these, and decoding them one after another
-            // on this thread is what froze the window for the whole load.
-            // The handle comes back immediately as a grey placeholder and
-            // AsyncTextureLoader rebuilds it in place a few frames later.
+            // Async, like SceneSerializer's texture loads: a Bistro-sized mesh brings hundreds and decoding them serially froze the window.
+            // The handle returns at once as a grey placeholder that AsyncTextureLoader rebuilds in place.
             slot.texture = loadTextureAsync(data.materialTextureFiles[i],
                                             Material::colorSpaceFor(SlotAlbedo), true);
-            // The GPU handle alone renders fine, but MaterialTexture::file is
-            // what InspectorPanel's texture slot UI actually reads to show a
-            // name (drawMaterialFields()'s buttonLabel) - without it every
-            // slot on an importer-built material (no .material sidecar, so
-            // nothing else ever sets this) reads as empty even though the
-            // texture is genuinely bound and on screen.
+            // MaterialTexture::file is what InspectorPanel's texture slot UI reads for a name; without it importer-built materials (no sidecar) show empty slots although the texture is bound.
             slot.file = data.materialTextureFiles[i];
         }
     }
 
-    // Normal maps are linear data that only looks like colour - decoding them
-    // as sRGB would bend every normal. colorSpaceFor() is the one place that
-    // rule lives, so it decides here too rather than this call site guessing.
+    // Normal maps are linear data; sRGB decoding would bend every normal. colorSpaceFor() decides.
     for (usize i = 0; i < mesh.materials.size() && i < data.materialNormalFiles.size(); ++i)
     {
         MaterialTexture& slot = mesh.materials[i].textures[SlotNormal];
@@ -1181,10 +1068,7 @@ void AssetManager::loadMeshMaterialTextures(Mesh& mesh, const MeshData& data)
         }
     }
 
-    // Surface (roughness/metalness, linear data like the normal map above)
-    // and Emissive (colour, sRGB like albedo) - a glTF's own
-    // metallicRoughnessTexture/emissiveTexture, only GltfImporter fills
-    // these two source arrays today.
+    // Surface (linear, like normals) and Emissive (sRGB, like albedo): a glTF's metallicRoughnessTexture/emissiveTexture; only GltfImporter fills these arrays.
     for (usize i = 0; i < mesh.materials.size() && i < data.materialSurfaceFiles.size(); ++i)
     {
         MaterialTexture& slot = mesh.materials[i].textures[SlotSurface];
@@ -1269,16 +1153,12 @@ MeshHandle AssetManager::createMeshAsync(const MeshDesc& desc)
     if (cached != mMeshByKey.end() && mMeshes.get(cached->second))
         return cached->second;
 
-    // An empty Mesh is intentional: RenderList sees no submeshes and skips
-    // it. The handle remains valid while the worker decodes the file.
+    // An empty Mesh is intentional: RenderList sees no submeshes and skips it; the handle stays valid while the worker decodes.
     const MeshHandle handle = mMeshes.add(Mesh());
     mMeshDescs[packHandle(handle)] = desc;
     mMeshByKey[key] = handle;
 
-    // Only queued here, never started: launching would put a worker inside
-    // MeshLoader's FileSystem reads while this same thread is still adding
-    // search paths for the next mesh. processAsyncMeshLoads() starts them
-    // one at a time instead, with that preparation done while nothing runs.
+    // Only queued, never started: launching would put a worker inside MeshLoader's FileSystem reads while this thread is still adding search paths. processAsyncMeshLoads() starts them one at a time.
     PendingMesh queued;
     queued.handle = handle;
     queued.file = desc.file;
@@ -1302,8 +1182,7 @@ u32 AssetManager::processAsyncMeshLoads()
                        mMeshInFlight.handle.index);
         else
         {
-            // Main thread, no worker running: the one moment the material
-            // list and the search paths can be touched safely.
+            // Main thread, no worker running: the only safe moment to touch the material list and search paths.
             applyMeshFileMaterials(mMeshInFlight.file, data);
             if (!replaceMesh(mMeshInFlight.handle, data))
                 Log::error("AssetManager: async mesh upload failed for handle %u",
@@ -1368,13 +1247,8 @@ bool AssetManager::replaceMesh(MeshHandle handle, const MeshData& data)
     }
     loadMeshMaterialTextures(replacement, data);
 
-    // Same handle (index+generation) throughout - every MeshRenderer already
-    // holding it keeps pointing at this exact slot and draws the new
-    // geometry next frame without anyone telling it the handle changed. The
-    // in-place counterpart to GPU::replaceTexture() for the same reason:
-    // a mesh-editing tool works on a MeshData already referenced by objects
-    // in the scene, and handing back a *new* handle would leave every one of
-    // them still pointing at the stale mesh.
+    // Same handle (index+generation) throughout, so every MeshRenderer holding it draws the new geometry next frame; a new handle would leave them pointing at the stale mesh.
+    // In-place counterpart to GPU::replaceTexture().
     release(*slot);
     *slot = replacement;
     return true;
@@ -1447,9 +1321,7 @@ bool AssetManager::uploadVoxel(const MeshData& data, const Material* materials,
     out.materials.assign(materials, materials + materialCount);
     out.bounds = data.bounds;
 
-    // Positions keep the ordinary depth layout, which is what lets the depth
-    // pass and every shadow cascade draw a voxel chunk without knowing it is
-    // one.
+    // Positions keep the ordinary depth layout so the depth pass and shadow cascades draw a voxel chunk without knowing it is one.
     out.depthLayout = VertexLayout();
     out.depthLayout.streamCount = 1;
     out.depthLayout.streams[StreamPosition].stride = sizeof(Math::vec3);
@@ -1551,12 +1423,7 @@ bool AssetManager::updateSubMeshBounds(MeshHandle handle, u32 submeshIndex, cons
 bool AssetManager::updateMeshIndices(MeshHandle handle, const u32* indices, u32 indexCount)
 {
     Mesh* mesh = getMesh(handle);
-    // This only knows how to write u32 indices at the given stride, and only
-    // how to grow submesh 0's count - adoptMesh() can hand the pool a Mesh
-    // built with U16 indices or no submeshes at all, and this used to write
-    // indexCount * sizeof(u32) bytes regardless (up to twice the index
-    // buffer's actual size for a U16 mesh) and index submeshes[0]
-    // unconditionally.
+    // Only writes u32 indices at the given stride and grows submesh 0's count; adoptMesh() can hand the pool a U16 mesh or one with no submeshes, which this must not assume.
     if (!mesh || mesh->indexType != IndexType::U32 || mesh->submeshes.empty() ||
         indexCount > mesh->indexCount || (indexCount != 0 && !indices))
         return false;
@@ -1579,8 +1446,7 @@ void AssetManager::destroyMesh(MeshHandle handle)
     if (!mMeshes.remove(handle, mesh))
         return;
 
-    // The pool recycles the slot, so a description left behind would end up
-    // naming whatever mesh lands there next.
+    // The pool recycles the slot, so a leftover description would name whatever mesh lands there next.
     const auto entry = mMeshDescs.find(packHandle(handle));
     if (entry != mMeshDescs.end())
     {
@@ -1713,8 +1579,6 @@ void AssetManager::release(Mesh& mesh) const
     mesh = Mesh();
 }
 
-// ------------------------------------------------------------------- bounds
-
 void AssetManager::computeNormals(MeshData& mesh) const
 {
     if (mesh.positions.empty() || mesh.indices.size() < 3)
@@ -1730,10 +1594,7 @@ void AssetManager::computeNormals(MeshData& mesh) const
         if (i0 >= mesh.positions.size() || i1 >= mesh.positions.size() ||
             i2 >= mesh.positions.size())
             continue;
-        // Not normalised: the cross product's length is twice the triangle's
-        // area, so accumulating it raw weights each face by its size. A long
-        // thin triangle then counts for what it is instead of as much as the
-        // big one beside it.
+        // Not normalised: the cross product's length is twice the triangle's area, weighting each face by size.
         const Math::vec3 face = Math::cross(mesh.positions[i1] - mesh.positions[i0],
                                           mesh.positions[i2] - mesh.positions[i0]);
         mesh.normals[i0] += face;
@@ -1772,10 +1633,7 @@ void AssetManager::computeTangents(MeshData& mesh) const
         const Math::vec2 d1 = mesh.uvs[i1] - mesh.uvs[i0];
         const Math::vec2 d2 = mesh.uvs[i2] - mesh.uvs[i0];
 
-        // Degenerate in UV space - two vertices share a texture coordinate,
-        // which happens on seams and on untextured filler geometry. There is
-        // no basis to derive; leaving it at zero lets the fallback below take
-        // over instead of producing an infinity.
+        // Degenerate in UV space (shared coordinate on seams/untextured filler): no basis to derive; leave zero so the fallback below takes over instead of an infinity.
         const f32 determinant = d1.x * d2.y - d2.x * d1.y;
         if (std::abs(determinant) < 1.0e-12f)
             continue;
@@ -1797,8 +1655,7 @@ void AssetManager::computeTangents(MeshData& mesh) const
         Math::vec3 t = tangent[i] - normal * Math::dot(normal, tangent[i]);
         if (Math::dot(t, t) < 1.0e-16f)
         {
-            // Any vector perpendicular to the normal will do where the UVs
-            // gave nothing - the shader needs a basis, not a correct one.
+            // Any vector perpendicular to the normal will do where UVs gave nothing; the shader needs a basis, not a correct one.
             const Math::vec3 axis =
                 std::abs(normal.x) < 0.9f ? Math::vec3(1.0f, 0.0f, 0.0f) : Math::vec3(0.0f, 1.0f, 0.0f);
             t = Math::normalize(Math::cross(normal, axis));
@@ -1807,8 +1664,7 @@ void AssetManager::computeTangents(MeshData& mesh) const
         {
             t = Math::normalize(t);
         }
-        // w carries the handedness, which is what tells the shader whether to
-        // flip the bitangent - a mirrored UV island lights inside out without.
+        // w carries handedness so the shader can flip the bitangent; a mirrored UV island lights inside out without it.
         const f32 handedness = Math::dot(Math::cross(normal, t), bitangent[i]) < 0.0f ? -1.0f : 1.0f;
         mesh.tangents[i] = Math::vec4(t, handedness);
     }
@@ -1820,9 +1676,7 @@ u32 AssetManager::fixWinding(MeshData& mesh) const
     if (triangles < 2)
         return 0;
 
-    // Which triangles meet at each edge, keyed by the vertex pair in
-    // ascending order so the two that share it land together whichever way
-    // each traverses it.
+    // Which triangles meet at each edge, keyed by the vertex pair in ascending order so both land together.
     struct Neighbour
     {
         u64 key;
@@ -1868,8 +1722,7 @@ u32 AssetManager::fixWinding(MeshData& mesh) const
             {
                 const u32 b0 = mesh.indices[b * 3 + j];
                 const u32 b1 = mesh.indices[b * 3 + (j + 1) % 3];
-                // Same direction across a shared edge means one of them is
-                // wound backwards relative to the other.
+                // Same direction across a shared edge means one triangle is wound backwards relative to the other.
                 if (a0 == b0 && a1 == b1)
                     return true;
             }
@@ -1933,8 +1786,7 @@ void AssetManager::computeSubMeshBounds(MeshData& mesh) const
 
 void AssetManager::splitSubMeshes(MeshData& mesh, u32 targetTriangles) const
 {
-    // Bind-pose vertices - the runtime BVH already refuses to index a
-    // skinned mesh's submeshes for the same reason, see SceneBVH::build().
+    // Bind-pose vertices; the runtime BVH also refuses to index a skinned mesh's submeshes (SceneBVH::build()).
     if (!mesh.skin.empty())
         return;
 
@@ -1955,8 +1807,6 @@ void AssetManager::splitSubMeshes(MeshData& mesh, u32 targetTriangles) const
 
     Log::info("AssetManager: splitSubMeshes %zu -> %zu submeshes", before, mesh.submeshes.size());
 }
-
-// ------------------------------------------------------------------ normals
 
 void AssetManager::recalculateNormals(MeshData& mesh, bool smooth, bool angleWeighted) const
 {
@@ -2030,8 +1880,7 @@ void AssetManager::recalculateTangents(MeshData& mesh) const
         const Math::vec2 deltaUV1 = mesh.uvs[i1] - mesh.uvs[i0];
         const Math::vec2 deltaUV2 = mesh.uvs[i2] - mesh.uvs[i0];
 
-        // Degenerate uvs give a zero determinant; skipping leaves the vertex to
-        // whatever its other triangles say instead of poisoning it with NaN.
+        // Degenerate uvs give a zero determinant; skip so the vertex keeps what its other triangles say instead of NaN.
         const float determinant = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
         if (std::abs(determinant) < 1e-12f)
             continue;
@@ -2054,22 +1903,18 @@ void AssetManager::recalculateTangents(MeshData& mesh) const
         const Math::vec3& normal = mesh.normals[i];
         Math::vec3 tangent = tangentAccum[i];
 
-        // Gram-Schmidt: drop whatever part of the tangent leans along the
-        // normal, so the frame stays on the surface.
+        // Gram-Schmidt: drop the tangent's part along the normal so the frame stays on the surface.
         tangent -= normal * Math::dot(normal, tangent);
         const float length = Math::length(tangent);
         tangent = length > 0.0f ? tangent / length : Math::vec3(1.0f, 0.0f, 0.0f);
 
-        // w tells the shader which way to cross for the bitangent, which is
-        // what keeps mirrored uv islands from lighting inverted.
+        // w tells the shader which way to cross for the bitangent, keeping mirrored uv islands from lighting inverted.
         const float handedness =
             Math::dot(Math::cross(normal, tangent), bitangentAccum[i]) < 0.0f ? -1.0f : 1.0f;
 
         mesh.tangents[i] = Math::vec4(tangent, handedness);
     }
 }
-
-// ---------------------------------------------------------------- planar uv
 
 u32 AssetManager::duplicateMeshVertex(MeshData& mesh, u32 source) const
 {
@@ -2087,19 +1932,9 @@ u32 AssetManager::duplicateMeshVertex(MeshData& mesh, u32 source) const
 
 void AssetManager::makePlanarUV(MeshData& mesh, f32 resolution) const
 {
-    // A shared vertex can only hold one UV, but two triangles meeting at a
-    // hard edge (a box's corner is the standard case) commonly pick
-    // *different* dominant axes for their own projection - whichever
-    // triangle got processed last used to silently overwrite whatever the
-    // other one had just written into that shared slot, leaving the loser's
-    // face with someone else's UVs. The fix a real box/planar mapper uses is
-    // the same one flat shading already needs (recalculateNormals()'s own
-    // "split the mesh first" note): duplicate the vertex per (original
-    // vertex, chosen axis) pair instead of writing through the old shared
-    // index, so two faces disagreeing about the axis just get two vertices.
-    // Existing SubMesh index ranges stay valid - the same number of indices,
-    // in the same order, only ever renumbered to point at the (possibly new)
-    // per-axis duplicate.
+    // A shared vertex holds one UV, but triangles meeting at a hard edge (a box corner) can pick different dominant axes and the last one processed would overwrite the other's UVs.
+    // So duplicate the vertex per (original vertex, chosen axis) pair (see the "split the mesh first" note on recalculateNormals()).
+    // SubMesh index ranges stay valid: same index count and order, only renumbered to the (possibly new) per-axis duplicate.
     HashMap<u32, u8> originalAxis;  // original vertex index -> the one axis it still owns
     HashMap<u64, u32> duplicates;   // (original index << 2 | axis) -> duplicate vertex index
     std::vector<u32> remapped(mesh.indices.size());
@@ -2130,8 +1965,7 @@ void AssetManager::makePlanarUV(MeshData& mesh, f32 resolution) const
             const auto ownerIt = originalAxis.find(original);
             if (ownerIt == originalAxis.end())
             {
-                // First triangle to ever touch this vertex claims the
-                // original slot outright - the common case, no duplicate.
+                // First triangle to touch this vertex claims the original slot (the common case, no duplicate).
                 originalAxis[original] = axis;
                 vertexIndex = original;
             }
@@ -2139,9 +1973,7 @@ void AssetManager::makePlanarUV(MeshData& mesh, f32 resolution) const
                 vertexIndex = original; // same axis as whoever claimed it first
             else
             {
-                // A different axis than the original slot's owner - reuse a
-                // duplicate already made for this (original, axis) pair, or
-                // make one.
+                // Different axis than the slot's owner: reuse the duplicate for this (original, axis) pair or make one.
                 const u64 key = (static_cast<u64>(original) << 2) | axis;
                 const auto dupIt = duplicates.find(key);
                 if (dupIt != duplicates.end())
@@ -2163,10 +1995,7 @@ void AssetManager::makePlanarUV(MeshData& mesh, f32 resolution) const
     }
 
     mesh.indices = std::move(remapped);
-    // Stale the instant vertex count changed - a tangent is built from the
-    // old topology's UVs and no longer matches. Generate Tangents already
-    // has to run again after any UV change; this just makes that honest
-    // instead of leaving wrong data sitting there.
+    // Stale once the vertex count changed: a tangent built from the old topology's UVs no longer matches (Generate Tangents must rerun after any UV change).
     mesh.tangents.clear();
 }
 
@@ -2213,13 +2042,8 @@ void AssetManager::makeCylindricalUV(MeshData& mesh, f32 resolutionU, f32 resolu
     const auto rawV = [&](const Math::vec3& p) -> f32
     { return ((p.y - minY) / heightRange) * resolutionV; };
 
-    // Same problem makePlanarUV() has at a hard edge, here at the seam where
-    // u wraps from resolutionU back to 0 (theta crossing +-pi): a shared
-    // vertex right on the seam is asked for two different u values by the
-    // triangles on either side of it. Unwrap per-triangle (shift whichever
-    // corner would otherwise tear more than half the wrap width away from
-    // the triangle's own max) and duplicate only where that disagrees with
-    // whichever triangle already claimed the vertex's original slot.
+    // Same problem as makePlanarUV() at a hard edge, here at the u seam (theta crossing +-pi), where a seam vertex is asked for two u values.
+    // Unwrap per triangle (shift any corner more than half the wrap width from the triangle's max) and duplicate only where that disagrees with the triangle that claimed the original slot.
     HashMap<u32, u8> originalSide; // original vertex -> 0 (as computed) or 1 (+resolutionU)
     HashMap<u64, u32> duplicates;  // (original << 1 | side) -> duplicate vertex index
     std::vector<u32> remapped(mesh.indices.size());
@@ -2309,10 +2133,7 @@ void AssetManager::makeSphericalUV(MeshData& mesh, f32 resolutionU, f32 resoluti
         const f32 y = Math::clamp((p.y - center.y) / maxRadius, -1.0f, 1.0f);
         return (std::acos(y) / Math::pi<f32>()) * resolutionV;
     };
-    // Close enough to the vertical axis that atan2(x,z) stops meaning
-    // anything - every triangle fanning around a pole gets its own
-    // duplicate below instead of trying to share one longitude that does
-    // not exist for a point sitting exactly on it.
+    // Close enough to the vertical axis that atan2(x,z) is meaningless; each triangle fanning around a pole gets its own duplicate instead of sharing a nonexistent longitude.
     const auto isPole = [&](const Math::vec3& p) -> bool
     {
         const f32 horizontal = Math::length(Math::vec2(p.x - center.x, p.z - center.z));
@@ -2356,8 +2177,7 @@ void AssetManager::makeSphericalUV(MeshData& mesh, f32 resolutionU, f32 resoluti
                 side[o] = 1;
             }
         }
-        // A pole corner has no longitude of its own - average whatever the
-        // other two corners settled on so the triangle fan does not swirl.
+        // A pole corner has no longitude; average the other two corners' so the fan does not swirl.
         if (pole[0] || pole[1] || pole[2])
         {
             f32 sum = 0.0f;
@@ -2380,9 +2200,7 @@ void AssetManager::makeSphericalUV(MeshData& mesh, f32 resolutionU, f32 resoluti
             u32 vertexIndex;
             if (pole[o])
             {
-                // Never shared, unlike the ordinary seam case below - every
-                // triangle touching a pole needs its own vertex, since no
-                // single longitude would ever serve all of them.
+                // Never shared, unlike the ordinary seam case: every triangle touching a pole needs its own vertex.
                 vertexIndex = duplicateMeshVertex(mesh, original);
             }
             else
@@ -2418,8 +2236,6 @@ void AssetManager::makeSphericalUV(MeshData& mesh, f32 resolutionU, f32 resoluti
     mesh.indices = std::move(remapped);
     mesh.tangents.clear();
 }
-
-// --------------------------------------------------------------- transforms
 
 void AssetManager::translate(MeshData& mesh, const Math::vec3& delta) const
 {
@@ -2492,8 +2308,7 @@ void AssetManager::transformVertices(MeshData& mesh, const Math::mat4& matrix,
     if (counted == 0)
         return;
 
-    // Accumulated in double: a median over hundreds of thousands of vertices
-    // far from the origin loses enough in float to visibly shift the pivot.
+    // Accumulated in double: a median over hundreds of thousands of far-from-origin vertices loses enough in float to shift the pivot.
     transformVerticesAbout(mesh, matrix, Math::vec3(sum / static_cast<double>(counted)),
                            vertexIndices);
 }
@@ -2534,9 +2349,7 @@ void AssetManager::transformVerticesAbout(MeshData& mesh, const Math::mat4& matr
         }
     }
 
-    // Winding is a property of a triangle, not of a vertex: flipping the
-    // whole mesh because part of it was mirrored would turn the untouched
-    // faces inside out too. Only the whole-mesh case can say anything.
+    // Winding belongs to a triangle, not a vertex: flipping the whole mesh for a partly mirrored one would invert untouched faces. Only the whole-mesh case can say anything.
     if (wholeMesh && Math::determinant(Math::mat3(matrix)) < 0.0f)
         flipWinding(mesh);
 
@@ -2591,12 +2404,7 @@ void AssetManager::flipWinding(MeshData& mesh, u32 submeshIndex) const
     }
 }
 
-// ------------------------------------------------------------ decomposition
-
-// Appends one input's vertices to `out`, transformed if asked, keeping every
-// attribute array in step: an array that some input has and another has not
-// is padded, or the arrays drift and vertex i stops meaning the same vertex
-// across them.
+// Appends one input's vertices to `out`, transformed if asked, keeping every attribute array in step: an array some inputs lack is padded, or vertex i stops meaning the same vertex across arrays.
 namespace
 {
 void appendVertices(MeshData& out, const MeshData& source, const Math::mat4& transform,
@@ -2604,8 +2412,7 @@ void appendVertices(MeshData& out, const MeshData& source, const Math::mat4& tra
 {
     const usize base = out.positions.size();
     const usize count = source.positions.size();
-    // A normal is not transformed by the same matrix as a position: a
-    // non-uniform scale would leave it off the surface.
+    // A normal is not transformed by the position matrix: non-uniform scale would leave it off the surface.
     const Math::mat3 normalMatrix = Math::transpose(Math::inverse(Math::mat3(transform)));
 
     out.positions.reserve(base + count);
@@ -2631,8 +2438,7 @@ void appendVertices(MeshData& out, const MeshData& source, const Math::mat4& tra
         {
             const Math::vec4 tangent =
                 i < source.tangents.size() ? source.tangents[i] : Math::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            // w carries handedness, not a coordinate - it never goes through
-            // the matrix.
+            // w carries handedness, not a coordinate; it never goes through the matrix.
             out.tangents.push_back(applyTransform ? Math::vec4(Math::normalize(Math::mat3(transform) *
                                                                              Math::vec3(tangent)),
                                                               tangent.w)
@@ -2688,8 +2494,7 @@ bool AssetManager::mergeMeshes(const std::vector<MeshMergeInput>& inputs,
         }
         totalVertices += input.mesh->positions.size();
     }
-    // One shared index buffer addresses every vertex, so the merged mesh has
-    // to stay inside what a u32 index can reach whatever the caller asked for.
+    // One shared index buffer addresses every vertex, so the merged mesh must stay within a u32 index whatever the caller asked.
     const u64 limit = options.maxVertices ? options.maxVertices : 0xFFFFFFFFull;
     if (totalVertices > limit)
     {
@@ -2708,10 +2513,8 @@ bool AssetManager::mergeMeshes(const std::vector<MeshMergeInput>& inputs,
         const u32 vertexBase = static_cast<u32>(output.positions.size());
         appendVertices(output, source, input.transform, options.applyTransforms);
 
-        // Each source submesh becomes an output submesh - geometry groups are
-        // never merged across materials, only their slots are remapped. With
-        // preserveSubmeshBoundaries off, a source's submeshes that share one
-        // material still come out as one group.
+        // Each source submesh becomes an output submesh; groups never merge across materials, only slots are remapped.
+        // With preserveSubmeshBoundaries off, a source's submeshes sharing a material come out as one group.
         const std::vector<SubMesh>& submeshes = source.submeshes;
         for (usize s = 0; s < submeshes.size(); ++s)
         {
@@ -2720,8 +2523,7 @@ bool AssetManager::mergeMeshes(const std::vector<MeshMergeInput>& inputs,
                 static_cast<u64>(submesh.indexOffset) + submesh.indexCount > source.indices.size())
                 continue;
 
-            // Deduplicate the material, not the geometry: the same material
-            // arriving from two inputs gets one slot.
+            // Deduplicate the material, not the geometry: the same material from two inputs gets one slot.
             u32 slot = 0;
             if (submesh.materialSlot < source.materials.size())
             {
@@ -2736,13 +2538,7 @@ bool AssetManager::mergeMeshes(const std::vector<MeshMergeInput>& inputs,
                     const std::string& existing = m < output.materialTextureFiles.size()
                                                       ? output.materialTextureFiles[m]
                                                       : std::string();
-                    // Not memcmp(&output.materials[m], &material, sizeof(Material)) -
-                    // Material holds a std::string (name) and struct padding
-                    // that is not guaranteed equal between two independently
-                    // constructed copies of the identical logical material,
-                    // so a raw byte compare found two submeshes sharing the
-                    // exact same source Material "different" and duplicated
-                    // it once per submesh instead of reusing the one slot.
+                    // Not memcmp(&output.materials[m], &material, sizeof(Material)): Material holds a std::string and padding not guaranteed equal between copies, which duplicated identical materials once per submesh.
                     const Material& candidate = output.materials[m];
                     if (existing == albedo && candidate.name == material.name &&
                         candidate.flags == material.flags && candidate.blend == material.blend &&
@@ -2927,9 +2723,7 @@ bool AssetManager::extractSubmesh(const MeshData& source, u32 submeshIndex, Mesh
     const bool hasColors = source.colors.size() == source.positions.size();
     const bool hasSkin = source.skin.size() == source.positions.size();
 
-    // Old index -> compact new index. The submesh's indices are a sparse
-    // subset of source's shared buffers, so every vertex is copied at most
-    // once no matter how many triangles reference it.
+    // Old index -> compact new index. The submesh's indices are a sparse subset of source's buffers, so each vertex is copied at most once.
     HashMap<u32, u32> remap;
     out.indices.reserve(submesh.indexCount);
 
@@ -3000,8 +2794,7 @@ u32 AssetManager::compactGeometry(MeshData& mesh) const
     if (mesh.submeshes.empty() || mesh.indices.empty())
         return 0;
 
-    // Which vertices any surviving submesh still names. Everything else is
-    // dead weight the file has been carrying since the first deletion.
+    // Which vertices any surviving submesh still names; the rest is dead weight.
     std::vector<u32> remap(originalVertexCount, 0xFFFFFFFFu);
     std::vector<u32> newIndices;
     newIndices.reserve(mesh.indices.size());
@@ -3037,9 +2830,7 @@ u32 AssetManager::compactGeometry(MeshData& mesh) const
     if (keptOrder.size() == originalVertexCount && newIndices.size() == mesh.indices.size())
         return 0;
 
-    // Every per-vertex stream is parallel to positions and has to be rebuilt
-    // in the same new order - a stream left behind would pair the wrong
-    // normal or UV with each vertex from here on.
+    // Every per-vertex stream is parallel to positions and must be rebuilt in the same new order, or normals/UVs pair with the wrong vertices.
     const auto compactStream = [&keptOrder](auto& stream)
     {
         if (stream.empty())
@@ -3079,9 +2870,7 @@ u32 AssetManager::compactMaterials(MeshData& mesh, std::vector<u32>* outRemap) c
             ++removed;
     if (removed == 0)
     {
-        // Identity, so a caller can put its own per-slot state through the
-        // same table unconditionally instead of special-casing "nothing
-        // moved".
+        // Identity, so a caller can put its per-slot state through the table unconditionally.
         if (outRemap)
         {
             outRemap->resize(used.size());
@@ -3100,10 +2889,7 @@ u32 AssetManager::compactMaterials(MeshData& mesh, std::vector<u32>* outRemap) c
     std::vector<std::string> keptHeightFiles;
     keptMaterials.reserve(used.size() - removed);
 
-    // Every one of these arrays is indexed BY material slot, so a kept slot
-    // has to produce exactly one entry in each - pushing only when the
-    // source array happens to be long enough (importers fill them to
-    // different lengths) shifts every later entry onto the wrong material.
+    // Every one of these arrays is indexed BY material slot, so a kept slot must produce exactly one entry in each; pushing only when the source is long enough (importers differ) shifts later entries onto the wrong material.
     const auto keepFile = [](const std::vector<std::string>& source, usize slot,
                              std::vector<std::string>& out)
     {
@@ -3138,8 +2924,6 @@ u32 AssetManager::compactMaterials(MeshData& mesh, std::vector<u32>* outRemap) c
         *outRemap = std::move(remap);
     return removed;
 }
-
-// ------------------------------------------------------------- optimization
 
 namespace
 {
@@ -3230,8 +3014,7 @@ void unionWeldRoots(std::vector<u32>& parent, u32 a, u32 b)
         parent[rootA] = rootB;
 }
 
-// Packs a 3D grid cell into one key, 21 bits per axis - a generous range for
-// an edit-time tolerance weld on one mesh's local coordinates.
+// Packs a 3D grid cell into one key, 21 bits per axis (ample for an edit-time weld in a mesh's local coordinates).
 u64 weldCellKey(const Math::ivec3& cell)
 {
     const u64 x = static_cast<u64>(static_cast<u32>(cell.x)) & 0x1FFFFFu;
@@ -3386,8 +3169,7 @@ void AssetManager::smoothVertices(MeshData& mesh, f32 strength, u32 iterations,
             if (v < vertexCount)
                 eligible[v] = true;
 
-    // Adjacency built once from the (unchanging) topology: every vertex a
-    // triangle edge touches becomes a neighbor of the vertex on the other end.
+    // Adjacency built once from the unchanging topology: every vertex a triangle edge touches is a neighbor of the vertex at the other end.
     std::vector<std::vector<u32>> neighbors(vertexCount);
     for (usize i = 0; i + 2 < mesh.indices.size(); i += 3)
     {
@@ -3489,8 +3271,6 @@ void AssetManager::optimizeVertexFetch(MeshData& mesh) const
                              remap.data());
     remapAllVertexArrays(mesh, remap, uniqueCount);
 }
-
-// -------------------------------------------------------------- edit ops
 
 void AssetManager::deleteFaces(MeshData& mesh, const std::vector<u32>& faceIndices) const
 {
@@ -3648,8 +3428,7 @@ bool AssetManager::extrudeFaces(MeshData& mesh, const std::vector<u32>& faceIndi
             continue;
         }
 
-        // Not normalized: the cross product's length is twice the triangle's
-        // area, so a big face pulls a shared vertex more than a sliver does.
+        // Not normalized: the cross product's length is twice the area, so a big face pulls a shared vertex more than a sliver.
         const Math::vec3 faceNormal = Math::cross(mesh.positions[i1] - mesh.positions[i0],
                                                 mesh.positions[i2] - mesh.positions[i0]);
         offset[i0] += faceNormal;
@@ -3749,8 +3528,7 @@ bool AssetManager::extrudeFaces(MeshData& mesh, const std::vector<u32>& faceIndi
                 if (edgeUse[edgeKey(a, b)] != 1)
                     continue;
 
-                // Walking the boundary in the face's own winding keeps the
-                // region on the left, so this pair faces outward.
+                // Walking the boundary in the face's winding keeps the region on the left, so this pair faces outward.
                 newIndices.push_back(a);
                 newIndices.push_back(b);
                 newIndices.push_back(duplicate[b]);
@@ -3775,8 +3553,7 @@ bool AssetManager::extrudeFaces(MeshData& mesh, const std::vector<u32>& faceIndi
 
 namespace
 {
-// Marks the given indices in a bitvector sized to `count`, ignoring anything
-// past the end - a selection can outlive the mesh it was made against.
+// Marks indices in a bitvector sized to `count`, ignoring any past the end (a selection can outlive its mesh).
 void markSelected(const std::vector<u32>& indices, usize count, std::vector<bool>& marked)
 {
     marked.assign(count, false);
@@ -3842,8 +3619,7 @@ bool AssetManager::transformFaceUVs(MeshData& mesh, const std::vector<u32>& face
     std::vector<u32> duplicate(vertexCount, kNoDuplicate);
     for (u32 v = 0; v < static_cast<u32>(vertexCount); ++v)
     {
-        // Only the ones straddling the edge of the selection: a vertex the
-        // rest of the mesh never touches can simply be moved.
+        // Only vertices straddling the selection edge; one the rest of the mesh never touches can simply be moved.
         if (!usedBySelected[v] || !usedByRest[v])
             continue;
 
@@ -3917,9 +3693,7 @@ bool AssetManager::transformFaceUVs(MeshData& mesh, const std::vector<u32>& face
                       offset;
     }
 
-    // Tangents are built from the UVs, so leaving them alone after a rotation
-    // or a mirror leaves every normal-mapped surface here lit for the old
-    // layout. Only worth doing if the mesh had them to begin with.
+    // Tangents come from the UVs, so after a rotation or mirror they would light normal-mapped surfaces for the old layout; only rebuilt if the mesh had them.
     if (hasTangents)
         recalculateTangents(mesh);
 
@@ -3995,10 +3769,7 @@ void AssetManager::analyzeMesh(const MeshData& mesh, Diagnostics& out) const
             continue;
         }
 
-        // Twice the area. Comparing that against a small epsilon rather than
-        // exactly zero catches the slivers too - three points on a line have
-        // no normal to give, and a zero normal averaged into its vertices
-        // takes the shading of everything around it with it.
+        // Twice the area. Comparing against a small epsilon rather than zero also catches slivers: three collinear points have no normal, and a zero normal averaged into its vertices spoils neighbouring shading.
         const Math::vec3 cross = Math::cross(mesh.positions[i1] - mesh.positions[i0],
                                            mesh.positions[i2] - mesh.positions[i0]);
         if (Math::length(cross) <= 1e-12f)
@@ -4032,8 +3803,7 @@ void AssetManager::analyzeMesh(const MeshData& mesh, Diagnostics& out) const
         const Math::vec3& p = mesh.positions[v];
         u32 bits[3];
         std::memcpy(bits, &p, sizeof(bits));
-        // FNV-1a over the three float bit patterns: exact matches only, which
-        // is what "the same position" has to mean without a tolerance.
+        // FNV-1a over the three float bit patterns: exact matches only, which is what "same position" must mean without a tolerance.
         u64 hash = 14695981039346656037ull;
         for (u32 i = 0; i < 3; ++i)
         {
@@ -4052,9 +3822,7 @@ void AssetManager::growVertexSelection(const MeshData& mesh, const std::vector<u
     std::vector<bool> selected;
     markSelected(vertexIndices, vertexCount, selected);
 
-    // Read from `selected` and write to `grown`, never both: growing in place
-    // would let a vertex added by one triangle seed the next one in the same
-    // pass, spreading further than the single ring asked for.
+    // Read from `selected`, write to `grown`: growing in place would let a newly added vertex seed the next triangle in the same pass, spreading past one ring.
     std::vector<bool> grown = selected;
     for (usize i = 0; i + 2 < mesh.indices.size(); i += 3)
     {
@@ -4156,9 +3924,7 @@ void AssetManager::selectLinkedVertices(const MeshData& mesh,
     std::vector<bool> reached;
     markSelected(seedVertices, vertexCount, reached);
 
-    // Sweeping the triangle list until a pass adds nothing: a component
-    // spanning the mesh needs as many passes as it is long in triangles, but
-    // no adjacency structure has to be built and thrown away for one query.
+    // Sweep the triangle list until a pass adds nothing: a spanning component needs as many passes as it is long in triangles, but no adjacency structure is built for one query.
     bool changed = true;
     while (changed)
     {
@@ -4324,9 +4090,7 @@ bool AssetManager::simplifyMesh(MeshData& mesh, f32 targetRatio, f32 targetError
     const f32* positions = &mesh.positions[0].x;
     const usize vertexCount = mesh.positions.size();
 
-    // Borders between submeshes have to stay put when there is more than one
-    // range, otherwise each range pulls its shared edge its own way and the
-    // seams crack open.
+    // Borders between submeshes must stay put when there is more than one range, or each range pulls the shared edge its own way and seams crack.
     const u32 options = mesh.submeshes.size() > 1 ? meshopt_SimplifyLockBorder : 0;
 
     f32 worstError = 0.0f;
@@ -4378,8 +4142,6 @@ bool AssetManager::simplifyMesh(MeshData& mesh, f32 targetRatio, f32 targetError
     return true;
 }
 
-// ---------------------------------------------------------------- collision
-
 void AssetManager::buildCollisionMesh(const MeshData& mesh, CollisionMesh& out) const
 {
     out.positions = mesh.positions;
@@ -4426,11 +4188,7 @@ bool AssetManager::raycast(const CollisionMesh& mesh, const Ray& ray, f32& t, u3
     return hit;
 }
 
-// ------------------------------------------------------------ primitives
-
-// Thin wrappers over createMesh(MeshDesc): the description carries the
-// recipe, so a mesh built through any of these already knows what it is and
-// nothing here has to record anything afterwards.
+// Thin wrappers over createMesh(MeshDesc); the desc carries the recipe, so the mesh already knows what it is.
 
 MeshHandle AssetManager::createBox(const Math::vec3& size)
 {
@@ -4482,9 +4240,7 @@ MeshHandle AssetManager::createHeightfield(const std::string& heightmapFile, f32
     return createMesh(MeshDesc::heightfield(heightmapFile, cellSize, heightScale, uvTiles));
 }
 
-// The two taking an already-loaded image cannot go through a description - a
-// Pixmap in memory has no name to write down - so they build and upload
-// directly, and no saved scene can refer to the result.
+// The two taking an already-loaded image cannot go through a description (a Pixmap has no name to write), so they upload directly and no saved scene can refer to the result.
 
 MeshHandle AssetManager::createHillsPlane(f32 width, f32 depth, u32 segX, u32 segZ,
                                           const Pixmap& heightmap, f32 heightScale, f32 uvTiles)
@@ -4513,8 +4269,6 @@ MeshHandle AssetManager::createHeightfield(const Pixmap& heightmap, f32 cellSize
     computeBounds(data);
     return createMesh(data);
 }
-
-// ------------------------------------------------------------------- upload
 
 bool AssetManager::upload(const MeshData& data, Mesh& out, Residency residency) const
 {
@@ -4617,10 +4371,7 @@ bool AssetManager::upload(const MeshData& data, Mesh& out, Residency residency) 
                                   AttribFormat::Float2};
     out.colorLayout.attribs[4] = {4, StreamAttribs, offsetof(MeshAttribs, color),
                                   AttribFormat::UByte4N};
-    // Location 7, not 5: skinning claims 5/6 for joints/weights below, and
-    // uv2 has to sit at a location that does not move between a skinned and
-    // an unskinned mesh, or lit.vert would need two different layouts to
-    // read the same attribute.
+    // Location 7, not 5: skinning claims 5/6 for joints/weights, and uv2 must not move between skinned and unskinned meshes or lit.vert would need two layouts.
     out.colorLayout.attribs[5] = {7, StreamAttribs, offsetof(MeshAttribs, uv2),
                                   AttribFormat::Float2};
     if (skinned)

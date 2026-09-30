@@ -16,23 +16,19 @@ namespace Radion
 
 using MeshHandle = Handle<struct MeshTag>;
 
-// A submesh carries its own box: half of a building can sit outside the
-// frustum, and without it the choice is to draw all of it or none of it.
+// Each submesh has its own box so half a building outside the frustum can be culled.
 struct SubMesh
 {
     u32 indexOffset = 0;
     u32 indexCount = 0;
     u32 materialSlot = 0;
-    // Page of the baked lightmap atlas used by this submesh. Kept in the
-    // reserved submesh field of .rmesh; zero is the ordinary single-atlas case.
+    // Baked lightmap atlas page, stored in the reserved submesh field of .rmesh; zero = single atlas.
     u32 lightmapPage = 0;
     AABB bounds;
     bool visible = true;
 };
 
-// Physics and picking read this, never the vertex buffer: once uploaded the
-// GPU copy cannot be read back without stalling the frame. Positions only,
-// because collision has no use for normals or uvs.
+// Physics and picking read this, never the vertex buffer (GPU readback stalls). Positions only.
 struct CollisionMesh
 {
     std::vector<Math::vec3> positions;
@@ -40,9 +36,7 @@ struct CollisionMesh
     AABB bounds;
 };
 
-// Positions live in their own stream because the shadow and depth passes read
-// nothing else. Interleaved with the rest, a cascade would pull 52 bytes per
-// vertex to use 12, three or four times a frame.
+// Positions in their own stream because shadow/depth passes read nothing else; interleaved, a cascade would pull 52 bytes per vertex to use 12.
 enum MeshStream : u8
 {
     StreamPosition = 0,
@@ -52,7 +46,6 @@ enum MeshStream : u8
     MeshStreamCount = 3
 };
 
-// Everything the colour pass needs and the depth passes do not.
 struct MeshAttribs
 {
     Math::vec3 normal;
@@ -68,20 +61,15 @@ struct MeshSkinVertex
     Math::vec4 weights = Math::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 };
 
-// The mesh while it is still being built: loaded, edited, measured. Nothing
-// here talks to the GPU; MeshManager::upload is the one way across. Attributes
-// live in separate arrays so an operation that only moves positions never
-// walks over normals and uvs it will not read.
+// The mesh while being built; nothing here touches the GPU (upload() is the way across).
+// Attributes are separate arrays so position-only operations skip normals and uvs.
 struct MeshData
 {
     std::vector<Math::vec3> positions;
     std::vector<Math::vec3> normals;
     std::vector<Math::vec4> tangents;
     std::vector<Math::vec2> uvs;
-    // A second UV set, parallel to `uvs` - a lightmap's own unwrap. Empty
-    // for every importer/builder that has no such data; upload() fills
-    // MeshAttribs::uv2 with (0,0) per vertex in that case, same as it
-    // already does for a short/absent `uvs`.
+    // Second UV set parallel to `uvs` (lightmap unwrap); empty when absent, upload() then fills MeshAttribs::uv2 with (0,0).
     std::vector<Math::vec2> uvs2;
     std::vector<u32> colors;
     std::vector<MeshSkinVertex> skin;
@@ -89,20 +77,13 @@ struct MeshData
 
     std::vector<SubMesh> submeshes;
     std::vector<Material> materials;
-    // Import-time albedo paths, parallel to materials. createMesh() resolves
-    // them through AssetManager and does not retain them in the GPU Mesh.
+    // Import-time albedo paths, parallel to materials; createMesh() resolves them and does not retain them.
     std::vector<std::string> materialTextureFiles;
 
-    // The same, for normal maps (an OBJ's map_bump / bump). Kept as its own
-    // array rather than folded into the one above: a material can have either,
-    // both or neither, and index i has to keep meaning material i.
+    // Normal map paths; a separate array since a material may have either, both or neither, and index i must mean material i.
     std::vector<std::string> materialNormalFiles;
 
-    // Same convention, the rest of a PBR material's channels - a glTF's own
-    // pbrMetallicRoughness.metallicRoughnessTexture, occlusionTexture and
-    // emissiveTexture. Empty for every importer that has no such data (FBX's
-    // classic Diffuse/Normal/Specular has no metallic-roughness or occlusion
-    // slot to read one from).
+    // Same convention for the other PBR channels (glTF metallicRoughness/occlusion/emissive); empty when the importer has none.
     std::vector<std::string> materialSurfaceFiles;  // roughness/metalness/AO packed texture
     std::vector<std::string> materialEmissiveFiles;
     std::vector<std::string> materialHeightFiles; // ambient occlusion, in this engine's Height slot
@@ -111,17 +92,11 @@ struct MeshData
 
     usize vertexCount() const;
     usize triangleCount() const;
-    // Bytes the vertex, index and submesh arrays hold. For anything keeping
-    // copies of a mesh around - an undo stack, most obviously - where the
-    // count of copies says nothing about what they cost: the same twenty
-    // steps are a rounding error on a crate and hundreds of megabytes on a
-    // scanned model. Ignores the material name strings, which no amount of
-    // them adds up next to the geometry.
+    // Bytes held by vertex, index and submesh arrays (ignores material names); for things keeping mesh copies, such as an undo stack.
     usize memoryBytes() const;
     void clear();
 
-    // Grows every attribute array that is already in use, so the arrays never
-    // drift out of step with positions.
+    // Grows every in-use attribute array, keeping them in step with positions.
     void resizeVertices(usize count);
 };
 
@@ -133,11 +108,7 @@ struct Mesh
     BufferHandle indexBuffer;
     IndexType indexType = IndexType::U32;
 
-    // False for a mesh built over a shared index buffer it does not own -
-    // Landscape's chunks all point at the one buffer LandscapeIndices builds,
-    // and destroying one chunk must not take the other three hundred down
-    // with it. True (the default) is every other mesh in the engine, where
-    // AssetManager::release() destroying everything is exactly right.
+    // False for a mesh over a shared index buffer it does not own (Landscape chunks), so destroying one does not free the rest.
     bool ownsIndexBuffer = true;
 
     // Positions only, for shadow and depth. The full layout adds stream 1.

@@ -6,10 +6,7 @@
 namespace Radion
 {
 
-// Quake III Arena BSP (IBSP version 46) geometry importer. It converts the
-// source Z-up coordinates to Radion's Y-up space and imports polygon/mesh
-// faces plus quadratic Bezier patches. BSP entities and collision brushes are
-// deliberately outside MeshImporter's MeshData-only contract.
+// Quake III IBSP v46 importer; converts Z-up to Y-up. Entities and brushes are out of scope.
 class BSPImporter final : public MeshImporter
 {
 public:

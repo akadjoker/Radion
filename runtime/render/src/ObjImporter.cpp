@@ -148,9 +148,7 @@ struct RawMaterial
     std::string albedo;
     std::string normalMap;
 
-    // An OBJ says "this material is a cutout" with map_d: an alpha mask, used
-    // for foliage, chains, fences - anything whose silhouette is in the
-    // texture rather than in the triangles.
+    // map_d is an alpha mask (cutout material).
     bool cutout = false;
 };
 
@@ -184,23 +182,14 @@ void parseMtl(const std::string& filename, FileSystem& files, std::vector<RawMat
         }
         else if (current && startsWith(p, end, "map_Kd") && p + 6 < end && isSpace(p[6]))
             current->albedo = lineValue(p + 6, end);
-        // Both spellings are in the wild for the same thing, and "map_bump"
-        // has to be tested first or "bump" would match its tail.
+        // Test "map_bump" before "bump", which would match its tail.
         else if (current && startsWith(p, end, "map_bump") && p + 8 < end && isSpace(p[8]))
             current->normalMap = lineValue(p + 8, end);
         else if (current && startsWith(p, end, "bump") && p + 4 < end && isSpace(p[4]))
             current->normalMap = lineValue(p + 4, end);
         else if (current && startsWith(p, end, "map_d") && p + 5 < end && isSpace(p[5]))
         {
-            // The mask FILE is not loaded: in practice the diffuse texture of
-            // a cutout material already carries the same alpha (both of
-            // Sponza's plants do), and there is no material slot for a
-            // standalone mask. What matters is the flag - without it the
-            // material lands in the Opaque category, goes through the depth
-            // prepass, and writes depth for its transparent half. The
-            // prepass has no alpha test (depth.frag is empty by design), so
-            // everything behind the invisible part of a leaf gets occluded by
-            // nothing.
+            // The mask file is not loaded (diffuse already carries the alpha); the flag matters: without it the depth prepass, which has no alpha test, occludes what is behind the transparent half.
             current->cutout = true;
         }
         p = nextLine(p, end);
@@ -306,17 +295,7 @@ bool ObjImporter::import(const std::string& filename, ByteArray& data, FileSyste
             p += 2;
             const f32 x = parseFloat(p, end);
             const f32 y = parseFloat(p, end);
-            // V flipped, which is the engine's convention and not a fix for
-            // this one model: the asset exporter runs assimp with
-            // aiProcess_FlipUVs (tools/exporter/src/AssimpLoader.cpp:30), so
-            // every .rmesh already carries flipped V. Reading an OBJ's vt
-            // verbatim made this importer the only one disagreeing, and every
-            // OBJ texture came out upside down.
-            //
-            // Corrected HERE rather than by telling stb to flip on load: the
-            // mismatch is in the model's coordinate convention, and flipping
-            // at load would turn over every texture in the engine, including
-            // the ones that are already right.
+            // V flipped to match the engine: the exporter runs assimp with aiProcess_FlipUVs, so every .rmesh has flipped V. Fixed here, not via stb flip-on-load, which would flip every texture.
             sourceUvs.emplace_back(x, 1.0f - y);
         }
         else if (startsWith(p, end, "mtllib") && p + 6 < end && isSpace(p[6]))
@@ -436,11 +415,7 @@ bool ObjImporter::import(const std::string& filename, ByteArray& data, FileSyste
         mesh.materials[i].params.baseColor = Math::vec4(rawMaterials[i].diffuse, 1.0f);
         if (rawMaterials[i].cutout)
         {
-            // AlphaTest is a category, not just a shader switch: it is what
-            // keeps this material out of the depth prepass. Two-sided as well,
-            // because a leaf card is one layer of triangles meant to be seen
-            // from both sides - back-face culling would delete half of every
-            // plant.
+            // AlphaTest keeps the material out of the depth prepass; two-sided because a leaf card is seen from both sides.
             mesh.materials[i].flags |= MaterialAlphaTest | MaterialTwoSided;
         }
         mesh.materialTextureFiles[i] = rawMaterials[i].albedo;

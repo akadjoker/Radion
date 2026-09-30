@@ -17,10 +17,7 @@ namespace Radion
 namespace
 {
 
-// Matches TreeBlock in tree.vert/tree.frag/tree_depth.frag. All three declare
-// it identically - the leaf/trunk split and the wind both read from here, so
-// the three shaders have to agree on the layout or a draw reads the wrong
-// field and the tree deforms.
+// Matches TreeBlock in tree.vert/tree.frag/tree_depth.frag; all three must agree on layout.
 struct alignas(16) TreeBlock
 {
     // x = model height in metres, y = time, z = wind, w = 1 for leaves.
@@ -40,8 +37,7 @@ struct alignas(16) ImpostorBlock
     Math::vec4 swap = Math::vec4(120.0f, 12.0f, 0.4f, 0.0f);
 };
 
-// Its own bindings, above what a Lit material uses, so a tree draw never
-// disturbs the forward pass's own state.
+// Own bindings above what a Lit material uses, so a tree draw never disturbs forward pass state.
 constexpr u32 kTreeInstanceBinding = 6;
 constexpr u32 kTreeBlockBinding = 6;
 constexpr u32 kImpostorBlockBinding = 7;
@@ -49,9 +45,7 @@ constexpr u32 kTreeBarkUnit = 0;
 constexpr u32 kTreeBarkNormalUnit = 1;
 constexpr u32 kTreeTwigUnit = 2;
 
-// How many photographs go round the Y axis, and how big each one is. Eight is
-// the reference's own number: every 45 degrees, which at the distance an
-// impostor takes over is under the angular size of the tree itself.
+// Photographs around the Y axis: eight (every 45 degrees, the reference's number) is under the tree's angular size at impostor distance.
 constexpr u32 kImpostorAngles = 8;
 constexpr u32 kImpostorDimension = 256;
 constexpr u32 kImpostorMaxSpecies = 8;
@@ -66,9 +60,7 @@ public:
 
     bool setup() override
     {
-        // Shaders are NOT loaded here. setup() runs inside Engine::initialize(),
-        // and a demo registers its asset search paths after that returns - so
-        // reading them now finds nothing. GrassPass defers for the same reason.
+        // Shaders are not loaded here: setup() runs before a demo registers its asset search paths.
         GPU& gpu = GPU::getSingleton();
 
         BufferDesc cameraDesc;
@@ -134,9 +126,7 @@ public:
                              command.instances);
             gpu.bindStorage(kTreeInstanceBinding, mInstanceBuffer);
 
-            // Photographs first, and only when they are missing or stale: the
-            // capture draws the tree sixteen times (eight angles, two maps) and
-            // has to be done before anything reads the array.
+            // Photographs first, only if missing or stale: the capture draws the tree sixteen times and must finish before the array is read.
             if (command.impostorsEnabled)
                 ensureImpostor(command, *mesh);
 
@@ -145,10 +135,7 @@ public:
             gpu.bindTexture(kTreeTwigUnit, command.twigTexture);
             gpu.setPipeline(mPipeline);
 
-            // Trunk then leaves, in the order buildTree() wrote the submeshes.
-            // Two draws rather than one because the block's `isLeaves` decides
-            // which half of both shaders runs - and it is a uniform, so it
-            // cannot change inside a draw.
+            // Trunk then leaves in buildTree() submesh order: two draws because the `isLeaves` uniform cannot change inside a draw.
             for (u32 submeshIndex = 0; submeshIndex < mesh->submeshes.size(); ++submeshIndex)
             {
                 const bool leaves = submeshIndex == 1;
@@ -176,9 +163,7 @@ public:
             }
         }
 
-        // The impostors go after every mesh, in one blended sweep: they fade in
-        // OVER the geometry, so they have to be drawn once the geometry they
-        // cover is already down.
+        // Impostors after every mesh in one blended sweep: they fade in OVER geometry already down.
         drawImpostors(commands, camera);
     }
 
@@ -222,9 +207,7 @@ private:
         bool used = false;
     };
 
-    // The array holds every species' photographs side by side: eight layers
-    // each, indexed by species slot. One array rather than one texture per
-    // species so the whole forest's impostors are a single bind.
+    // One array holds every species' photographs (eight layers each, by species slot) so the forest's impostors are a single bind.
     bool ensureImpostorArrays()
     {
         if (mImpostorAlbedo.valid())
@@ -239,8 +222,7 @@ private:
         desc.width = kImpostorDimension;
         desc.height = kImpostorDimension;
         desc.depth = kImpostorAngles * kImpostorMaxSpecies;
-        // The full chain, asked for explicitly: an impostor seen from far away
-        // WITHOUT mips is the same shimmer the grass used to have.
+        // Full mip chain explicitly: an impostor without mips shimmers at distance.
         desc.mips = 0;
         desc.usage = TextureSampled | TextureTarget;
         desc.debugName = "tree.impostor.albedo";
@@ -311,8 +293,6 @@ private:
         entry.revision = command.impostorRevision;
     }
 
-    // Photographs one species from kImpostorAngles directions around Y, twice
-    // per angle: albedo, then world normals.
     void captureImpostor(const TreeDrawCommand& command, const Mesh& mesh, u32 baseLayer)
     {
         GPU& gpu = GPU::getSingleton();
@@ -321,20 +301,13 @@ private:
 
         const f32 height = command.modelHeight;
         const f32 half = height * 0.5f;
-        // ORTHOGRAPHIC. An impostor is seen from far away, where perspective is
-        // already nearly orthographic - so one photograph serves any distance
-        // without the tree appearing to open up as it is approached.
+        // ORTHOGRAPHIC: from far away perspective is nearly orthographic, so one photograph serves any distance.
         const f32 width = half * 1.15f; // slack, so the crown is not clipped
-        // The vertical window is CENTRED, not 0..height. The camera sits at
-        // half height looking level, so in view space the base falls at -half
-        // and the top at +half. With 0..height it photographed from half height
-        // up: half the image came out empty and the tree sat shrunk in the
-        // bottom - the impostor appeared at half the size of the mesh.
+        // The vertical window is CENTRED (-half..+half in view space): 0..height left half the image empty and the impostor at half size.
         const Math::mat4 projection =
             Math::ortho(-width, width, -half, half, 0.01f, height * 6.0f);
 
-        // One instance, at the origin and unrotated: the rotation is applied on
-        // the impostor, when it picks its angle.
+        // One unrotated instance at the origin; rotation is applied on the impostor.
         const TreeInstanceData single;
         if (!ensureInstanceCapacity(1))
             return;
@@ -366,15 +339,12 @@ private:
             camera.clipPlane = Math::vec4(0.0f);
             camera.cameraPos = Math::vec4(eye, 1.0f);
             camera.view = view;
-            // A still capture, not a frame: both matrices are the same one, so
-            // the motion vector the shared vertex shader computes is zero.
+            // A still capture: both matrices equal, so the motion vector is zero.
             camera.viewProjectionNoJitter = camera.viewProj;
             camera.prevViewProjectionNoJitter = camera.viewProj;
             gpu.updateBuffer(mCameraBuffer, 0, sizeof(camera), &camera);
             gpu.bindUniform(BindingCamera, mCameraBuffer);
 
-            // Two passes, colour then normals. No MRT here, and this runs once
-            // per species - the cost does not matter.
             for (u32 target = 0; target < 2; ++target)
             {
                 const TargetHandle handle =
@@ -383,7 +353,7 @@ private:
                 if (!handle.valid())
                     continue;
 
-                // Cleared to alpha ZERO: the tree's silhouette comes from here.
+                // Cleared to alpha ZERO: the silhouette comes from here.
                 ClearValue clear;
                 clear.bits = ClearColor | ClearDepth;
                 clear.color[0] = clear.color[1] = clear.color[2] = clear.color[3] = 0.0f;
@@ -393,8 +363,7 @@ private:
                 for (u32 submeshIndex = 0; submeshIndex < mesh.submeshes.size(); ++submeshIndex)
                 {
                     TreeBlock block;
-                    // No wind and no time: the photograph is of the rest pose,
-                    // or every instance would wear one frozen gust.
+                    // No wind or time: photograph the rest pose, not one frozen gust.
                     block.wind = Math::vec4(height, 0.0f, 0.0f,
                                            submeshIndex == 1 ? 1.0f : 0.0f);
                     block.surface = Math::vec4(0.0f, command.alphaCut, command.bumpForce,
@@ -424,8 +393,7 @@ private:
                   kImpostorAngles);
     }
 
-    // One target per (texture, layer), built on demand and kept: an FBO is
-    // cheap to hold and rebuilding it every angle every capture is not.
+    // One target per (texture, layer), kept: rebuilding FBOs every angle every capture is costly.
     TargetHandle impostorTarget(TextureHandle color, u32 layer)
     {
         const u64 key = (static_cast<u64>(color.index) << 32) | layer;
@@ -465,7 +433,7 @@ private:
 
             if (!restored)
             {
-                // The capture left its own camera bound; put the frame's back.
+                // Restore the frame's camera the capture replaced.
                 gpu.updateBuffer(mCameraBuffer, 0, sizeof(camera), &camera);
                 gpu.bindUniform(BindingCamera, mCameraBuffer);
                 restored = true;
@@ -490,8 +458,6 @@ private:
             gpu.bindTexture(1, mImpostorNormal);
             gpu.setPipeline(mImpostorPipeline);
 
-            // Four corners from gl_VertexID, one quad per instance: no vertex
-            // buffer and no index buffer at all.
             DrawDesc draw;
             draw.count = 4;
             draw.instanceCount = command.impostorInstanceCount;
@@ -521,9 +487,7 @@ private:
         desc.fs = {fragment.c_str(), 0, "impostor.frag"};
         desc.topology = Topology::TriangleStrip;
         desc.depth.test = true;
-        // Tests but does not WRITE: the impostor blends in over the mesh, and
-        // an impostor that wrote depth would occlude the very geometry it is
-        // supposed to be fading over.
+        // Tests but does not write depth: an impostor writing depth would occlude the geometry it fades over.
         desc.depth.write = false;
         desc.depth.func = Compare::LessEqual;
         desc.blend.mode = BlendMode::Alpha;
@@ -534,8 +498,7 @@ private:
         return mImpostorPipeline.valid();
     }
 
-    // Built on first use rather than in setup(): the layout comes from a mesh,
-    // and no mesh exists yet when the pass is created.
+    // Built on first use: the layout comes from a mesh that does not exist at pass creation.
     bool ensurePipeline(const VertexLayout& layout)
     {
         if (mPipeline.valid())
@@ -560,11 +523,7 @@ private:
         desc.depth.test = true;
         desc.depth.write = true;
         desc.depth.func = Compare::Less;
-        // Back-facing, not off: the twig cards come in coplanar PAIRS with
-        // opposite winding (see createTwigs), so culling keeps exactly one of
-        // each whichever side the camera is on. With culling off both draw in
-        // the same place and fight over depth - that is the strange pattern
-        // where leaves touch.
+        // Back-facing, not off: twig cards come in coplanar pairs with opposite winding (createTwigs), so culling keeps one; with culling off both fight over depth.
         desc.raster.cull = CullMode::Back;
         desc.debugName = "tree.draw";
         mPipeline = GPU::getSingleton().createPipeline(desc);

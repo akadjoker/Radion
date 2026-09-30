@@ -1,7 +1,3 @@
-// Obstacle.cpp - obstacle avoidance math.
-//
-// The vehicles are Radion::Agent; all math uses Math::.
-
 #include "PCH.h"
 
 #include "Obstacle.h"
@@ -16,15 +12,11 @@ using detail::perpendicularComponent;
 using detail::safeNormalize;
 using Radion::Agent;
 
-// --- Obstacle ---------------------------------------------------------------
-
 Math::vec3 Obstacle::steerToAvoid(const Agent& vehicle, float minTimeToCollision) const
 {
-    // Find the nearest intersection with this obstacle along the vehicle's path.
     PathIntersection pi;
     findIntersectionWithVehiclePath(vehicle, pi);
 
-    // Return steering to avoid the intersection, or zero if none found.
     return pi.steerToAvoidIfNeeded(vehicle, minTimeToCollision);
 }
 
@@ -33,11 +25,8 @@ Math::vec3 Obstacle::steerToAvoidObstacles(const Agent& vehicle, float minTimeTo
 {
     PathIntersection nearest, next;
 
-    // Test all obstacles for an intersection with the vehicle's future path,
-    // selecting the one whose intersection point is nearest.
     firstPathIntersectionWithObstacleGroup(vehicle, obstacles, nearest, next);
 
-    // If a nearby intersection was found, steer away from it.
     return nearest.steerToAvoidIfNeeded(vehicle, minTimeToCollision);
 }
 
@@ -50,12 +39,8 @@ void Obstacle::firstPathIntersectionWithObstacleGroup(const Agent& vehicle,
     nearest.intersect = false;
     for (Obstacle* obstacle : obstacles)
     {
-        // Find the nearest point (if any) where the vehicle path intersects
-        // this obstacle, storing the result in `next`.
         obstacle->findIntersectionWithVehiclePath(vehicle, next);
 
-        // If this is the first intersection found, or it is the nearest found
-        // so far, store it in `nearest`.
         const bool firstFound = !nearest.intersect;
         const bool nearestFound = next.intersect && (next.distance < nearest.distance);
         if (firstFound || nearestFound)
@@ -66,23 +51,13 @@ void Obstacle::firstPathIntersectionWithObstacleGroup(const Agent& vehicle,
 Math::vec3 PathIntersection::steerToAvoidIfNeeded(const Agent& vehicle,
                                                  float minTimeToCollision) const
 {
-    // If a nearby intersection was found, steer away from it, otherwise no
-    // steering.
     const float minDistanceToCollision = minTimeToCollision * vehicle.speed();
     if (intersect && (distance < minDistanceToCollision))
     {
-        // Compute the avoidance force: take the component of steerHint that is
-        // lateral (perpendicular to the vehicle's forward), set its length to
-        // the vehicle's maxForce.
         Math::vec3 lateral = perpendicularComponent(steerHint, vehicle.forward());
 
-        // Dead ahead, the hint has no lateral component at all: aimed at the
-        // centre the radial term is zero, leaving only the surface normal,
-        // which points straight back along the vehicle's own heading. The
-        // force came out zero and the vehicle drove through the one obstacle
-        // it was certain to hit. Any sideways direction avoids it, so pick
-        // the vehicle's own - deterministic, and the same one every frame,
-        // which is what keeps it from dithering between left and right.
+        // Dead ahead the hint has no lateral component (only the normal, back along the heading), giving zero force;
+        // pick the vehicle's own side, deterministic so it does not dither.
         if (Math::dot(lateral, lateral) < 1.0e-8f)
             lateral = vehicle.side();
         return safeNormalize(lateral) * vehicle.maxForce();
@@ -93,26 +68,19 @@ Math::vec3 PathIntersection::steerToAvoidIfNeeded(const Agent& vehicle,
     }
 }
 
-// --- SphereObstacle ---------------------------------------------------------
-
 void SphereObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
                                                      PathIntersection& pi) const
 {
-    // This routine is based on Paul Bourke's "Intersection of a Line and a
-    // Sphere", but computed in the vehicle's local space, where the line in
-    // question is the Z (forward) axis - which simplifies the math.
+    // Based on Paul Bourke's "Intersection of a Line and a Sphere", in the vehicle's local space where the line is the Z axis.
     float b, c, d, p, q, s;
     Math::vec3 lc;
 
-    // Initialize to "no intersection found".
     pi.intersect = false;
 
-    // Find the sphere's "local center" (lc) in the vehicle's coordinate space.
     lc = vehicle.localizePosition(center);
     pi.vehicleOutside = Math::length(lc) > radius;
 
-    // If the obstacle is seen from inside, but the vehicle is outside, it must
-    // be avoided (a vehicle outside would otherwise ignore it).
+    // Seen from inside but the vehicle is outside: it must still be avoided.
     if (pi.vehicleOutside && (seenFrom() == ObstacleSeenFrom::Inside))
     {
         pi.intersect = true;
@@ -121,27 +89,22 @@ void SphereObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
         return;
     }
 
-    // Compute line-sphere intersection parameters.
     const float r = radius + vehicle.radius();
     b = -2.0f * lc.z;
     c = (lc.x * lc.x) + (lc.y * lc.y) + (lc.z * lc.z) - (r * r);
     d = (b * b) - (4.0f * c);
 
-    // When the path does not intersect the sphere.
     if (d < 0.0f)
         return;
 
-    // Otherwise the path intersects the sphere in two points with parametric
-    // coordinates p and q (if d == 0 the path is tangent).
+    // Two intersections at parameters p and q (d == 0: tangent).
     s = std::sqrt(d);
     p = (-b + s) / 2.0f;
     q = (-b - s) / 2.0f;
 
-    // Both intersections are behind us, so no potential collision.
     if ((p < 0.0f) && (q < 0.0f))
         return;
 
-    // At least one intersection is in front, so the path intersects.
     pi.intersect = true;
     pi.obstacle = this;
     pi.distance = ((p > 0.0f) && (q > 0.0f))
@@ -165,43 +128,34 @@ void SphereObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
     }
 }
 
-// --- PlaneObstacle ----------------------------------------------------------
-
 void PlaneObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
                                                     PathIntersection& pi) const
 {
-    // Initialize to "no intersection found".
     pi.intersect = false;
 
     const Math::vec3 lp = localizePosition(vehicle.position());
     const Math::vec3 ld = localizeDirection(vehicle.forward());
 
-    // No obstacle intersection if the path is parallel to the XY (side/up) plane.
     if (ld.z == 0.0f)
         return;
 
-    // No obstacle intersection if the vehicle is heading away from the XY plane.
     if ((lp.z > 0.0f) && (ld.z > 0.0f))
         return;
     if ((lp.z < 0.0f) && (ld.z < 0.0f))
         return;
 
-    // No obstacle intersection if the obstacle is "not seen" from this side.
     if ((seenFrom() == ObstacleSeenFrom::Outside) && (lp.z < 0.0f))
         return;
     if ((seenFrom() == ObstacleSeenFrom::Inside) && (lp.z > 0.0f))
         return;
 
-    // Find the intersection of the path with the rectangle's plane (XY plane).
     const float ix = lp.x - (ld.x * lp.z / ld.z);
     const float iy = lp.y - (ld.y * lp.z / ld.z);
     const Math::vec3 planeIntersection(ix, iy, 0.0f);
 
-    // No obstacle intersection if the plane intersection is outside the 2D shape.
     if (!xyPointInsideShape(planeIntersection, vehicle.radius()))
         return;
 
-    // Otherwise the vehicle path DOES intersect this plane.
     const Math::vec3 localXYradial = safeNormalize(planeIntersection);
     const Math::vec3 radial = globalizeDirection(localXYradial);
     const float sideSign = (lp.z > 0.0f) ? +1.0f : -1.0f;
@@ -209,13 +163,11 @@ void PlaneObstacle::findIntersectionWithVehiclePath(const Agent& vehicle,
     pi.intersect = true;
     pi.obstacle = this;
     pi.distance = Math::length(lp - planeIntersection);
-    pi.steerHint = opposingNormal + radial; // should have "toward edge" term?
+    pi.steerHint = opposingNormal + radial;
     pi.surfacePoint = globalizePosition(planeIntersection);
     pi.surfaceNormal = opposingNormal;
     pi.vehicleOutside = lp.z > 0.0f;
 }
-
-// --- RectangleObstacle ------------------------------------------------------
 
 bool RectangleObstacle::xyPointInsideShape(const Math::vec3& point, float radius) const
 {
@@ -224,29 +176,24 @@ bool RectangleObstacle::xyPointInsideShape(const Math::vec3& point, float radius
     return !((point.x > w) || (point.x < -w) || (point.y > h) || (point.y < -h));
 }
 
-// --- BoxObstacle ------------------------------------------------------------
-
 void BoxObstacle::findIntersectionWithVehiclePath(const Agent& vehicle, PathIntersection& pi) const
 {
-    // Abbreviations.
-    const Math::vec3 s = side(); // local axes
+    const Math::vec3 s = side();
     const Math::vec3 u = up();
     const Math::vec3 f = forward();
     const Math::vec3 p = position();
-    const Math::vec3 hw = s * (0.5f * width); // offsets for face centers
+    const Math::vec3 hw = s * (0.5f * width);
     const Math::vec3 hh = u * (0.5f * height);
     const Math::vec3 hd = f * (0.5f * depth);
     const ObstacleSeenFrom sf = seenFrom();
 
-    // The box's six rectangular faces.
-    RectangleObstacle r1(width, height, s, u, f, p + hd, sf);   // front
-    RectangleObstacle r2(width, height, -s, u, -f, p - hd, sf); // back
-    RectangleObstacle r3(depth, height, -f, u, s, p + hw, sf);  // side
-    RectangleObstacle r4(depth, height, f, u, -s, p - hw, sf);  // other side
-    RectangleObstacle r5(width, depth, s, -f, u, p + hh, sf);   // top
-    RectangleObstacle r6(width, depth, -s, -f, -u, p - hh, sf); // bottom
+    RectangleObstacle r1(width, height, s, u, f, p + hd, sf);
+    RectangleObstacle r2(width, height, -s, u, -f, p - hd, sf);
+    RectangleObstacle r3(depth, height, -f, u, s, p + hw, sf);
+    RectangleObstacle r4(depth, height, f, u, -s, p - hw, sf);
+    RectangleObstacle r5(width, depth, s, -f, u, p + hh, sf);
+    RectangleObstacle r6(width, depth, -s, -f, -u, p - hh, sf);
 
-    // Group the six faces together.
     ObstacleGroup faces;
     faces.push_back(&r1);
     faces.push_back(&r2);
@@ -255,11 +202,9 @@ void BoxObstacle::findIntersectionWithVehiclePath(const Agent& vehicle, PathInte
     faces.push_back(&r5);
     faces.push_back(&r6);
 
-    // Find the first intersection of the vehicle path with the group of faces.
     PathIntersection next;
     firstPathIntersectionWithObstacleGroup(vehicle, faces, pi, next);
 
-    // When an intersection was found, adjust it for the box case.
     if (pi.intersect)
     {
         pi.obstacle = this;
@@ -267,8 +212,6 @@ void BoxObstacle::findIntersectionWithVehiclePath(const Agent& vehicle, PathInte
             safeNormalize(pi.surfacePoint - position()) * (pi.vehicleOutside ? 1.0f : -1.0f);
     }
 }
-
-// --- PlaneObstacle local-space transforms -----------------------------------
 
 Math::vec3 PlaneObstacle::localizeDirection(const Math::vec3& gd) const
 {

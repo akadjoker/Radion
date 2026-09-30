@@ -104,9 +104,6 @@ void importPath(MeshLoader& loader, const std::string& path, const char* label)
     std::fprintf(stderr, "    albedo: %u of %zu materials, %u naming a file that is not there\n",
                  withAlbedo, mesh.materials.size(), missing);
 
-    // Total surface area decides how many lightmap pages a fixed texel
-    // density needs, which is the only thing that makes "how big an atlas"
-    // answerable without guessing.
     f64 area = 0.0;
     for (usize i = 0; i + 2 < mesh.indices.size(); i += 3)
     {
@@ -123,8 +120,7 @@ void importPath(MeshLoader& loader, const std::string& path, const char* label)
                      density, texels / 1e6, texels / (2048.0 * 2048.0));
     }
 
-    // The sidecar is what a reopened scene reads, so the paths have to survive
-    // the round trip through it - not merely exist on the MeshData.
+    // Sidecar paths must survive the round trip, not merely exist on the MeshData.
     const std::vector<Material> sidecar = AssetManager::getSingleton().materialsForSidecar(mesh);
     u32 bound = 0;
     for (const Material& material : sidecar)
@@ -134,9 +130,7 @@ void importPath(MeshLoader& loader, const std::string& path, const char* label)
                  sidecar.size());
     CHECK(bound == withAlbedo);
 
-    // The three readings of SlotSurface are different packings of one slot -
-    // a material claiming two of them renders as whichever the shader tests
-    // for first, silently.
+    // A material claiming two SlotSurface packings renders as whichever the shader tests first.
     u32 surfaceMapped = 0;
     for (const Material& material : sidecar)
     {
@@ -175,10 +169,7 @@ void testGltf()
     importOne(loader, "models/Scene/scene.gltf");
     importOne(loader, "models/flightHelmet/flightHelmet.glb");
 
-    // glTF is Y-up and this model is authored standing on the ground plane.
-    // Its node rotations are what places the parts, so a mis-decoded
-    // quaternion shows up here as a model lying over or sunk through Y=0
-    // long before anyone opens the editor to look at it.
+    // glTF is Y-up; a mis-decoded node quaternion shows as a model lying over or sunk through Y=0.
     MeshData helmet;
     const std::string helmetPath =
         std::string(RADION_TEST_ASSET_DIR) + "/models/flightHelmet/flightHelmet.glb";
@@ -193,10 +184,7 @@ void testGltf()
     CHECK(size.y > size.x && size.y > size.z);
 }
 
-// crate.ms3d is static geometry only (no joints). Covers MS3DImporter::import()
-// end to end: chunk parsing, the per-corner UV read (regression for a fixed
-// s[3]/t[3]-vs-interleaved read order bug), and material texture path
-// resolution (regression for a fixed Windows-path-basename bug).
+// crate.ms3d: static geometry; regressions for per-corner UV read order and material texture path basename.
 void testMs3dStatic()
 {
     FileSystem& files = FileSystem::getSingleton();
@@ -221,8 +209,7 @@ void testMs3dStatic()
     CHECK(mesh.uvs.size() >= 3);
     if (mesh.uvs.size() >= 3)
     {
-        // Ground truth read directly from the file's first triangle: s = (0,
-        // 0, 1), t = (0, 1, 0) -> uv[i] = (s[i], 1 - t[i]).
+        // Ground truth from the file's first triangle: s = (0, 0, 1), t = (0, 1, 0) -> uv[i] = (s[i], 1 - t[i]).
         CHECK(near(mesh.uvs[0], Math::vec2(0.0f, 1.0f)));
         CHECK(near(mesh.uvs[1], Math::vec2(0.0f, 0.0f)));
         CHECK(near(mesh.uvs[2], Math::vec2(1.0f, 1.0f)));
@@ -240,10 +227,7 @@ void testMs3dStatic()
     CHECK(resolved > 0);
 }
 
-// ninja.ms3d is a rigged, keyframed character - covers loadMS3DSkeleton() +
-// loadMS3DAnimation() end to end (the standalone parseJoints() path, a
-// regression for two fixed byte-offset bugs that previously misaligned every
-// read past the triangle chunk).
+// ninja.ms3d: rigged and keyframed; regression for byte-offset misalignment past the triangle chunk in parseJoints().
 void testMs3dAnimated()
 {
     FileSystem& files = FileSystem::getSingleton();
@@ -295,8 +279,6 @@ void testMs3dAnimated()
 
 } // namespace
 
-// Any path given on the command line is imported and reported instead of the
-// built-in set - for checking an asset that lives outside the repository.
 int main(int argc, char** argv)
 {
     if (argc > 1)

@@ -15,8 +15,7 @@ struct BroadphaseProxy
     AABB bounds;
     u32 id = 0;
     CollisionFilter filter;
-    // Static against static is never worth a narrowphase call: neither can
-    // move, so the answer cannot change.
+    // Static against static never needs a narrowphase call.
     bool movable = true;
 };
 
@@ -26,17 +25,8 @@ struct BroadphasePair
     u32 b = 0;
 };
 
-// Sweep and prune on one axis. Proxies are sorted by their lower bound and
-// each is only tested against those that start before its own upper bound -
-// which turns the all-pairs quadratic into something close to linear once the
-// bodies are spread out, and degrades to the same quadratic when they are all
-// stacked in one place, which is the honest worst case.
-//
-// This exists so the collision pipeline can be built and tested on its own.
-// In the engine the Scene already keeps an octree and a BVH over exactly
-// these bodies, and it is the Scene that should be answering this question -
-// a second spatial structure covering the same objects is the thing the
-// design set out to avoid.
+// Sweep and prune on one axis: proxies sorted by lower bound; degrades to quadratic when all are stacked in one place.
+// Standalone for the collision pipeline; in the engine the Scene's octree/BVH should answer this.
 class Broadphase
 {
 public:
@@ -44,8 +34,7 @@ public:
     void add(const BroadphaseProxy& proxy);
     void reserve(usize count);
 
-    // Overwrites `out` with every pair whose bounds overlap and whose layers
-    // accept each other. Pairs come back with a < b.
+    // Overwrites `out` with overlapping pairs whose layers accept each other; a < b.
     void findPairs(std::vector<BroadphasePair>& out);
 
     usize proxyCount() const
@@ -53,8 +42,7 @@ public:
         return mProxies.size();
     }
 
-    // Which axis the sweep runs along. Picking the one the bodies are most
-    // spread over is what keeps the scan short; recomputed by findPairs().
+    // Sweep axis: the one the bodies spread over most; recomputed by findPairs().
     u32 sweepAxis() const
     {
         return mSweepAxis;

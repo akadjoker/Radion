@@ -1,5 +1,3 @@
-// PointOfInterest.cpp - implementation of the PointsOfInterest registry.
-
 #include "PCH.h"
 
 #include "PointOfInterest.h"
@@ -19,8 +17,6 @@ PointOfInterestID nextPointOfInterestId()
 }
 } // namespace
 
-// PointOfInterest id is assigned lazily on first use to keep the default
-// constructor trivial; add() is the only place that needs it.
 PointOfInterestID PointOfInterest::id() const
 {
     if (mId == 0)

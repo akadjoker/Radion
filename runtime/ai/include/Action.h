@@ -1,8 +1,6 @@
 #ifndef RADION_AI_ACTION_H
 #define RADION_AI_ACTION_H
 
-
-
 #include "State.h"
 
 #include <functional>
@@ -12,7 +10,6 @@ namespace Radion::AI
 
 class State;
 
-// Base class for all state actions.
 class Action
 {
 public:
@@ -42,7 +39,6 @@ protected:
     State* mState; // non-owning; owned by the parent State
 };
 
-// Applies a numeric operation to the owning state's scalar value.
 class ValueBasedAction : public Action
 {
 public:
@@ -156,9 +152,6 @@ public:
     }
 };
 
-// Callback action - the C++ replacement for the demo's Python scripted
-// actions (GI_AISDK ScriptedAction). A user functor is executed each time the
-// action runs; capture the owning entity in the lambda for entity-driven AI.
 class CallbackAction final : public Action
 {
 public:

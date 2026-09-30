@@ -46,9 +46,7 @@ PathPose PathTrack::evaluate(f32 time) const
     if (t < 0.0f)
         t += length;
 
-    // Linear scan for the bracketing pair - tracks are a handful of
-    // keyframes (a light or camera flythrough), never dense enough to need
-    // a binary search.
+    // Linear scan: tracks are a handful of keyframes.
     usize segment = 0;
     while (segment + 1 < count && mKeyframes[segment + 1].time <= t)
         ++segment;
@@ -58,9 +56,7 @@ PathPose PathTrack::evaluate(f32 time) const
     const f32 span = b.time - a.time;
     const f32 localT = span > 0.0f ? Math::clamp((t - a.time) / span, 0.0f, 1.0f) : 0.0f;
 
-    // Position: Catmull-Rom through the closed loop, using the point before
-    // `a` and the one after `b`, wrapping around the keyframe list either
-    // way - the same shape a patrol or a camera flythrough closes with.
+    // Catmull-Rom through the closed loop, using the point before `a` and after `b`, wrapping either way.
     const Math::vec3& p0 = mKeyframes[(segment + count - 1) % count].position;
     const Math::vec3& p1 = a.position;
     const Math::vec3& p2 = b.position;
@@ -73,11 +69,7 @@ PathPose PathTrack::evaluate(f32 time) const
                             (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
                             (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
 
-    // Rotation and scale: plain slerp/lerp between the bracketing pair. A
-    // spline through orientations needs its own (squad) blend to stay
-    // smooth across a keyframe, which is more than this track set out to
-    // do - two adjacent keyframes are usually close enough that slerp reads
-    // the same as one.
+    // Plain slerp/lerp: a spline through orientations needs squad blending, more than this track sets out to do.
     pose.rotation = Math::slerp(a.rotation, b.rotation, localT);
     pose.scale = Math::mix(a.scale, b.scale, localT);
     return pose;

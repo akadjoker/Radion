@@ -16,11 +16,7 @@ namespace Radion
 namespace
 {
 
-// Mirrors lit.vert/unlit.vert's own InstanceData: the current and previous
-// model matrices plus the palette offsets a skinned mesh would read. A
-// preview never skins and never moves, so the offsets are zero and the
-// previous matrix equals the current one - the fields still have to be here
-// for the layout to match what the shader declares.
+// Mirrors lit.vert/unlit.vert InstanceData; a preview never skins or moves, so offsets are zero and previous == current.
 struct GPUInstance
 {
     Math::mat4 model = Math::mat4(1.0f);
@@ -30,8 +26,6 @@ struct GPUInstance
     u32 padding[2] = {0, 0};
 };
 
-// Three vertices covering the screen from gl_VertexIndex, so the resolve needs
-// no vertex buffer at all.
 constexpr char kResolveVertex[] = R"GLSL(#version 450 core
 layout(location = 0) out vec2 uv;
 void main()
@@ -42,11 +36,7 @@ void main()
 }
 )GLSL";
 
-// The same two operations the post stack's last step applies, with the same
-// constants (see kPostFragment in PostProcess.cpp). They have to match: a
-// preview that tonemapped differently from the scene would be a different
-// answer to "what does this look like", which is the only question it exists
-// to answer.
+// Same operations and constants as the post stack's last step (kPostFragment in PostProcess.cpp); they must match.
 constexpr char kResolveFragment[] = R"GLSL(#version 450 core
 layout(binding = 0) uniform sampler2D sourceTexture;
 layout(location = 0) in vec2 uv;
@@ -72,8 +62,7 @@ bool MeshPreview::create(u32 width, u32 height)
 {
     destroy();
 
-    // RGBA16F for the draw: a Lit shader writes linear HDR, and clamping that
-    // to 8 bits before the tonemap loses the highlights the tonemap is for.
+    // RGBA16F: Lit writes linear HDR; clamping to 8 bits before tonemap loses highlights.
     if (!mScene.create(width, height, Format::RGBA16F, Format::Depth24, "preview.scene"))
         return false;
     if (!mResolved.create(width, height, Format::RGBA8, Format::Unknown, "preview.resolved"))
@@ -170,16 +159,7 @@ u32 MeshPreview::textureId() const
     return mResolved.color.valid() ? GPU::getSingleton().nativeTextureId(mResolved.color) : 0u;
 }
 
-// Draws with the material's own pipeline, which is the point - the preview
-// shows the same shader the scene does, not an approximation of it. But it
-// lights the mesh ITSELF: camera, environment and shadow block are all its
-// own, so the result is the same whatever the scene's sun is doing.
-//
-// What it still borrows from the frame: the entity/tile SSBOs and the decal
-// arrays, which a Lit fragment shader declares statically and which fail every
-// draw when left unbound. Binding those here would be a second copy of
-// ForwardPass, so this relies on the forward pass having bound them earlier in
-// the same frame - call this AFTER the scene has been rendered, never before.
+// Uses the material's own pipeline and its own camera/environment/shadow blocks, but borrows the entity/tile SSBOs and decal arrays bound by ForwardPass: call AFTER the scene has rendered.
 void MeshPreview::render(MeshHandle handle, const Material* materials, u32 materialCount, f32 yaw,
                          f32 pitch)
 {
@@ -193,9 +173,7 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
 
     GPU& gpu = GPU::getSingleton();
 
-    // Frame the mesh by its own bounds rather than a fixed distance: the
-    // generator's trees range from a knee-high shrub to a sequoia, and one
-    // distance cannot suit both.
+    // Frame by the mesh's own bounds: sizes range from shrub to sequoia.
     const Math::vec3 centre = (mesh->bounds.min + mesh->bounds.max) * 0.5f;
     const f32 radius = Math::max(mesh->bounds.radius(), 0.001f);
     const f32 fieldOfView = Math::radians(40.0f);
@@ -223,10 +201,7 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
     const GPUInstance instance;
     gpu.updateBuffer(mInstanceBuffer, 0, sizeof(instance), &instance);
 
-    // A headlight, aimed slightly off the view axis so the shape still reads
-    // instead of going flat, plus a generous ambient. This is a "what does the
-    // mesh look like" view, not a lighting rehearsal - it should look the same
-    // whatever time of day the scene is at.
+    // Headlight aimed slightly off-axis plus generous ambient, independent of scene time of day.
     EnvironmentBlock environment;
     const Math::vec3 toCentre = Math::normalize(centre - eye);
     const Math::vec3 right = Math::normalize(Math::cross(toCentre, Math::vec3(0.0f, 1.0f, 0.0f)));
@@ -236,11 +211,7 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
     environment.ambient = Math::vec4(0.42f, 0.44f, 0.48f, 1.0f);
     gpu.updateBuffer(mEnvironmentBuffer, 0, sizeof(environment), &environment);
 
-    // directionAndCount.w = 0 cascades: lit.frag returns unshadowed outright
-    // (see its ShadowFactor, `if (uCascadeCount <= 0)`). The scene's cascades
-    // are fitted to the main camera's frustum, so a mesh drawn here at the
-    // origin fell outside them and read as fully in shadow - which is what
-    // made the preview black.
+    // 0 cascades: lit.frag returns unshadowed. Scene cascades fit the main camera, so a mesh at the origin read fully shadowed.
     DirectionalShadowBlock shadow;
     shadow.directionAndCount = Math::vec4(Math::vec3(environment.sunDirection), 0.0f);
     gpu.updateBuffer(mShadowBuffer, 0, sizeof(shadow), &shadow);
@@ -280,10 +251,7 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
         if (material->paramsBuffer.valid())
             gpu.bindUniform(BindingMaterial, material->paramsBuffer);
 
-        // The same four slots ForwardPass binds, and for the same reason: the
-        // pipeline was compiled with HAS_ALBEDO/HAS_NORMAL/... according to
-        // which of these the material actually carries, so a slot the shader
-        // samples has to have something in it.
+        // Same four slots as ForwardPass: the pipeline was compiled with HAS_* per carried slot, so each sampled slot needs a binding.
         const MaterialTexture& albedo = material->textures[SlotAlbedo];
         if (albedo.texture.valid())
             gpu.bindTexture(BindingAlbedo, albedo.texture, albedo.sampler);
@@ -310,10 +278,7 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
         gpu.draw(draw);
     }
 
-    // Tonemap and gamma-encode into the target ImGui actually samples. The
-    // scene gets this from the post stack; a preview drawing straight to an
-    // 8-bit target skipped it entirely, which is why it came out dark - linear
-    // 0.5 shows as roughly 0.21 once the display applies its own gamma.
+    // Tonemap and gamma-encode into the target ImGui samples; linear 0.5 would show as ~0.21 after display gamma.
     gpu.setTarget(mResolved.target);
     gpu.setViewport(viewport);
     gpu.setPipeline(mResolvePipeline);
@@ -324,10 +289,7 @@ void MeshPreview::render(MeshHandle handle, const Material* materials, u32 mater
     resolve.instanceCount = 1;
     gpu.draw(resolve);
 
-    // Back to the screen. Not optional: the target is global state, and
-    // whatever draws next - the ImGui pass, in practice - would otherwise land
-    // inside this texture instead of the window. ImGui's own backend sets its
-    // viewport from the display size, so the target alone is enough.
+    // Back to the screen: the target is global state, else the ImGui pass would draw into this texture.
     gpu.setTarget(TargetHandle());
 }
 

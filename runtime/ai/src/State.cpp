@@ -1,5 +1,3 @@
-// State.cpp - implementation of the Radion AI state.
-
 #include "PCH.h"
 
 #include "State.h"

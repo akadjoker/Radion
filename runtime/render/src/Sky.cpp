@@ -296,12 +296,7 @@ public:
         samplerDesc.wrapW = Wrap::Clamp;
         mSampler = Assets().getSampler(samplerDesc);
 
-        // Bound whenever the mode isn't Cubemap (or the handle isn't ready
-        // yet): GL considers a sampler "used" as soon as the shader
-        // references it, so the draw needs something valid on unit 0
-        // regardless of which branch main() actually takes. One pixel
-        // repeated six times, not one - a cube upload reads all six faces
-        // from a single buffer, so a single-pixel source is short five faces.
+        // Bound when the mode is not Cubemap or the handle is not ready: GL counts a sampler as used once referenced. Six pixels, since a cube upload reads six faces.
         const u8 black[4 * 6] = {0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255,
                                  0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255};
         TextureDesc placeholder;
@@ -324,8 +319,7 @@ public:
             return;
         const SkySettings& sky = *frame.sky;
         const bool cubemapReady = sky.mode == SkyMode::Cubemap && sky.cubemap.valid();
-        // Falls back to the gradient sky rather than drawing black when the
-        // mode says Cubemap but nothing valid was ever loaded into it.
+        // Fall back to the gradient sky rather than black when no valid cubemap was loaded.
         const f32 modeOption = cubemapReady ? 2.0f
                               : sky.mode == SkyMode::Atmosphere ? 1.0f
                                                                 : 0.0f;
@@ -392,8 +386,7 @@ EnvironmentBlock environmentForFrame(const FrameContext& frame)
 {
     EnvironmentBlock environment = environmentFromSky(frame.sky);
 
-    // The probe travels in the frame, not in the sky: it is captured by a
-    // pass, and its placement has nothing to do with the time of day.
+    // The probe travels in the frame, not the sky: its placement is unrelated to time of day.
     environment.probePositionAndMips =
         Math::vec4(frame.environmentProbePosition,
                   static_cast<f32>(Math::max(frame.environmentProbeMips, 1u)));

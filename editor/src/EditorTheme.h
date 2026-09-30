@@ -98,7 +98,6 @@ inline void applyRadionDarkTheme()
     style.PopupRounding = 3.0f;
 }
 
-// Blender 3.0 "Blender Dark" palette.
 inline void applyBlenderTheme()
 {
     ImGuiStyle& style = ImGui::GetStyle();
@@ -150,7 +149,6 @@ inline void applyBlenderTheme()
     style.GrabRounding = 12.00f;
 }
 
-// Nord/Nordic GTK palette.
 inline void applyNordTheme()
 {
     ImGuiStyle& style = ImGui::GetStyle();
@@ -204,7 +202,6 @@ inline void applyNordTheme()
     style.FrameBorderSize = 1.00f;
 }
 
-// Neutral grey with a warm orange accent.
 inline void applyEmberTheme()
 {
     ImGuiStyle& style = ImGui::GetStyle();
@@ -311,9 +308,7 @@ inline void applyEditorTheme()
     applyEditorTheme(EditorThemeKind::RadionDark);
 }
 
-// Call after io.Fonts->AddFontDefault(), before the first NewFrame()/font
-// atlas build - merge mode layers the icon glyphs onto whatever font was
-// added last.
+// Call after AddFontDefault(), before the first NewFrame(): merges icon glyphs onto the last added font.
 inline bool loadEditorIconFont(ImGuiIO& io, float iconSizePixels = 16.0f)
 {
     static const ImWchar iconRanges[] = {ICON_MIN_MDI, ICON_MAX_MDI, 0};

@@ -93,9 +93,7 @@ static void scriptPrint(const char* text, int length, void* userData)
     Log::info("%.*s", trimmedLength(text, length), text);
 }
 
-// Runtime errors reach here as a header line plus one line per stack frame.
-// The frames are what makes a script error diagnosable and they exist
-// nowhere else - fiber->error holds only the bare message.
+// Runtime errors arrive as a header plus one line per stack frame; frames exist nowhere else (fiber->error has only the message).
 static void scriptPrintError(const char* text, int length, void* userData)
 {
     (void)userData;

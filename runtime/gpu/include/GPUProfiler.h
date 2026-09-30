@@ -7,19 +7,9 @@
 namespace Radion
 {
 
-// Per-pass GPU timing, to sit beside the CPU profiler's samples under the same
-// names. The device already times the whole frame; this says where that time
-// went, which is the only way a decision to turn an effect off is anything but
-// a guess.
-//
-// Timestamps, not GL_TIME_ELAPSED: the device holds an elapsed-time query open
-// across the entire frame, and those cannot nest. A pair of timestamps around
-// a scope can, and costs the same.
-//
-// Results are read FrameDelay frames late, never in the frame that recorded
-// them - asking the GPU for a result it has not reached yet stalls the CPU
-// until it does, which would make the profiler the most expensive thing in the
-// frame it is measuring.
+// Per-pass GPU timing beside the CPU profiler's samples, under the same names.
+// Timestamps, not GL_TIME_ELAPSED: the device holds an elapsed query open across the frame, and those cannot nest.
+// Results are read FrameDelay frames late: asking for one not yet reached stalls the CPU.
 class GPUProfiler
 {
 public:
@@ -37,9 +27,7 @@ public:
     void beginFrame();
     void endFrame();
 
-    // Names must outlive the profiler - a literal, as with the CPU scopes.
-    // Returns false when the frame is full or nesting is too deep, in which
-    // case the matching end() must not run; ScopeGPU handles that.
+    // Names must outlive the profiler (literals). False when the frame is full or nesting too deep; then end() must not run.
     bool begin(const char* name);
     void end();
 

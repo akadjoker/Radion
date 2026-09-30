@@ -14,17 +14,11 @@ namespace Radion
 class Frustum;
 class MeshRenderer;
 
-// Spatial index over the submeshes of every MeshRenderer whose owner
-// GameObject::isStatic() - built once, queried every frame instead of the
-// linear scan buildRenderList() used to do. Dynamic objects stay on that
-// linear scan: they are counted in dozens/hundreds, not thousands, and a
-// tree that has to rebuild whenever one of them moves is not worth it.
+// Static submeshes only; dynamic objects stay on the linear scan (dozens/hundreds, not worth a tree rebuild on every move).
 class SceneBVH
 {
 public:
-    // Releases every entry's occlusion query - clear() does the same thing
-    // build() starts with, this just makes sure it also runs when a Scene
-    // (and its SceneBVH member) goes away, not only on the next rebuild.
+    // Releases every entry's occlusion query when the Scene goes away.
     ~SceneBVH()
     {
         clear();
@@ -34,9 +28,7 @@ public:
     {
         MeshRenderer* renderer = nullptr;
         u32 submeshIndex = 0;
-        // Index into mEntries - stable once build() returns (query() never
-        // reorders), so a caller can round-trip through lastVisible()/
-        // queryHandle() below for the occlusion query pass.
+        // Stable once build() returns (query() never reorders).
         u32 entryIndex = 0;
     };
 
@@ -51,14 +43,8 @@ public:
     void build(const std::vector<MeshRenderer*>& renderers);
     void clear();
 
-    // Appends one Hit per submesh neither the frustum nor `cullSphere` (when
-    // given) rejects. cullSphere prunes whole subtrees during the descent -
-    // a shadow cascade's frustum is a wide wedge but nothing outside the
-    // light's own range can ever be lit, so this is what actually keeps a
-    // large scene from walking most of the tree per cascade.
-    // Scene::buildRenderList() still checks active()/isVisibleInHierarchy()
-    // on the owning renderer, and RenderList::submitSubmesh() still does its
-    // own AABB test on top of this.
+    // cullSphere prunes whole subtrees during descent (a shadow cascade's wedge is wider than the light's range).
+    // Scene::buildRenderList() still checks active()/isVisibleInHierarchy().
     void query(const Frustum& frustum, std::vector<Hit>& out, const Sphere* cullSphere = nullptr,
                const std::vector<Plane>* casterPlanes = nullptr);
 
@@ -71,12 +57,7 @@ public:
         return mStats;
     }
 
-    // World-space, computed once in build() from the object's transform at
-    // the time - valid for as long as that promise holds (static means it
-    // never moves again), so a caller with an entryIndex from a Hit never
-    // needs to redo transformAABB(submesh.bounds, renderer->owner()->
-    // globalTransform()) itself; it is the same matrix multiply landing on
-    // the same numbers.
+    // World-space, computed once in build(); valid because static objects never move.
     static const AABB& emptyBoundsFallback()
     {
         static const AABB empty;
@@ -87,21 +68,13 @@ public:
         return entryIndex < mEntries.size() ? mEntries[entryIndex].bounds : emptyBoundsFallback();
     }
 
-    // One persistent hardware occlusion query per entry, created in build()
-    // and kept for as long as the entry lives - never recreated per frame.
-    // Whoever launches/reads them (Scene::updateOcclusionQueries()) owns the
-    // GPU calls; this class only stores the handle and the last verdict.
+    // One persistent query per entry, created in build(); Scene::updateOcclusionQueries() owns the GPU calls.
     QueryHandle queryHandle(u32 entryIndex) const
     {
         return entryIndex < mEntries.size() ? mEntries[entryIndex].query : QueryHandle();
     }
-    // Occluded only when the last 32 measurements ALL said so. One bit per
-    // verdict, shifted in - so a single query that came back wrong, or one
-    // frame where the entry happened to be behind something passing in front
-    // of it, cannot hide it. Taken from the reference (wiScene.h's
-    // occlusionHistory), which is the same trick and for the same reason:
-    // popping in and out is far worse to look at than drawing something that
-    // turned out to be hidden.
+    // Occluded only when the last 32 measurements all said so (from the reference's occlusionHistory);
+    // popping in and out is worse than drawing something hidden.
     bool lastVisible(u32 entryIndex) const
     {
         return entryIndex >= mEntries.size() || mEntries[entryIndex].occlusionHistory != 0;
@@ -114,8 +87,6 @@ public:
         entry.occlusionHistory = (entry.occlusionHistory << 1) | (visible ? 1u : 0u);
         entry.verdictFrame = currentFrame;
     }
-    // How many of the last 32 verdicts said visible - for a debug view, and
-    // for telling "just went out of sight" from "has been hidden for a while".
     u32 visibleFrameCount(u32 entryIndex) const
     {
         if (entryIndex >= mEntries.size())
@@ -129,12 +100,7 @@ public:
         }
         return count;
     }
-    // Frames since the last real measurement landed, saturating. Skipping a
-    // draw on a verdict is only safe while the verdict still describes the
-    // scene: nothing is re-tested every single frame (see the query latency
-    // in Scene::updateOcclusionQueries()), so a caller that trusts one
-    // indefinitely holds an entry invisible long after whatever was in front
-    // of it moved away. Never used to justify drawing less - only more.
+    // Frames since the last real measurement, saturating. A stale verdict may hide an entry long after the occluder moved; never used to draw less.
     u32 verdictAge(u32 entryIndex, u32 currentFrame) const
     {
         if (entryIndex >= mEntries.size() || mEntries[entryIndex].verdictFrame == 0)
@@ -142,23 +108,13 @@ public:
         return currentFrame - mEntries[entryIndex].verdictFrame;
     }
 
-    // A query is pending from the begin/end that launched it until its
-    // result is actually read back. Only a pending one is ever worth
-    // polling: glGetQueryObject{iv,uiv} on a query name that has never had
-    // a matching glBeginQuery/glEndQuery is invalid per the GL spec, not a
-    // harmless no-op - it is a GL error every frame, and with the debug
-    // context this build turns on, a synchronous driver callback on every
-    // one. Relaunching a query that is still pending is the other half:
-    // the frame it was launched in is the only thing that says whether its
-    // result can be had without blocking, and overwriting it every frame
-    // means that answer is always "not yet".
+    // Only a pending query is worth polling: glGetQueryObject on a never-begun query is a GL error every frame.
+    // Relaunching a pending one would keep the answer "not yet".
     bool queryPending(u32 entryIndex) const
     {
         return entryIndex < mEntries.size() && mEntries[entryIndex].queryPending;
     }
-    // Frames since the launch, saturating - a never-launched entry reads as
-    // "long ago", which no caller can mistake for a result being ready
-    // because queryPending() is false for it anyway.
+    // Saturating; a never-launched entry reads as long ago.
     u32 framesSinceQuery(u32 entryIndex, u32 currentFrame) const
     {
         if (entryIndex >= mEntries.size() || mEntries[entryIndex].queryFrame == 0)
@@ -178,22 +134,12 @@ public:
             mEntries[entryIndex].queryPending = false;
     }
 
-    // lastVisible() only means anything for an entry the camera's frustum
-    // has actually been near recently - one that just re-entered view after
-    // a while off-screen (a fast turn, a door opening the view into a new
-    // room) is still carrying whatever verdict a query launched frames ago
-    // happened to land on, which has nothing to do with what's in front of
-    // it now. `currentFrame` is Scene's own per-buildRenderList() counter;
-    // more than one frame's gap since this entry was last in the query
-    // means treat it as freshly entered, not "still occluded from before".
+    // lastVisible() is stale for an entry that just re-entered view; more than one frame's gap since last seen means treat it as fresh.
     bool justEnteredView(u32 entryIndex, u32 currentFrame) const
     {
         if (entryIndex >= mEntries.size())
             return false;
-        // 0 means never seen at all - not the same as "seen 1 frame ago",
-        // and relying on currentFrame happening to be small enough for the
-        // subtraction to fall out right on its own is not the same as this
-        // actually saying what it means.
+        // 0 means never seen, distinct from seen 1 frame ago.
         const u32 last = mEntries[entryIndex].lastSeenFrame;
         return last == 0 || currentFrame - last > 1;
     }
@@ -203,8 +149,7 @@ public:
             mEntries[entryIndex].lastSeenFrame = currentFrame;
     }
 
-    // Wireframe box per node, green for a leaf and yellow for an internal
-    // one - a debug panel toggle, not called on its own.
+    // Green for a leaf, yellow for an internal node.
     void debugDraw() const;
 
 private:
@@ -214,34 +159,23 @@ private:
         u32 submeshIndex = 0;
         AABB bounds; // world space, computed once at build()
         QueryHandle query;
-        // One bit per measurement, 32 frames of history. All ones means
-        // nothing has been measured yet, which reads as visible - an entry
-        // must survive real measurements before anything starts skipping it.
+        // All ones = nothing measured yet, reads as visible.
         u32 occlusionHistory = ~0u;
-        // See justEnteredView()/markSeenThisFrame() - 0 (never seen) reads
-        // as "long ago" against any real frame counter, which is correct:
-        // an entry that has never been in the camera's frustum has no stale
-        // verdict to distrust in the first place.
+        // 0 (never seen) reads as long ago.
         u32 lastSeenFrame = 0;
-        // See queryPending()/framesSinceQuery() - 0 means never launched.
+        // 0 means never launched.
         u32 queryFrame = 0;
-        // See verdictAge() - 0 means never measured, which reads as infinitely
-        // old and so is never trusted to skip a draw.
+        // 0 means never measured: infinitely old, never trusted.
         u32 verdictFrame = 0;
         bool queryPending = false;
     };
 
     std::vector<Entry> mEntries;
-    // The spatial work, which knows nothing about renderers or occlusion
-    // queries. This class used to carry its own median-split BVH; it is the
-    // same algorithm, moved somewhere the physics and the tests can reach it
-    // too. What stays here is everything that is about the SCENE - which
-    // renderer, which submesh, and the occlusion verdict.
+    // The spatial work lives in BoundsTree; this class keeps the scene-specific parts (renderer, submesh, occlusion verdict).
     BoundsTree mTree;
-    // Item indices the last query came back with, kept so a query allocates
-    // nothing.
+    // Kept so a query allocates nothing.
     mutable std::vector<u32> mCandidates;
-    // Parallel to mEntries, rebuilt at build() and handed to the tree.
+    // Parallel to mEntries.
     std::vector<AABB> mBounds;
     Stats mStats;
 };

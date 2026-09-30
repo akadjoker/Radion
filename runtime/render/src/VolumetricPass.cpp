@@ -97,9 +97,7 @@ bool VolumetricPass::setup()
     mSphereProxy = assets.createSphere(1.0f, 12, 16);
     mCubeProxy = assets.createBox(Math::vec3(2.0f));
 
-    // Pipelines load their shaders lazily in ensurePipelines(), same reason
-    // DepthPass/Lighting defer theirs: setup() runs before a demo has added
-    // its asset search paths.
+    // Pipelines load lazily in ensurePipelines(): setup() runs before a demo adds asset search paths.
     return mSettingsBlock.valid() && mSunBlock.valid() && mSpotBlock.valid() &&
            mAddBlock.valid() && mProxyBlock.valid() && mPointBlock.valid() &&
            mRectBlock.valid() && mSampler.valid() && mSphereProxy.valid() && mCubeProxy.valid();
@@ -144,8 +142,7 @@ bool VolumetricPass::ensurePipelines()
         desc.blend.mode = BlendMode::Additive;
         desc.depth.test = false;
         desc.depth.write = false;
-        // Draw the proxy's back faces: the camera can end up inside a light's
-        // volume, and front-face culling would then discard everything.
+        // Back faces: the camera can be inside a light's volume, where front-face culling discards everything.
         desc.raster.cull = CullMode::Front;
         desc.debugName = "volumetric.point";
         mPointPipeline = GPU::getSingleton().createPipeline(desc);
@@ -172,10 +169,7 @@ bool VolumetricPass::ensurePipelines()
 
 bool VolumetricPass::resize(u32 halfWidth, u32 halfHeight)
 {
-    // Both members must agree, not just mAccumA: a previous call that
-    // resized mAccumA and then failed on mAccumB left them at different
-    // sizes (or mAccumB invalid), and comparing mAccumA alone would call
-    // that "already done" forever after.
+    // Both members must agree, not just mAccumA: a failed earlier resize could leave them mismatched.
     if (mAccumA.width == halfWidth && mAccumA.height == halfHeight && mAccumA.valid() &&
         mAccumB.width == halfWidth && mAccumB.height == halfHeight && mAccumB.valid())
         return true;
@@ -216,10 +210,7 @@ void VolumetricPass::execute(FrameContext& frame, PostProcessStack& post, Lighti
                                             static_cast<f32>(samples), scattering);
     gpu.updateBuffer(mSettingsBlock, 0, sizeof(settings), &settings);
 
-    // Cleared first, always: whichever source runs first overwrites every
-    // pixel, but if the sun is the only one disabled this frame, spot's
-    // read-write add still needs a defined zero to start from rather than
-    // whatever was left from a previous frame.
+    // Cleared first: if only the sun is disabled, spot's read-write add needs a defined zero.
     ClearValue clear;
     clear.bits = ClearColor;
     gpu.setTarget(mAccumA.target, clear);
@@ -298,8 +289,7 @@ void VolumetricPass::runSpot(const FrameContext& frame, PostProcessStack& post, 
     gpu.dispatch((mAccumB.width + 7) / 8, (mAccumB.height + 7) / 8, 1);
     gpu.barrier(BarrierImageWrite | BarrierTexture);
 
-    // Add spot's buffer onto the sun's - same shader as the final composite,
-    // just at half resolution and between two half-resolution textures.
+    // Add spot's buffer onto the sun's with the final-composite shader at half resolution.
     VolumetricAddBlock add;
     add.destSizeAndStrength = Math::vec4(static_cast<f32>(mAccumA.width),
                                         static_cast<f32>(mAccumA.height), spotStrength, 0.0f);
@@ -397,9 +387,7 @@ void VolumetricPass::runPoints(const FrameContext& frame, PostProcessStack& post
         if (light.type != RenderLightType::Point) continue;
         if ((light.flags & RenderLightVolumetric) == 0) continue;
 
-        // The sphere proxy is exact and needs a small margin so the range's
-        // edge is not clipped by the proxy itself at grazing angles; the cube
-        // already covers ~1.9x the sphere's volume and needs none.
+        // The sphere proxy needs a small margin so the range edge is not clipped at grazing angles; the cube covers ~1.9x the volume and needs none.
         const f32 scale = light.range * (pointProxyIsCube ? 1.0f : 1.05f);
         proxy.lightPosAndScale = Math::vec4(light.position, scale);
         gpu.updateBuffer(mProxyBlock, 0, sizeof(proxy), &proxy);

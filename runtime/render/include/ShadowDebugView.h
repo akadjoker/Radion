@@ -7,11 +7,7 @@
 namespace Radion
 {
 
-// On-screen overlay for the two textures the shadow system produces: the
-// cascade depth array and the shadow atlas. Both carry a comparison sampler
-// for shading, which reads back a 0/1 test result rather than depth - this
-// draws them through its own plain sampler instead, straight into the
-// backbuffer, so the raw depth is what shows up.
+// Overlay for the cascade depth array and shadow atlas. Both carry a comparison sampler (0/1 results), so this draws them through its own plain sampler to show raw depth.
 class ShadowDebugView
 {
 public:

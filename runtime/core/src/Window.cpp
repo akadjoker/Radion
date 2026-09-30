@@ -1,8 +1,5 @@
 #include "PCH.h"
 
-/** ****************************************************************************
-  Radion Platform - Window implementation (SDL2 backend).
-**************************************************************************** */
 #include "Input.h"
 #include "Log.h"
 #include "Window.h"
@@ -245,10 +242,8 @@ void Window::update()
         }
     }
 
-    // SDL can queue the window's creation resize event before a persisted
-    // EngineSettings size is applied. Read the native window after all queued
-    // events so that a stale event cannot put mWidth/mHeight back to the
-    // launch defaults.
+    // SDL may queue the creation resize before a persisted size is applied; read the native size after
+    // queued events so a stale one cannot reset mWidth/mHeight.
     if (mWindow)
     {
         int actualWidth = 0;
@@ -311,11 +306,7 @@ int Window::getFPS()
 
 double Window::getTime() const
 {
-    // Performance counter, not SDL_GetTicks(): every frame duration on this
-    // clock - the delta the panel shows, the FPS average, the wait that
-    // setTargetFPS() computes - came out quantised to whole milliseconds,
-    // which at frame times in the twenties is a fifth of the value jumping
-    // around for no reason the frame did anything about.
+    // Performance counter, not SDL_GetTicks(): frame times were quantised to whole milliseconds.
     return static_cast<double>(SDL_GetPerformanceCounter()) /
            static_cast<double>(SDL_GetPerformanceFrequency());
 }
@@ -354,9 +345,7 @@ void Window::setSize(int width, int height)
     if (!mWindow || width <= 0 || height <= 0)
         return;
     SDL_SetWindowSize(static_cast<SDL_Window*>(mWindow), width, height);
-    // Keep the engine-side logical size in sync with SDL. EngineSettings
-    // reads these accessors when saving, and render/layout code uses them
-    // before SDL sends the next resize event.
+    // Keep the logical size in sync with SDL: EngineSettings reads it when saving, and layout uses it before the next resize event.
     mWidth = width;
     mHeight = height;
     mResized = true;

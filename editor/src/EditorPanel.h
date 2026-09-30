@@ -18,8 +18,7 @@ public:
 
     virtual void onImGui() = 0;
 
-    // Also the ImGui window name, and what the .ini docking layout keys on -
-    // keep it constant across sessions (see PLANO_EDITOR.md's layout note).
+    // ImGui window name; the .ini docking layout keys on it, keep constant across sessions.
     const std::string& title() const
     {
         return mTitle;

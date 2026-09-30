@@ -27,10 +27,8 @@ public:
     static VoxelCoord worldFor(ChunkCoord chunk, VoxelCoord local);
 
     VoxelChunk& ensureChunk(ChunkCoord coordinate);
-    // Takes ownership of a chunk built elsewhere, replacing whatever sat at
-    // its coordinate. The pointer moves; nothing copies the block store.
-    // Neighbours already loaded are left for the caller to invalidate, since
-    // only it knows whether they are worth remeshing.
+    // Takes ownership of a chunk built elsewhere, replacing any at its coordinate; the pointer moves, nothing copies.
+    // Loaded neighbours are left for the caller to invalidate; only it knows if remeshing is worth it.
     VoxelChunk& adopt(VoxelChunk* chunk);
     void collectCoordinates(std::vector<ChunkCoord>& coordinates) const;
     VoxelChunk* findChunk(ChunkCoord coordinate);

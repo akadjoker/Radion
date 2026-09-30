@@ -48,10 +48,7 @@ public:
     {
         return mSelection;
     }
-    // Every Log::error and Log::warning in the whole engine becomes a toast,
-    // rather than each call site remembering to raise one - the pairing is
-    // what drifts, and an error nobody sees is the same as no error at all.
-    // Routed here because Log takes one sink and the console needs it too.
+    // Routed here because Log takes one sink and the console needs it too; every Log error/warning becomes a toast.
     static void logSink(LogLevel level, const char* message);
 
     EditorToasts& toasts()
@@ -59,12 +56,7 @@ public:
         return mToasts;
     }
 
-    // Which bone/IK chain of the selected object's Animator the viewport
-    // gizmo currently manipulates - AnimationPanel sets it from its bone/IK
-    // list, ViewportPanel reads it to retarget its gizmo onto a bone instead
-    // of the object's own transform (mutually exclusive: only one of bone/
-    // ikChain is ever >= 0 at a time). Neither panel reaches into the
-    // other's fields directly, per PLANO_EDITOR.md rule 1.
+    // Bone/IK chain the viewport gizmo manipulates; mutually exclusive (only one of bone/ikChain is >= 0).
     struct AnimationPoseTarget
     {
         bool active = false;
@@ -76,15 +68,7 @@ public:
         return mAnimationPoseTarget;
     }
 
-    // The submesh the Viewport or the Inspector's own submesh list last
-    // pointed at - the single thing that ties the two together in both
-    // directions: a Viewport click opens/scrolls to that submesh's entry in
-    // the Inspector, and clicking an entry in the Inspector highlights that
-    // submesh's box back in the Viewport. The owning object's id travels
-    // with it so a stale index is never read against whatever is selected
-    // now. `justPicked` is the one-shot half - true only for the frame right
-    // after a Viewport click, so the Inspector knows to force its entry open
-    // and scroll to it instead of doing that every single frame.
+    // Submesh last pointed at by Viewport or Inspector; carries the owner id so a stale index is never read. `justPicked` is true only the frame after a Viewport click.
     struct PickedSubmesh
     {
         s32 index = -1;
@@ -96,12 +80,7 @@ public:
         return mPickedSubmesh;
     }
 
-    // Shift-clicking with the Pick Surface tool accumulates a SET of
-    // submeshes on one object - stripping a building down to only its floor
-    // submeshes before baking a NavMeshSurface from it, say. Separate from
-    // PickedSubmesh, which stays the single "last pointed at" entry the
-    // Inspector and Viewport highlight each other through; this is what a
-    // batch delete acts on instead.
+    // Submesh set built by Shift-click with Pick Surface; separate from PickedSubmesh, this is what batch delete acts on.
     struct SubmeshSelection
     {
         u64 object = 0;
@@ -111,9 +90,7 @@ public:
     {
         return mSubmeshSelection;
     }
-    // Shared by the Viewport's Delete key and the Inspector's own "Delete
-    // Selected Submeshes" button - one removal path so both stay in sync
-    // with how index shifting after each erase is handled.
+    // One removal path for the Viewport Delete key and the Inspector button, so index shifting after each erase stays in sync.
     void deleteSubmeshSelection();
 
     struct PickedSurface
@@ -135,12 +112,7 @@ public:
         return mSurfaceProbe;
     }
 
-    // Click-to-place for vegetation: while a mode is active, the Viewport's
-    // click plants directly at the raycast hit on the selected object's
-    // Forest/Grass instead of picking whatever is under the cursor. One
-    // shared mode rather than a bool per component keeps the two exclusive -
-    // ticking Grass' box while Tree is on turns Tree off, the way a radio
-    // button would.
+    // One shared mode (not a bool per component) keeps vegetation placement modes exclusive.
     enum class VegetationPlacementMode : u8 { None, Tree, Grass };
     VegetationPlacementMode& vegetationPlacementMode()
     {
@@ -151,13 +123,7 @@ public:
         return mVegetationPlacementSpecies;
     }
 
-    // Which of the two scene views is allowed to render this frame. Every
-    // view is a full scene submission - geometry, shadows, probes, the lot -
-    // so two of them visible at once is two of everything, and the frame
-    // showed it (Sponza: the second view alone was ~700k triangles and half
-    // the frame). Only the active one renders; the other keeps showing the
-    // last frame it drew. Play switches to Game and Stop switches back, the
-    // way the reference editors do it.
+    // Only the active view renders (each is a full scene submission, ~2x cost otherwise); the other keeps its last frame.
     enum class ViewMode : u8
     {
         Scene,
@@ -171,9 +137,7 @@ public:
     {
         mViewMode = mode;
     }
-    // Set by whichever panel actually submitted the scene this frame, so
-    // run() knows it does not also have to render to the window itself to
-    // keep something on screen. Cleared at the top of every frame.
+    // Set by the panel that submitted the scene this frame, so run() knows not to render to the window itself. Cleared each frame.
     void notifySceneRendered()
     {
         mSceneRendered = true;
@@ -181,8 +145,6 @@ public:
 
     void newScene();
     bool openScene(const std::string& path);
-    // Resizes the cascade shadow frustum around whatever is currently loaded,
-    // keeping the user's own cascade count/resolution choices intact.
     void fitShadowsToScene();
     bool saveScene();
     bool saveSceneAs(const std::string& path);
@@ -214,33 +176,20 @@ public:
         mCursor3D = position;
     }
     void recordUndo();
-    // recordUndo() plus the mesh's submesh table as it stands right now -
-    // what a destructive submesh edit has to call instead, so undo can put
-    // the deleted pieces back. Does nothing for a mesh with no CPU-side copy
-    // (nothing to snapshot, and nothing could have edited it either).
+    // recordUndo() plus the mesh's submesh table, so undo can restore deleted pieces. No-op for a mesh with no CPU-side copy.
     void recordMeshUndo(MeshHandle handle);
     void undo();
     void redo();
 
-    // Deep-copies `source` and its children into this same scene, right
-    // beside the original (SceneSerializer::cloneObject() does the actual
-    // work - the same object+component read/write Save/Load and Undo
-    // already use, just scoped to one subtree). Records undo and selects the
-    // clone on success; null (nothing changed) if cloning failed.
+    // Deep-copies `source` and children beside the original via SceneSerializer::cloneObject(); records undo and selects the clone, null on failure.
     GameObject* duplicateObject(GameObject& source);
     bool duplicateObjectGrid(GameObject& source, bool alongX, bool alongZ, u32 countX, u32 countZ,
                              f32 spacing);
 
-    // "wp_00" -> "wp_01" -> "wp_02", keeping the original zero padding and
-    // widening it only when the counter runs past it ("wp_99" -> "wp_100").
-    // A name with no trailing digits gets a "_01" suffix instead. Keeps
-    // counting past any name already taken in the scene, so duplicating the
-    // same source repeatedly walks forward rather than colliding.
+    // "wp_00" -> "wp_01", widening padding only when the counter overflows it; no trailing digits gets "_01"; skips taken names.
     std::string nextIncrementedName(const std::string& name);
 
-    // Which point of the selected object's Waypoints component the transform
-    // gizmo drives, or -1 for the object itself. Lives here rather than in
-    // either panel because the Inspector picks it and the Viewport moves it.
+    // Waypoint the gizmo drives, or -1 for the object itself; shared because Inspector picks it and Viewport moves it.
     s32 selectedWaypoint() const
     {
         return mSelectedWaypoint;
@@ -250,19 +199,13 @@ public:
         mSelectedWaypoint = index;
     }
 
-    // What the last open/save produced, for the console/status area to show -
-    // SceneDiagnostic, not stdout (see PLANO_SERIALIZACAO_CENA.md's own rule
-    // on this).
+    // Last open/save result, shown as SceneDiagnostic (not stdout).
     const std::vector<SceneDiagnostic>& lastDiagnostics() const
     {
         return mLastDiagnostics;
     }
 
-    // Extra folders FileSystem::readBinary() falls back to, beyond the
-    // project's own Assets/ - what a mesh imported from outside the project
-    // (its textures still sitting wherever it was exported to, not copied
-    // in) needs to actually find them instead of logging "file not found".
-    // Persisted in the project manifest, restored on openProject().
+    // Extra folders FileSystem::readBinary() falls back to beyond Assets/, for meshes whose textures live outside the project. Persisted in the manifest.
     const std::vector<std::string>& projectSearchPaths() const
     {
         return mExtraSearchPaths;
@@ -273,67 +216,33 @@ public:
     }
     void addProjectSearchPath(const std::string& path);
     void removeProjectSearchPath(usize index);
-    // Where AssetsPanel starts/resets to: the open project's own Assets/
-    // folder, or this engine's own shipped assets when no project is open -
-    // the loose scene workflow every demo main.cpp still uses. The panel
-    // itself navigates freely from there - this is a starting point, not a
-    // boundary.
+    // Where AssetsPanel starts/resets to; a starting point, not a boundary.
     std::string assetBrowserRoot() const;
 
-    // Editor-only preferences (theme, last-used paths - see EditorSettings)
-    // - SettingsPanel reads/writes through this rather than owning its own
-    // copy, so a change takes effect immediately and survives to the next
-    // save() alongside everything else in the file.
     EditorSettings& settings()
     {
         return mSettings;
     }
-    // Opens the folder-choose dialog whose result feeds addProjectSearchPath()
-    // - SettingsPanel calls this rather than reaching into the file dialog
-    // machinery itself (EditorPanel never draws for another panel, PLANO_
-    // EDITOR.md rule 1 - this keeps that true for triggering one too).
+    // Opens the folder-choose dialog whose result feeds addProjectSearchPath().
     void browseAddSearchPath();
 
-    // Every mesh AssetsPanel's Import/Load brought in this session keeps its
-    // CPU-side MeshData here, keyed by the GPU handle MeshRenderer::mesh()
-    // already holds - not a new indirection, just not throwing away the data
-    // the moment it is done being useful for tools. A primitive built from
-    // HierarchyPanel, or anything opened without going through that flow, has
-    // no entry - importedMeshData() returns nullptr and InspectorPanel shows
-    // no mesh-tools section for it, since there is nothing to run them on.
+    // CPU-side MeshData of meshes imported this session, keyed by MeshRenderer's GPU handle; absent entries (primitives, other flows) get no mesh-tools section.
     MeshData* importedMeshData(MeshHandle handle);
     void registerImportedMesh(MeshHandle handle, MeshData data);
-    // Geometry built in memory rather than read from a file - the volume
-    // mesher's output. `outputBase` is a path without extension: the data is
-    // written there as .rmesh (and .material) first, because a MeshDesc can
-    // only name a file and without one SceneSerializer has no recipe to save.
-    // Everything after that is the import flow: upload, keep the CPU copy for
-    // the mesh tools, and hang a MeshRenderer on a new object.
+    // In-memory geometry (volume mesher output). `outputBase` has no extension: written as .rmesh/.material first, since a MeshDesc can only name a file.
     GameObject* adoptGeneratedMesh(const std::string& name, const std::string& outputBase,
                                    MeshData data);
-    // Pushes whatever the caller already edited in-place (through the
-    // pointer importedMeshData() handed back) onto the GPU via
-    // AssetManager::replaceMesh() - same handle, so every MeshRenderer
-    // already pointing at it just draws the new geometry next frame.
+    // Pushes in-place edits to the GPU via AssetManager::replaceMesh(); same handle, so renderers pick it up next frame.
     bool applyMeshEdit(MeshHandle handle);
 
-    // HierarchyPanel double-click asking ViewportPanel to frame an object -
-    // panels never reach into one another directly (PLANO_EDITOR.md rule 1),
-    // so the request sits here for ViewportPanel to pick up on its own next
-    // onImGui(). 0 means none pending.
+    // Request from HierarchyPanel for ViewportPanel to frame an object (panels don't reach into each other). 0 means none pending.
     void requestFocusObject(u64 objectId);
     u64 takeFocusObjectRequest();
 
-    // InspectorPanel's texture slots asking AssetsPanel to jump to the
-    // asset's own folder - same mediator shape as the two requests above,
-    // for the same reason (PLANO_EDITOR.md rule 1). Empty string means none
-    // pending.
+    // Request from InspectorPanel for AssetsPanel to jump to the asset's folder. Empty means none pending.
     void requestRevealAsset(const std::string& path);
     std::string takeRevealAssetRequest();
 
-    // DebugPanel's own checkboxes for Scene's dynamic-octree / occlusion
-    // debug draw - see mShowDynamicIndexDebug's own comment for why the
-    // state lives here instead of on either panel.
     bool showDynamicIndexDebug() const
     {
         return mShowDynamicIndexDebug;
@@ -350,12 +259,7 @@ public:
     {
         mShowOcclusionDebug = show;
     }
-    // Every SubMesh::bounds of the selected object, drawn as its own box -
-    // the one thing that answers "why does frustum culling reject almost
-    // nothing on this mesh". Submeshes grouped by material rather than by
-    // region each span the whole model, so every box contains the camera and
-    // none can ever be culled; boxes that visibly nest inside one another
-    // mean the split is spatial and the culling is simply doing its job.
+    // Box per SubMesh::bounds of the selected object; shows why frustum culling rejects little (material-grouped submeshes each span the whole model).
     bool showSubmeshBounds() const
     {
         return mShowSubmeshBounds;
@@ -406,8 +310,6 @@ private:
     void buildPanels();
     void buildDefaultScene();
     void applyNewSceneRenderDefaults();
-    // Installs `replacement` through Engine's SceneManager and clears the
-    // selection that belonged to the previous active scene.
     void replaceScene(Scene* replacement);
     void startDeferredStartupLoad();
     void applyPersistedDebugSettings();
@@ -417,7 +319,7 @@ private:
     SceneSerializer mSerializer;
     EditorSelection mSelection;
     EditorToasts mToasts;
-    // logSink() is a plain function pointer with no `this` to route through.
+    // logSink() is a plain function pointer with no `this`.
     static EditorApplication* sInstance;
     AnimationPoseTarget mAnimationPoseTarget;
     PickedSubmesh mPickedSubmesh;
@@ -429,12 +331,7 @@ private:
     std::string mScenePath; // empty until the first Save/Save As or a successful Open
     s64 mRunnerPid = 0;
     bool mDirty = false;
-    // Saves over mScenePath by itself once mDirty has stood for this long -
-    // a Mesh Tools edit (or anything else) that never got an explicit Save
-    // still survives a crash, an accidental close, or forgetting Ctrl+S.
-    // Never runs with no scenePath yet (nothing to save over without asking
-    // Save As's own dialog first) or mid-Play (that would overwrite the
-    // saved edit-mode scene with the Play snapshot's own drift).
+    // Autosaves over mScenePath once mDirty has stood this long; never with no scenePath or mid-Play (would overwrite the edit scene with Play drift).
     f32 mAutoSaveTimer = 0.0f;
     static constexpr f32 kAutoSaveInterval = 60.0f;
     std::vector<SceneDiagnostic> mLastDiagnostics;
@@ -443,21 +340,12 @@ private:
     ScriptEditorPanel* mScriptEditor = nullptr;
     bool mDockLayoutBuilt = false;
     bool mFocusScriptEditorPending = false;
-    // One-shot: forces the Scene tab active on launch even when imgui.ini
-    // already has a saved layout with Game selected (a persisted "Selected"
-    // tab id in [Docking][Data] wins over DockBuilderDockWindow()'s call
-    // order, so that fix alone never runs for a returning user).
+    // One-shot: a persisted "Selected" tab id in imgui.ini wins over DockBuilderDockWindow(), so force Scene active on launch here.
     bool mFocusViewportPending = true;
     u64 mFocusObjectRequest = 0;
     std::string mRevealAssetRequest;
-    // Smoothed frame time behind the status bar's FPS reading. The toggle
-    // that used to guard a floating overlay is gone with it: the bar has a
-    // place of its own and covers nothing, so there is nothing to turn off.
     f32 mStatsSmoothedDelta = 0.0f;
-    // DebugPanel writes these, ViewportPanel reads them (the DebugDraw3D
-    // calls have to happen there, before Engine::render() - Scene itself has
-    // no per-frame hook of its own to emit them from). Off by default: a
-    // debug overlay only some sessions want.
+    // DebugPanel writes, ViewportPanel reads (DebugDraw3D must be emitted before Engine::render()). Off by default.
     bool mShowDynamicIndexDebug = false;
     bool mShowOcclusionDebug = false;
     bool mShowSubmeshBounds = false;
@@ -485,9 +373,7 @@ private:
     std::vector<std::string> mProjectScenes;
     std::string mProjectActiveScene;
     std::vector<std::string> mExtraSearchPaths;
-    // Keyed by MeshHandle::index/generation packed into one u64 - MeshHandle
-    // has no std::hash of its own and packHandle() is AssetManager's private
-    // convention, not something to depend on from here.
+    // Keyed by MeshHandle index/generation packed into a u64; MeshHandle has no std::hash.
     HashMap<u64, MeshData> mImportedMeshData;
 
     bool mPlaying = false;
@@ -507,13 +393,7 @@ private:
     f32 mSettingsSaveTimer = 0.0f;
     std::string mRenderSettingsSnapshot;
     Math::vec3 mCursor3D = Math::vec3(0.0f);
-    // An undo step is the scene's JSON plus, when the step was a submesh
-    // deletion, that mesh's submesh table as it stood before. The table is
-    // all that has to be kept: removeSubmesh() only erases the SubMesh
-    // descriptor and leaves the vertex/index buffers alone, so putting the
-    // descriptors back restores the geometry exactly - which is what makes
-    // undoing a delete on a 280MB mesh cost a few hundred bytes instead of
-    // a full copy of it.
+    // Undo step: scene JSON plus, for a submesh deletion, the prior submesh table. Only descriptors are kept: removeSubmesh() leaves buffers intact.
     struct UndoState
     {
         nlohmann::json scene;

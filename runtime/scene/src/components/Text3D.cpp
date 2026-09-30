@@ -104,12 +104,8 @@ bool Text3D::depthTest() const
     return mDepthTest;
 }
 
-// Two passes over mText: the first measures each line's pen advance so
-// alignment can offset it before a single glyph is placed, the second lays
-// glyphs out left-to-right along the string's own right axis and steps one
-// characterSize down its up axis per '\n'. Non-printable codes fall back to
-// '?', same as BatchRenderer::drawText(); a space still advances the pen but
-// leaves its glyph's UV rect zeroed so the render pass skips drawing it.
+// Two passes: the first measures each line's pen advance for alignment, the second lays glyphs along the right axis and steps one characterSize down per '\n'.
+// Non-printable codes become '?' (as BatchRenderer::drawText()); a space advances the pen but leaves a zeroed UV rect so it is skipped.
 void Text3D::rebuildGlyphs()
 {
     mGlyphsDirty = false;

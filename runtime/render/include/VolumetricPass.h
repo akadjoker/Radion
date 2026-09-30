@@ -10,27 +10,18 @@ namespace Radion
 class PostProcessStack;
 class Lighting;
 
-// God rays, ported from docs/reference/particles/shaders/post_volumetric*.comp
-// and vol_point/vol_rect - see VolumetricPass.cpp for which file each part
-// came from. Runs after Forward and composites straight into the HDR scene
-// colour, not through PostProcessStack's own chain: it reads the entity
-// buffer, the shadow atlas and the cascade block the scene draw itself reads,
-// which a plain image transform has no business knowing about.
+// God rays, after Forward, composited straight into the HDR scene colour rather than through PostProcessStack: it reads the entity buffer, shadow atlas and cascade block the scene draw reads.
+// See VolumetricPass.cpp for the shader sources each part derives from.
 class VolumetricPass final
 {
 public:
     bool setup();
 
-    // `lighting` is where the point/rect proxies get the atlas-annotated
-    // shadow data (matrixIndex/shadowAtlasMulAdd) for each light - the same
-    // Lighting instance the Renderer already owns, not a second copy.
+    // `lighting` supplies the atlas-annotated shadow data (matrixIndex/shadowAtlasMulAdd) for point/rect proxies; it is the Renderer's own instance.
     void execute(FrameContext& frame, PostProcessStack& post, Lighting& lighting);
     void shutdown();
 
-    // The sun and the spots use different shadow sources (cascades vs atlas)
-    // and cost differently, so each source gets its own switch - matching the
-    // reference, which keeps volumetricSunEnabled and volumetricSpotEnabled
-    // independent for the same reason.
+    // Sun and spots use different shadow sources (cascades vs atlas) and cost differently, so each source has its own switch.
     bool sunEnabled = true;
     bool spotEnabled = true;
     bool pointEnabled = true;
@@ -43,10 +34,7 @@ public:
     f32 strength = 1.0f; // applied once, at the very end, to everything
     bool debugFallback = false;
 
-    // Density shapes the raymarch itself (how thick the air reads); strength
-    // is a plain multiplier applied when each source is combined - separate
-    // controls because doubling density is not the same curve as doubling
-    // strength once the samples are already summed.
+    // Density shapes the raymarch (how thick the air reads); strength multiplies when sources are combined; not interchangeable once samples are summed.
     f32 sunDensity = 0.02f;
     f32 spotDensity = 0.04f;
     f32 spotStrength = 1.0f;
@@ -55,9 +43,8 @@ public:
     f32 rectDensity = 0.05f;
     f32 rectStrength = 1.0f;
 
-    // The proxy only decides which pixels pay for the raymarch - the maths
-    // always uses the analytic range sphere, so this changes cost, not the
-    // image. A cube is 12 triangles but covers ~1.9x the sphere's area.
+    // The proxy only decides which pixels pay for the raymarch (the maths uses the analytic range sphere).
+    // A cube is 12 triangles but covers ~1.9x the sphere's area.
     bool pointProxyIsCube = false;
 
 private:
@@ -69,9 +56,7 @@ private:
     void runRects(const FrameContext& frame, PostProcessStack& post, Lighting& lighting);
     void resolve(const FrameContext& frame, PostProcessStack& post);
 
-    // Both half the frame's resolution, matching the reference's m_volA/
-    // m_volB: the ray march is the expensive part and the result gets blurred
-    // straight after, so full resolution would only cost more for no benefit.
+    // Half the frame resolution: the ray march is expensive and the result is blurred anyway.
     OffscreenTarget mAccumA;
     OffscreenTarget mAccumB;
 
@@ -93,9 +78,7 @@ private:
 
     SamplerHandle mSampler;
 
-    // Unit sphere (radius 1) and unit cube (-1..+1), the same proxy shapes
-    // the reference builds once with MeshManager - scaled per light in
-    // volumetric_proxy.vert rather than rebuilt per light.
+    // Unit sphere (radius 1) and unit cube (-1..+1), scaled per light in volumetric_proxy.vert.
     MeshHandle mSphereProxy;
     MeshHandle mCubeProxy;
 };

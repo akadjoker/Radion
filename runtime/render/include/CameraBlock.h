@@ -6,31 +6,21 @@
 namespace Radion
 {
 
-// Matches the Camera UBO layout every forward shader agrees on (binding 0 -
-// see unlit.vert, water.vert). std140 needs no manual padding here: mat4 is
-// already a 16-byte multiple, so the two vec4s follow it directly. A shader
-// that only reads a prefix (unlit.vert never touches cameraPos) is fine -
-// GL ignores the trailing bytes of a bound range past what the block declares.
+// Camera UBO layout shared by all forward shaders (binding 0); std140 needs no padding here.
+// A shader may declare only a prefix; GL ignores the trailing bytes.
 struct CameraBlock
 {
     Math::mat4 viewProj;
     Math::vec4 clipPlane; // (0,0,0,0) = no clip
     Math::vec4 cameraPos; // xyz used; w unused
     Math::mat4 view;
-    // Appended, so every shader that already declares a prefix of this block
-    // keeps working untouched. A pass that writes motion vectors and has no
-    // block of its own reads the jitter-free pair from here instead of
-    // claiming another binding - see tree.vert. Identity by default: a pass
-    // that never fills them produces a zero motion vector, which costs a
-    // pixel its history but can never reproject it somewhere wrong.
+    // Appended so shaders declaring a prefix keep working. Jitter-free pair for motion vectors (see tree.vert).
+    // Identity by default: an unfilled pass yields zero motion, never a wrong reprojection.
     Math::mat4 viewProjectionNoJitter = Math::mat4(1.0f);
     Math::mat4 prevViewProjectionNoJitter = Math::mat4(1.0f);
 };
 
-// Matches the TemporalCamera UBO (binding 7) every vertex shader that writes
-// a motion vector declares. Both matrices exclude the temporal jitter: the
-// jitter belongs to rasterisation, and a motion vector built from jittered
-// clip space would carry that sub-pixel offset into the reprojection.
+// TemporalCamera UBO (binding 7). Both matrices exclude jitter so motion vectors carry no sub-pixel offset.
 struct TemporalCameraBlock
 {
     Math::mat4 viewProjectionNoJitter;

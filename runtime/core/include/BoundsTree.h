@@ -16,10 +16,8 @@ public:
     struct Node
     {
         AABB bounds;
-        // Index of the first child; the second is always left + 1. Only
-        // meaningful when count == 0.
+        // First child index (second is left + 1); only meaningful when count == 0.
         u32 left = 0;
-        // Range into the item order for a leaf.
         u32 offset = 0;
         u32 count = 0;
 
@@ -29,7 +27,6 @@ public:
         }
     };
 
-    // Rebuilds from scratch. `bounds` is read but not kept.
     void build(const AABB* bounds, u32 count);
 
  
@@ -53,22 +50,16 @@ public:
     {
         return mDepth;
     }
-    // For drawing the tree, and for nothing else - a caller that navigates by
-    // node index is doing the traversal's job by hand.
+    // For drawing only; callers should not navigate by node index.
     const Node& node(u32 index) const
     {
         return mNodes[index];
     }
 
-    // Total surface area of every node divided by the root's. The standard
-    // measure of how much a hierarchy costs to traverse: 1 would be a single
-    // node, and it grows as nodes overlap. Compare it before and after a run
-    // of refits to see when a rebuild has become worth it.
+    // Sum of node surface areas over the root's: 1 = a single node, grows with overlap.
+    // Compare across refits to decide when a rebuild pays off.
     f32 quality() const;
 
-    // The box this item was last built or refitted with - so a caller can do
-    // the exact test the queries below leave to it without keeping its own
-    // copy in step.
     const AABB& itemBounds(u32 item) const
     {
         return mBounds[item];
@@ -125,8 +116,6 @@ public:
         mStats.itemsReturned = static_cast<u32>(out.size());
     }
 
-    // Traversal counters from the last query, for measuring rather than
-    // guessing which structure is cheaper.
     struct Stats
     {
         u32 nodesVisited = 0;
@@ -150,7 +139,6 @@ private:
     void updateNodeBounds(u32 nodeIndex, const AABB* bounds);
 
     std::vector<Node> mNodes;
-    // Item boxes, indexed by the caller's own item index.
     std::vector<AABB> mBounds;
     // Item indices, permuted by build() so each leaf owns a contiguous run.
     std::vector<u32> mOrder;

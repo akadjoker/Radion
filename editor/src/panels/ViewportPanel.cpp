@@ -37,9 +37,7 @@ namespace Radion
 
 ViewportPanel::ViewportPanel(EditorApplication& app) : EditorPanel("Viewport", app)
 {
-    // Picks up wherever the free-fly camera was left last session, instead
-    // of always starting from the same hardcoded pose - see
-    // EditorSettings::cameraPosition's own comment.
+    // Restore the free-fly camera pose from the last session (EditorSettings::cameraPosition).
     const EditorSettings& settings = app.settings();
     mCameraPosition = settings.cameraPosition;
     mOrbitTarget = settings.cameraOrbitTarget;
@@ -61,9 +59,6 @@ void ViewportPanel::focusOnObject(const GameObject& object, s32 submeshIndex)
     {
         if (const Mesh* mesh = Assets().getMesh(renderer->mesh()))
         {
-            // The one submesh the Inspector's own focus icon asked for,
-            // rather than the whole mesh - same idea as the cyan pick box,
-            // just aimed at the camera instead of drawn.
             const AABB localBounds =
                 (submeshIndex >= 0 && static_cast<usize>(submeshIndex) < mesh->submeshes.size())
                     ? mesh->submeshes[static_cast<usize>(submeshIndex)].bounds
@@ -87,8 +82,6 @@ void ViewportPanel::focusOnObject(const GameObject& object, s32 submeshIndex)
 void ViewportPanel::updateNavigation()
 {
     ImGuiIO& io = ImGui::GetIO();
-    // Navigation feel lives in EditorSettings ("View > Camera Settings...")
-    // and is edited there; ViewportPanel only consumes it here.
     const EditorSettings& nav = app().settings();
     const bool hovered = ImGui::IsWindowHovered();
     if (hovered && mPerspective && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && io.KeyAlt)
@@ -111,9 +104,7 @@ void ViewportPanel::updateNavigation()
         mOrbitPitch -= io.MouseDelta.y * 0.005f;
         mOrbitPitch = Math::clamp(mOrbitPitch, -1.5f, 1.5f);
     }
-    // Pan runs along the camera's own axes, not the world's. A hardcoded
-    // world up reads as a zoom the moment the view looks straight down:
-    // moving the target along world Y is then moving it toward the camera.
+    // Pan runs along the camera's axes: a world up turns into a zoom when looking straight down.
     const Math::vec3 navRight(Math::cos(mOrbitYaw), 0.0f, Math::sin(mOrbitYaw));
     const Math::vec3 navForward(Math::sin(mOrbitYaw) * Math::cos(mOrbitPitch), Math::sin(mOrbitPitch),
                                -Math::cos(mOrbitYaw) * Math::cos(mOrbitPitch));
@@ -263,10 +254,7 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
         }
     }
 
-    // An "empty" - no MeshRenderer, no Light, nothing else drawing anything
-    // of its own - used purely as a marker (a spawn point, a rope anchor)
-    // was otherwise invisible in the viewport: nothing to click, nothing to
-    // see, no way to tell it apart from an object misplaced at the origin.
+    // An "empty" (no renderer/light) used as a marker would otherwise be invisible and unclickable.
     if (!object.hasAnyComponent())
     {
         const bool selected = app().selection().selectedId() == object.id();
@@ -282,14 +270,11 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
         for (u32 i = 0; i < count; ++i)
         {
             const Math::vec3 world = waypoints->worldPosition(i);
-            // XZ, so the ring lies flat on the ground the point marks - the
-            // XY plane would stand it up on edge, facing sideways.
+            // XZ, so the ring lies flat on the ground.
             DebugDraw().circle(world, Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 0.0f, 1.0f),
                                waypoints->point(i).radius, 16,
                                selected ? Color::Yellow : Color::Green);
-            // The links, drawn once per pair: they are stored only on the
-            // lower index, so walking every node's own list covers each edge
-            // exactly once.
+            // Links are stored only on the lower index, so walking every node's list covers each edge once.
             for (u32 link : waypoints->point(i).links)
                 if (link < count)
                     DebugDraw().line(world, waypoints->worldPosition(link), Color(60, 200, 120, 200));
@@ -313,13 +298,9 @@ void ViewportPanel::drawSceneGizmos(GameObject& object)
         drawSceneGizmos(*object.child(i));
 }
 
-// mTool 2/3/4 = Move/Rotate/Scale (see the toolbar in onImGui). Nothing is
-// drawn for Select/3D Cursor or when nothing is selected.
+// mTool 2/3/4 = Move/Rotate/Scale. Nothing is drawn for Select/3D Cursor or no selection.
 
-// Walks the whole scene and keeps whatever projects inside the box. Tested
-// on the object's ORIGIN, not its bounds: a rubber band over a level would
-// otherwise catch the level itself every time, since its box contains
-// everything else.
+// Tested on the object's ORIGIN, not its bounds: a level's box contains everything and would be caught every time.
 static void collectInRect(GameObject& object, const Math::mat4& viewProjection,
                           const Math::vec2& imageMin, const Math::vec2& imageSize,
                           const Math::vec2& rectMin, const Math::vec2& rectMax,
@@ -370,15 +351,11 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const Math::vec2& 
     if (!mesh)
         return;
 
-    // The drag rectangle unprojected into the world is a FRUSTUM, and it has
-    // to be tested as one: an AABB drawn around that frustum spans from the
-    // near plane to the far plane in every direction, so it swallows the
-    // whole level and every submesh in it comes back selected.
+    // The unprojected drag rectangle is a FRUSTUM and must be tested as one: an AABB around it spans near to far and selects everything.
     const Math::mat4 inverseViewProjection = Math::inverse(mEditorProjection * mEditorView);
     const f32 ndcMinX = (min.x - mImageMin.x) / imageSize.x * 2.0f - 1.0f;
     const f32 ndcMaxX = (max.x - mImageMin.x) / imageSize.x * 2.0f - 1.0f;
-    // Screen Y grows downward, NDC Y grows upward: the rectangle's top edge
-    // is the larger NDC value.
+    // Screen Y grows downward, NDC Y upward: the top edge is the larger NDC value.
     const f32 ndcMaxY = 1.0f - (min.y - mImageMin.y) / imageSize.y * 2.0f;
     const f32 ndcMinY = 1.0f - (max.y - mImageMin.y) / imageSize.y * 2.0f;
 
@@ -397,8 +374,7 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const Math::vec2& 
     if (written != 8)
         return;
 
-    // Inward-facing planes, each built from three corners of one face.
-    // Bit layout of the index above: 1 = maxX, 2 = maxY, 4 = far.
+    // Inward-facing planes from three corners of one face. Index bits: 1 = maxX, 2 = maxY, 4 = far.
     struct Plane
     {
         Math::vec3 normal;
@@ -413,8 +389,7 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const Math::vec2& 
         if (length < 1e-8f)
             return plane;
         normal /= length;
-        // Point it at the side the frustum's own interior is on, so one sign
-        // test means the same thing for all six.
+        // Orient toward the frustum interior so one sign test means the same for all six.
         if (Math::dot(normal, inside - a) < 0.0f)
             normal = -normal;
         plane.normal = normal;
@@ -437,8 +412,7 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const Math::vec2& 
     };
 
     EditorApplication::SubmeshSelection& selection = app().submeshSelection();
-    // A subtract pass over a different object's selection has nothing to
-    // take away, and must not silently adopt this object either.
+    // A subtract pass over a different object's selection must not adopt this object.
     if (selection.object != object.id())
     {
         if (subtract)
@@ -447,19 +421,13 @@ void ViewportPanel::selectSubmeshesInRect(GameObject& object, const Math::vec2& 
         selection.indices.clear();
     }
 
-    // The CPU-side copy, when the mesh was imported this session: its actual
-    // vertices are what makes the test tight. A bounding box is a poor stand-
-    // in for a long diagonal or an L-shaped piece - the box overlaps the
-    // rectangle from far outside it - so the box is only used to reject
-    // cheaply, and anything it lets through is confirmed vertex by vertex.
+    // Use the CPU-side copy (imported this session) for a tight test; the box only rejects cheaply, since it is a poor fit for diagonal or L-shaped pieces.
     const MeshData* meshData = app().importedMeshData(renderer->mesh());
     const Math::mat4 transform = object.globalTransform();
     for (u32 i = 0; i < static_cast<u32>(mesh->submeshes.size()); ++i)
     {
         const AABB bounds = transformAABB(mesh->submeshes[i].bounds, transform);
-        // Rejected as soon as the box sits entirely behind any one plane -
-        // tested against the corner furthest along that plane's normal, the
-        // last one to cross it.
+        // Reject when the box is entirely behind any plane, testing the corner furthest along its normal.
         bool outside = false;
         for (const Plane& plane : planes)
         {
@@ -529,8 +497,7 @@ void ViewportPanel::drawTransformGizmo(const Math::vec2& imageMin, const Math::v
                                           : mTool == 3 ? ImGuizmo::ROTATE
                                                        : ImGuizmo::SCALE;
 
-    // A picked waypoint takes the gizmo over: the point is not a GameObject,
-    // so it has only a position to move - rotate/scale stay on the object.
+    // A picked waypoint takes the gizmo: it has only a position, so rotate/scale stay on the object.
     Waypoints* waypoints = selected->getComponent<Waypoints>();
     const s32 waypointIndex = app().selectedWaypoint();
     if (waypoints && operation == ImGuizmo::TRANSLATE && waypointIndex >= 0 &&
@@ -553,8 +520,7 @@ void ViewportPanel::drawTransformGizmo(const Math::vec2& imageMin, const Math::v
             mGizmoDragging = true;
             app().recordUndo();
         }
-        // The gizmo works in world space; the point is stored local to its
-        // owner, so it goes back through the inverse of that transform.
+        // The gizmo works in world space; the point is stored local to its owner.
         const Math::vec3 world = Math::vec3(pointTransform[3]);
         const Math::vec3 local =
             Math::vec3(Math::inverse(selected->globalTransform()) * Math::vec4(world, 1.0f));
@@ -606,13 +572,7 @@ void ViewportPanel::drawTransformGizmo(const Math::vec2& imageMin, const Math::v
     app().markDirty();
 }
 
-// FK bone (rotate, local to its parent) or IK chain target (translate,
-// world - IKChain::target is already world space, see Skeleton.h) instead of
-// the selected object's own transform. No-op unless AnimationPanel armed
-// EditorApplication::animationPoseTarget() and the selected object still has
-// a bound, pose-edit-mode Animator - a stale target from a since-deselected
-// object draws nothing rather than a gizmo pointed at whatever is selected
-// now.
+// FK bone (rotate, local) or IK target (translate, world; Skeleton.h) instead of the object's transform. No-op unless AnimationPanel armed animationPoseTarget() and the object still has a pose-edit Animator.
 void ViewportPanel::drawBonePoseGizmo(const Math::vec2& imageMin, const Math::vec2& imageSize)
 {
     const EditorApplication::AnimationPoseTarget& target = app().animationPoseTarget();
@@ -675,10 +635,7 @@ void ViewportPanel::drawBonePoseGizmo(const Math::vec2& imageMin, const Math::ve
 
 void ViewportPanel::onImGui()
 {
-    // Required once per frame (ImGuizmo.h's own comment: "call BeginFrame
-    // right after ImGui_XXXX_NewFrame()") - without it the gizmo's internal
-    // per-frame state never resets, which is why it drew in the wrong place
-    // and ate no input.
+    // Required once per frame after ImGui_XXXX_NewFrame() (ImGuizmo.h), or the gizmo's state never resets and it draws misplaced.
     ImGuizmo::BeginFrame();
 
     const char* tools[] = {ICON_MDI_CURSOR_DEFAULT, ICON_MDI_CROSSHAIRS, ICON_MDI_ARROW_ALL,
@@ -755,12 +712,7 @@ void ViewportPanel::onImGui()
     if (panActive)
         ImGui::PopStyleColor();
     ImGui::SameLine();
-    // Drives PostProcessStack::enabled directly - the exact same flag
-    // Settings > Post Process's own "Enabled" checkbox edits, not a second,
-    // separate switch that also had to be on. Two independent gates on one
-    // feature (this button used to be its own bool, defaulting off, while
-    // Settings' defaulted on) meant Settings could show Enabled checked and
-    // nothing would happen until this button was also found and clicked.
+    // Drives PostProcessStack::enabled directly, the same flag as Settings > Post Process; a second gate let Settings show Enabled with no effect.
     bool& postProcessEnabled = app().engine().postProcess().enabled;
     if (postProcessEnabled)
         ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
@@ -823,10 +775,7 @@ void ViewportPanel::onImGui()
     {
         if (GameObject* target = app().scene().findGameObject(focusId))
         {
-            // The Inspector's per-submesh focus icon routes through the same
-            // request as Hierarchy's whole-object one, plus whichever
-            // submesh pickedSubmesh() already names for this same object -
-            // set together, right before the request, by whoever asked.
+            // The Inspector's per-submesh focus routes through the same request as Hierarchy's, plus the object's pickedSubmesh().
             const EditorApplication::PickedSubmesh& picked = app().pickedSubmesh();
             focusOnObject(*target, picked.object == focusId ? picked.index : -1);
         }
@@ -837,10 +786,7 @@ void ViewportPanel::onImGui()
         mOrbiting || mPanning || mLooking || mPointerNavigationActive || mNavigationGizmoActive;
     app().engine().setProbeCaptureDeferred(navigating);
 
-    // Kept live rather than only on close: EditorSettings::save() only runs
-    // from the destructor (a clean exit), and a pose that only updates then
-    // is a pose a crash throws away. Plain floats, copied every frame - cheap
-    // next to everything else this panel already does per frame.
+    // Kept live: EditorSettings::save() only runs on a clean exit and a crash would lose the pose.
     EditorSettings& editorSettings = app().settings();
     editorSettings.cameraPosition = mCameraPosition;
     editorSettings.cameraOrbitTarget = mOrbitTarget;
@@ -859,13 +805,7 @@ void ViewportPanel::onImGui()
     const u32 width = static_cast<u32>(size.x);
     const u32 height = static_cast<u32>(size.y);
 
-    // Only the live view submits the scene (EditorApplication::ViewMode) -
-    // while Game is live this panel keeps showing the last frame it drew
-    // rather than paying for a second full render of everything. The gizmos
-    // are gated on the same flag and not merely the render: DebugDraw's list
-    // is frame-wide, so emitting into it while the Game view is the one that
-    // consumes it would draw the editor's grid and selection outlines over
-    // the game picture.
+    // Only the live view submits the scene (EditorApplication::ViewMode); gizmos are gated too since DebugDraw's list is frame-wide and would draw editor overlays over the game picture.
     const bool live = app().viewMode() == EditorApplication::ViewMode::Scene;
 
     if (live && mGrid)
@@ -890,17 +830,7 @@ void ViewportPanel::onImGui()
         {
             if (renderer->mesh().valid())
             {
-                // The outline hull is built from the mesh's raw, un-skinned
-                // vertices (DebugDraw3D.cpp's outline shader has no skin
-                // palette at all) - fine for a static mesh, but a skinned one
-                // posed away from bind pose leaves the hull tracing a shape
-                // that no longer matches what is actually on screen, cutting
-                // across the real silhouette instead of framing it. A world
-                // AABB has no pose to get wrong, so it is what stands in
-                // until the outline itself learns to skin (the proper fix -
-                // Lumix's own selection highlight sidesteps this a different
-                // way, a screen-space pass over the already-posed render
-                // instead of a second raw-geometry draw).
+                // The outline hull uses raw un-skinned vertices (DebugDraw3D.cpp's outline shader has no skin palette), wrong for a posed skinned mesh; a world AABB stands in until the outline skins.
                 const Mesh* mesh = Assets().getMesh(renderer->mesh());
                 constexpr u32 maxOutlineIndices = 300000;
                 if (mesh && (mesh->isSkinned() || mesh->indexCount > maxOutlineIndices))
@@ -910,8 +840,6 @@ void ViewportPanel::onImGui()
                     DebugDraw().outline(renderer->mesh(), selected->globalTransform(),
                                         Color::Orange);
 
-                // Every submesh box at once, for reading how the mesh is
-                // split - see EditorApplication::showSubmeshBounds().
                 if (mesh && app().showSubmeshBounds())
                 {
                     for (const SubMesh& submesh : mesh->submeshes)
@@ -919,11 +847,7 @@ void ViewportPanel::onImGui()
                                         Color::Gray);
                 }
 
-                // The one submesh the last click landed on, boxed inside the
-                // whole-object outline - on a mesh with many pieces (Sponza's
-                // ~30) the object outline alone says nothing about which
-                // material slot the Inspector just jumped to. Cyan, not the
-                // selection's orange, so the two never read as one shape.
+                // The last-clicked submesh, cyan (not selection orange) inside the whole-object outline.
                 const EditorApplication::PickedSubmesh& picked = app().pickedSubmesh();
                 if (mesh && picked.index >= 0 && picked.object == selected->id() &&
                     static_cast<usize>(picked.index) < mesh->submeshes.size())
@@ -933,10 +857,7 @@ void ViewportPanel::onImGui()
                                     Color::Cyan);
                 }
 
-                // Every submesh Shift-click has accumulated into the batch -
-                // yellow, so a set of several reads as distinct from both the
-                // single cyan "last pointed at" one above and the whole-object
-                // orange outline.
+                // The Shift-click batch, yellow to differ from the cyan last-picked box and orange outline.
                 const EditorApplication::SubmeshSelection& multiSelected = app().submeshSelection();
                 if (mesh && multiSelected.object == selected->id())
                 {
@@ -1017,10 +938,7 @@ void ViewportPanel::onImGui()
     const Math::vec3 cameraUp = Math::normalize(Math::cross(cameraRight, forward));
     if (live)
         DebugDraw().cursor3D(app().cursor3D(), cameraRight, cameraUp, cursorRadius);
-    // The observer's own view: a RenderView built straight from the orbit
-    // state, never touching the scene's real Camera/GameObject at all - see
-    // RenderView's own comment (Engine.h) for why this replaced borrowing
-    // and restoring the game camera's every field around each render.
+    // The observer's own RenderView built from the orbit state, never touching the scene's Camera (see RenderView in Engine.h).
     const f32 aspect = static_cast<f32>(width) / static_cast<f32>(height);
     const EditorSettings& editorCamera = app().settings();
     const f32 nearPlane = editorCamera.cameraNearPlane;
@@ -1048,16 +966,11 @@ void ViewportPanel::onImGui()
     }
     RenderTextureSettings settings;
     settings.outputIndex = 0;
-    // The scene editor must remain pixel-stable while orbiting, selecting,
-    // and drawing gizmos. The Game panel uses its separate output stream and
-    // keeps TAA enabled, so this does not change game rendering quality.
+    // The scene editor must stay pixel-stable; the Game panel has its own output stream and keeps TAA.
     settings.temporalAA = false;
     const bool renderPostProcess = app().engine().postProcess().enabled && !mFastRender;
     const EditorSettings& preview = app().settings();
-    // Fast render: every optional pass off at once. What makes a heavy scene
-    // (Bistro) navigable in the editor - the frame cost lives in these
-    // passes, not in the geometry itself, so the shapes stay readable while
-    // the per-frame work collapses.
+    // Fast render: every optional pass off; the frame cost lives in these passes, not the geometry.
     settings.shadows = preview.previewShadows && !mFastRender;
     settings.planarReflections = preview.previewPlanarReflections && !mFastRender;
     settings.postProcess = renderPostProcess;
@@ -1085,12 +998,7 @@ void ViewportPanel::onImGui()
         mImageMin = Math::vec2(imageMin.x, imageMin.y);
         mImageMax = Math::vec2(imageMin.x + size.x, imageMin.y + size.y);
 
-        // Picture-in-picture camera preview, without rendering anything new
-        // for it: GamePanel already renders scene.activeCamera() every frame
-        // it draws (its own outputIndex=1 slot) - only while the selection is
-        // that same camera does the already-published texture mean
-        // anything, so a selected-but-not-active camera shows nothing here
-        // rather than some other camera's view under its label.
+        // Camera preview reuses GamePanel's already-rendered activeCamera() texture (outputIndex=1); a selected non-active camera shows nothing.
         if (GameObject* selected = app().selection().resolve(app().scene()))
         {
             Camera* previewCamera = selected->getComponent<Camera>();
@@ -1121,17 +1029,7 @@ void ViewportPanel::onImGui()
         else
             drawTransformGizmo(Math::vec2(imageMin.x, imageMin.y), Math::vec2(size.x, size.y));
 
-        // ImGuizmo's own CanActivate() (ImGuizmo.cpp) refuses to start a
-        // drag whenever ImGui::IsAnyItemHovered() is true - and that check
-        // looks at *this frame or the previous one*
-        // (g.HoveredId || g.HoveredIdPreviousFrame), so merely submitting
-        // the InvisibleButton after the gizmo was not enough: hovering the
-        // viewport for even one frame before the click already leaves
-        // HoveredIdPreviousFrame pointing at it next frame. The only fix is
-        // to never let this InvisibleButton register as hovered at all
-        // while the gizmo wants that same pixel - skip it entirely
-        // (Dummy() reserves the identical layout space with no interaction)
-        // whenever IsOver()/IsUsing() says the gizmo owns this hover.
+        // ImGuizmo's CanActivate() refuses to drag when IsAnyItemHovered() was true this or the previous frame, so the InvisibleButton must never register as hovered while the gizmo owns the pixel: use Dummy() (same layout, no interaction) when IsOver()/IsUsing().
         const bool gizmoWantsInput = ImGuizmo::IsOver() || ImGuizmo::IsUsing();
         ImGui::SetCursorScreenPos(imageMin);
         ImGui::PushID("viewport.image.input");
@@ -1144,9 +1042,7 @@ void ViewportPanel::onImGui()
             imageHovered = ImGui::IsItemHovered();
         }
         ImGui::PopID();
-        // InvisibleButton/Dummy already advanced the layout cursor to the
-        // image end. Repositioning it there again triggers Dear ImGui's
-        // "SetCursorScreenPos extends window boundaries" diagnostic.
+        // InvisibleButton/Dummy already advanced the cursor; repositioning triggers ImGui's "SetCursorScreenPos extends window boundaries".
         const ImVec2 navigationCenter(imageMin.x + size.x - 55.0f, imageMin.y + 55.0f);
         const ImVec2 mouse = ImGui::GetMousePos();
         const Math::vec3 navigationForward(Math::sin(mOrbitYaw) * Math::cos(mOrbitPitch),
@@ -1180,9 +1076,7 @@ void ViewportPanel::onImGui()
         bool navigationClicked = false;
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
         {
-            // A ball click snaps to that axis view (camera moved onto the
-            // axis, looking back at the orbit target); the pitch stops just
-            // short of +-90 degrees so lookAt's fixed up vector stays sound.
+            // A ball click snaps to that axis view; pitch stops short of +-90 degrees so lookAt's fixed up vector stays valid.
             const struct
             {
                 ImVec2 ball;
@@ -1307,24 +1201,12 @@ void ViewportPanel::onImGui()
         }
         if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             mTerrainStrokeUndo = false;
-        // Shift normally means "place the 3D cursor", but with the Pick
-        // Surface tool it is the accumulate modifier for submesh selection -
-        // both claiming it is what stopped a Shift-drag from ever starting a
-        // rectangle there.
+        // Shift is the accumulate modifier with Pick Surface, not place-cursor; both claiming it blocked Shift-drag rectangles.
         const bool clickToPlaceCursor = mTool == 1 || (ImGui::GetIO().KeyShift && mTool != 5);
-        // Select is the plain click case: place-cursor (Shift or the 3D
-        // Cursor tool) and the gizmo dragging the object both already claim
-        // left-click for their own thing, so this only fires when neither
-        // does - same guard clickToPlaceCursor's own block already used.
+        // Select is the plain click case: place-cursor and gizmo dragging already claim left-click (same guard as clickToPlaceCursor).
         const bool clickToSelect =
             (mTool == 0 || mTool == 5) && !ImGuizmo::IsOver() && !ImGuizmo::IsUsing();
-        // Rubber band: starts on a plain left-press with the Select tool and
-        // only becomes a box once the mouse has actually travelled, so an
-        // ordinary click still picks a single object through the path below.
-        // Shift is the accumulate modifier throughout the Pick Surface tool:
-        // Shift-click adds one submesh, Shift-drag adds every submesh the
-        // rectangle covers. Picking a roof's hundreds of pieces one click at
-        // a time is what the rectangle replaces.
+        // Rubber band starts on a plain left-press with Select and becomes a box only after the mouse travels, so a click still picks one object. Under Pick Surface, Shift-click adds one submesh and Shift-drag adds all covered.
         GameObject* submeshRectTarget = app().selection().resolve(app().scene());
         if (submeshRectTarget && !submeshRectTarget->getComponent<MeshRenderer>())
             submeshRectTarget = nullptr;
@@ -1344,9 +1226,7 @@ void ViewportPanel::onImGui()
             const Math::vec2 rectMax(Math::max(mRectStart.x, current.x),
                                     Math::max(mRectStart.y, current.y));
             const bool dragged = (rectMax.x - rectMin.x) > 4.0f || (rectMax.y - rectMin.y) > 4.0f;
-            // Ctrl alongside Shift turns the rectangle into a subtract - red
-            // rather than orange, so which one it is is visible while still
-            // dragging instead of only in the result.
+            // Ctrl with Shift makes a subtract, drawn red instead of orange.
             const bool subtract = ImGui::GetIO().KeyCtrl;
             if (dragged)
             {
@@ -1368,10 +1248,7 @@ void ViewportPanel::onImGui()
                     return;
                 }
             }
-            // Only a real drag takes over the click: a Shift-press that never
-            // travels has to reach the pick below, which is what adds one
-            // submesh at a time. Returning unconditionally here is what would
-            // silently break Shift-click while Shift-drag worked.
+            // Only a real drag takes the click: a Shift-press that never travels must reach the pick below.
             if (dragged)
                 return;
         }
@@ -1417,14 +1294,7 @@ void ViewportPanel::onImGui()
 
             if (clickToSelect)
             {
-                // The depth buffer already knows exactly what's under the
-                // cursor - reading it back and looking up which object's box
-                // contains that point beats a ray-vs-AABB test on meshes
-                // whose box is a poor fit for their actual shape (a rock,
-                // say): the ray can cross the box from an angle no triangle
-                // there faces, picking the object even though nothing visible
-                // was actually clicked. Only fall back to the ray when there
-                // is no surface under the cursor at all (sky, empty space).
+                // Read back the depth buffer to find the object under the cursor; a ray-vs-AABB test can pick an object through a poorly fitting box. Fall back to the ray only with no surface (sky).
                 GameObject* hit = nullptr;
                 Math::vec3 surfacePosition, surfaceNormal;
                 const bool hasSurfacePosition =
@@ -1517,20 +1387,14 @@ void ViewportPanel::onImGui()
                 EditorApplication::PickedSubmesh& picked = app().pickedSubmesh();
                 if (hit)
                 {
-                    // A plain click is a fresh start, even on the object the
-                    // batch already belongs to - only Shift adds to it. The
-                    // single submesh it lands on is put back into the batch
-                    // right after the pick below, so Delete always has the
-                    // thing under the cursor to act on.
+                    // A plain click restarts the batch, even on its object; only Shift adds. The submesh hit is re-added after the pick so Delete has a target.
                     if (!ImGui::GetIO().KeyShift)
                     {
                         app().submeshSelection().object = 0;
                         app().submeshSelection().indices.clear();
                     }
                     app().selection().select(hit->id());
-                    // Only meaningful off the depth-buffer surface point -
-                    // the ray-vs-AABB fallback has no exact surface position
-                    // to test a submesh's own (tighter) box against.
+                    // Only meaningful for the depth-buffer surface point; the ray fallback has no exact position.
                     picked.index = -1;
                     s32 pickedSlot = -1;
                     if (hasSurfacePosition)
@@ -1538,12 +1402,7 @@ void ViewportPanel::onImGui()
                     picked.object = picked.index >= 0 ? hit->id() : 0;
                     picked.justPicked = picked.index >= 0;
 
-                    // With the Pick Surface tool the batch IS the selection:
-                    // a plain click makes it exactly the submesh under the
-                    // cursor, Shift toggles that one in or out of what is
-                    // already there. Keeping a plain click out of the batch
-                    // left Delete with nothing to act on right after the
-                    // user had visibly selected something.
+                    // With Pick Surface the batch IS the selection: a plain click makes it the submesh under the cursor, Shift toggles one.
                     if (picked.index >= 0 && mTool == 5)
                     {
                         EditorApplication::SubmeshSelection& multi = app().submeshSelection();
@@ -1592,16 +1451,11 @@ void ViewportPanel::onImGui()
                     app().setCursor3D(Math::vec3(nearPoint) + direction * t);
             }
         }
-        // Delete removes every submesh the Shift-click batch above has
-        // accumulated, not just the single last-picked one - the Inspector's
-        // own "Delete Selected Submeshes" button is the only other way to
-        // reach the same EditorApplication::deleteSubmeshSelection().
+        // Delete removes the whole Shift-click batch (see EditorApplication::deleteSubmeshSelection()).
         if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
             ImGui::IsKeyPressed(ImGuiKey_Delete) && !app().submeshSelection().indices.empty())
             app().deleteSubmeshSelection();
-        // Escape drops the whole batch - the way back from a rectangle that
-        // caught more than it should, without hunting each wrong piece down
-        // to Shift-click it off again.
+        // Escape drops the whole batch.
         if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
             ImGui::IsKeyPressed(ImGuiKey_Escape) && !app().submeshSelection().indices.empty())
             app().submeshSelection().indices.clear();
@@ -1610,8 +1464,7 @@ void ViewportPanel::onImGui()
         draw->AddLine(navigationCenter, zAxis, IM_COL32(80, 220, 100, 255), 3.0f);
         draw->AddLine(navigationCenter, xAxis, IM_COL32(220, 70, 70, 255), 4.0f);
         draw->AddLine(navigationCenter, yAxis, IM_COL32(70, 100, 220, 255), 4.0f);
-        // Negative ends hollow, positive ends filled - both click to snap the
-        // view onto that axis.
+        // Negative ends hollow, positive ends filled; both click to snap the view onto that axis.
         draw->AddCircleFilled(xAxisNeg, 8.0f, IM_COL32(220, 70, 70, 90));
         draw->AddCircle(xAxisNeg, 8.0f, IM_COL32(220, 70, 70, 255), 0, 2.0f);
         draw->AddCircleFilled(yAxisNeg, 8.0f, IM_COL32(70, 100, 220, 90));

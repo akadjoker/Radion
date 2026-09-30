@@ -1,11 +1,7 @@
 #ifndef RADION_AI_WAYPOINTNETWORK_H
 #define RADION_AI_WAYPOINTNETWORK_H
 
-// WaypointNetwork.h - a collection of waypoints connected by edges, with A*
-// pathfinding over the graph.
-//
-// The network OWNS the waypoints added via addWaypoint() and deletes them on
-// destruction. A path is a deque of WaypointIDs (O(1) pop_front).
+// Owns its waypoints (deleted on destruction). A path is a deque of WaypointIDs.
 
 #include "Waypoint.h"
 
@@ -18,9 +14,7 @@ namespace Radion::AI
 
 using Path = std::deque<WaypointID>;
 
-// Determines whether a waypoint is reachable/visible from a position. The
-// base implementation accepts everything. Derive and override isVisible() to
-// feed line-of-sight results from your own world.
+// Base implementation accepts everything; override isVisible() for real line-of-sight.
 class WaypointVisibility
 {
 public:
@@ -41,25 +35,20 @@ public:
     WaypointNetwork() = default;
     ~WaypointNetwork();
 
-    // Ownership: the network takes ownership of waypoint and deletes it on
-    // remove/clear/destruction.
+    // Takes ownership of the waypoint.
     bool addWaypoint(Waypoint* waypoint);
     bool removeWaypoint(WaypointID waypointID);
     void clearWaypoints();
     Waypoint* findWaypoint(WaypointID waypointID) const;
 
-    // A* over the waypoint graph.
-    // Returns true and fills outPath (start..goal) if a route exists.
     bool findPath(WaypointID fromWaypoint, WaypointID toWaypoint, Path& outPath) const;
 
-    // A* between arbitrary positions: snaps both endpoints to the closest
-    // visible waypoint, then searches. If both snap to the same waypoint the
-    // path is left empty and true is returned (walk straight to the goal).
+    // Snaps both endpoints to the closest visible waypoint; if both snap to the same one the path
+    // is left empty and true is returned.
     bool findPath(const Math::vec3& origin, const Math::vec3& destination,
                   const WaypointVisibility& visibility, Path& outPath) const;
 
-    // False, with minimum/maximum left untouched, when the network is empty -
-    // (+FLT_MAX, -FLT_MAX) used to be returned as if it were a valid box.
+    // False, minimum/maximum untouched, when the network is empty.
     bool extents(Math::vec3& minimum, Math::vec3& maximum) const;
 
     const WaypointMap& waypoints() const

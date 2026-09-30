@@ -4,7 +4,7 @@
 #include "Color.h"
 #include "Component.h"
 #include "GPU.h"
-#include "TrailRender.h" // BillboardMode
+#include "TrailRender.h"
 
 #include "Math.h"
 #include <string>
@@ -33,10 +33,6 @@ struct Particle
     bool active = false;
 };
 
-// Forces applied to every live particle each frame, on top of the emitter's
-// own base gravity/drag. A list of small strategy objects the emitter owns,
-// each free to touch acceleration or velocity directly - add as many as an
-// effect needs, in any order.
 class ParticleAffector
 {
 public:
@@ -65,8 +61,6 @@ public:
     f32 drag;
 };
 
-// Rotational pull around `center`, in the XZ plane - a smoke ring or a
-// cyclone effect. Falls off linearly to zero at `radius`.
 class VortexAffector final : public ParticleAffector
 {
 public:
@@ -80,8 +74,6 @@ public:
     f32 radius;
 };
 
-// Pulls (or, with repulse, pushes) particles toward `position`, falling off
-// linearly to zero at `radius` - a black hole / explosion shockwave.
 class AttractorAffector final : public ParticleAffector
 {
 public:
@@ -96,9 +88,7 @@ public:
     bool repulse;
 };
 
-// A per-particle sine-noise wobble, sampled from each particle's own
-// position so nearby particles drift in a correlated way instead of
-// independently jittering.
+// Sampled from each particle's own position so neighbours drift together.
 class TurbulenceAffector final : public ParticleAffector
 {
 public:
@@ -111,8 +101,6 @@ public:
     f32 time = 0.0f;
 };
 
-// Overrides the emitter's own colorStart/colorEnd fade for particles this is
-// attached to - lets one emitter mix particles that fade differently.
 class ColorOverLifetimeAffector final : public ParticleAffector
 {
 public:
@@ -124,7 +112,6 @@ public:
     Color endColor;
 };
 
-// Same idea as ColorOverLifetimeAffector, for size.
 class SizeOverLifetimeAffector final : public ParticleAffector
 {
 public:
@@ -155,22 +142,12 @@ enum class ParticleEmissionMode : u8
     Pulse
 };
 
-// CPU-simulated particle emitter: a fixed pool (the oldest particle is
-// recycled once it fills up, never just refusing new ones), 6 spawn shapes,
-// 4 emission modes, and a list of composable affectors on top of the
-// emitter's own gravity/drag. Renders through TrailDraws(), the same
-// world-space billboard queue Billboard/Text3D use.
-//
-// ParticleEffect (one compute-shader pool shared by the whole scene) stays
-// the right tool for thousand-particle volumes like smoke or fire; this one
-// is for effects where each particle's own behavior matters and the count
-// is in the tens or hundreds - bullet impacts, debris, magic effects.
+// ParticleEffect (GPU) suits thousand-particle volumes; this is for tens to hundreds where each particle matters.
 class ParticleEmitter final : public Component
 {
 public:
     static constexpr ComponentType Type = ComponentType::ParticleEmitter;
 
-    // Resizing clears every particle in the pool.
     void setMaxParticles(u32 count);
     u32 maxParticles() const;
     u32 aliveCount() const;
@@ -191,10 +168,7 @@ public:
     void setShapePoint();
     void setShapeSphere(f32 radius);
     void setShapeBox(const Math::vec3& size);
-    // coneAngleDegrees is stored and returned by shapeConeAngle() for the
-    // Inspector, same as the system this was ported from, but nothing reads
-    // it back yet - a Cone spawns on the same flat disk a Circle does; the
-    // spray angle that actually makes it conical is setSpreadAngle() below.
+    // coneAngleDegrees is stored but unused: a Cone spawns on a flat disk like Circle; see setSpreadAngle().
     void setShapeCone(f32 coneAngleDegrees, f32 baseRadius = 0.0f);
     void setShapeCircle(f32 radius);
     void setShapeRing(f32 outerRadius, f32 innerRadius);
@@ -206,8 +180,6 @@ public:
 
     void setEmissionOffset(const Math::vec3& offset);
     const Math::vec3& emissionOffset() const;
-    // Local-space base spray direction, rotated by the owner's own
-    // orientation at spawn time, same as everything else here.
     void setEmissionDirection(const Math::vec3& direction);
     const Math::vec3& emissionDirection() const;
     void setSpreadAngle(f32 degrees);
@@ -233,15 +205,11 @@ public:
     const Math::vec3& gravity() const;
     void setDrag(f32 drag);
     f32 drag() const;
-    // <= 0 runs forever. Otherwise the emitter restarts (loop) or stops
-    // (!loop) once `seconds` have passed since play() or the last restart.
     void setDuration(f32 seconds);
     f32 duration() const;
     void setLoop(bool loop);
     bool loop() const;
 
-    // An NxM atlas; every particle spawned samples a random cell and keeps
-    // it for its whole life.
     void setAtlasGrid(u32 cols, u32 rows);
     void clearAtlas();
     bool usesAtlas() const;
@@ -264,28 +232,19 @@ public:
     void pause();
     bool isPlaying() const;
 
-    // Takes ownership; freed by clearAffectors() or on destruction.
+    // Takes ownership.
     void addAffector(ParticleAffector* affector);
     bool removeAffector(usize index);
     void clearAffectors();
     const std::vector<ParticleAffector*>& affectors() const;
 
-    // Spawns `count` particles right now, independent of the emission mode.
     void emitBurst(u32 count);
 
     static void presetBulletImpact(ParticleEmitter& emitter);
     static void presetDebris(ParticleEmitter& emitter);
-    // Ambient motes drifting in still air (a sunbeam, a dusty room) - zero
-    // gravity, unlike the other two presets. ParticleEffect has a preset by
-    // the same name that looks the part but can't do this: its gravity is
-    // ParticleSystem's, one setting shared by every GPU-driven effect in the
-    // scene, so it falls right along with any bullet impact or explosion
-    // sharing that pool. This one is its own emitter with its own gravity.
+    // Zero gravity, unlike ParticleEffect's preset which shares ParticleSystem's gravity.
     static void presetDust(ParticleEmitter& emitter);
-    // Same reasoning as presetDust(): a rising plume needs its own near-zero
-    // gravity to keep rising instead of eventually being overtaken by
-    // whatever ParticleSystem's shared gravity is doing for every other GPU
-    // effect in the scene.
+    // Same reasoning as presetDust().
     static void presetSmoke(ParticleEmitter& emitter);
 
 private:
@@ -345,10 +304,7 @@ private:
     bool mLoop = true;
     f32 mEmissionTimer = 0.0f, mTimeAlive = 0.0f, mBurstTimer = 0.0f, mPulseTimer = 0.0f;
     bool mHasEmittedOneShot = false;
-    // Where the owner was the last time emitContinuous() ran, so a batch
-    // spawned this frame can be smeared back along the distance traveled
-    // since then instead of every particle in it landing on the exact same
-    // point - see emitContinuous()'s comment.
+    // Used to smear a frame's batch back along the distance traveled.
     Math::vec3 mLastEmitPosition = Math::vec3(0.0f);
     bool mHasLastEmitPosition = false;
 

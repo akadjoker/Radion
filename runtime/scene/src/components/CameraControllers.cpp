@@ -575,14 +575,7 @@ void ThirdPerson::onUpdate(f32 deltaTime)
     if (!mTarget)
         return;
 
-    // Mouse right turns the view right, mouse up looks up (mInvertY off).
-    // Yaw matches FreeFly::onUpdate() above (both rotate the same way), but
-    // pitch does not: FreeFly rotates its own object directly, while
-    // ThirdPerson orbits a position around the target and looks back at it -
-    // orbitOffset()'s sin(pitch) term puts the camera ABOVE the target as
-    // pitch rises, which looks DOWN, the opposite of FreeFly's own pitch()
-    // call. Matching FreeFly's raw sign here (as an earlier pass did) matched
-    // the input math but inverted the actual view.
+    // Mouse right turns right, up looks up (mInvertY off). Pitch sign differs from FreeFly: ThirdPerson orbits and looks back, and orbitOffset()'s sin(pitch) raises the camera, which looks down.
     const Math::vec2 delta = Input::getMouseDelta();
     mYaw -= delta.x * mLookSpeed;
     mPitch = Math::clamp(mPitch + (mInvertY ? -delta.y : delta.y) * mLookSpeed, mMinPitch, mMaxPitch);
@@ -716,14 +709,8 @@ Math::vec3 ThirdPerson::aimPoint() const
     return mTarget ? mTarget->globalPosition() + Math::vec3(0.0f, mHeightOffset, 0.0f) : Math::vec3(0.0f);
 }
 
-// One swept sphere from the anchor to the desired position - same shape as
-// TrimeshShape::slideCamera() in collision/CollisionShape.cpp, ported onto
-// TriangleOctree::sweepSphere() so this stays in radion_scene without a new
-// link edge to radion_physics. hit.t is the fraction of the way there; a
-// negative t means the anchor itself is already inside something, and the
-// camera stays at the anchor. The contact normal points away from the
-// surface, so nudging along it by the margin keeps the sphere clear instead
-// of grazing it.
+// Swept sphere anchor to desired (same as TrimeshShape::slideCamera()), on TriangleOctree so scene needs no link edge to physics. Negative hit.t: anchor inside something, stay at anchor.
+// Nudging along the normal by the margin keeps the sphere clear.
 Math::vec3 ThirdPerson::collide(const Math::vec3& anchor, const Math::vec3& desired) const
 {
     const Math::vec3 delta = desired - anchor;

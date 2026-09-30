@@ -11,18 +11,14 @@ namespace Radion::Physics
 
 namespace
 {
-// Corner i takes +halfExtents on axis a when bit a of i is set, which is the
-// same numbering the volume mesher uses for a cell's corners.
+// Corner i takes +halfExtents on axis a when bit a of i is set (same numbering as the volume mesher).
 Math::vec3 cornerSign(u32 index)
 {
     return Math::vec3((index & 1) ? 1.0f : -1.0f, (index & 2) ? 1.0f : -1.0f,
                      (index & 4) ? 1.0f : -1.0f);
 }
 
-// Faces in axis order: -x, +x, -y, +y, -z, +z. Each lists its four corners
-// wound so the polygon is convex when walked in order - a face clipped from
-// corners in the wrong order produces a bowtie, which is the same trap the
-// volume mesher's quad case had.
+// Faces in axis order -x,+x,-y,+y,-z,+z; corners wound so the polygon is convex, or a clipped face becomes a bowtie.
 constexpr u8 kFaces[6][4] = {{0, 2, 6, 4}, {1, 5, 7, 3}, {0, 4, 5, 1},
                              {2, 3, 7, 6}, {0, 1, 3, 2}, {4, 6, 7, 5}};
 } // namespace
@@ -33,8 +29,6 @@ void CollisionShape::project(const Math::mat4& transform, const Math::vec3& axis
     minimum = Math::dot(axis, support(transform, -axis));
     maximum = Math::dot(axis, support(transform, axis));
 }
-
-// ------------------------------------------------------------------- sphere
 
 SphereShape::SphereShape(f32 radius) : mRadius(Math::max(radius, 0.0f))
 {
@@ -71,9 +65,7 @@ Math::vec3 SphereShape::support(const Math::mat4& transform, const Math::vec3& d
 void SphereShape::debugDraw(const Math::mat4& transform, Color color) const
 {
     const Math::vec3 center(transform[3]);
-    // The BODY's axes, not the world's. Drawn on world axes a sphere looks
-    // identical however it is turned, so a rolling one reads as a sliding
-    // one - and rolling is exactly what a sphere's debug view is for.
+    // The BODY's axes: on world axes a rolling sphere looks identical to a sliding one.
     const Math::vec3 right = Math::normalize(Math::vec3(transform[0]));
     const Math::vec3 up = Math::normalize(Math::vec3(transform[1]));
     const Math::vec3 forward = Math::normalize(Math::vec3(transform[2]));
@@ -82,8 +74,6 @@ void SphereShape::debugDraw(const Math::mat4& transform, Color color) const
     DebugDraw().circle(center, right, forward, mRadius, segments, color);
     DebugDraw().circle(center, up, forward, mRadius, segments, color);
 }
-
-// ---------------------------------------------------------------------- box
 
 BoxShape::BoxShape(const Math::vec3& halfExtents)
     : mHalfExtents(Math::max(halfExtents, Math::vec3(0.0f)))
@@ -115,9 +105,7 @@ Math::vec3 BoxShape::faceNormal(const Math::mat4& transform, u32 index)
 
 AABB BoxShape::bounds(const Math::mat4& transform) const
 {
-    // The rotated box's AABB, without walking all eight corners: each world
-    // axis reaches as far as the sum of the absolute row of the rotation
-    // times the half extents.
+    // Rotated-box AABB without walking corners: each world axis reaches sum(|row of rotation| * half extents).
     const Math::vec3 center(transform[3]);
     const Math::mat3 rotation(transform);
     const Math::vec3 extent(
@@ -133,8 +121,7 @@ AABB BoxShape::bounds(const Math::mat4& transform) const
 
 Math::vec3 BoxShape::support(const Math::mat4& transform, const Math::vec3& direction) const
 {
-    // The furthest corner is the one whose every local axis agrees in sign
-    // with the direction - no search over eight, three comparisons.
+    // Furthest corner: each local axis agrees in sign with the direction.
     const Math::mat3 rotation(transform);
     const Math::vec3 local = Math::transpose(rotation) * direction;
     const Math::vec3 corner(local.x >= 0.0f ? mHalfExtents.x : -mHalfExtents.x,
@@ -142,8 +129,6 @@ Math::vec3 BoxShape::support(const Math::mat4& transform, const Math::vec3& dire
                            local.z >= 0.0f ? mHalfExtents.z : -mHalfExtents.z);
     return Math::vec3(transform * Math::vec4(corner, 1.0f));
 }
-
-// ------------------------------------------------------------------ capsule
 
 CapsuleShape::CapsuleShape(f32 radius, f32 halfHeight)
     : mRadius(Math::max(radius, 0.0f)), mHalfHeight(Math::max(halfHeight, 0.0f))
@@ -177,7 +162,6 @@ Math::vec3 CapsuleShape::support(const Math::mat4& transform, const Math::vec3& 
 {
     Math::vec3 lower, upper;
     segment(transform, lower, upper);
-    // Whichever end is further along the direction, then out by the radius.
     const Math::vec3 end = Math::dot(direction, upper) >= Math::dot(direction, lower) ? upper : lower;
     const f32 length = Math::length(direction);
     if (length < 1e-8f)
@@ -243,21 +227,16 @@ void CapsuleShape::debugDraw(const Math::mat4& transform, Color color) const
 
     DebugDraw().circle(lower, right, forward, mRadius, segments, color);
     DebugDraw().circle(upper, right, forward, mRadius, segments, color);
-    // Two side lines each way, so the capsule reads as a volume rather than
-    // two loose rings.
     DebugDraw().line(lower + right * mRadius, upper + right * mRadius, color);
     DebugDraw().line(lower - right * mRadius, upper - right * mRadius, color);
     DebugDraw().line(lower + forward * mRadius, upper + forward * mRadius, color);
     DebugDraw().line(lower - forward * mRadius, upper - forward * mRadius, color);
-    // The rounded caps, which is what tells a capsule from a cylinder on
-    // screen - and the difference that matters when it meets a step.
+    // Rounded caps tell a capsule from a cylinder on screen.
     DebugDraw().circle(upper, right, up, mRadius, segments, color);
     DebugDraw().circle(upper, forward, up, mRadius, segments, color);
     DebugDraw().circle(lower, right, up, mRadius, segments, color);
     DebugDraw().circle(lower, forward, up, mRadius, segments, color);
 }
-
-// ----------------------------------------------------------------- segments
 
 Math::vec3 closestPointOnSegment(const Math::vec3& a, const Math::vec3& b, const Math::vec3& point)
 {
@@ -304,14 +283,11 @@ void closestPointsBetweenSegments(const Math::vec3& p1, const Math::vec3& q1, co
         {
             const f32 b = Math::dot(d1, d2);
             const f32 denominator = a * e - b * b;
-            // Zero denominator means the segments are parallel - there is no
-            // single closest pair, so any point on one will do and the other
-            // is clamped to it. Dividing here is the classic crash.
+            // Zero denominator means parallel segments: no single closest pair, so any point on one will do; dividing here crashes.
             s = denominator > epsilon ? Math::clamp((b * f - c * e) / denominator, 0.0f, 1.0f)
                                       : 0.0f;
             t = (b * s + f) / e;
-            // Clamping t can move it off the segment, in which case s has to
-            // be solved again against the clamped t.
+            // Clamping t can move it off the segment, so s is solved again against the clamped t.
             if (t < 0.0f)
             {
                 t = 0.0f;
@@ -438,8 +414,7 @@ bool TriangleShape::featureIsInternal(TriangleFeature feature) const
         return edgeIsShared(1);
     case TriangleFeature::Edge2:
         return edgeIsShared(2);
-    // A vertex is only inside the surface when both edges meeting there are.
-    // One free edge and it is a real corner, which has to push outwards.
+    // A vertex is inside the surface only when both edges meeting there are; one free edge is a real corner and pushes outwards.
     case TriangleFeature::Vertex0:
         return edgeIsShared(2) && edgeIsShared(0);
     case TriangleFeature::Vertex1:
@@ -527,8 +502,7 @@ void TrimeshShape::buildAdjacency()
     if (count == 0)
         return;
 
-    // Every edge, keyed by its two vertex indices in ascending order so the
-    // two triangles that use it in opposite winding still land on one key.
+    // Edges keyed by ascending vertex indices so the two triangles using one in opposite winding share a key.
     struct EdgeOwner
     {
         u64 key;
@@ -562,14 +536,8 @@ void TrimeshShape::buildAdjacency()
         usize end = i + 1;
         while (end < edges.size() && edges[end].key == edges[i].key)
             ++end;
-        // Shared is not enough: the edge also has to be flat or concave.
-        //
-        // A step's lip is shared by the tread and the riser, and it is
-        // CONVEX - the surface turns away there. Treating it as interior
-        // hands a contact the tread's own normal, which points straight up,
-        // and a character walking into the step is lifted onto it however
-        // tall it is. That is a ratchet up any wall built from two surfaces
-        // meeting at an edge. Only flat and concave edges are seams.
+        // Shared is not enough: the edge must be flat or concave. A step's lip is CONVEX; treating it as interior gives the tread's
+        // up normal and lifts a character onto any wall (a ratchet).
         if (end - i == 2)
         {
             const u32 t0 = edges[i].triangle;
@@ -808,9 +776,7 @@ bool TrimeshShape::sweepEllipsoid(const Math::vec3& localCentre, const Math::vec
     if (radii.x <= 0.0f || radii.y <= 0.0f || radii.z <= 0.0f)
         return false;
 
-    // Everything the swept volume could reach: both ends of the path grown by
-    // the largest half-extent. The tree throws away the rest without ever
-    // touching a triangle.
+    // Path ends grown by the largest half-extent; the tree discards the rest without touching a triangle.
     const f32 largest = Math::max(radii.x, Math::max(radii.y, radii.z));
     const Math::vec3 pad(largest + 0.01f);
     AABB swept;
@@ -824,19 +790,13 @@ bool TrimeshShape::sweepEllipsoid(const Math::vec3& localCentre, const Math::vec
     if (candidates.empty())
         return false;
 
-    // Scaled into ellipsoid space the test becomes a unit sphere, which is
-    // the only shape the swept intersections above know how to handle. The
-    // normal scales by radii on the way back, not by 1/radii.
+    // In ellipsoid space the test is a unit sphere (the only shape the swept tests handle); the normal scales by radii on the way back, not 1/radii.
     const Math::vec3 inverseRadii(1.0f / radii.x, 1.0f / radii.y, 1.0f / radii.z);
     const Math::vec3 eCentre = localCentre * inverseRadii;
     const Math::vec3 eVelocity = velocity * inverseRadii;
 
-    // The running best starts at 1.0, not infinity: a hit beyond the end of
-    // the swept segment (t > 1) is not a contact for this query, and the
-    // reference rejects it the same way (nearestDistance >= 1 means no
-    // collision). Without this the sweep reports a wall five units away with
-    // t = 50 as the closest contact, and the slide moves the character all
-    // the way there - the castle's "touch a wall and it flies off".
+    // Running best starts at 1.0, not infinity: a hit beyond the segment (t > 1) is not a contact, or a wall 5 units away
+    // (t = 50) would drive the slide all the way there.
     f32 best = 1.0f;
     bool found = false;
     for (u32 index : candidates)
@@ -852,11 +812,8 @@ bool TrimeshShape::sweepEllipsoid(const Math::vec3& localCentre, const Math::vec
         const Math::vec3 e0 = v0 * inverseRadii;
         const Math::vec3 e1 = v1 * inverseRadii;
         const Math::vec3 e2 = v2 * inverseRadii;
-        // One-sided, from the winding. Orienting the normal towards the
-        // sweeper instead was tried and is much worse: an ellipsoid sitting
-        // slightly inside a surface then flips its contact normal according
-        // to which side the centre landed on, and the character is thrown one
-        // way on one frame and the other way on the next.
+        // One-sided from the winding: orienting the normal towards the sweeper flips the contact normal for an ellipsoid slightly
+        // inside a surface and throws the character back and forth.
         const Math::vec3 eNormal = Math::normalize(Math::normalize(raw) * radii);
 
         f32 t = best;
@@ -885,11 +842,8 @@ Math::vec3 TrimeshShape::slideCamera(const Math::vec3& from, const Math::vec3& t
     if (Math::dot(delta, delta) < 1.0e-6f)
         return to;
 
-    // One swept sphere from the anchor to the desired position. hit.t is the
-    // fraction of the way there; a negative t means the anchor itself is
-    // inside something, and the camera stays at the anchor. The contact
-    // normal points away from the surface, so adding it keeps the sphere
-    // clear instead of grazing it.
+    // hit.t is the fraction of the way; negative means the anchor is inside something and the camera stays put. The normal points
+    // away from the surface, so adding it keeps the sphere clear.
     SweepHit hit;
     if (sweepSphere(from, radius, delta, hit))
     {
@@ -918,9 +872,7 @@ bool TrimeshShape::raycast(const Ray& localRay, f32 maxDistance, RayHit& hit) co
         const Math::vec3& v1 = mVertices[mIndices[base + 1]];
         const Math::vec3& v2 = mVertices[mIndices[base + 2]];
         f32 distance = 0.0f;
-        // The tree hands back whatever boxes the ray crossed, in no
-        // particular order, so every candidate has to be tested and the
-        // nearest kept - stopping at the first hit returns the wrong triangle.
+        // The tree returns crossed boxes unordered: test every candidate and keep the nearest.
         if (!localRay.intersects(v0, v1, v2, distance) || distance >= nearest)
             continue;
         nearest = distance;
@@ -1040,8 +992,6 @@ void TrimeshShape::debugDraw(const Math::mat4& transform, Color color) const
         triangle(i).debugDraw(transform, color);
 }
 
-// ------------------------------------------------------------- convex hull
-
 ConvexHullShape::ConvexHullShape(const Math::vec3* vertices, u32 vertexCount, const Edge* edges,
                                  u32 edgeCount, const int* faces, u32 faceCount)
 {
@@ -1094,9 +1044,7 @@ Math::vec3 ConvexHullShape::support(const Math::mat4& transform, const Math::vec
 
 void ConvexHullShape::debugDraw(const Math::mat4& transform, Color color) const
 {
-    // Every edge is stored twice, once each direction - drawn only from the
-    // half whose own index is the smaller of the pair, so each edge of the
-    // hull is one line and not two overlapping ones.
+    // Edges are stored twice; draw from the half with the smaller own index so each is one line.
     for (usize i = 0; i < mEdges.size(); ++i)
     {
         const Edge& edge = mEdges[i];

@@ -51,14 +51,7 @@ void writeVec4(AssetFormat::Writer& writer, const Math::vec4& value)
     writer.writeF32(value.w);
 }
 
-// True only if `count` records of `recordSize` bytes each actually fit in
-// what is left of the current chunk - checked, not `count * recordSize <=
-// remaining()` directly, since that multiplication can itself overflow for a
-// large enough declared count and wrap around to something that looks small.
-// A small file can otherwise claim a count in the hundreds of millions and
-// have every vector resize() to match before the first read ever fails,
-// which is gigabytes of allocation on nothing but a corrupted or hostile
-// four-byte count.
+// True only if `count` records fit the rest of the chunk; checked without `count * recordSize`, which can overflow, so a hostile count cannot force huge allocations.
 bool fitsChunk(const AssetFormat::Reader& reader, u32 count, u64 recordSize)
 {
     const u64 remaining = reader.remaining();
@@ -115,9 +108,7 @@ static bool readStaticMeshPayload(AssetFormat::Reader& reader, MeshData& mesh,
             return false;
     }
 
-    // Vertex buffer - position always, the rest only if attribFlags says so.
-    // Empty MeshData array means "this mesh does not have it", same
-    // convention the rest of the engine already uses for uvs2.
+    // Position always, the rest per attribFlags; an empty MeshData array means absent (as for uvs2).
     const u32 stride = AssetFormat::vertexAttribStride(attribFlags);
     if (vertexCount == 0 || vertexCount > 100000000 ||
         !fitsChunk(reader, vertexCount, stride))
@@ -141,7 +132,6 @@ static bool readStaticMeshPayload(AssetFormat::Reader& reader, MeshData& mesh,
             return false;
     }
 
-    // Index buffer
     if (indexCount == 0 || indexCount > 300000000 ||
         !fitsChunk(reader, indexCount, index16 ? 2 : 4))
         return false;
@@ -290,7 +280,6 @@ bool RadionMeshImporter::import(const std::string& filename, ByteArray& data, Fi
         return false;
     }
 
-    // Continua como RMSH chunkado
     u32 version = 0;
     u32 flags = 0;
     if (!reader.readU32(version) || !reader.readU32(flags))
@@ -339,10 +328,7 @@ bool RadionMeshImporter::import(const std::string& filename, ByteArray& data, Fi
             const bool hasTangent = (attribFlags & AssetFormat::HasTangent) != 0;
             const bool hasUV = (attribFlags & AssetFormat::HasUV) != 0;
             const bool hasColor = (attribFlags & AssetFormat::HasColor) != 0;
-            // The nominal 100M cap alone is still a multi-gigabyte allocation
-            // attempt on a file that need not contain a single byte of it -
-            // fitsChunk() against the real per-vertex stride is what actually
-            // rejects a corrupt/hostile count.
+            // The 100M cap alone still allows a huge allocation; fitsChunk() against the real stride rejects a hostile count.
             if (!fitsChunk(reader, count, AssetFormat::vertexAttribStride(attribFlags)))
                 return false;
             mesh.positions.resize(count);
@@ -460,12 +446,7 @@ bool saveRadionMesh(const std::string& filename, const MeshData& mesh,
         const bool hasNormal = mesh.normals.size() == mesh.positions.size();
         const bool hasTangent = mesh.tangents.size() == mesh.positions.size();
         const bool hasUV = mesh.uvs.size() == mesh.positions.size();
-        // Unlike the offline exporters (which never had a real source of
-        // per-vertex colour), this path can round-trip through the GPU -
-        // exportMesh() reads back whatever MeshAttribs::color actually
-        // holds, which is real data if anything ever painted it. Dropping
-        // it unconditionally here the way the exporters do would lose it
-        // silently.
+        // Unlike the offline exporters, this path round-trips colour through the GPU (exportMesh() reads back MeshAttribs::color); do not drop it.
         const bool hasColor = mesh.colors.size() == mesh.positions.size();
         u32 attribFlags = 0;
         if (hasNormal)

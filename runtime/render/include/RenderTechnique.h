@@ -6,10 +6,7 @@
 namespace Radion
 {
 
-// A self-contained stage of the frame: owns its shaders and resources and
-// draws when asked. Terrain, grass, trees, particles, ocean and post-process
-// are all this shape, which is what lets the frame be a list of stages
-// assembled at startup instead of fixed code.
+// A self-contained stage of the frame: owns its shaders and resources and draws when asked.
 class RenderTechnique
 {
 public:

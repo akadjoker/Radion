@@ -13,9 +13,6 @@
 namespace Radion
 {
 
-// Drives a VoxelStreamer from a GameObject's position and turns the chunk
-// meshes it hands back into renderables. The world itself, its generation and
-// its edits live in the voxel module; this component only bridges to Scene.
 class VoxelWorldComponent final : public Component
 {
 public:
@@ -26,9 +23,7 @@ public:
     s32 chunkRadius() const { return mChunkRadius; }
     void setChunkRadius(s32 radius);
 
-    // Terrain shape. Every setter here only marks the generator for a rebuild;
-    // the world is dropped and streamed back once per frame, so dragging a
-    // slider across a range costs one rebuild instead of one per frame.
+    // Every setter only marks the generator for a rebuild, done once per frame, so a slider drag costs one rebuild per frame at most.
     const Voxel::VoxelTerrain::Settings& terrainSettings() const { return mTerrain; }
     void setTerrainSettings(const Voxel::VoxelTerrain::Settings& settings);
 
@@ -36,9 +31,7 @@ public:
     void setMinWorldY(s32 value);
     s32 maxWorldY() const { return mTerrain.maxWorldY; }
     void setMaxWorldY(s32 value);
-    // Both at once, clamped against each other rather than against whatever
-    // the component happens to hold: reading a saved world back one field at a
-    // time is otherwise clamped by the value not yet read.
+    // Clamped against each other, not the current values, so a saved world can be read back one field at a time.
     void setWorldHeightRange(s32 minValue, s32 maxValue);
     s32 waterLevel() const { return mTerrain.waterLevel; }
     void setWaterLevel(s32 value);
@@ -85,15 +78,11 @@ public:
     bool flat() const { return mTerrain.flat; }
     void setFlat(bool enabled);
 
-    // The block palette, by atlas tile. A project defines what a world is made
-    // of here rather than in code: the generator only ever asks the registry
-    // for "grass", "stone" and the rest by name, so renaming or retiling a
-    // block needs no rebuild.
+    // Palette by atlas tile; the generator asks the registry by name, so renaming or retiling needs no rebuild.
     usize blockCount() const;
     const Voxel::BlockDefinition* blockDefinition(Voxel::BlockId id) const;
     Voxel::BlockId addBlock(const Voxel::BlockDefinition& definition);
-    // Rewrites one definition in place, keeping its id and so every block
-    // already placed in the world. Remeshes what is loaded.
+    // Keeps the id, so blocks already placed stay. Remeshes what is loaded.
     bool setBlockDefinition(Voxel::BlockId id, const Voxel::BlockDefinition& definition);
     void resetBlocksToDefault();
 
@@ -120,9 +109,7 @@ public:
     const std::string& atlasFile() const { return mAtlasFile; }
     void setAtlasFile(const std::string& file);
 
-    // A saved world is its seed plus the blocks somebody changed. The terrain
-    // comes back from the settings the scene already carries; these are the
-    // edits, written beside the scene the way Terrain writes its heightmap.
+    // A saved world is its seed plus the changed blocks; terrain comes back from the scene's settings.
     const std::string& editsFile() const { return mEditsFile; }
     void setEditsFile(const std::string& file) { mEditsFile = file; }
     bool saveEdits(const char* filename);
@@ -137,25 +124,18 @@ public:
     Voxel::VoxelStreamer& streamer() { return mStreamer; }
     void regenerate();
 
-    // Editing, in world block coordinates. A ray that hits nothing loaded
-    // leaves `hit` untouched and returns false.
+    // World block coordinates. A ray that hits nothing loaded leaves `hit` untouched and returns false.
     bool raycast(const Math::vec3& origin, const Math::vec3& direction, f32 maxDistance,
                  Voxel::VoxelRaycastHit& hit) const;
-    // Adds a block in the empty cell against the face that was hit: aim at the
-    // top of one and it stacks, aim at a side and it butts against it.
+    // Adds in the empty cell against the hit face.
     bool placeBlock(const Voxel::VoxelRaycastHit& hit, Voxel::BlockId block);
-    // Rewrites the block that was hit, adding nothing. What a builder wants
-    // for changing the material of a wall already standing.
+    // Rewrites the hit block, adding nothing.
     bool replaceBlock(const Voxel::VoxelRaycastHit& hit, Voxel::BlockId block);
     bool removeBlock(const Voxel::VoxelRaycastHit& hit);
     Voxel::BlockId blockIdByName(const std::string& name) const;
-    // World-space bounds of one block, for a selection outline or a hit test.
     static AABB blockBounds(Voxel::VoxelCoord block);
 
-    // Moves an axis-aligned body through the blocks, resolving one axis at a
-    // time. Nothing is meshed for this: the grid is the collision geometry,
-    // so breaking a block changes what the body can walk through in the same
-    // frame.
+    // Resolves one axis at a time against the grid itself, so breaking a block changes walkable space the same frame.
     Voxel::VoxelMoveResult moveBox(const Math::vec3& position, const Math::vec3& halfExtents,
                                    const Math::vec3& displacement) const;
     bool boxOverlaps(const Math::vec3& position, const Math::vec3& halfExtents) const;
@@ -195,9 +175,7 @@ private:
     Voxel::VoxelTerrain::Settings mTerrain;
     Voxel::VoxelMesher::Settings mMesher;
     bool mTerrainDirty = false;
-    // Rebuilding drops every loaded chunk, so it waits for the settings to
-    // stop moving: dragging a slider is one rebuild when the drag ends, not
-    // one per frame it passes through.
+    // Rebuilding drops every loaded chunk, so it waits for the settings to stop moving.
     u64 mTerrainDirtyUpdate = 0;
     u64 mUpdateCounter = 0;
     u32 mSeed = 1337;

@@ -16,8 +16,6 @@
 namespace Radion
 {
 
-// ── helpers ──────────────────────────────────────────────────────────────
-
 static inline u8 clamp_to_byte(int value)
 {
     return static_cast<u8>(value < 0 ? 0 : (value > 255 ? 255 : value));
@@ -217,8 +215,6 @@ static bool save_tga(const Pixmap& pm, const char* fn)
     return true;
 }
 
-// ── constructors / destructor ────────────────────────────────────────────
-
 Pixmap::Pixmap() : pixels(nullptr), components(0), width(0), height(0)
 {
 }
@@ -260,8 +256,6 @@ Pixmap::Pixmap(int w, int h, int comp, unsigned char* data) : components(comp), 
     memcpy(pixels, data,
            static_cast<size_t>(w) * static_cast<size_t>(h) * static_cast<size_t>(comp));
 }
-
-// ── pixel ops ────────────────────────────────────────────────────────────
 
 void Pixmap::set_pixel(u32 x, u32 y, u8 r, u8 g, u8 b, u8 a)
 {
@@ -350,8 +344,6 @@ Color Pixmap::get_pixel_color(u32 x, u32 y) const
     return Color(r, g, b, a);
 }
 
-// ── fill ──────────────────────────────────────────────────────────────────
-
 void Pixmap::fill(u8 r, u8 g, u8 b, u8 a)
 {
     for (int y = 0; y < height; y++)
@@ -374,12 +366,9 @@ void Pixmap::clear()
                    static_cast<size_t>(components));
 }
 
-// ── file I/O ──────────────────────────────────────────────────────────────
-
 bool Pixmap::load(const char* fn)
 {
-    // resolve through the filesystem so registered search folders apply
-    // (demos run from any working directory)
+    // Resolve through the filesystem so registered search folders apply.
     ByteArray data = FileSystem::getSingleton().readBinary(fn);
     if (data.size() == 0)
     {
@@ -447,8 +436,6 @@ bool Pixmap::save(const char* fn)
         log_err("Unsupported format", fn);
     return ok;
 }
-
-// ── transforms ────────────────────────────────────────────────────────────
 
 void Pixmap::flip_vertical()
 {
@@ -520,8 +507,6 @@ Pixmap* Pixmap::resize(int nw, int nh) const
                          get_pixel((x * width) / nw, (y * height) / nh));
     return r;
 }
-
-// ── drawing ───────────────────────────────────────────────────────────────
 
 void Pixmap::draw_line(int x1, int y1, int x2, int y2, const Color& color)
 {
@@ -799,8 +784,6 @@ void Pixmap::draw_pixmap_blended(const Pixmap& src, int x, int y, const IntRect&
         }
 }
 
-// ── copy ──────────────────────────────────────────────────────────────────
-
 void Pixmap::copy_region(const Pixmap& src, const IntRect& sr, int dx, int dy)
 {
     if (!src.pixels || !pixels)
@@ -838,8 +821,6 @@ void Pixmap::copy_region(const Pixmap& src, const IntRect& sr, int dx, int dy)
         }
 }
 
-// ── color ops ─────────────────────────────────────────────────────────────
-
 void Pixmap::replace_color(const Color& from, const Color& to, float threshold)
 {
     if (!pixels)
@@ -872,8 +853,6 @@ void Pixmap::set_color_key(const Color& key, float threshold)
                 set_pixel(static_cast<u32>(x), static_cast<u32>(y), c.r(), c.g(), c.b(), 0);
         }
 }
-
-// ── filters ───────────────────────────────────────────────────────────────
 
 Pixmap* Pixmap::apply_blur(int radius) const
 {
@@ -1023,8 +1002,6 @@ Pixmap* Pixmap::apply_emboss() const
     return r;
 }
 
-// ── texture generation ───────────────────────────────────────────────────
-
 Pixmap* Pixmap::generate_heightmap() const
 {
     if (!pixels)
@@ -1046,9 +1023,7 @@ Pixmap* Pixmap::generate_normal_map(float strength) const
     if (!pixels)
         return nullptr;
     Pixmap* r = new Pixmap(width, height, 4);
-    // Same Sobel kernels apply_edge_detection() already uses - there the
-    // gradient magnitude IS the output; here gx/gy are the surface slope
-    // along each axis, which is what a normal actually needs.
+    // Same Sobel kernels as apply_edge_detection(); here gx/gy are the surface slope per axis.
     float sx[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
     float sy[3][3] = {{-1, -2, -1}, {0, 0, 0}, {1, 2, 1}};
     for (int y = 0; y < height; y++)
@@ -1082,8 +1057,6 @@ Pixmap* Pixmap::generate_normal_map(float strength) const
         }
     return r;
 }
-
-// ── crop ──────────────────────────────────────────────────────────────────
 
 Pixmap* Pixmap::crop(const IntRect& rect) const
 {

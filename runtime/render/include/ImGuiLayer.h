@@ -26,33 +26,24 @@ public:
     void update();
     void drawProfiler(const GPUStats& gpu, const RenderListStats& renderList);
     void drawProfilerContents(const GPUStats& gpu, const RenderListStats& renderList);
-    // resolution is read and written in place; the caller clamps and applies
-    // it, since it belongs to the engine and not to the stack.
-    // volumetric is null until the renderer that owns it exists; the panel
-    // just skips the section in that case.
+    // resolution is read and written in place; the caller clamps and applies it.
+    // volumetric may be null; the panel then skips that section.
     void drawPostProcess(PostProcessStack& post, RenderResolution& resolution,
                          VolumetricPass* volumetric);
     void drawPostProcessContents(PostProcessStack& post, RenderResolution& resolution,
                                  VolumetricPass* volumetric);
     void drawSky(SkySettings& sky);
     void drawSkyContents(SkySettings& sky);
-    // Whether a panel is under the pointer or holding keyboard focus this
-    // frame. Anything that reads the mouse or the keyboard for the game
-    // itself has to ask first, or a click on a panel also lands in the world
-    // behind it.
+    // Whether a panel is under the pointer or has keyboard focus; game input must check first.
     bool wantsMouse() const;
     bool wantsKeyboard() const;
-    // NewFrame() still runs when Engine hides ImGui so user code may safely
-    // build optional UI. A hidden frame must nevertheless be ended, or the
-    // next NewFrame() asserts before the game gets to its second update.
+    // A hidden frame must still be ended, or the next NewFrame() asserts.
     void endFrame();
     void flip();
 
 private:
     Platform::Window* mWindow = nullptr;
-    // The header line is read off the window and the device rather than the
-    // profiler's samples, so it needs its own hold to change on the same
-    // cadence as the tables below it - see ProfileSample::display.
+    // Own hold so the header refreshes on the same cadence as the tables (see ProfileSample::display).
     f64 mHeaderRefresh = 0.0;
     f32 mHeaderFrameMilliseconds = 0.0f;
     f32 mHeaderGpuMilliseconds = 0.0f;

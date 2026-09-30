@@ -34,18 +34,13 @@ Material makeVoxelMaterial(const std::string& atlasFile, VoxelPass pass)
     material.flags |= MaterialLit | MaterialVoxelAtlas;
     material.textures[SlotAlbedo].file = atlasFile;
     material.textures[SlotAlbedo].source = TextureSource::Static;
-    // No mips and point sampling: any filtering across a tile edge pulls in
-    // the neighbouring block's texture, and a half-texel inset cannot fix a
-    // mip level whose texel spans several tiles.
+    // No mips, point sampling: filtering across a tile edge pulls in the neighbour's texture, and a half-texel inset cannot fix a mip whose texel spans several tiles.
     material.textures[SlotAlbedo].texture =
         Assets().loadTexture(atlasFile, ColorSpace::sRGB, false, 1);
     SamplerDesc sampler;
     sampler.filter = Filter::Point;
     material.textures[SlotAlbedo].sampler = Assets().getSampler(sampler);
-    // The tile the mesher wrote into uv2 covers this much of the atlas, and
-    // lit.frag's VOXEL_ATLAS path maps each face's tiled uv inside it. Left at
-    // zero the whole face samples the tile's first texel and every block comes
-    // out flat.
+    // The mesher's uv2 tile covers this much of the atlas and lit.frag's VOXEL_ATLAS maps each face's tiled uv inside it; at zero every block comes out flat.
     material.params.custom0 =
         Math::vec4(1.0f / static_cast<f32>(AtlasColumns), 1.0f / static_cast<f32>(AtlasRows),
                   0.0f, 0.0f);
@@ -53,14 +48,10 @@ Material makeVoxelMaterial(const std::string& atlasFile, VoxelPass pass)
     if (pass == VoxelPass::Transparent)
     {
         material.flags |= MaterialNoDepthWrite;
-        // Water sits at alpha 129 of 255 in the atlas, a texel above the
-        // default cutoff. Blended geometry has no business being alpha tested
-        // at all, and leaving it at 0.5 puts the whole ocean one authored
-        // texel away from disappearing.
+        // Water sits at alpha 129/255, a texel above the default cutoff: blended geometry must not be alpha tested, or the ocean is one texel from vanishing.
         material.params.surface.z = 0.0f;
     }
-    // Leaves keep depth and sort with the opaque geometry; only the texels the
-    // atlas leaves empty are dropped.
+    // Leaves keep depth and sort with opaque geometry; only empty atlas texels are dropped.
     if (pass == VoxelPass::Cutout)
         material.flags |= MaterialAlphaTest;
     return material;
@@ -380,8 +371,7 @@ void VoxelWorldComponent::setAmbientOcclusion(bool enabled)
         return;
     mMesher.ambientOcclusion = enabled;
     mStreamer.setMesherSettings(mMesher);
-    // Meshes already built keep the shading they were built with, so the
-    // world has to come back through the mesher for this to show.
+    // Built meshes keep their old shading; the world must go back through the mesher.
     markTerrainDirty();
 }
 
@@ -528,8 +518,7 @@ void VoxelWorldComponent::onStart()
 
 void VoxelWorldComponent::onUpdate(f32)
 {
-    // One row for the whole of it: streaming, unloading and the GPU uploads.
-    // The breakdown only earns a slot back when this one starts showing.
+    // One row for streaming, unloading and uploads.
     RADION_PROFILE_SCOPE("Voxel");
 
     ++mUpdateCounter;
@@ -541,8 +530,7 @@ void VoxelWorldComponent::onUpdate(f32)
 
     mStreamer.update();
 
-    // Budgeted like the uploads: dropping the view radius from twenty-seven to
-    // six otherwise destroys thousands of objects and meshes inside one frame.
+    // Budgeted like the uploads: dropping the view radius from 27 to 6 would destroy thousands of objects in one frame.
     Voxel::ChunkCoord unloaded;
     u32 destroyed = 0;
     while (destroyed < mMaxUnloadsPerFrame && mStreamer.popUnloadedChunk(unloaded))
@@ -701,8 +689,7 @@ bool VoxelWorldComponent::loadEdits(const char* filename)
     }
 
     mEditsFile = filename;
-    // Chunks already in memory were built before these edits existed, so the
-    // world has to stream back through the generator to pick them up.
+    // Chunks in memory predate these edits; stream back through the generator.
     markTerrainDirty();
     return true;
 }

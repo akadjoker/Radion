@@ -1,7 +1,3 @@
-// MeshOptimizeTests.cpp - CPU-side mesh optimization passes on MeshData:
-// weld, vertex cache / overdraw / vertex fetch reorder, and simplification.
-// Nothing here touches the GPU.
-
 #include "PCH.h"
 
 #include "AssetManager.h"
@@ -40,8 +36,7 @@ bool indicesValid(const MeshData& mesh)
     return true;
 }
 
-// The set of triangles by vertex position, winding-normalized by rotating the
-// smallest corner first - index reordering passes must preserve it exactly.
+// Triangle set by position, smallest corner first; reorder passes must preserve it exactly.
 std::multiset<std::array<f32, 9>> triangleSet(const MeshData& mesh)
 {
     std::multiset<std::array<f32, 9>> set;
@@ -61,8 +56,6 @@ std::multiset<std::array<f32, 9>> triangleSet(const MeshData& mesh)
     return set;
 }
 
-// A flat XZ grid emitted OBJ-style: every quad writes its own four corners,
-// so shared corners are duplicated - exactly what weld exists to clean up.
 MeshData makeGridWithDuplicates(u32 quads)
 {
     MeshData mesh;
@@ -98,10 +91,9 @@ void testWeld()
     MeshData mesh = makeGridWithDuplicates(4);
 
     const auto before = triangleSet(mesh);
-    const usize beforeVerts = mesh.positions.size(); // 64
+    const usize beforeVerts = mesh.positions.size();
     const u32 removed = assets.weldVertices(mesh);
 
-    // A 4x4 quad grid has 25 unique corners.
     CHECK(removed == beforeVerts - 25);
     CHECK(mesh.positions.size() == 25);
     CHECK(mesh.normals.size() == 25);
@@ -109,7 +101,6 @@ void testWeld()
     CHECK(indicesValid(mesh));
     CHECK(triangleSet(mesh) == before);
 
-    // Welding an already-welded mesh removes nothing.
     CHECK(assets.weldVertices(mesh) == 0);
 }
 
@@ -126,7 +117,6 @@ void testIndexReorderPasses()
     assets.optimizeVertexCache(mesh);
     assets.optimizeOverdraw(mesh, 1.05f);
 
-    // Pure index reorders: same triangles, same vertices, same ranges.
     CHECK(triangleSet(mesh) == before);
     CHECK(mesh.positions == positionsBefore);
     CHECK(mesh.submeshes.size() == submeshesBefore.size());
@@ -134,8 +124,6 @@ void testIndexReorderPasses()
     CHECK(mesh.submeshes[0].indexCount == submeshesBefore[0].indexCount);
     CHECK(indicesValid(mesh));
 
-    // Vertex fetch reorders the streams and drops unreferenced vertices; an
-    // extra orphan vertex must disappear.
     mesh.positions.push_back(Math::vec3(99.0f, 99.0f, 99.0f));
     mesh.normals.push_back(Math::vec3(0.0f, 1.0f, 0.0f));
     mesh.uvs.push_back(Math::vec2(0.0f, 0.0f));
@@ -154,11 +142,10 @@ void testSimplify()
     assets.weldVertices(mesh);
     assets.computeBounds(mesh);
 
-    const usize beforeTris = mesh.indices.size() / 3; // 512
+    const usize beforeTris = mesh.indices.size() / 3;
     f32 reachedError = -1.0f;
     CHECK(assets.simplifyMesh(mesh, 0.25f, 0.05f, &reachedError));
 
-    // A flat plane collapses essentially for free.
     CHECK(mesh.indices.size() / 3 < beforeTris / 2);
     CHECK(reachedError >= 0.0f);
     CHECK(reachedError <= 0.05f);
@@ -168,13 +155,11 @@ void testSimplify()
     CHECK(mesh.submeshes[0].indexCount == mesh.indices.size());
     CHECK(mesh.indices.size() % 3 == 0);
 
-    // Compaction afterwards drops the vertices simplification orphaned.
     const usize vertsBeforeFetch = mesh.positions.size();
     assets.optimizeVertexFetch(mesh);
     CHECK(mesh.positions.size() < vertsBeforeFetch);
     CHECK(indicesValid(mesh));
 
-    // Degenerate input fails instead of crashing.
     MeshData empty;
     CHECK(!assets.simplifyMesh(empty, 0.5f, 0.01f, nullptr));
 }

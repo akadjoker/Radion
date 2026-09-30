@@ -133,16 +133,9 @@ void SettingsPanel::onImGui()
         ImGui::TextDisabled("(%zu candidate)", scene.lastOcclusionCandidateCount());
     }
 
-    // Theme moved to Windows > Theme - not a scene/render setting, it has
-    // nothing to do with anything else on this panel.
     if (ImGui::CollapsingHeader("Sky"))
     {
-        // drawSkyContents()/drawPostProcessContents() below are also each
-        // their own standalone ImGui::Begin("Sky")/Begin("Post Process")
-        // window elsewhere (Engine::flip()'s built-in overlay) - fine there,
-        // since a window name is its own ID scope, but embedded side by side
-        // in this one panel their identical "Enabled" checkboxes collide
-        // without a push of their own.
+        // Sky/PostProcess contents are also standalone windows elsewhere; embedded here their "Enabled" checkboxes need their own ID push.
         ImGui::PushID("Sky");
         engine.drawSkyContents();
         ImGui::PopID();
@@ -304,11 +297,7 @@ void SettingsPanel::onImGui()
             };
 
             ImGui::TextUnformatted("Directional quality");
-            // ##shadowQuality: CollapsingHeader does not push an ID scope
-            // for its own contents (unlike TreeNode) - "Fast"/"Balanced" here
-            // and "Editor Preview"'s own Fast/Balanced buttons above land in
-            // the same window-level ID stack and collide the moment both
-            // headers are open at once.
+            // ##shadowQuality: CollapsingHeader pushes no ID scope, so the Fast/Balanced labels would collide with the ones above.
             if (ImGui::Button("Fast##shadowQuality"))
             {
                 applyDirectionalProfile(2, 1024, 75.0f, 0);
@@ -332,10 +321,7 @@ void SettingsPanel::onImGui()
             {
                 if (ImGui::TreeNode("Cascade layout"))
                 {
-                    // Three shadow modes, no others (light_3d.cpp:583, and
-                    // renderer_scene_cull.cpp:2167-2177): Orthogonal, 2 splits,
-                    // 4 splits. A free 1..4 slider offered a 3 that the
-                    // calculator turns back into 2 without saying so.
+                    // Only three modes exist (light_3d.cpp:583): Orthogonal, 2 splits, 4 splits; a free 1..4 slider offered a 3 that becomes 2.
                     static const u32 kSplitCounts[3] = {1, 2, 4};
                     const char* splitNames[] = {"Orthogonal (1)", "2 Splits", "4 Splits"};
                     int splitIndex = shadows->count >= 4 ? 2 : (shadows->count <= 1 ? 0 : 1);
@@ -353,12 +339,7 @@ void SettingsPanel::onImGui()
                     if (ImGui::Combo("Resolution##cascades", &resolutionIndex, resolutionNames, 4))
                         shadows->resolution = resolutionValues[resolutionIndex];
 
-                    // Only the offsets this mode actually reads are shown, as in
-                    // DirectionalLight3D::_validate_property (light_3d.cpp:559-
-                    // 570): one split reads none of them, two reads only the
-                    // first, and distances[splits] = max_distance overwrites the
-                    // rest. Showing a slider that changes nothing is what makes
-                    // these hard to set.
+                    // Show only offsets this mode reads (DirectionalLight3D::_validate_property, light_3d.cpp:559-570).
                     static const char* kSplitLabels[3] = {"Split 1", "Split 2", "Split 3"};
                     const u32 usedSplits =
                         shadows->count >= 4 ? 3u : (shadows->count <= 1 ? 0u : 1u);
@@ -387,9 +368,7 @@ void SettingsPanel::onImGui()
                             "Shadow distance", &shadows->distance, 1.0f, 1000.0f, "%.0f",
                             ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
                     }
-                    // Hidden with a single split, for the same reason and in the
-                    // same place as split 1 (light_3d.cpp:561-564): there is no
-                    // second cascade to blend into.
+                    // Hidden with a single split: no second cascade to blend into (light_3d.cpp:561-564).
                     if (shadows->count > 1)
                         ImGui::Checkbox("Blend cascades", &shadows->blend);
 
@@ -412,9 +391,6 @@ void SettingsPanel::onImGui()
                                              : texelsPerUnit > 6.0f
                                                  ? ImVec4(0.9f, 0.8f, 0.4f, 1.0f)
                                                  : ImVec4(0.9f, 0.45f, 0.35f, 1.0f);
-                        // The band each cascade actually covers, so the three
-                        // offsets above read as distances rather than as
-                        // fractions to guess at.
                         const f32 bandNear = cascade == 0 ? 0.0f : engine.cascadeSplit(cascade - 1);
                         const f32 bandFar = engine.cascadeSplit(cascade);
                         ImGui::TextColored(color, "%u: %.1f-%.1f m, %.1f units, %.1f texels/unit",

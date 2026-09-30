@@ -56,9 +56,7 @@ const char* debugTypeName(GLenum type)
     }
 }
 
-// Severity picks the log level rather than everything arriving as an error:
-// a performance hint and undefined behaviour were indistinguishable before,
-// so the ones that matter drowned in the ones that do not.
+// Severity picks the log level, so performance hints don't drown real undefined-behaviour reports.
 void GLAPIENTRY onDebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei,
                                const GLchar* message, const void*)
 {
@@ -105,8 +103,7 @@ bool initializeGPUContext(const Platform::Window& window, GPUCaps& caps)
     {
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        // Keep a debug context useful without turning the terminal into a
-        // frame-time cost: only API errors reach the callback.
+        // Only API errors reach the callback, keeping a debug context cheap.
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_FALSE);
         glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_ERROR, GL_DONT_CARE, 0, nullptr,
                       GL_TRUE);

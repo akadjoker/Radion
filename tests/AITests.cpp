@@ -1,12 +1,3 @@
-// AITests.cpp - smoke tests for the AI code that used to be radion_ai
-// (runtime/ai), now folded into radion_scene as Radion::Agent + the
-// steering/pathfinding/state-machine support it drives.
-//
-// Covers the subsystems: state machine, waypoint network A*, grid A*,
-// flocking, steering (seek/flee/wander/obstacle avoidance) and the squad
-// glue that ties them together - driven through Scene + GameObject + Agent
-// instead of the old World/Group/Entity tree.
-
 #include "PCH.h"
 
 #include "AI.h"
@@ -42,7 +33,6 @@ bool near(const Math::vec3& a, const Math::vec3& b, float epsilon = 0.0001f)
     return Math::length(a - b) <= epsilon;
 }
 
-// A visibility functor that rejects everything (forces path generation).
 struct NoVisibility final : WaypointVisibility
 {
     bool isVisible(const Math::vec3&, const Math::vec3&) const override
@@ -62,9 +52,7 @@ Agent::Settings defaultAgentSettings()
     return s;
 }
 
-// Agent's constructor is private (GameObject::addComponent<Agent>() only),
-// so every agent in these tests is a Component on its own GameObject -
-// replaces `new Entity(world, settings)` + `group->add(*e)`.
+// Agent's constructor is private (addComponent<Agent>() only), so each agent is a Component on its own GameObject.
 Agent* makeAgent(Scene& scene, const Agent::Settings& settings, const char* name = "agent")
 {
     GameObject* object = scene.createGameObject(name);
@@ -72,8 +60,6 @@ Agent* makeAgent(Scene& scene, const Agent::Settings& settings, const char* name
     agent->applySettings(settings);
     return agent;
 }
-
-// --- State machine ----------------------------------------------------------
 
 void testStateMachine()
 {
@@ -105,26 +91,23 @@ void testStateMachine()
     machine.reset();
     CHECK(machine.currentState() == idle);
 
-    machine.iterate(); // Idle -> Counting
+    machine.iterate();
     CHECK(machine.currentState() == counting);
 
-    machine.iterate(); // tick 1
-    machine.iterate(); // tick 2
+    machine.iterate();
+    machine.iterate();
     CHECK(machine.currentState() == counting);
     CHECK(ticks == 2);
 
-    machine.iterate(); // tick 3 -> Done
+    machine.iterate();
     CHECK(machine.currentState() == done);
     CHECK(ticks == 3);
 }
-
-// --- Waypoint network A* ----------------------------------------------------
 
 void testWaypointNetwork()
 {
     WaypointNetwork network;
 
-    // Linear chain A-B-C-D.
     Waypoint* a =
         new Waypoint(Math::vec3(0.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
     Waypoint* b =
@@ -137,7 +120,7 @@ void testWaypointNetwork()
     CHECK(network.addWaypoint(b));
     CHECK(network.addWaypoint(c));
     CHECK(network.addWaypoint(d));
-    CHECK(!network.addWaypoint(a)); // duplicate id rejected
+    CHECK(!network.addWaypoint(a));
 
     a->addEdge(NetworkEdge{b->id()});
     b->addEdge(NetworkEdge{a->id()});
@@ -152,33 +135,26 @@ void testWaypointNetwork()
     CHECK(path.front() == a->id());
     CHECK(path.back() == d->id());
 
-    // Same endpoint trivially succeeds.
     Path selfPath;
     CHECK(network.findPath(b->id(), b->id(), selfPath));
     CHECK(selfPath.size() == 1);
 
-    // Position-based search (everything visible).
     Path posPath;
     CHECK(network.findPath(Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(30.0f, 0.0f, 0.0f),
                            WaypointVisibility(), posPath));
     CHECK(posPath.size() == 4);
 
-    // Nothing visible -> no valid waypoint -> search fails.
     Path noPath;
     CHECK(!network.findPath(Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(30.0f, 0.0f, 0.0f),
                             NoVisibility(), noPath));
 
-    // Closed edge makes A-D unreachable.
-    b->edges()[1].open = false; // close B->C
+    b->edges()[1].open = false;
     Path blockedPath;
     CHECK(!network.findPath(a->id(), d->id(), blockedPath));
 }
 
-// --- Grid A* ----------------------------------------------------------------
-
 void testGridPathfinder()
 {
-    // 10x10 grid with a vertical wall at x=5 (y 1..8); route around it.
     GridMap grid(10);
     for (int y = 1; y <= 8; ++y)
         grid.setBlocked(5, y);
@@ -192,20 +168,16 @@ void testGridPathfinder()
     for (const GridCellCoord& cell : path)
         CHECK(!grid.isBlocked(cell.x, cell.y));
 
-    // Start == goal.
     std::vector<GridCellCoord> same;
     CHECK(finder.findPath(3, 3, 3, 3, same));
     CHECK(same.size() == 1);
 
     // No cutting through the seam where two blocked cells meet at a corner.
-    // The only opening between (1,1) and (2,2) is that diagonal seam:
     //
     //     . . .          (2,1) blocked
     //     . s #          (1,2) blocked
     //     . # g          s = start (1,1), g = goal (2,2)
     //
-    // A route that steps straight from s to g is legal cell by cell and
-    // walks through the corner where the two walls touch.
     {
         GridMap seam(4);
         seam.setBlocked(2, 1);
@@ -216,8 +188,6 @@ void testGridPathfinder()
         const bool found = seamFinder.findPath(1, 1, 2, 2, through);
         if (found)
         {
-            // Whatever route it took, no step may be a diagonal between two
-            // blocked cells.
             for (usize i = 1; i < through.size(); ++i)
             {
                 const int dx = through[i].x - through[i - 1].x;
@@ -229,12 +199,10 @@ void testGridPathfinder()
                 }
             }
         }
-        // It has to go the long way round, so more than the two cells a
-        // corner cut would have produced.
+        // Must go the long way round, more than the two cells a corner cut would take.
         CHECK(!found || through.size() > 2);
     }
 
-    // Fully enclosed goal (all 8 neighbours blocked) -> unreachable.
     GridMap enclosed(5);
     const int cx = 2, cy = 2;
     for (int dx = -1; dx <= 1; ++dx)
@@ -246,8 +214,6 @@ void testGridPathfinder()
     CHECK(!enclosedFinder.findPath(0, 0, cx, cy, none));
 }
 
-// --- Flocking ---------------------------------------------------------------
-
 void testFlocking()
 {
     Scene scene;
@@ -256,23 +222,17 @@ void testFlocking()
     Agent* a = makeAgent(scene, settings, "a");
     Agent* b = makeAgent(scene, settings, "b");
     Agent* c = makeAgent(scene, settings, "c");
-    // Registers a/b/c with the Scene (GameObject::add() is deferred) before
-    // any per-agent state is set - the flush itself runs one behavior-less
-    // update() per agent, so doing it before positions/behaviors exist keeps
-    // it a no-op rather than an extra, uncounted simulation step.
+    // Register a/b/c with the Scene (add() is deferred) before per-agent state is set, so the flush's behavior-less update() stays a no-op.
     scene.update(0.0f);
 
     a->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     b->setPosition(Math::vec3(3.0f, 0.0f, 0.0f));
     c->setPosition(Math::vec3(1.5f, 0.0f, 2.5f));
-    // Same flock: groupId() replaces AI::Group membership (0 means "no group").
     a->setGroupId(1);
     b->setGroupId(1);
     c->setGroupId(1);
 
-    // Behaviors are owned per-agent now (Agent::addBehavior()), so each
-    // needs its own instance - a single shared one would be double-deleted
-    // when more than one owner's destructor ran.
+    // Behaviors are owned per-agent: a shared instance would be double-deleted.
     for (Agent* e : {a, b, c})
     {
         e->addBehavior<SeparationBehavior>(4.0f, 0.2f, 1.0f);
@@ -281,14 +241,11 @@ void testFlocking()
         e->addBehavior<StayWithinSphereBehavior>(Math::vec3(0.0f, 0.0f, 0.0f), 20.0f);
     }
 
-    // The three start separated; after one step every agent should have a
-    // non-zero desired move (it sensed its flockmates).
     scene.updateAgents(0.016f);
     CHECK(Math::length(a->desiredMove()) > 0.0f);
     CHECK(Math::length(b->desiredMove()) > 0.0f);
     CHECK(Math::length(c->desiredMove()) > 0.0f);
 
-    // Run a while; the sim must stay finite and the flock roughly together.
     for (int i = 0; i < 300; ++i)
         scene.updateAgents(0.016f);
 
@@ -299,11 +256,9 @@ void testFlocking()
     CHECK(Math::length(b->position() - c->position()) < 12.0f);
     CHECK(Math::length(a->position() - Math::vec3(0.0f, 0.0f, 0.0f)) < 25.0f);
 }
-// --- grid search algorithms ------------------------------------------------
 
 void testGridAlgorithms()
 {
-    // 10x10 grid with a vertical wall at x=5 (y 1..8); the path must go around.
     GridMap grid(10);
     for (int y = 1; y <= 8; ++y)
         grid.setBlocked(5, y);
@@ -324,14 +279,12 @@ void testGridAlgorithms()
             CHECK(!grid.isBlocked(cell.x, cell.y));
     }
 }
-// --- Squad glue -------------------------------------------------------------
 
 void testSquadMovement()
 {
     Scene scene;
     Agent::Settings settings = defaultAgentSettings();
 
-    // Simple two-waypoint network far along +X.
     WaypointNetwork network;
     Waypoint* wpStart =
         new Waypoint(Math::vec3(0.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
@@ -348,7 +301,7 @@ void testSquadMovement()
 
     Agent* leader = makeAgent(scene, settings, "leader");
     Agent* member = makeAgent(scene, settings, "member");
-    scene.update(0.0f); // register both before configuring them
+    scene.update(0.0f);
 
     leader->setWaypointNetwork(&network);
     leader->setSquadId(0);
@@ -360,15 +313,12 @@ void testSquadMovement()
 
     leader->addSquadMember(member);
 
-    // Force pathfinding: block line of sight so the member has to route.
     member->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
         0.2f, 50.0f, 0.0f, 25.0f, 0.5f, 0.0f, Math::vec3(0.0f, 1.0f, 0.0f), &network, nullptr});
 
-    // Owned by the agent now (Agent::setStateMachine()) - no manual delete.
     member->setStateMachine(buildMemberStateMachine(*member));
     leader->setStateMachine(buildLeaderStateMachine(*leader));
 
-    // Order the squad to the target POI.
     leader->setPointsOfInterest(&pois);
     leader->setSelectedPointOfInterest(target);
     leader->setCommand(SquadCommand::AttackTarget);
@@ -381,7 +331,6 @@ void testSquadMovement()
     }
 
     CHECK(finiteVec(member->position()));
-    // With no LOS the member routes through the network and walks far along +X.
     CHECK(member->position().x > 15.0f);
 }
 
@@ -395,12 +344,11 @@ void testMemberStateMachine()
         new Waypoint(Math::vec3(50.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
     network.addWaypoint(wp);
 
-    // Agent::update() is called directly here (not through the Scene's own
-    // agent list), so no scene.update() flush is needed first.
+    // Agent::update() is called directly, so no scene.update() flush is needed.
     Agent* member = makeAgent(scene, settings, "member");
     member->setWaypointNetwork(&network);
     member->setSquadId(1);
-    member->setPosition(Math::vec3(50.5f, 0.0f, 0.0f)); // inside wp radius
+    member->setPosition(Math::vec3(50.5f, 0.0f, 0.0f));
     member->setGoal(Math::vec3(50.0f, 0.0f, 0.0f));
 
     StateMachine* machine = buildMemberStateMachine(*member);
@@ -408,18 +356,15 @@ void testMemberStateMachine()
 
     CHECK(machine->currentState()->name() == "WaitingForCommand");
 
-    // A valid path + a non-standground command leaves WaitingForCommand.
     member->setCommand(SquadCommand::AttackTarget);
     member->setNextWaypoint(0);
     member->setPath(Path{wp->id()});
     member->update(0.016f);
     CHECK(machine->currentState()->name() == "MovingToGoal");
 
-    // Member sits inside the waypoint radius -> WaypointReached.
     member->update(0.016f);
     CHECK(machine->currentState()->name() == "WaypointReached");
 
-    // Standing ground pulls it back to WaitingForCommand.
     member->setCommand(SquadCommand::StandGround);
     member->update(0.016f);
     CHECK(machine->currentState()->name() == "WaitingForCommand");
@@ -437,7 +382,7 @@ void testLeaderStateMachine()
     Agent* member = makeAgent(scene, settings, "member");
     member->setSquadId(1);
     member->setPosition(Math::vec3(5.0f, 0.0f, 0.0f));
-    member->setGoal(member->position()); // already at its goal
+    member->setGoal(member->position());
     leader->addSquadMember(member);
 
     StateMachine* machine = buildLeaderStateMachine(*leader);
@@ -445,24 +390,19 @@ void testLeaderStateMachine()
 
     CHECK(machine->currentState()->name() == "AwaitingSquadTaskCompletion");
 
-    // Squad is at its goal -> issue the next command.
     leader->update(0.016f);
     CHECK(machine->currentState()->name() == "CommandSquadToPOI");
 
-    // Stand ground -> CommandSquadToPOI hands off to StandingGround.
     leader->setCommand(SquadCommand::StandGround);
     leader->update(0.016f);
     CHECK(machine->currentState()->name() == "StandingGround");
     leader->update(0.016f);
     CHECK(machine->currentState()->name() == "StandingGround");
 
-    // New command leaves StandingGround.
     leader->setCommand(SquadCommand::PatrolPointsOfInterest);
     leader->update(0.016f);
     CHECK(machine->currentState()->name() == "CommandSquadToPOI");
 }
-
-// --- steering --------------------------------------------------------------
 
 void testSteerLibrary()
 {
@@ -480,9 +420,7 @@ void testSteerLibrary()
     CHECK(near(steer.flee(Math::vec3(10.0f, 0.0f, 0.0f)), Math::vec3(-12.0f, 0.0f, 0.0f)));
     // targetSpeed: forward * clip(target - current, -maxForce, +maxForce); maxForce = 2
     CHECK(near(steer.targetSpeed(5.0f), Math::vec3(0.0f, 0.0f, 2.0f)));
-    // predictFuturePosition
     CHECK(near(e.predictFuturePosition(1.0f), Math::vec3(2.0f, 0.0f, 0.0f)));
-    // local/global transforms round-trip
     CHECK(near(e.globalizePosition(e.localizePosition(Math::vec3(3.0f, 4.0f, 5.0f))),
                Math::vec3(3.0f, 4.0f, 5.0f)));
 }
@@ -497,7 +435,6 @@ void testPlaneAndRectangleObstacle()
     // Default plane: XY at the origin, +Z half-space is outside.
     PlaneObstacle plane;
 
-    // Facing the plane head-on from the outside.
     vehicle.setPosition(Math::vec3(1.0f, 2.0f, 5.0f));
     vehicle.setOrientation(Math::angleAxis(Math::pi<f32>(), Math::vec3(0.0f, 1.0f, 0.0f))); // -Z
     PathIntersection pi;
@@ -508,12 +445,10 @@ void testPlaneAndRectangleObstacle()
     CHECK(near(pi.surfaceNormal, Math::vec3(0.0f, 0.0f, 1.0f), 0.001f));
     CHECK(pi.vehicleOutside);
 
-    // Heading away from the plane: no intersection.
     vehicle.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // +Z
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
 
-    // Path parallel to the plane: no intersection.
     vehicle.setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 1.0f, 0.0f))); // +X
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
@@ -524,14 +459,12 @@ void testPlaneAndRectangleObstacle()
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
 
-    // The same approach against an Inside-only plane does hit, normal -Z.
     plane.setSeenFrom(ObstacleSeenFrom::Inside);
     plane.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(pi.intersect);
     CHECK(near(pi.surfaceNormal, Math::vec3(0.0f, 0.0f, -1.0f), 0.001f));
     CHECK(!pi.vehicleOutside);
 
-    // A 2x2 rectangle only blocks paths crossing inside its (radius-grown) bounds.
     RectangleObstacle rect(2.0f, 2.0f);
     vehicle.setPosition(Math::vec3(0.5f, 0.5f, 5.0f));
     vehicle.setOrientation(Math::angleAxis(Math::pi<f32>(), Math::vec3(0.0f, 1.0f, 0.0f))); // -Z
@@ -539,7 +472,6 @@ void testPlaneAndRectangleObstacle()
     CHECK(pi.intersect);
     CHECK(std::fabs(pi.distance - 5.0f) < 0.001f);
 
-    // Crossing the plane well outside the rectangle: miss.
     vehicle.setPosition(Math::vec3(5.0f, 0.0f, 5.0f));
     rect.findIntersectionWithVehiclePath(vehicle, pi);
     CHECK(!pi.intersect);
@@ -557,11 +489,9 @@ void testBoxObstacle()
     settings.radius = 0.0f; // exact face bounds, no radius growth
     Agent& vehicle = *makeAgent(scene, settings);
 
-    // 2x2x2 box at the origin, world-aligned.
     BoxObstacle box(2.0f, 2.0f, 2.0f, Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f),
                     Math::vec3(0.0f, 0.0f, 1.0f), Math::vec3(0.0f));
 
-    // Head-on along -Z: hits the front face at z = +1, steer hint outward.
     vehicle.setPosition(Math::vec3(0.0f, 0.0f, 5.0f));
     vehicle.setOrientation(Math::angleAxis(Math::pi<f32>(), Math::vec3(0.0f, 1.0f, 0.0f))); // -Z
     PathIntersection pi;
@@ -573,7 +503,6 @@ void testBoxObstacle()
     CHECK(pi.vehicleOutside);
     CHECK(pi.obstacle == &box);
 
-    // Head-on along -X: hits the +X side face at x = +1.
     vehicle.setPosition(Math::vec3(5.0f, 0.0f, 0.0f));
     vehicle.setOrientation(Math::angleAxis(Math::radians(-90.0f), Math::vec3(0.0f, 1.0f, 0.0f)));
     box.findIntersectionWithVehiclePath(vehicle, pi);
@@ -582,7 +511,6 @@ void testBoxObstacle()
     CHECK(near(pi.surfacePoint, Math::vec3(1.0f, 0.0f, 0.0f), 0.001f));
     CHECK(near(pi.steerHint, Math::vec3(1.0f, 0.0f, 0.0f), 0.001f));
 
-    // Descending onto the top: hits the +Y face at y = +1.
     vehicle.setPosition(Math::vec3(0.0f, 5.0f, 0.0f));
     vehicle.setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(1.0f, 0.0f, 0.0f)));
     box.findIntersectionWithVehiclePath(vehicle, pi);
@@ -591,7 +519,6 @@ void testBoxObstacle()
     CHECK(near(pi.surfacePoint, Math::vec3(0.0f, 1.0f, 0.0f), 0.001f));
     CHECK(near(pi.steerHint, Math::vec3(0.0f, 1.0f, 0.0f), 0.001f));
 
-    // A path passing beside the box misses every face.
     vehicle.setPosition(Math::vec3(5.0f, 5.0f, 5.0f));
     vehicle.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // +Z, away
     box.findIntersectionWithVehiclePath(vehicle, pi);
@@ -605,7 +532,6 @@ void testSphereObstacleSeenFrom()
     settings.radius = 0.5f;
     Agent& vehicle = *makeAgent(scene, settings);
 
-    // A vehicle outside an Inside-only sphere must be pulled back toward it.
     SphereObstacle pen(2.0f, Math::vec3(0.0f));
     pen.setSeenFrom(ObstacleSeenFrom::Inside);
     vehicle.setPosition(Math::vec3(10.0f, 0.0f, 0.0f));
@@ -617,7 +543,6 @@ void testSphereObstacleSeenFrom()
     CHECK(near(pi.steerHint, Math::vec3(-1.0f, 0.0f, 0.0f), 0.001f));
     CHECK(pi.vehicleOutside);
 
-    // Inside a hollow (Both) shell, the exit ahead pushes back inward.
     SphereObstacle shell(3.0f, Math::vec3(0.0f));
     shell.setSeenFrom(ObstacleSeenFrom::Both);
     vehicle.setPosition(Math::vec3(0.0f));
@@ -628,7 +553,6 @@ void testSphereObstacleSeenFrom()
     CHECK(near(pi.surfaceNormal, Math::vec3(0.0f, 0.0f, 1.0f), 0.001f));
     CHECK(near(pi.steerHint, Math::vec3(0.0f, 0.0f, -1.0f), 0.001f));
 
-    // A path whose closest approach is beyond the radius misses entirely.
     SphereObstacle ball(2.0f, Math::vec3(0.0f));
     vehicle.setPosition(Math::vec3(0.0f, 10.0f, 0.0f));
     ball.findIntersectionWithVehiclePath(vehicle, pi);
@@ -641,9 +565,7 @@ void testCruisingAxisDistribution()
     Agent& e = *makeAgent(scene, defaultAgentSettings());
     e.setVelocity(Math::vec3(0.0f)); // below desiredSpeed, so signum is +1
 
-    // The flocking demo's own chances: X larger than Y. The per-axis chances
-    // form cumulative bands, so Y must still fire - with a raw-roll compare
-    // it never could (its band was a subset of X's).
+    // Per-axis chances form cumulative bands, so Y must still fire; a raw-roll compare never could.
     CruisingBehavior cruising(0.45f, 0.2f, 0.35f, 1.0f, 0.5f, 0.2f);
 
     std::srand(12345);
@@ -666,9 +588,7 @@ void testCruisingAxisDistribution()
     CHECK(hits[0] > hits[1]); // X's band (0.45) is wider than Y's (0.2)
 }
 
-// The nudge is meant to scale with how far off the desired speed the agent
-// is, between minRateChange and maxRateChange. It used to be a flat
-// minRateChange, which made maxRateChange do nothing at all.
+// The nudge scales with the distance from desired speed, between minRateChange and maxRateChange.
 void testCruisingScalesWithSpeedError()
 {
     Scene scene;
@@ -676,11 +596,9 @@ void testCruisingScalesWithSpeedError()
     settings.desiredSpeed = 2.0f;
     settings.maxSpeed = 5.0f;
 
-    // Always fires on X, so only the magnitude varies between the two runs.
     const f32 minRate = 0.1f;
     const f32 maxRate = 0.8f;
 
-    // At rest: the speed error is the whole desired speed.
     Agent& slow = *makeAgent(scene, settings, "slow");
     scene.update(0.0f);
     slow.setVelocity(Math::vec3(0.0f));
@@ -689,7 +607,6 @@ void testCruisingScalesWithSpeedError()
     farOff.iterate(0.016f, slow);
     const f32 farMagnitude = Math::length(slow.desiredMove());
 
-    // Already at the desired speed: no error at all.
     Agent& atSpeed = *makeAgent(scene, settings, "atSpeed");
     scene.update(0.0f);
     atSpeed.setVelocity(Math::vec3(2.0f, 0.0f, 0.0f));
@@ -698,19 +615,14 @@ void testCruisingScalesWithSpeedError()
     onTarget.iterate(0.016f, atSpeed);
     const f32 onTargetMagnitude = Math::length(atSpeed.desiredMove());
 
-    // Being far off must push harder than being on target.
     CHECK(farMagnitude > onTargetMagnitude);
-    // And on target falls back to the floor, which is what it always did.
     CHECK(std::abs(onTargetMagnitude - minRate) < 1e-4f);
-    // Never beyond the ceiling - the parameter that used to do nothing.
     CHECK(farMagnitude <= maxRate + 1e-4f);
 }
 
 void testGridAStarOptimality()
 {
-    // Around the same wall as testGridPathfinder. Breadth-first is optimal in
-    // moves by construction, and with unit diagonal cost so is Dijkstra and
-    // A* under the admissible default heuristic - all three must agree.
+    // Breadth-first is optimal by construction; with unit diagonal cost so are Dijkstra and A* (admissible heuristic): all must agree.
     GridMap grid(10);
     for (int y = 1; y <= 8; ++y)
         grid.setBlocked(5, y);
@@ -731,13 +643,12 @@ void testGridAStarOptimality()
     CHECK(finder.findPath(0, 4, 9, 4, dijkstraPath));
     CHECK(dijkstraPath.size() == bfsPath.size());
 
-    // Open grid: the optimal move count is the Chebyshev distance.
     GridMap open(10);
     GridPathfinder openFinder(&open);
     openFinder.settings().algorithm = GridSearchAlgorithm::AStar;
     std::vector<GridCellCoord> diagonal;
     CHECK(openFinder.findPath(0, 0, 7, 3, diagonal));
-    CHECK(diagonal.size() == 8); // max(7, 3) moves + start
+    CHECK(diagonal.size() == 8);
 }
 
 void testStateMachineRemoveState()
@@ -765,22 +676,17 @@ void testStateMachineRemoveState()
     CHECK(machine.currentState() == a);
     CHECK(machine.findState("B") == b);
 
-    // Removing B must also prune A's transition into it - iterating
-    // afterwards would otherwise walk a freed state.
+    // Removing B must prune A's transition into it, or iterating walks a freed state.
     machine.removeState(b);
     CHECK(machine.findState("B") == nullptr);
     machine.iterate();
     CHECK(machine.currentState() == a);
 }
 
-// The callbacks a state machine runs can reach back into the machine, and
-// removeState() deletes both the State and every transition aimed at it. So
-// iterate() must survive its own callbacks rewriting the very list it is
-// walking - it used to keep walking, over freed transitions.
+// Callbacks can reach back into the machine (removeState() deletes the State and transitions aimed at it): iterate() must survive rewriting the list it walks.
 void testStateMachineSurvivesCallbackMutation()
 {
-    // 1. A shouldTransition() that removes a state and answers false: the
-    //    loop used to carry on over a vector that just had entries erased.
+    // 1. shouldTransition() removes a state and answers false.
     {
         StateMachine machine;
         State* a = new State("A");
@@ -790,8 +696,6 @@ void testStateMachineSurvivesCallbackMutation()
         machine.addState(doomed);
         machine.addState(other);
 
-        // A's first transition points at Doomed, so removing Doomed erases
-        // this very transition out from under the loop.
         a->addTransition(new CallbackTransition(a, doomed,
                                                 [&machine, doomed](State&)
                                                 {
@@ -807,14 +711,10 @@ void testStateMachineSurvivesCallbackMutation()
         CHECK(machine.currentState() == a);
         machine.iterate();
         CHECK(machine.findState("Doomed") == nullptr);
-        // Whatever it decided, it must still be on a live state.
         CHECK(machine.currentState() == a || machine.currentState() == other);
     }
 
-    // 2. An exit() that removes the state being left - which deletes it,
-    //    and leaves the machine with no current state. Installing the
-    //    transition's target afterwards would resurrect a machine the
-    //    callback just emptied, having read `state` after it was freed.
+    // 2. exit() removes the state being left: installing the target afterwards would resurrect the emptied machine (reading freed `state`).
     {
         StateMachine machine;
         State* a = new State("A");
@@ -835,8 +735,8 @@ void testStateMachineSurvivesCallbackMutation()
         machine.reset();
         machine.iterate();
         CHECK(machine.findState("A") == nullptr);
-        CHECK(machine.currentState() == nullptr); // stays empty, as asked
-        machine.iterate();                        // and survives another tick
+        CHECK(machine.currentState() == nullptr);
+        machine.iterate();
     }
 
     // 3. A state's own iterate() that empties the machine.
@@ -877,7 +777,6 @@ void testPointsOfInterest()
     CHECK(pois.findNearest(Math::vec3(9.0f, 0.0f, 1.0f)) == second);
     CHECK(pois.findNearest(Math::vec3(0.0f, 0.0f, 19.0f)) == third);
 
-    // selectRandom never hands back the POI the caller is already at.
     for (int i = 0; i < 50; ++i)
     {
         const PointOfInterest* pick = pois.selectRandom(first->id());
@@ -885,8 +784,7 @@ void testPointsOfInterest()
         CHECK(pick->id() != first->id());
     }
 
-    // Taken before the remove: it frees the point, so reading its id back
-    // off the pointer afterwards is a use-after-free.
+    // Taken before the remove: it frees the point, so reading the id afterwards is a use-after-free.
     const u32 secondId = second->id();
     CHECK(pois.remove(secondId));
     CHECK(pois.find(secondId) == nullptr);
@@ -907,24 +805,20 @@ void testPursuitEvasion()
 
     SteerLibrary steer(hunter);
 
-    // A parked quarry's predicted position is its position: pursuit == seek.
     CHECK(near(steer.pursuit(quarry), steer.seek(quarry.position())));
 
-    // Ahead-parallel quarry: estimated intercept (10/2 * 4 = 20s) is capped
-    // at maxPredictionTime, so the target is one second of quarry travel.
+    // Ahead-parallel quarry: intercept (10/2 * 4 = 20s) is capped at maxPredictionTime.
     quarry.setVelocity(Math::vec3(0.0f, 0.0f, 3.0f));
     quarry.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f));
     CHECK(near(steer.pursuit(quarry, 1.0f),
                steer.seek(quarry.position() + quarry.velocity() * 1.0f)));
 
-    // A stationary menace is predicted at the cap rather than dividing by
-    // zero, and its predicted position is where it already is.
+    // A stationary menace is predicted at the cap, not divided by zero.
     Agent& menace = *makeAgent(scene, settings, "menace");
     menace.setPosition(Math::vec3(5.0f, 0.0f, 0.0f));
     CHECK(near(steer.evasion(menace, 2.0f), steer.flee(menace.position())));
 
-    // Slow distant menace: rough intercept (5s) exceeds the cap (2s), so the
-    // flee target is two seconds of menace travel.
+    // Slow distant menace: intercept (5s) exceeds the cap (2s), so the flee target is two seconds of travel.
     menace.setVelocity(Math::vec3(0.0f, 0.0f, 1.0f));
     CHECK(near(steer.evasion(menace, 2.0f),
                steer.flee(menace.position() + menace.velocity() * 2.0f)));
@@ -956,8 +850,6 @@ void testDirectionalPredicates()
     CHECK(near(e.forward(), Math::vec3(1.0f, 0.0f, 0.0f), 0.001f));
     CHECK(near(e.side(), Math::vec3(0.0f, 0.0f, -1.0f), 0.001f));
 
-    // alignWithVelocity regenerates a right-handed orthonormal frame with
-    // forward along the velocity and up preserved.
     e.setVelocity(Math::vec3(0.0f, 0.0f, -3.0f));
     e.alignWithVelocity();
     CHECK(near(e.forward(), Math::vec3(0.0f, 0.0f, -1.0f), 0.001f));
@@ -989,8 +881,6 @@ void testBoidNeighborhoodAndSeparation()
     CHECK(!steer.inBoidNeighborhood(far, 1.0f, 10.0f, 0.0f)); // outside max sphere
     CHECK(!steer.inBoidNeighborhood(self, 1.0f, 10.0f, 0.0f)); // never itself
 
-    // One neighbor ahead: separation pushes straight back (-Z), alignment
-    // returns the error direction toward the neighbor's heading.
     std::vector<EntityDist> flock;
     flock.push_back(EntityDist{5.0f, &ahead});
     CHECK(near(steer.separation(10.0f, -1.0f, flock), Math::vec3(0.0f, 0.0f, -1.0f)));
@@ -1006,9 +896,7 @@ void testTargetSpeedClamp()
     e.setOrientation(Math::quat(1.0f, 0.0f, 0.0f, 0.0f)); // forward +Z
 
     SteerLibrary steer(e);
-    // Already at the target speed: no correction.
     CHECK(near(steer.targetSpeed(2.0f), Math::vec3(0.0f)));
-    // Braking is clamped to maxForce, along -forward.
     CHECK(near(steer.targetSpeed(-5.0f), Math::vec3(0.0f, 0.0f, -2.0f)));
 }
 
@@ -1017,7 +905,6 @@ void testSeekFlee()
     Scene scene;
     Agent::Settings settings = defaultAgentSettings();
 
-    // A seeker converges on a target far along +X.
     Agent* chaser = makeAgent(scene, settings, "chaser");
     scene.update(0.0f);
     chaser->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
@@ -1030,7 +917,6 @@ void testSeekFlee()
     CHECK(finiteVec(chaser->position()));
     CHECK(chaser->position().x > 30.0f);
 
-    // A runner flees from the same target and ends up on the opposite side.
     Agent* runner = makeAgent(scene, settings, "runner");
     scene.update(0.0f);
     runner->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
@@ -1055,7 +941,6 @@ void testWander()
     for (int i = 0; i < 300; ++i)
         scene.updateAgents(0.016f);
 
-    // Wandered away from the start, stayed finite and bounded.
     CHECK(finiteVec(e->position()));
     CHECK(Math::length(e->position()) > 0.001f);
     CHECK(Math::length(e->position()) < 50.0f);
@@ -1067,7 +952,6 @@ void testObstacleAvoidance()
     Agent::Settings settings = defaultAgentSettings();
     settings.radius = 0.5f;
 
-    // A sphere slightly off the +X travel line so there is a lateral component.
     SphereObstacle sphere(3.0f, Math::vec3(8.0f, 0.0f, 2.0f));
     ObstacleGroup obstacles;
     obstacles.push_back(&sphere);
@@ -1076,40 +960,29 @@ void testObstacleAvoidance()
     scene.update(0.0f);
     vehicle->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     vehicle->setVelocity(Math::vec3(5.0f, 0.0f, 0.0f)); // moving +X
-    // Face +X so the vehicle's forward path intersects the sphere.
     vehicle->setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 1.0f, 0.0f)));
     ObstacleAvoidanceBehavior* avoidance = vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f);
     avoidance->setObstacles(obstacles);
 
     scene.updateAgents(0.016f);
-    // The avoidance force is lateral: it must push toward -Z (past the sphere).
     CHECK(finiteVec(vehicle->desiredMove()));
     CHECK(vehicle->desiredMove().z < 0.0f);
 
     for (int i = 0; i < 600; ++i)
         scene.updateAgents(0.016f);
 
-    // The vehicle steered around to the -Z side without entering the sphere.
     CHECK(finiteVec(vehicle->position()));
     CHECK(vehicle->position().z < 0.0f);
     CHECK(Math::length(vehicle->position() - sphere.center) > sphere.radius);
 }
 
-// Regression: Agent::update() must call alignWithVelocity() itself, or
-// nothing steered purely by velocity (no explicit setOrientation() call, the
-// common case outside these tests) ever turns to face the way it is actually
-// moving - and every "is this ahead of me" test, obstacle avoidance included,
-// keeps reasoning about whichever way the agent happened to spawn facing.
-// Unlike testObstacleAvoidance() above, this vehicle's orientation is never
-// touched by hand.
+// Regression: Agent::update() must call alignWithVelocity() itself, or velocity-steered agents never face their motion and "ahead" tests use the spawn facing. Orientation is never set by hand.
 void testObstacleAvoidanceTracksVelocityDirection()
 {
     Scene scene;
     Agent::Settings settings = defaultAgentSettings();
     settings.radius = 0.5f;
 
-    // Same geometry as testObstacleAvoidance(): a sphere off the +X travel
-    // line so there is a lateral component to steer along.
     SphereObstacle sphere(3.0f, Math::vec3(8.0f, 0.0f, 2.0f));
     ObstacleGroup obstacles;
     obstacles.push_back(&sphere);
@@ -1121,24 +994,15 @@ void testObstacleAvoidanceTracksVelocityDirection()
     ObstacleAvoidanceBehavior* avoidance = vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f);
     avoidance->setObstacles(obstacles);
 
-    // First tick: forward is still wherever the agent spawned facing, so the
-    // sphere is not yet "ahead" - this step only exists to let
-    // alignWithVelocity() turn the agent to face its actual velocity before
-    // the next one.
+    // First tick: forward is still the spawn facing, so the sphere is not ahead; this only lets alignWithVelocity() turn the agent.
     scene.updateAgents(0.016f);
 
-    // Second tick: forward now tracks the +X velocity, so the sphere is
-    // finally on the vehicle's path and avoidance must engage.
     scene.updateAgents(0.016f);
     CHECK(finiteVec(vehicle->desiredMove()));
     CHECK(vehicle->desiredMove().z < 0.0f);
 }
 
-// --- predictNearestApproachTime / avoidNeighbors ----------------------------
-//
-// Regression coverage for the sign bug fixed in Steering.cpp:306 (see
-// docs/AI_PATHFINDING_REVIEW.md section 6) - nothing exercised this math
-// directly before, which is how the inverted sign passed unnoticed.
+// Regression for the inverted sign in Steering.cpp:306.
 
 void testNearestApproach()
 {
@@ -1146,8 +1010,7 @@ void testNearestApproach()
     Agent::Settings settings = defaultAgentSettings();
     settings.radius = 1.0f;
 
-    // Head-on: we move +X, the other moves -X from further down +X. Closing
-    // distance, so the nearest approach must be in the future (time > 0).
+    // Head-on closing: the nearest approach must be in the future (time > 0).
     Agent& us = *makeAgent(scene, settings, "us");
     us.setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     us.setVelocity(Math::vec3(1.0f, 0.0f, 0.0f));
@@ -1160,16 +1023,14 @@ void testNearestApproach()
     const float tHeadOn = steer.predictNearestApproachTime(oncoming);
     CHECK(std::isfinite(tHeadOn));
     CHECK(tHeadOn > 0.0f);
-    // Symmetric closing speeds meet halfway: at t=5 both are at x=5.
     CHECK(std::fabs(tHeadOn - 5.0f) < 0.01f);
     const float headOnDist = steer.computeNearestApproachPositions(oncoming, tHeadOn);
-    CHECK(headOnDist < 0.1f); // they meet almost exactly
+    CHECK(headOnDist < 0.1f);
 
-    // Receding: swap the velocities so both move apart. The nearest approach
-    // was in the past (time < 0), so avoidNeighbors must ignore it.
+    // Receding: nearest approach in the past (time < 0), so avoidNeighbors must ignore it.
     Agent& receding = *makeAgent(scene, settings, "receding");
     receding.setPosition(Math::vec3(10.0f, 0.0f, 0.0f));
-    receding.setVelocity(Math::vec3(1.0f, 0.0f, 0.0f)); // same direction as us, but faster gap
+    receding.setVelocity(Math::vec3(1.0f, 0.0f, 0.0f));
     Agent& fast = *makeAgent(scene, settings, "fast");
     fast.setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     fast.setVelocity(Math::vec3(-1.0f, 0.0f, 0.0f));
@@ -1177,8 +1038,6 @@ void testNearestApproach()
     const float tReceding = steerFast.predictNearestApproachTime(receding);
     CHECK(tReceding < 0.0f);
 
-    // avoidNeighbors: a slower entity dead ahead on a closing path must
-    // produce a nonzero lateral steer; a receding one must produce none.
     std::vector<EntityDist> ahead;
     ahead.push_back(EntityDist{Math::length(oncoming.position() - us.position()), &oncoming});
     Math::vec3 steerAway = steer.avoidNeighbors(8.0f, ahead);
@@ -1190,8 +1049,6 @@ void testNearestApproach()
     Math::vec3 steerNone = steerFast.avoidNeighbors(8.0f, awayFrom);
     CHECK(near(steerNone, Math::vec3(0.0f)));
 }
-
-// --- PathfindBehavior line-of-sight short-circuit ---------------------------
 
 void testPathfindLineOfSight()
 {
@@ -1206,8 +1063,6 @@ void testPathfindLineOfSight()
 
     Scene scene;
 
-    // A waypoint far off the direct line, so "heading to the waypoint" and
-    // "heading straight to the goal" are distinguishable by Z position.
     WaypointNetwork network;
     Waypoint* wpDetour =
         new Waypoint(Math::vec3(5.0f, 0.0f, 30.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 2.0f);
@@ -1223,23 +1078,18 @@ void testPathfindLineOfSight()
     member->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     member->setGoal(Math::vec3(20.0f, 0.0f, 0.0f));
     member->setGoalRadius(1.0f);
-    // Seed a "mid-route, no LOS yet" state directly (findPath() itself is
-    // covered by testWaypointNetwork/testSquadMovement) - this test is only
-    // about the LOS short-circuit in PathfindBehavior::iterate.
+    // Seeded "mid-route, no LOS" state; this test is only about the LOS short-circuit in PathfindBehavior::iterate.
     member->setNextWaypoint(wpDetour->id());
 
     member->addBehavior<PathfindBehavior>(PathfindBehavior::Settings{
         0.3f, 1.0f, 0.0f, 25.0f, 0.05f, 0.0f, Math::vec3(0.0f, 1.0f, 0.0f), &network,
         &visibility});
 
-    // No LOS: the member walks toward the seeded waypoint, off toward +Z.
     for (int i = 0; i < 30; ++i)
         scene.updateAgents(0.016f);
     CHECK(finiteVec(member->position()));
     CHECK(member->position().z > 1.0f);
 
-    // LOS opens up: the next poll (<= 0.05s away) must clear the waypoint and
-    // switch to heading straight for the goal.
     visibility.visible = true;
     for (int i = 0; i < 10; ++i)
         scene.updateAgents(0.016f);
@@ -1251,16 +1101,11 @@ void testPathfindLineOfSight()
         scene.updateAgents(0.016f);
 
     CHECK(finiteVec(member->position()));
-    // Walked toward the goal along +X, back off the Z=30 detour.
     CHECK(member->position().x > 10.0f);
     CHECK(std::fabs(member->position().z) < 5.0f);
 }
 
-// Regression: addSquadMember() must hand out slot ids itself (1, 2, 3, ... in
-// join order), or every member sits at squadId() -1 forever and
-// FormationBehavior falls through every case to "default: head straight for
-// the shared goal" - the squad never takes a formation shape at all. See
-// addSquadMember()'s own comment.
+// Regression: addSquadMember() must assign slot ids itself (1, 2, 3 in join order), or every member stays at -1 and FormationBehavior never forms a shape.
 void testAddSquadMemberAssignsSlotIds()
 {
     Scene scene;
@@ -1281,9 +1126,7 @@ void testAddSquadMemberAssignsSlotIds()
     CHECK(second->squadId() == 2);
     CHECK(third->squadId() == 3);
 
-    // A caller that already assigned a slot (promoting a member into a
-    // vacated one, or a test seeding a specific id) keeps it - 99 is
-    // deliberately not the join-order slot (4) this member would otherwise get.
+    // A caller-assigned slot is kept: 99 is deliberately not the join-order slot (4).
     Agent* preAssigned = makeAgent(scene, settings, "preAssigned");
     preAssigned->setSquadId(99);
     scene.update(0.0f);
@@ -1291,12 +1134,7 @@ void testAddSquadMemberAssignsSlotIds()
     CHECK(preAssigned->squadId() == 99);
 }
 
-// Regression: found reviewing the fix above. removeSquadMember() must give up
-// the departing member's slot, and addSquadMember() must refill the lowest
-// free one - not mSquadMembers.size() - or a squad that loses a member and
-// recruits a replacement hands the newcomer an id a survivor still holds
-// (here: remove the middle of three, recruit a fourth, size()-based
-// assignment would have collided it with the third member's id).
+// Regression: removeSquadMember() must give up the slot and addSquadMember() refill the lowest free one, not size()-based (it would collide with a survivor's id).
 void testSquadMemberSlotIsReusedAfterRemoval()
 {
     Scene scene;
@@ -1318,25 +1156,18 @@ void testSquadMemberSlotIsReusedAfterRemoval()
 
     leader->removeSquadMember(second);
     CHECK(second->squadLeader() == nullptr);
-    CHECK(second->squadId() == -1); // slot given up, not carried around
+    CHECK(second->squadId() == -1);
 
     Agent* fourth = makeAgent(scene, settings, "fourth");
     scene.update(0.0f);
     leader->addSquadMember(fourth);
 
-    // The vacated slot (2), not a new one past the current head count - that
-    // would collide with `third`, which still holds id 3.
+    // The vacated slot (2), not one past the head count, which would collide with `third` (id 3).
     CHECK(fourth->squadId() == 2);
     CHECK(third->squadId() == 3);
 }
 
-// --- FormationBehavior -------------------------------------------------------
-//
-// Diamond/Abreast/SingleFile offsets are ported verbatim from
-// docs/ai/AI_Demo/Source/FormationBehavior.cpp; these lock the placement
-// numbers in. Pentagon's mirrored flank direction is a deliberate deviation
-// from that reference (see the comment in FormationBehavior.cpp) - checked
-// here for the symmetry it is supposed to have instead.
+// Pentagon's mirrored flank direction deviates deliberately from the reference (see FormationBehavior.cpp); checked for its symmetry.
 
 Agent* makeFormationLeader(Scene& scene, const Agent::Settings& settings)
 {
@@ -1347,10 +1178,7 @@ Agent* makeFormationLeader(Scene& scene, const Agent::Settings& settings)
     return leader;
 }
 
-// Two squads in one scene. Finding the leader by scanning for squadId 0
-// picked whichever came last in the scene's list, so members of one squad
-// formed up on the other one's leader - and which squad lost depended on
-// creation order.
+// Two squads in one scene: the leader must come from the squad link, not whichever squadId 0 came last in the list.
 void testFormationFollowsItsOwnLeader()
 {
     Scene scene;
@@ -1362,7 +1190,6 @@ void testFormationFollowsItsOwnLeader()
     Agent* memberB = makeAgent(scene, settings, "memberB");
     scene.update(0.0f);
 
-    // Squad A is at the origin, squad B is a hundred metres away.
     leaderA->setSquadId(0);
     leaderA->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     leaderA->setSquadFormation(static_cast<int>(SquadFormation::Abreast));
@@ -1383,9 +1210,7 @@ void testFormationFollowsItsOwnLeader()
     memberA->addBehavior<FormationBehavior>(1.0f, 1.0f);
     scene.updateAgents(0.016f);
 
-    // A's member must be pulled toward A's leader at the origin, not toward
-    // B's a hundred metres up +X. Scanning found B (created later), so the
-    // desired move used to point straight at it.
+    // A's member must head toward A's leader, not B's a hundred metres up +X (a scan found B).
     CHECK(finiteVec(memberA->desiredMove()));
     CHECK(memberA->desiredMove().x < 1.0f);
 }
@@ -1410,13 +1235,10 @@ void testFormationAbreast()
     rightFlank->setSquadId(2);
     rightFlank->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
 
-    // Which leader a member forms up on is the squad link, not a scan for
-    // whoever happens to have squadId 0.
     leader->addSquadMember(pointMan);
     leader->addSquadMember(rightFlank);
 
-    // Each member owns its own FormationBehavior instance - the leader/
-    // point-man cache in it is no longer shared (DESVIO 2).
+    // Each member owns its own FormationBehavior; the leader/point-man cache is not shared.
     pointMan->addBehavior<FormationBehavior>(1.0f, 1.0f);
     rightFlank->addBehavior<FormationBehavior>(1.0f, 1.0f);
 
@@ -1460,27 +1282,14 @@ void testFormationPentagonSymmetry()
 
     scene.updateAgents(0.016f);
 
-    // Pentagon's flank *goal* positions only use mLeaderLook/mLeaderRight, not
-    // v1/v2, so they are symmetric regardless of the deviation. What v1/v2
-    // drive is the flank's facing direction: case 2 (right) faces v1 =
-    // leaderLook rotated +45 about Y, case 3 (left) faces v2 = leaderLook
-    // rotated -45 about Y. With the leader facing +Z those two facings must
-    // be mirror images across the look axis (X negated, Z equal).
+    // Pentagon flank goals are symmetric regardless of v1/v2; v1/v2 drive facing: right faces leaderLook rotated +45 about Y, left -45, so the facings must mirror (X negated, Z equal).
     Math::vec3 forwardRight = Math::mat3_cast(rightFlank->orientation())[2];
     Math::vec3 forwardLeft = Math::mat3_cast(leftFlank->orientation())[2];
     CHECK(std::fabs(forwardRight.x + forwardLeft.x) < 0.01f);
     CHECK(std::fabs(forwardRight.z - forwardLeft.z) < 0.01f);
 }
 
-// --- Phase 1 tests: Agent replacing AI::World/Group/Entity ------------------
-
-// Test 1 (Fase 7 #1): every GameObject destroyed, in a shuffled (not
-// creation) order, must take its Agent's Scene registration with it -
-// exactly the bug radion-fisica-destrutor-desregista-scene already had for
-// RigidBody. Scene::mAgents is never reserve()d, so it reallocates as
-// agents register; ASan (this test binary's default) turns a dangling
-// pointer left behind by a bad deregistration into a hard failure rather
-// than a silent corruption.
+// Destroying GameObjects in shuffled order must take each Agent's Scene registration along; Scene::mAgents reallocates, and ASan turns a dangling pointer into a failure.
 void testAgentUnregisterInShuffledOrder()
 {
     Scene scene;
@@ -1493,7 +1302,6 @@ void testAgentUnregisterInShuffledOrder()
     scene.update(0.0f);
     CHECK(scene.agentCount() == static_cast<usize>(kCount));
 
-    // Fisher-Yates over a fixed seed: deterministic, but not creation order.
     std::vector<int> order(static_cast<usize>(kCount));
     for (int i = 0; i < kCount; ++i)
         order[static_cast<usize>(i)] = i;
@@ -1514,15 +1322,10 @@ void testAgentUnregisterInShuffledOrder()
     }
     CHECK(scene.agentCount() == 0);
 
-    // If a deregistration were missed, this dereferences the freed Agent.
     scene.updateAgents(0.016f);
 }
 
-// Test 2 (Fase 7 #2): groupId() replaces AI::Group membership. A groupId of
-// 0 means "no group" and must see no group members even standing among
-// others; enemy masks are independent of groupId and must still cross group
-// boundaries, exactly as updateEnemyVisibility() scanned every Group in the
-// World regardless of which one an agent belonged to.
+// groupId 0 means no group: it sees no group members; enemy masks are independent of groupId and cross groups.
 void testSensingByGroupId()
 {
     Scene scene;
@@ -1541,7 +1344,7 @@ void testSensingByGroupId()
     a2->setGroupId(1);
     b1->setGroupId(2);
     b2->setGroupId(2);
-    CHECK(lone->groupId() == 0); // default: no group
+    CHECK(lone->groupId() == 0);
 
     a1->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     a2->setPosition(Math::vec3(1.0f, 0.0f, 0.0f));
@@ -1551,26 +1354,20 @@ void testSensingByGroupId()
 
     scene.updateAgents(0.016f);
 
-    // No group (id 0) never populates visibleGroupMembers(), even standing
-    // in the middle of two groups well within sense range.
     CHECK(lone->visibleGroupMembers().empty());
 
-    // Same-group sensing is unaffected by the switch from Group pointers to
-    // plain ids.
     CHECK(a1->visibleGroupMembers().size() == 1);
     CHECK(a1->visibleGroupMembers()[0].entity == a2);
     CHECK(b1->visibleGroupMembers().size() == 1);
     CHECK(b1->visibleGroupMembers()[0].entity == b2);
 
-    // Enemy masks cross groups: a1's enemyMask (~1) flags type 2, regardless
-    // of a1/b1/b2 belonging to different groups. Sorted by distance.
+    // Enemy masks cross groups (a1's enemyMask flags type 2); sorted by distance.
     CHECK(a1->visibleEnemies().size() == 2);
     CHECK(a1->visibleEnemies()[0].entity == b1);
     CHECK(a1->visibleEnemies()[1].entity == b2);
 }
 
-// Test 3 (Fase 7 #3): the 180 degree turn pushOwnerPose()/pullAgentPose()
-// apply to reconcile Agent's forward = +Z with GameObject::forward() = -Z.
+// The 180 degree turn pushOwnerPose()/pullAgentPose() apply reconciles Agent forward +Z with GameObject::forward() -Z.
 void testAgentPoseSyncFlipsForward()
 {
     Scene scene;
@@ -1581,18 +1378,12 @@ void testAgentPoseSyncFlipsForward()
     agent->alignWithVelocity();
     CHECK(near(agent->forward(), Math::vec3(1.0f, 0.0f, 0.0f)));
 
-    // pullAgentPose() is private (friend Scene) - driven the same way
-    // Scene::update() drives it every frame, through the AI block.
     scene.update(0.016f);
 
     CHECK(near(agent->owner()->forward(), Math::vec3(1.0f, 0.0f, 0.0f), 0.0001f));
 }
 
-// Test 4 (Fase 7 #4): behaviors are owned - the agent builds them, deletes
-// them on removal, and frees whatever is left exactly once (a double free or
-// a leak both fail this test's run under ASan even though nothing here
-// CHECK()s it directly). No `new` appears anywhere in it, which is the
-// point: there is no window in which an allocation belongs to nobody.
+// Behaviors are owned: built, deleted on removal, the rest freed exactly once (a double free or leak fails under ASan); no `new` appears.
 void testAgentBehaviorsAreOwned()
 {
     Scene scene;
@@ -1608,22 +1399,18 @@ void testAgentBehaviorsAreOwned()
     Behavior* cohesion = a->addBehavior<CohesionBehavior>(1.0f);
     CHECK(a->behaviorCount() == 2);
 
-    // By type, which is how the editor and the loader will reach them.
     CHECK(a->removeBehavior(BehaviorType::Separation));
     CHECK(a->behaviorCount() == 1);
     CHECK(a->behaviorAt(0) == cohesion);
     CHECK(a->behavior(BehaviorType::Separation) == nullptr);
-    CHECK(!a->removeBehavior(BehaviorType::Separation)); // already gone
+    CHECK(!a->removeBehavior(BehaviorType::Separation));
 
-    // The runtime-typed door, for a name out of a combo box or a save file.
     Behavior* wander = a->addBehavior(BehaviorType::Wander);
     CHECK(wander != nullptr);
     CHECK(wander->type() == BehaviorType::Wander);
     CHECK(a->behaviorCount() == 2);
 
-    // A behavior belongs to exactly one agent. Handing an owned one to a
-    // second agent is refused - and, since adoptBehavior() destroys what it
-    // refuses, there is no orphaned allocation either way.
+    // A behavior belongs to one agent: adoptBehavior() refuses an owned one and destroys what it refuses.
     Agent* b = makeAgent(scene, defaultAgentSettings(), "b");
     scene.update(0.0f);
     CHECK(!b->adoptBehavior(cohesion));
@@ -1631,7 +1418,7 @@ void testAgentBehaviorsAreOwned()
     CHECK(a->behaviorCount() == 2);
     CHECK(cohesion->owner() == a);
 
-    CHECK(b->adoptBehavior(new AlignmentBehavior(1.0f))); // unowned - accepted
+    CHECK(b->adoptBehavior(new AlignmentBehavior(1.0f)));
     CHECK(b->behaviorCount() == 1);
     CHECK(!b->adoptBehavior(nullptr));
 
@@ -1641,16 +1428,11 @@ void testAgentBehaviorsAreOwned()
     CHECK(scene.agentCount() == 0);
 }
 
-// An agent that cannot reach its goal must not search for it every frame.
-// A failed search leaves the path empty, which is the very condition that
-// triggers the search - so without a rate limit it was a full A* per agent
-// per frame, worst exactly when the graph is hardest to search.
+// A failed search leaves the path empty, which triggers the search again: without a rate limit it is a full A* per agent per frame.
 void testPathfindRepathIsRateLimited()
 {
     Scene scene;
 
-    // Two waypoints with no edge between them: reachable by neither, so
-    // every search fails and the retry path is the one under test.
     WaypointNetwork network;
     Waypoint* wpStart =
         new Waypoint(Math::vec3(0.0f, 0.0f, 0.0f), Math::quat(1.0f, 0.0f, 0.0f, 0.0f), 3.0f);
@@ -1675,23 +1457,18 @@ void testPathfindRepathIsRateLimited()
         return;
     CHECK(std::abs(pathfind->settings().repathInterval - 1.0f) < 1e-5f);
 
-    // Half the interval: no search may have run yet, so nothing is set.
     for (u32 i = 0; i < 30; ++i)
         scene.updateAgents(1.0f / 60.0f);
     CHECK(agent->nextWaypoint() == 0);
 
-    // Well past it: the search has been allowed to run, and still finds
-    // nothing (the island has no edges) - which is the case that used to
-    // retry forever.
+    // Well past the interval: the search may run and still finds nothing (no edges).
     for (u32 i = 0; i < 300; ++i)
         scene.updateAgents(1.0f / 60.0f);
     CHECK(finiteVec(agent->position()));
-    CHECK(agent->path().empty()); // no route exists, and none was invented
+    CHECK(agent->path().empty());
 }
 
-// Destroying a squad member takes it out of its leader's member list. It
-// used to stay there as a dangling pointer, and the leader's next order
-// walked straight into it.
+// Destroying a squad member removes it from its leader's list; a dangling pointer was walked by the next order.
 void testDestroyedMemberLeavesTheSquad()
 {
     Scene scene;
@@ -1713,21 +1490,15 @@ void testDestroyedMemberLeavesTheSquad()
     CHECK(leader->squadMembers().size() == 1);
     CHECK(leader->squadMembers()[0] == second);
 
-    // Reaches every member: with the dead one still listed this is the
-    // use-after-free.
     leader->setCommand(AI::SquadCommand::RallyToLeaderPosition);
     CHECK(second->command() == AI::SquadCommand::RallyToLeaderPosition);
 
-    // The other direction: losing the leader leaves no dangling back
-    // pointer on the members either.
     CHECK(scene.destroy(leader->owner()));
     scene.update(0.0f);
     CHECK(second->squadLeader() == nullptr);
 }
 
-// A leader ordered to a random waypoint with no network attached returns
-// instead of dereferencing one: the guard used to sit one line below the
-// dereference it was guarding.
+// A leader ordered to a random waypoint with no network must return before dereferencing one.
 void testLeaderWithoutWaypointNetwork()
 {
     Scene scene;
@@ -1742,13 +1513,9 @@ void testLeaderWithoutWaypointNetwork()
 
     leader->sendSquadToRandomWaypoint();
     CHECK(leader->selectedWaypoint() == nullptr);
-    CHECK(member->goal() == Math::vec3(0.0f)); // never handed a destination
+    CHECK(member->goal() == Math::vec3(0.0f));
 }
 
-// --- BehaviorFactory (Fase 2) ------------------------------------------------
-
-// Every BehaviorType round-trips through name()/fromName(), and create()
-// hands back a live instance whose own type() agrees.
 void testBehaviorFactoryRoundTrip()
 {
     for (u8 i = 0; i < static_cast<u8>(BehaviorType::Count); ++i)
@@ -1764,16 +1531,12 @@ void testBehaviorFactoryRoundTrip()
         delete behavior;
     }
 
-    // SteerBehavior is deliberately outside the registry (Steering.h): no
-    // name, and BehaviorType::Count itself creates nothing.
+    // SteerBehavior is outside the registry (Steering.h): no name, and Count creates nothing.
     BehaviorType outType = BehaviorType::Count;
     CHECK(!BehaviorFactory::fromName("Steer", outType));
     CHECK(BehaviorFactory::create(BehaviorType::Count) == nullptr);
 }
 
-// Each registered behavior's paramCount() matches its own kParams table, and
-// every parameter round-trips a written value back out through get/set by
-// index.
 void testBehaviorParamRoundTrip()
 {
     struct Expected
@@ -1822,10 +1585,6 @@ void testBehaviorParamRoundTrip()
     }
 }
 
-// --- Radion::Obstacle (Fase 2b) ----------------------------------------------
-
-// Adding/removing the component enters/leaves the Scene's group; destroying
-// the GameObject (not just removeComponent()) has to reach the same path.
 void testObstacleRegistersWithScene()
 {
     Scene scene;
@@ -1843,9 +1602,6 @@ void testObstacleRegistersWithScene()
     CHECK(scene.obstacleCount() == 0);
 }
 
-// Switching an obstacle off takes it out of the group the avoidance
-// behaviors read, without taking it out of the scene - the rule colliders
-// and lights already follow. Same for its object being deactivated.
 void testInactiveObstacleLeavesTheGroup()
 {
     Scene scene;
@@ -1857,7 +1613,7 @@ void testInactiveObstacleLeavesTheGroup()
 
     obstacle->setActive(false);
     scene.update(0.0f);
-    CHECK(scene.obstacleCount() == 1); // still attached
+    CHECK(scene.obstacleCount() == 1);
     CHECK(scene.obstacleGroup().empty());
 
     obstacle->setActive(true);
@@ -1874,10 +1630,7 @@ void testInactiveObstacleLeavesTheGroup()
     CHECK(scene.obstacleGroup()[0] == obstacle->obstacle());
 }
 
-// Same shape as testAgentUnregisterInShuffledOrder(): N obstacles created
-// WITHOUT reserve(), so mObstacleComponents/mObstacleGroup are guaranteed to
-// reallocate, destroyed in a baralhada order. Each step also checks the two
-// arrays stayed paired index for index through every swap-and-pop removal.
+// N obstacles created WITHOUT reserve() reallocate, destroyed in shuffled order; the two arrays must stay paired through every swap-and-pop.
 void testObstacleUnregisterInShuffledOrder()
 {
     Scene scene;
@@ -1914,13 +1667,10 @@ void testObstacleUnregisterInShuffledOrder()
     }
     CHECK(scene.obstacleCount() == 0);
 
-    // If a deregistration were missed, this walks over the freed Obstacle.
     scene.debugDrawObstacles();
 }
 
-// Swapping the shape reconstructs the owned AI::Obstacle instance (a new
-// address, not the old one mutated in place) and the Scene's ObstacleGroup
-// entry - refreshObstacle()'s whole job - follows it to the new address.
+// Swapping the shape reconstructs the owned AI::Obstacle (new address) and the Scene's ObstacleGroup entry follows it (refreshObstacle()).
 void testObstacleShapeSwapRebuildsInstance()
 {
     Scene scene;
@@ -1952,11 +1702,7 @@ void testObstacleShapeSwapRebuildsInstance()
     scene.update(0.0f);
 }
 
-// ObstacleAvoidanceBehavior with no setObstacles() call at all: it has to
-// find the sphere entirely through Agent::scene()->obstacleGroup(). Same
-// geometry and same assertion as testObstacleAvoidance() above, which builds
-// its own ObstacleGroup by hand - matching results is what proves the
-// fallback wiring, not just that it does not crash.
+// No setObstacles(): found through Agent::scene()->obstacleGroup(); the same result as testObstacleAvoidance() proves the fallback wiring.
 void testObstacleAvoidanceReadsSceneGroup()
 {
     Scene scene;
@@ -1974,7 +1720,7 @@ void testObstacleAvoidanceReadsSceneGroup()
     vehicle->setPosition(Math::vec3(0.0f, 0.0f, 0.0f));
     vehicle->setVelocity(Math::vec3(5.0f, 0.0f, 0.0f)); // moving +X
     vehicle->setOrientation(Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 1.0f, 0.0f)));
-    vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f); // no setObstacles() call
+    vehicle->addBehavior<ObstacleAvoidanceBehavior>(2.0f);
 
     scene.updateAgents(0.016f);
     CHECK(finiteVec(vehicle->desiredMove()));
@@ -1985,8 +1731,6 @@ void testObstacleAvoidanceReadsSceneGroup()
 
     CHECK(finiteVec(vehicle->position()));
     CHECK(vehicle->position().z < 0.0f);
-    // Sphere centre/radius as set above (8, 0, 2), 3.0 - the vehicle must
-    // have steered around it, not through it.
     CHECK(Math::length(vehicle->position() - Math::vec3(8.0f, 0.0f, 2.0f)) > 3.0f);
 }
 

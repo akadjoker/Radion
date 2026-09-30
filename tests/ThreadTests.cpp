@@ -23,8 +23,6 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// ------------------------------------------------------------------ thread
-
 struct Counter
 {
     u32 value = 0;
@@ -44,8 +42,7 @@ void testThreadRunsAndJoins()
     CHECK(thread.joinable());
     thread.join();
     CHECK(counter.value == 1);
-    // Joining twice, and joining one that never started, must both be safe -
-    // a destructor runs join() and cannot know which case it is in.
+    // Double join and joining a never-started thread must be safe (a destructor calls join()).
     thread.join();
     CHECK(!thread.joinable());
 
@@ -53,12 +50,9 @@ void testThreadRunsAndJoins()
     never.join();
     CHECK(!never.joinable());
 
-    // A null entry is refused rather than starting a thread that crashes.
     Thread bad;
     CHECK(!bad.start(nullptr, nullptr, "radion.test.bad"));
 }
-
-// -------------------------------------------------------------------- pool
 
 struct Accumulator
 {
@@ -75,8 +69,6 @@ void countJob(void* userData)
     while (now > peak && !state.peakConcurrent.compare_exchange_weak(peak, now))
     {
     }
-    // Long enough that several workers really do overlap, short enough that
-    // the test stays quick.
     for (volatile u32 spin = 0; spin < 20000; ++spin)
     {
     }
@@ -98,14 +90,10 @@ void testPoolRunsEverything()
         pool.enqueue(&countJob, &state);
     pool.wait();
 
-    // Every job ran exactly once, and wait() really waited: a queue that is
-    // empty while a worker is still inside a job is not finished, and this is
-    // what catches a wait() that only looks at the queue.
+    // wait() must really wait: an empty queue with a worker mid-job is not finished.
     CHECK(state.ran.load() == kJobs);
     CHECK(pool.pending() == 0);
     CHECK(state.concurrent.load() == 0);
-    // With four workers and 500 jobs, at least two must have overlapped, or
-    // the pool is running everything on one thread.
     CHECK(state.peakConcurrent.load() > 1);
 
     pool.stop();
@@ -114,8 +102,7 @@ void testPoolRunsEverything()
 
 void testPoolWithoutStartStillRuns()
 {
-    // A pool nobody started must not swallow work - running it on the caller
-    // is slow, but silently dropping it is a bug that surfaces far from here.
+    // A pool nobody started must not drop work; it runs on the caller.
     ThreadPool pool;
     Counter counter;
     pool.enqueue(&bumpCounter, &counter);
@@ -134,21 +121,18 @@ void testPoolDrainsBeforeStopping()
     for (u32 i = 0; i < kJobs; ++i)
         pool.enqueue(&countJob, &state);
 
-    // stop() without wait(): the contract is that queued work still runs.
-    // Throwing it away would lose whatever was in flight at shutdown.
+    // stop() without wait(): queued work still runs.
     pool.stop();
     CHECK(state.ran.load() == kJobs);
 }
 
 void testPoolOverflowRunsOnCaller()
 {
-    // More jobs than the ring holds. The surplus has to run somewhere, and
-    // the count at the end is what says none went missing.
     ThreadPool pool;
     CHECK(pool.start(2));
 
     Accumulator state;
-    constexpr u32 kJobs = 4000; // well past kQueueCapacity
+    constexpr u32 kJobs = 4000;
     for (u32 i = 0; i < kJobs; ++i)
         pool.enqueue(&countJob, &state);
     pool.wait();
@@ -165,8 +149,6 @@ void testPoolRestart()
     pool.wait();
     pool.stop();
 
-    // Starting again after a stop has to work - and starting one that is
-    // already running has to be refused rather than leaking the first set.
     CHECK(pool.start(3));
     CHECK(pool.workerCount() == 3);
     CHECK(!pool.start(2));
@@ -186,9 +168,6 @@ void testDoubleStopIsSafe()
     CHECK(!pool.running());
 }
 
-// The pattern the whole thing exists for: work handed off, main thread free,
-// result collected later. This is what the BVH double buffer and the lightmap
-// unwrap both do.
 struct Handoff
 {
     Mutex mutex;
@@ -214,7 +193,6 @@ void testHandoffPattern()
     CHECK(pool.start(2));
     pool.enqueue(&produce, &state);
 
-    // The main thread keeps working while that runs.
     u32 spun = 0;
     while (spun < 1000)
         ++spun;
@@ -235,10 +213,7 @@ void testJobGroupWaitsForItsOwnBatchOnly()
     Accumulator theirs;
     JobGroup group;
 
-    // One batch counted, another not. Waiting on the group must return as
-    // soon as ITS jobs are done, whatever else the pool is still chewing on -
-    // that is the whole difference from wait(), and what the BVH's
-    // rebuild-in-the-background needs.
+    // Waiting on a group returns when ITS jobs finish, whatever else the pool is chewing on (BVH background rebuild).
     for (u32 i = 0; i < 40; ++i)
         pool.enqueue(group, &countJob, &mine);
     for (u32 i = 0; i < 400; ++i)
@@ -255,14 +230,13 @@ void testJobGroupWaitsForItsOwnBatchOnly()
 
 void testJobGroupPollingWithoutBlocking()
 {
-    // The pattern the double-buffered BVH uses: fire it, carry on, and check
-    // next frame. finished() must never block.
+    // finished() must never block.
     ThreadPool pool;
     CHECK(pool.start(2));
 
     Accumulator state;
     JobGroup group;
-    CHECK(pool.finished(group)); // never used, so already finished
+    CHECK(pool.finished(group));
     for (u32 i = 0; i < 30; ++i)
         pool.enqueue(group, &countJob, &state);
 
@@ -271,7 +245,6 @@ void testJobGroupPollingWithoutBlocking()
         ++polls;
     CHECK(state.ran.load() == 30);
 
-    // Reusable: the same group can carry the next batch.
     for (u32 i = 0; i < 10; ++i)
         pool.enqueue(group, &countJob, &state);
     pool.wait(group);
@@ -285,8 +258,6 @@ void testHardwareThreadsIsSane()
     CHECK(count >= 1);
     CHECK(count < 4096);
 
-    // The default worker count is one per core less the caller's own, and
-    // never zero even on a single-core machine.
     ThreadPool pool;
     CHECK(pool.start());
     CHECK(pool.workerCount() >= 1);

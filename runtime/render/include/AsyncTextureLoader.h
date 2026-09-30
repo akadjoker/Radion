@@ -26,20 +26,13 @@ public:
     void enqueue(TextureHandle placeholder, const std::string& filename, ColorSpace space,
                 bool generateMips, u32 mipLimit);
 
-    // Main thread only. Uploads whatever finished decoding since the last
-    // call and returns how many textures it uploaded.
+    // Main thread only. Uploads finished decodes; returns how many.
     u32 processCompleted();
 
-    // Jobs handed to enqueue() that have not been picked up by the worker
-    // yet, plus the one (if any) currently decoding - what a "Loading N
-    // textures..." indicator reads.
+    // Jobs not yet picked up by the worker, plus the one decoding.
     u32 pendingCount() const;
 
-    // Decoded and waiting for the next processCompleted() to upload them.
-    // Not part of pendingCount(), which counts what the worker still owes;
-    // a caller that must not proceed until every texture is really on the
-    // GPU - a loading screen deciding when to hand over to the game - needs
-    // both to be zero, or it stops one frame short and shows placeholders.
+    // Decoded and awaiting upload; not counted in pendingCount(). A loading screen needs both at zero or it stops a frame short.
     u32 completedCount() const;
 
 private:

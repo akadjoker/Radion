@@ -25,9 +25,7 @@ LightmapPanel::LightmapPanel(EditorApplication& app) : EditorPanel("Lightmap", a
 namespace
 {
 
-// World-space surface area of the mesh. The atlas has to hold every triangle
-// at `texelsPerUnit` texels per world unit, and area scales with the square
-// of that, so this is what turns "I want a 2048 atlas" into a number.
+// World-space surface area; area scales with texelsPerUnit^2 to size the atlas.
 f32 worldSurfaceArea(const MeshData& mesh, const Math::mat4& transform)
 {
     f32 area = 0.0f;
@@ -55,9 +53,7 @@ std::string meshOutputBase(const MeshRenderer& renderer)
     return FileSystem::withoutExtension(resolved.empty() ? desc.file : resolved);
 }
 
-// One name, whichever technique produced it: the material points at a single
-// lightmap file, so a second bake has to replace the first rather than leave
-// a file nothing references.
+// One name per technique: the material points at a single lightmap file, so a rebake must replace it.
 std::string lightmapPathFor(const MeshRenderer& renderer)
 {
     const std::string base = meshOutputBase(renderer);
@@ -137,10 +133,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
     ImGui::SameLine();
     if (ImGui::Button("Fit"))
     {
-        // Every triangle needs area * texelsPerUnit^2 texels, and the atlas
-        // has resolution^2 to give, so texelsPerUnit = resolution / sqrt(area)
-        // is the largest value that still fits one page. Charts never tile
-        // perfectly, hence the margin.
+        // texelsPerUnit = resolution / sqrt(area) is the largest value that fits one page; margin because charts never tile perfectly.
         const f32 area = worldSurfaceArea(data, renderer.owner()->globalTransform());
         if (area > 0.0f)
         {
@@ -183,9 +176,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
             Log::error("LightmapPanel: unwrap failed - see the console for what xatlas said");
             app().toasts().error("UV2 unwrap failed");
         }
-        // The selection can move while a large unwrap runs. Applying the
-        // result to whatever happens to be selected now would overwrite an
-        // unrelated mesh with geometry that is not its own.
+        // The selection can move during a long unwrap; do not apply the result to a different mesh.
         else if (renderer.owner() && renderer.owner()->id() != mUnwrapObjectId)
         {
             Log::error("LightmapPanel: selection changed during the unwrap - result discarded");
@@ -198,10 +189,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
             data = std::move(unwrapped);
             app().applyMeshEdit(renderer.mesh());
 
-            // The unwrap splits vertices, so the mesh in memory is no longer
-            // the file it came from. Written out and re-registered here or
-            // the scene keeps naming the old file, reopens without UV2, and
-            // the bake then refuses to run for a reason nothing explains.
+            // The unwrap splits vertices: write out and re-register the mesh or the scene keeps the old file (no UV2).
             const std::string base = meshOutputBase(renderer);
             const std::string meshOutput = base + ".rmesh";
             const std::string materialOutput = base + ".material";
@@ -239,10 +227,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
         return;
 
     ImGui::TextDisabled("atlas %ux%u, %u charts", atlas.width, atlas.height, atlas.chartCount);
-    // The UV2 is normalized against the atlas xatlas chose. Baking into a
-    // smaller texture rescales every chart AND the padding between them, so
-    // charts that were properly separated end up bleeding into each other -
-    // silently, and looking like a bad bake rather than a mismatch.
+    // UV2 is normalized to xatlas's atlas; baking into a smaller texture rescales charts and padding, causing silent bleeding.
     const u32 largest = Math::max(atlas.width, atlas.height);
     if (largest > mBakeResolution)
     {
@@ -259,10 +244,7 @@ void LightmapPanel::drawUnwrapSection(MeshRenderer& renderer, MeshData& data)
 
 void LightmapPanel::applyPreset(bool draft, const MeshData& data, const Math::mat4& transform)
 {
-    // The Final numbers are the ones tools/lightmapbake settled on for the
-    // Bistro, not a guess: 8192 shadow against a 4096 map, 16 samples over a
-    // 2 degree sun. Draft is the same shape at a quarter of everything, for
-    // iterating on the sun angle without waiting.
+    // Final values were settled by tools/lightmapbake on the Bistro; Draft is a quarter of everything.
     if (draft)
     {
         mBakeResolution = 1024;
@@ -283,11 +265,7 @@ void LightmapPanel::applyPreset(bool draft, const MeshData& data, const Math::ma
     mBakeSettings.biasTexels = 3.0f;
     mBakeSettings.bias = 0.0f;
 
-    // The UV2 half comes with it. A preset that set only the bake left the
-    // atlas at whatever it was - packing the charts for a 1024 page and then
-    // baking them at 4096 stretches a low-density unwrap over four times the
-    // texels, which adds no detail at all, and is exactly the state this
-    // panel was found in.
+    // Sets the UV2 atlas too: a bake-only preset leaves the atlas size mismatched with the bake resolution.
     mUnwrapSettings.padding = 8;
     mFitResolution = static_cast<int>(mBakeResolution);
     mUnwrapSettings.resolution = 0;

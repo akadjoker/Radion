@@ -1,7 +1,3 @@
-// MeshUVTests.cpp - transformFaceUVs(): retiling the UVs already on a set of
-// faces, and the vertex split at the edge of that set which keeps the edit
-// from spreading. Nothing here touches the GPU.
-
 #include "PCH.h"
 
 #include "AssetManager.h"
@@ -32,9 +28,7 @@ bool near(const Math::vec2& a, const Math::vec2& b, f32 tolerance = 1e-4f)
     return Math::abs(a.x - b.x) <= tolerance && Math::abs(a.y - b.y) <= tolerance;
 }
 
-// One quad, two triangles. Face 0 is (0,3,2) and face 1 is (0,2,1): they
-// share vertices 0 and 2, which is what has to be split when only one of them
-// is retiled.
+// One quad: face 0 is (0,3,2), face 1 is (0,2,1); they share vertices 0 and 2, which must split when only one is retiled.
 MeshData makeQuad()
 {
     MeshData mesh;
@@ -53,8 +47,6 @@ MeshData makeQuad()
     return mesh;
 }
 
-// The whole reason the function splits vertices: retiling one face must leave
-// the face joined to it exactly as it was.
 void testNeighbourKeepsItsUVs()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -62,18 +54,14 @@ void testNeighbourKeepsItsUVs()
 
     CHECK(assets.transformFaceUVs(mesh, {0}, Math::vec2(2.0f), 0.0f, Math::vec2(0.0f)));
 
-    // Vertices 0 and 2 belong to both faces, so each gained a copy; vertex 3
-    // is face 0's alone and did not.
     CHECK(mesh.positions.size() == 6);
     CHECK(mesh.uvs.size() == 6);
 
-    // Face 1 still names the originals and their UVs are untouched.
     CHECK(mesh.indices[3] == 0 && mesh.indices[4] == 2 && mesh.indices[5] == 1);
     CHECK(near(mesh.uvs[0], Math::vec2(0.0f, 0.0f)));
     CHECK(near(mesh.uvs[2], Math::vec2(1.0f, 1.0f)));
     CHECK(near(mesh.uvs[1], Math::vec2(1.0f, 0.0f)));
 
-    // Face 0 now names the copies, and the one vertex it had to itself.
     CHECK(mesh.indices[0] == 4);
     CHECK(mesh.indices[1] == 3);
     CHECK(mesh.indices[2] == 5);
@@ -83,12 +71,10 @@ void testNeighbourKeepsItsUVs()
     CHECK(near(mesh.uvs[3], Math::vec2(-0.5f, 1.5f)));
     CHECK(near(mesh.uvs[5], Math::vec2(1.5f, 1.5f)));
 
-    // A split copies the position, not just the UV.
     CHECK(mesh.positions[4] == mesh.positions[0]);
     CHECK(mesh.positions[5] == mesh.positions[2]);
 }
 
-// Nothing is shared with anything left out, so nothing needs splitting.
 void testWholeMeshSplitsNothing()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -97,20 +83,16 @@ void testWholeMeshSplitsNothing()
     CHECK(assets.transformFaceUVs(mesh, {}, Math::vec2(2.0f), 0.0f, Math::vec2(0.0f)));
     CHECK(mesh.positions.size() == 4);
 
-    // Same centre, so the corners spread symmetrically about it.
     CHECK(near(mesh.uvs[0], Math::vec2(-0.5f, -0.5f)));
     CHECK(near(mesh.uvs[2], Math::vec2(1.5f, 1.5f)));
 
-    // Naming every face by hand is the same as naming none.
     MeshData explicitAll = makeQuad();
     CHECK(assets.transformFaceUVs(explicitAll, {0, 1}, Math::vec2(2.0f), 0.0f, Math::vec2(0.0f)));
     CHECK(explicitAll.positions.size() == 4);
     CHECK(near(explicitAll.uvs[0], mesh.uvs[0]));
 }
 
-// Scaling about the origin instead of the island's own centre would slide the
-// texture away by however far the island sits from (0,0). The centre staying
-// put is what makes the amount mean the same thing anywhere.
+// Scale about the island's own centre, not the origin, so the amount means the same anywhere.
 void testScaleKeepsTheCentre()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -128,7 +110,6 @@ void testScaleKeepsTheCentre()
         max = Math::max(max, mesh.uvs[i]);
     }
     CHECK(near((min + max) * 0.5f, Math::vec2(10.5f, 10.5f)));
-    // Three times as wide as it was.
     CHECK(Math::abs((max.x - min.x) - 3.0f) < 1e-4f);
 }
 
@@ -148,7 +129,6 @@ void testOffsetAndRotation()
     CHECK(near(turned.uvs[0], Math::vec2(1.0f, 0.0f)));
     CHECK(near(turned.uvs[2], Math::vec2(0.0f, 1.0f)));
 
-    // Turning it four times gets back where it started.
     MeshData full = makeQuad();
     for (u32 i = 0; i < 4; ++i)
         CHECK(assets.transformFaceUVs(full, {}, Math::vec2(1.0f), 90.0f, Math::vec2(0.0f)));
@@ -162,7 +142,6 @@ void testFlip()
     MeshData mesh = makeQuad();
 
     CHECK(assets.transformFaceUVs(mesh, {}, Math::vec2(-1.0f, 1.0f), 0.0f, Math::vec2(0.0f)));
-    // Mirrored about the centre: the two ends swap and nothing moves off it.
     CHECK(near(mesh.uvs[0], Math::vec2(1.0f, 0.0f)));
     CHECK(near(mesh.uvs[1], Math::vec2(0.0f, 0.0f)));
 }
@@ -176,8 +155,6 @@ void testRejectsMeshWithoutUVs()
     CHECK(!assets.transformFaceUVs(mesh, {}, Math::vec2(2.0f), 0.0f, Math::vec2(0.0f)));
     CHECK(mesh.positions.size() == 4);
 
-    // A UV array that is present but the wrong length is refused too rather
-    // than read past its end.
     MeshData short_ = makeQuad();
     short_.uvs.pop_back();
     CHECK(!assets.transformFaceUVs(short_, {}, Math::vec2(2.0f), 0.0f, Math::vec2(0.0f)));
@@ -186,8 +163,6 @@ void testRejectsMeshWithoutUVs()
     CHECK(!assets.transformFaceUVs(empty, {}, Math::vec2(2.0f), 0.0f, Math::vec2(0.0f)));
 }
 
-// A selection left over from a bigger mesh names faces that are gone; it must
-// come back false rather than split or move anything.
 void testRejectsSelectionOfNothing()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -200,8 +175,7 @@ void testRejectsSelectionOfNothing()
         CHECK(near(mesh.uvs[i], before[i]));
 }
 
-// A split has to carry every stream across, or the copy renders with someone
-// else's normal or skin weights.
+// A split must carry every stream across, or the copy renders with another vertex's normal or skin weights.
 void testSplitCarriesEveryStream()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -218,8 +192,7 @@ void testSplitCarriesEveryStream()
     CHECK(mesh.uvs2.size() == 6);
     CHECK(mesh.colors[4] == 0xff112233u);
     CHECK(near(mesh.uvs2[4], Math::vec2(0.25f, 0.75f)));
-    // The second UV set is a lightmap's own unwrap and is not what was asked
-    // to be retiled.
+    // The second UV set is a lightmap unwrap and is not retiled.
     CHECK(near(mesh.uvs2[0], Math::vec2(0.25f, 0.75f)));
 }
 

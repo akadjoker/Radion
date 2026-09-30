@@ -13,10 +13,7 @@ namespace Radion
 
 class Animator;
 
-// GPU simulated hair grown from a sibling MeshRenderer. The selected scalp
-// submesh should contain only the part allowed to grow hair; vertex alpha is
-// additionally used as both density and relative length (empty colours mean
-// full density). Roots are generated once and remain deterministic for seed.
+// Vertex alpha is density and relative length; roots are deterministic for seed.
 class Hair final : public Component
 {
 public:

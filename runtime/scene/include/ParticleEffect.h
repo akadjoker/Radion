@@ -10,12 +10,10 @@ namespace Radion
 
 enum class ParticleEffectMode : u8
 {
-    OneShot,    // emits once and can auto-destroy when all particles die
-    Continuous  // emits every frame while playing
+    OneShot,
+    Continuous
 };
 
-// Scene component that drives the global GPU-driven particle system.
-// Attach it to a GameObject, configure the emitter, and call play().
 class ParticleEffect final : public Component
 {
 public:
@@ -27,8 +25,7 @@ public:
     void setEmitter(const ParticleSystem::Emitter& emitter);
     const ParticleSystem::Emitter& emitter() const;
 
-    // One-shot: how many particles to spawn on play().
-    // Continuous: ignored; rate on the emitter controls emission.
+    // One-shot: particles spawned on play(). Continuous: ignored.
     void setBurstCount(u32 count);
     u32 burstCount() const;
 
@@ -42,11 +39,8 @@ public:
     void stop();
     bool isPlaying() const;
 
-    // True only for one-shot effects that already fired and have no alive particles.
     bool isFinished() const;
 
-    // Presets for common effects. They only fill emitter parameters; position
-    // and direction are still taken from the owner GameObject when playing.
     static ParticleSystem::Emitter presetBulletImpact();
     static ParticleSystem::Emitter presetExplosion();
     static ParticleSystem::Emitter presetFirework();

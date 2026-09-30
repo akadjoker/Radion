@@ -1,7 +1,3 @@
-// MeshTransformTests.cpp - transformVertices(): a matrix baked into a subset
-// of a mesh's vertices around their own median point. Nothing here touches
-// the GPU.
-
 #include "PCH.h"
 
 #include "AssetManager.h"
@@ -38,9 +34,7 @@ bool near(const Math::vec3& a, const Math::vec3& b, f32 tolerance = 1e-4f)
     return near(a.x, b.x, tolerance) && near(a.y, b.y, tolerance) && near(a.z, b.z, tolerance);
 }
 
-// Two triangles, well away from the origin: a pivot bug shows up as the whole
-// thing sliding toward or away from (0,0,0), which a mesh built around the
-// origin would hide completely.
+// Well away from the origin: a pivot bug slides the mesh toward (0,0,0), which an origin-centred mesh would hide.
 MeshData makeOffsetQuad()
 {
     MeshData mesh;
@@ -62,8 +56,6 @@ MeshData makeOffsetQuad()
     return mesh;
 }
 
-// Scaling the whole mesh must grow it where it stands. About the origin a
-// quad at x=100 would land at x=200; about its own median it stays centred.
 void testWholeMeshScalesAboutItsMedian()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -76,20 +68,17 @@ void testWholeMeshScalesAboutItsMedian()
     CHECK(near(mesh.positions[2], Math::vec3(103.0f, 0.0f, 103.0f)));
     CHECK(near(mesh.positions[3], Math::vec3(99.0f, 0.0f, 103.0f)));
 
-    // The median is exactly where it was.
     Math::vec3 median(0.0f);
     for (usize i = 0; i < mesh.positions.size(); ++i)
         median += mesh.positions[i];
     median /= static_cast<f32>(mesh.positions.size());
     CHECK(near(median, Math::vec3(101.0f, 0.0f, 101.0f)));
 
-    // Bounds follow, or anything that frames or culls the mesh is left with
-    // the old box.
+    // Bounds must follow, or framing and culling use the old box.
     CHECK(near(mesh.bounds.min, Math::vec3(99.0f, 0.0f, 99.0f)));
     CHECK(near(mesh.bounds.max, Math::vec3(103.0f, 0.0f, 103.0f)));
 }
 
-// The point of the selection argument: unselected geometry does not move.
 void testSubsetLeavesTheRestAlone()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -99,8 +88,6 @@ void testSubsetLeavesTheRestAlone()
     const std::vector<u32> selection = {0, 1};
     assets.transformVertices(mesh, Math::scale(Math::mat4(1.0f), Math::vec3(2.0f)), selection);
 
-    // Median of the two selected corners is (101, 0, 100); they move apart
-    // along x around it and stay put on z.
     CHECK(near(mesh.positions[0], Math::vec3(99.0f, 0.0f, 100.0f)));
     CHECK(near(mesh.positions[1], Math::vec3(103.0f, 0.0f, 100.0f)));
     CHECK(near(mesh.positions[2], before[2]));
@@ -116,14 +103,11 @@ void testTranslationMovesEverythingEqually()
     const Math::vec3 delta(5.0f, -2.0f, 0.5f);
     assets.transformVertices(mesh, Math::translate(Math::mat4(1.0f), delta));
 
-    // A translation is unaffected by which pivot it is applied around.
     for (usize i = 0; i < mesh.positions.size(); ++i)
         CHECK(near(mesh.positions[i], before[i] + delta));
 }
 
-// Rotating positions without rotating normals leaves the surface lit as if it
-// never turned - the failure that makes a rotated mesh look wrong rather than
-// broken, so it is easy to ship.
+// Rotating positions without normals leaves the surface lit as if unturned.
 void testRotationCarriesNormals()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -153,13 +137,10 @@ void testRotationOfSubsetKeepsOtherNormals()
     CHECK(near(mesh.normals[1], Math::vec3(0.0f, 1.0f, 0.0f)));
     CHECK(near(mesh.normals[2], Math::vec3(0.0f, 1.0f, 0.0f)));
 
-    // A single vertex is its own median, so rotating it moves it nowhere.
     CHECK(near(mesh.positions[0], Math::vec3(100.0f, 0.0f, 100.0f)));
 }
 
-// The selection comes from a BlenderSelection that may outlive the mesh it
-// was made against - deleting vertices then transforming must not read past
-// the end of the position array.
+// A BlenderSelection may outlive its mesh: out-of-range indices must not read past the positions.
 void testOutOfRangeIndicesAreIgnored()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -170,12 +151,9 @@ void testOutOfRangeIndicesAreIgnored()
     assets.transformVertices(mesh, Math::translate(Math::mat4(1.0f), Math::vec3(1.0f, 0.0f, 0.0f)),
                              selection);
 
-    // Only vertex 0 was real, and it is its own median, so a translation
-    // still moves it and nothing else.
     CHECK(near(mesh.positions[0], before[0] + Math::vec3(1.0f, 0.0f, 0.0f)));
     CHECK(near(mesh.positions[1], before[1]));
 
-    // A selection of nothing but garbage leaves the mesh untouched.
     MeshData untouched = makeOffsetQuad();
     const std::vector<u32> allBad = {500, 501};
     assets.transformVertices(untouched, Math::scale(Math::mat4(1.0f), Math::vec3(3.0f)), allBad);
@@ -191,7 +169,6 @@ void testEmptyMeshIsSafe()
     CHECK(mesh.positions.empty());
 }
 
-// Scaling by one is the identity, whatever the pivot maths does in between.
 void testIdentityChangesNothing()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -204,8 +181,7 @@ void testIdentityChangesNothing()
         CHECK(near(mesh.positions[i], before[i], 1e-3f));
 }
 
-// A mirrored whole-mesh transform turns the geometry inside out; the winding
-// has to be reversed to match, or every face renders backwards.
+// A mirrored transform must reverse the winding or faces render backwards.
 void testMirrorFlipsWinding()
 {
     AssetManager& assets = AssetManager::getSingleton();

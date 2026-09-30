@@ -11,8 +11,7 @@
 namespace Radion
 {
 
-// Ordinals matter: they match ENTITY_TYPE_* in lit.frag exactly, Decal
-// included, so RenderLight uploads to the entity SSBO with no translation.
+// Ordinals match ENTITY_TYPE_* in lit.frag (Decal included), so RenderLight uploads to the entity SSBO untranslated.
 enum class RenderLightType : u32
 {
     Directional,
@@ -22,27 +21,18 @@ enum class RenderLightType : u32
     Decal
 };
 
-// Bit positions match ENTITY_FLAG_* in the GLSL shaders exactly (lit.frag,
-// volumetric_spot.comp), which in turn match the reference's Wicked-derived
-// layout - bit 0 is deliberately left unused so this stays lined up.
+// Bit positions match ENTITY_FLAG_* in lit.frag and volumetric_spot.comp; bit 0 is deliberately unused.
 enum RenderLightFlags : u32
 {
     RenderLightCastShadow = 1 << 1,
     RenderLightVolumetric = 1 << 2,
 
-    // Matches ENTITY_FLAG_DECAL_BASECOLOR_ONLY_ALPHA in lit.frag. Decal-only:
-    // the decal tints with its own color instead of multiplying the albedo
-    // sample by it.
+    // Matches ENTITY_FLAG_DECAL_BASECOLOR_ONLY_ALPHA in lit.frag. Decal-only: tints with the decal's own color instead of multiplying the albedo sample.
     RenderDecalBaseColorOnlyAlpha = 1 << 3
 };
 
-// Scene-facing light snapshot, doing double duty as a decal snapshot: a decal
-// is not geometry, so it rides the same entity SSBO the lights already share
-// and reuses their fields for its own purpose (see Lighting::submitDecals) -
-// coneAngleCos becomes the slope-fade exponent, coneAngleScale the opacity,
-// rectangleWidth the normal strength. Shadow allocation fills
-// matrixIndex/atlas/fade later in the frame; collection itself never knows
-// about a GPU backend.
+// Light snapshot, doubling as a decal snapshot: decals ride the same entity SSBO and reuse fields (see Lighting::submitDecals): coneAngleCos = slope-fade exponent, coneAngleScale = opacity, rectangleWidth = normal strength.
+// Shadow allocation fills matrixIndex/atlas/fade later in the frame.
 struct alignas(16) RenderLight
 {
     Math::vec3 position = Math::vec3(0.0f);
@@ -64,13 +54,8 @@ struct alignas(16) RenderLight
 
 static_assert(sizeof(RenderLight) % 16 == 0, "GPU light layout must stay std430 aligned");
 
-// A local reflection probe already resolved to this instance - the nearest
-// ReflectionProbe (scene/) to whatever submitted it, picked before render/
-// ever sees it, since render/ cannot depend on scene/'s component types.
-// Default-constructed (an invalid cubemap) means "no local probe nearby";
-// ForwardPass falls back to the frame's own single environment cube for
-// those, exactly the behavior a scene with no ReflectionProbe components had
-// before this existed.
+// Local reflection probe already resolved to this instance (nearest ReflectionProbe, picked before render/, which cannot depend on scene/).
+// Default-constructed (invalid cubemap) means none nearby; ForwardPass then uses the frame's environment cube.
 struct RenderProbe
 {
     TextureHandle cubemap;
@@ -81,9 +66,7 @@ struct RenderProbe
     f32 intensity = 1.0f;
 };
 
-// What a packet needs at draw time but the sort must never move. The model
-// matrix is not here: it lives in a parallel array of its own so the whole
-// frame's matrices can go to the GPU in one upload.
+// What a packet needs at draw time but the sort must never move. The model matrix lives in a parallel array so all matrices upload in one go.
 struct RenderInstance
 {
     const Material* material = nullptr;
@@ -95,20 +78,14 @@ struct RenderInstance
     RenderProbe probe;
 };
 
-// 16 bytes, and it has to stay that way: the sort moves these around, so
-// everything here is an index or a sort field and the matrix stays out.
+// 16 bytes, and must stay that way: the sort moves these, so only indices and sort fields live here.
 struct RenderPacket
 {
     u32 instance = 0;
     u32 mesh = 0;     // MeshHandle index; in the key so same-mesh packets group
     u32 sortBits = 0; // pipeline index
     u16 distance = 0; // top 16 bits of the float pattern, monotonic
-    // Albedo TextureHandle index, truncated - the base texture, always
-    // paired with the same normal/specular/emissive set for a given
-    // material. A single big merged mesh (an exported level) has one
-    // MeshHandle for every submesh, so `mesh` above gives the sort nothing
-    // to group by; this is what actually keeps consecutive draws from
-    // rebinding a different texture set every time. See opaqueKey().
+    // Albedo TextureHandle index, truncated. A merged mesh has one MeshHandle for all submeshes, so `mesh` gives the sort nothing to group by; this keeps consecutive draws from rebinding texture sets. See opaqueKey().
     u16 textureKey = 0;
 };
 
@@ -143,8 +120,7 @@ public:
 
     void clear();
 
-    // Only collect materials carrying every flag in `required`; 0 takes
-    // everything. A shadow view sets MaterialCastShadow here.
+    // Only collect materials carrying every flag in `required` (0 = all); shadow views set MaterialCastShadow.
     void setFilter(u32 required)
     {
         mFilter = required;
@@ -154,11 +130,7 @@ public:
         return mFilter;
     }
 
-    // An extra reject test, run before the frustum, on top of it rather than
-    // instead of it. A point light's shadow face is only a 90-degree frustum,
-    // but nothing beyond the light's own range is ever lit regardless of
-    // facing, and a sphere-vs-box test is cheaper than the six-plane one.
-    // Radius 0 (the default, and what clear() resets to) disables it.
+    // Extra reject test before the frustum, cheaper than six planes: a point light's shadow face is a 90-degree frustum but nothing beyond its range is lit. Radius 0 (default, reset by clear()) disables it.
     void setCullSphere(const Sphere& sphere)
     {
         mCullSphere = sphere;
@@ -169,22 +141,14 @@ public:
         mStats.culledMeshes += count;
     }
 
-    // Culls against the frustum - mesh box first, then per submesh - and
-    // appends a packet for each submesh that survives. Materials come from
-    // `overrides` when given (indexed by SubMesh::materialSlot), otherwise
-    // from the mesh's own. Returns the number of packets added.
+    // Culls mesh box then per submesh, appending a packet per survivor. Materials come from `overrides` (indexed by SubMesh::materialSlot) when given. Returns packets added.
     u32 submit(MeshHandle handle, const Mesh& mesh, const Math::mat4& model,
                const Material* overrides = nullptr, u32 overrideCount = 0,
                const std::vector<Math::mat4>* palette = nullptr, const RenderProbe* probe = nullptr,
                const Math::mat4* prevModel = nullptr,
                const std::vector<Math::mat4>* prevPalette = nullptr);
 
-    // Same culling and packet emission as submit(), for exactly one submesh
-    // instead of scanning every one in `mesh` - for a caller (SceneBVH) that
-    // already narrowed visibility down to specific submeshes of a mesh with
-    // many, where a big static one otherwise means testing hundreds of boxes
-    // that have nothing to do with what got past the spatial index. Returns
-    // 1 if the submesh survived culling, 0 otherwise.
+    // submit() for exactly one submesh, for callers (SceneBVH) that already narrowed visibility. Returns 1 if it survived culling.
     u32 submitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIndex, const Math::mat4& model,
                       const Material* overrides = nullptr, u32 overrideCount = 0,
                       const std::vector<Math::mat4>* palette = nullptr,
@@ -204,10 +168,7 @@ public:
     }
     const RenderLight* sun() const;
 
-    // Opaque orders pipeline, then mesh (so same-mesh packets end up adjacent
-    // and can collapse into one instanced draw), then front-to-back for
-    // early-Z. Transparent is led by distance, back-to-front, because
-    // blending is order-dependent.
+    // Opaque: pipeline, then mesh (adjacent same-mesh packets collapse into one instanced draw), then front-to-back for early-Z. Transparent: back-to-front, since blending is order-dependent.
     void sort();
 
     const std::vector<RenderPacket>& packets(RenderCategory category) const;
@@ -236,23 +197,11 @@ public:
         return mStats;
     }
 
-    // 256 identity matrices - the palette a skinned RenderInstance falls
-    // back to when it has none of its own (a MeshRenderer with no Animator
-    // yet: Scene passes palette=nullptr). Every draw pass that appends
-    // instance.palette into its own upload buffer uses this instead when
-    // instance.palette is null but instance.material carries MaterialSkinned
-    // - without it, the pass leaves that instance's slice of the buffer
-    // untouched (whatever the previous frame's draw left there), and the
-    // vertex shader skins by garbage bone matrices instead of the identity
-    // (== bind pose) a still-unposed skinned mesh should read as. 256 is the
-    // same per-file bone cap the importers already enforce (see FbxImporter's
-    // buildBoneMap), so every joint index a skin vertex can carry resolves.
+    // 256 identity matrices: the palette a skinned instance falls back to when it has none, else the vertex shader skins by stale bone matrices instead of bind pose. 256 matches the importers' per-file bone cap (FbxImporter buildBoneMap).
     static const std::vector<Math::mat4>& identityPalette();
 
 private:
-    // Material lookup + packet emission, the part submit()'s loop and
-    // submitSubmesh() share - culling and the loop itself are the only
-    // difference between them.
+    // Material lookup + packet emission shared by submit() and submitSubmesh().
     bool emitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIndex, const Math::mat4& model,
                      const AABB& bounds, const Material* overrides, u32 overrideCount,
                      const std::vector<Math::mat4>* palette, const RenderProbe* probe,
@@ -272,37 +221,16 @@ private:
     RenderListStats mStats;
 };
 
-// What a shadow-casting view needs from whoever owns the scene. scene/ sits
-// above render/ and depends on it, never the other way around (see
-// docs/ENGINE.md), so a render/ technique that needs a shadow view's caster
-// list cannot call Scene directly - it calls this instead, and Scene is the
-// one thing on the other side implementing it.
+// What a shadow-casting view needs from the scene owner. scene/ depends on render/, not the reverse (docs/ENGINE.md), so techniques call this and Scene implements it.
 class ShadowCasterSource
 {
 public:
     virtual ~ShadowCasterSource() = default;
 
-    // A shadow-casting view of the same frame the camera's list was built
-    // from: same renderers, same already-resolved pipelines, culled against
-    // `viewProjection` instead of the camera's. `cullSphere`, when given, is
-    // an extra reject test run before the frustum - cheaper, and exact for a
-    // point light's shadow face, where nothing outside its range can ever be
-    // lit in the first place.
-    //
-    // `exclude` drops every renderer drawing that mesh. It exists for the
-    // environment probe: a mirrored surface standing at the capture point
-    // would fill the cubemap with the inside of itself, and then reflect
-    // that. Left invalid by the shadow passes, which want every caster.
-    // `excludeObjectId` is the same idea addressed at one object instead of
-    // one mesh, and is what an environment probe attached to an object uses:
-    // meshes are shared (AssetManager caches them by description), so
-    // `exclude` alone cannot say "this sphere but not that identical one".
-    // An opaque id here - whoever implements this is the side that knows what
-    // it identifies; 0 means exclude nothing.
-    // `reflectionCapture` says this list is for an environment probe rather
-    // than for a shadow view, which is the only thing that can honour a
-    // per-object "keep me out of reflections" opt-out: the same object still
-    // has to cast its shadow, so the flag cannot simply drop it everywhere.
+    // A shadow-casting view of the camera list's frame (same renderers and resolved pipelines), culled against `viewProjection`. `cullSphere` is an extra reject test, exact for a point light's face.
+    // `exclude` drops every renderer drawing that mesh (environment probe: keeps a mirrored surface at the capture point out of the cubemap); shadow passes leave it invalid.
+    // `excludeObjectId` excludes one object, since meshes are shared and `exclude` cannot distinguish identical ones; opaque id, 0 = none.
+    // `reflectionCapture` marks an environment-probe list, the only kind that honours a per-object opt-out of reflections (the object must still cast shadows).
     virtual bool buildShadowList(RenderList& list, const Math::mat4& viewProjection, u32 filter,
                                  const Sphere* cullSphere = nullptr,
                                  MeshHandle exclude = MeshHandle(), u64 excludeObjectId = 0,

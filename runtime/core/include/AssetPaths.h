@@ -8,10 +8,7 @@
 namespace Radion
 {
 
-// Installed applications live in <release>/bin while the loose engine assets
-// live in <release>/assets.  SDL gives us the executable directory even when
-// an application was launched from a file manager or another working folder.
-// A development build keeps its compile-time source-tree path as a fallback.
+// Installed apps: <release>/bin, loose assets: <release>/assets. Dev builds fall back to the source-tree path.
 inline std::string resolveAssetDirectory(const char* developmentAssetDirectory)
 {
     char* basePath = SDL_GetBasePath();

@@ -112,7 +112,6 @@ f32 computeSin(f32 x)
     constexpr f32 c4 = 2.7525562e-06f;
     constexpr f32 c5 = -2.3889859e-08f;
 
-    // Reduce the angle to [-pi, pi].
     const f32 turns = std::round(x * 0.159154943f);
     x = x - turns * 6.283185307f;
 
@@ -158,10 +157,7 @@ Result compute(f32 x, f32 y, f32 seed)
         {
             const Math::vec2 g{static_cast<f32>(i), static_cast<f32>(j)};
             const Math::vec2 o = hash(n + g);
-            // The cell's point is not at its centre: it is displaced by the
-            // hash, and the seed enters HERE, inside the sine, not in the hash.
-            // That is what makes the same pattern of cells give different
-            // terrains.
+            // The point is displaced by the hash and the seed enters HERE, inside the sine, not in the hash.
             const Math::vec2 r(g.x - f.x + (0.5f + 0.5f * computeSin(seed * o.x)),
                               g.y - f.y + (0.5f + 0.5f * computeSin(seed * o.y)));
             const f32 d = Math::dot(r, r);

@@ -1,21 +1,6 @@
-// glTF 2.0 / GLB importer, ported from docs/GLTFLoader.cpp and reshaped to
-// the engine's importer pattern (see B3DImporter/MS3DImporter): geometry goes
-// through GltfImporter::import() into a MeshData, the skeleton and the
-// animation clips through loadGltfSkeleton()/loadGltfAnimation().
-//
-// The reference loaded a whole SkinnedMesh in one go; here the caller drives
-// the same three steps the native formats do. The one structural difference
-// that mattered in the reference applies unchanged: glTF gives each TRS
-// channel its own independent time array (and any channel may be absent for a
-// given bone), while Radion's BoneTrack drives position/rotation/scale in
-// lockstep off ONE shared `times` array - so channels are resampled onto a
-// unified per-bone time array (the union of all its channels' keyframe times)
-// before building the track.
-//
-// File I/O never goes through raw stdio: cgltf's file callbacks are routed
-// through FileSystem, matching the other importers' contract ("a format
-// importer only decodes memory; any secondary file it needs must be read
-// through the supplied FileSystem").
+// glTF 2.0 / GLB importer.
+// glTF gives each TRS channel its own time array while BoneTrack uses one shared `times` array, so channels are resampled onto the per-bone union of keyframe times.
+// File I/O goes through FileSystem (cgltf callbacks), never raw stdio.
 
 #include "PCH.h"
 
@@ -44,9 +29,7 @@ namespace Radion
 namespace
 {
 
-// cgltf reads external buffers/images through file callbacks; route them
-// through Radion's FileSystem (which searches the registered asset folders)
-// instead of fopen, matching every other importer's contract.
+// cgltf file callbacks routed through FileSystem (searches asset folders) instead of fopen.
 cgltf_result gltfFileRead(const cgltf_memory_options*, const cgltf_file_options* fileOptions,
                           const char* path, cgltf_size* size, void** data)
 {
@@ -69,9 +52,6 @@ void gltfFileRelease(const cgltf_memory_options*, const cgltf_file_options*, voi
     CGLTF_FREE(data);
 }
 
-// Parses an in-memory glTF/GLB file and loads its buffers. External buffers
-// (a .gltf's .bin, an image) go through the file callbacks above, which
-// resolve against FileSystem.
 cgltf_data* parseGltf(FileSystem& files, const void* data, cgltf_size size,
                       const std::string& filename)
 {
@@ -103,14 +83,12 @@ u8 clampBone(cgltf_uint value, cgltf_size jointCount)
 Math::mat4 nodeLocalMatrix(const cgltf_node& node)
 {
     if (node.has_matrix)
-        return Math::make_mat4(node.matrix); // column-major flat copy, no transpose needed
+        return Math::make_mat4(node.matrix);
 
     const Math::vec3 t = node.has_translation ? Math::vec3(node.translation[0], node.translation[1],
                                                          node.translation[2])
                                              : Math::vec3(0.0f);
-    // glTF stores a rotation as [x, y, z, w]; Math::quat's constructor takes
-    // (w, x, y, z). Passing the array straight through turns every rotation
-    // into a different one about a different axis.
+    // glTF rotation is [x,y,z,w]; Math::quat's constructor takes (w,x,y,z).
     const Math::quat r = node.has_rotation ? Math::quat(node.rotation[3], node.rotation[0],
                                                       node.rotation[1], node.rotation[2])
                                           : Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
@@ -170,24 +148,8 @@ u32 hashName(const std::string& name)
     return hash;
 }
 
-// A glTF image is either a bare `uri` (an external file, the common .gltf
-// case) or embedded straight in the binary buffer (`buffer_view`, how a
-// single-file .glb like FlightHelmet.glb usually ships every texture) - only
-// the first ever had a path this importer's file arrays could point at, so
-// an embedded one silently imported as no texture at all (a plain white
-// material). This decodes it once (Pixmap already reads PNG/JPEG straight
-// from memory) and writes it out as a real file next to the source glTF, so
-// the rest of the pipeline - a plain relative path, same as an external
-// texture - never has to know the difference. `realDirectory` is the
-// source glTF's own directory already resolved to a writable disk path
-// (FileSystem::writeBinary()/Pixmap::save() need one, unlike reading, which
-// resolves search paths on its own).
-// A glTF may name an image the export never shipped: MSFT_texture_dds lists
-// the .png as the base source and the .dds that actually exists only inside
-// the extension, and cgltf has no field for that extension. Rather than parse
-// it, the file next to it with the same stem is taken - the same rule the
-// texture loader already applies at load time, applied here too so the path
-// written into the .material names a file that is really there.
+// An embedded image (buffer_view) is decoded and written next to the glTF as a real file; realDirectory must be a writable disk path.
+// MSFT_texture_dds: cgltf cannot see the extension's .dds, so the same-stem file next to the named image is used.
 std::string existingImageFile(const std::string& relative, const std::string& realDirectory)
 {
     FileSystem& files = FileSystem::getSingleton();
@@ -239,9 +201,6 @@ std::string resolveImageFile(const cgltf_texture* texture, const std::string& re
     return relativeName;
 }
 
-// Maps one glTF material onto one Radion Material, one slot per distinct
-// cgltf_material* (deduplicated through `sources`). PBR factors land in
-// params; albedo/normal texture URIs land in the parallel file arrays.
 u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
                     const std::string& realDirectory, const std::string& textureFolder,
                     std::vector<const cgltf_material*>& sources, MeshData& mesh)
@@ -266,21 +225,17 @@ u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
         const cgltf_pbr_metallic_roughness& pbr = material->pbr_metallic_roughness;
         out.params.baseColor = Math::vec4(pbr.base_color_factor[0], pbr.base_color_factor[1],
                                          pbr.base_color_factor[2], pbr.base_color_factor[3]);
-        out.params.surface.x = pbr.roughness_factor; // roughness
-        out.params.surface.y = pbr.metallic_factor;  // metalness
+        out.params.surface.x = pbr.roughness_factor;
+        out.params.surface.y = pbr.metallic_factor;
     }
     else if (material->has_pbr_specular_glossiness)
     {
-        // KHR_materials_pbrSpecularGlossiness. Without this branch a material
-        // that carries no pbrMetallicRoughness at all - every one of the
-        // Bistro's 254 - imports with no base colour and no albedo texture.
+        // KHR_materials_pbrSpecularGlossiness: materials without pbrMetallicRoughness would import with no base colour.
         const cgltf_pbr_specular_glossiness& pbr = material->pbr_specular_glossiness;
         out.params.baseColor = Math::vec4(pbr.diffuse_factor[0], pbr.diffuse_factor[1],
                                          pbr.diffuse_factor[2], pbr.diffuse_factor[3]);
         out.params.surface.x = 1.0f - pbr.glossiness_factor;
-        // No texture to read them from leaves only the constant factors, and
-        // a specular factor is what says metal here - lit.frag's own
-        // dielectric baseline is 0.04.
+        // Without a texture only the constant factors remain; a specular factor means metal (lit.frag dielectric baseline is 0.04).
         const f32 specular = std::max(std::max(pbr.specular_factor[0], pbr.specular_factor[1]),
                                       pbr.specular_factor[2]);
         out.params.surface.y = Math::clamp((specular - 0.04f) / 0.96f, 0.0f, 1.0f);
@@ -289,15 +244,13 @@ u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
     }
     out.params.emissive = Math::vec4(material->emissive_factor[0], material->emissive_factor[1],
                                     material->emissive_factor[2], 1.0f);
-    // normal_texture.scale is glTF's normalScale - lit.frag's uNormalStrength
-    // (surface.w), 1.0 by default same as the spec's own default. Only
-    // meaningful once a normal map is actually bound below.
+    // normal_texture.scale is lit.frag's uNormalStrength (surface.w); only meaningful once a normal map is bound.
     out.params.surface.w = material->normal_texture.texture ? material->normal_texture.scale : 1.0f;
 
     if (material->alpha_mode == cgltf_alpha_mode_mask)
     {
         out.flags |= MaterialAlphaTest;
-        out.params.surface.z = material->alpha_cutoff; // alphaCut
+        out.params.surface.z = material->alpha_cutoff;
     }
     else if (material->alpha_mode == cgltf_alpha_mode_blend)
     {
@@ -316,9 +269,7 @@ u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
     const cgltf_texture* normal = material->normal_texture.texture;
     const std::string normalFile = resolveImageFile(normal, realDirectory, textureFolder);
 
-    // SlotSurface otherwise means the legacy specular map lit.frag reads by
-    // default - the flag is what tells it which of the three packings this
-    // texture really is. See Material.h's own comment on them.
+    // The flag tells lit.frag which of three packings SlotSurface holds (see Material.h).
     const cgltf_texture* surface = nullptr;
     u32 surfaceFlag = 0;
     if (material->has_pbr_metallic_roughness)
@@ -346,7 +297,6 @@ u32 materialSlotFor(const cgltf_primitive& prim, const std::string& directory,
     return slot;
 }
 
-// Per-channel glTF keyframes for one bone, before resampling.
 struct RawBoneChannels
 {
     std::vector<f32> posT;
@@ -389,10 +339,6 @@ Math::quat sampleQuatChannel(const std::vector<f32>& t, const std::vector<Math::
     return Math::normalize(v[k0] + (v[k1] - v[k0]) * f);
 }
 
-// glTF gives each TRS channel its own independent time array, while Radion's
-// BoneTrack drives position/rotation/scale in lockstep off ONE shared `times`
-// array. This resamples every channel onto the union of the bone's keyframe
-// times before building the track.
 void buildClipTracks(const cgltf_animation& src,
                      const std::unordered_map<const cgltf_node*, int>& boneOf,
                      const std::vector<LocalPose>& bindPose, AnimationClip& outClip)
@@ -406,7 +352,7 @@ void buildClipTracks(const cgltf_animation& src,
             continue;
         auto it = boneOf.find(channel.target_node);
         if (it == boneOf.end())
-            continue; // channel targets a node outside this skeleton
+            continue;
         const int boneIndex = it->second;
 
         cgltf_accessor* input = channel.sampler->input;
@@ -451,8 +397,6 @@ void buildClipTracks(const cgltf_animation& src,
         const int boneIndex = kv.first;
         RawBoneChannels& raw = kv.second;
 
-        // unified time array = sorted, de-duplicated union of whichever
-        // channels this bone actually has
         std::vector<f32> unified;
         unified.reserve(raw.posT.size() + raw.rotT.size() + raw.sclT.size());
         unified.insert(unified.end(), raw.posT.begin(), raw.posT.end());
@@ -490,8 +434,6 @@ void buildClipTracks(const cgltf_animation& src,
 
 } // namespace
 
-// ------------------------------------------------------------------ importer
-
 bool GltfImporter::supports(const char* extension) const
 {
     return extension && (std::strcmp(extension, "gltf") == 0 || std::strcmp(extension, "glb") == 0);
@@ -509,8 +451,7 @@ bool GltfImporter::import(const std::string& filename, ByteArray& data, FileSyst
 
     mesh.clear();
 
-    // Pre-pass: does the file skin anything at all? If yes, skin is filled
-    // for every vertex (defaulting to joint 0) so the streams never drift.
+    // Pre-pass: if the file skins anything, fill skin for every vertex (default joint 0) so streams stay in step.
     bool hasSkin = false;
     for (cgltf_size ni = 0; ni < gltf->nodes_count && !hasSkin; ++ni)
     {
@@ -539,19 +480,11 @@ bool GltfImporter::import(const std::string& filename, ByteArray& data, FileSyst
     }
 
     const std::string directory = directoryOf(filename);
-    // Only needed for an embedded image's own extraction (resolveImageFile())
-    // - an external one is still read the normal search-path-aware way via
-    // `directory` above, so this staying empty (an unresolvable `filename`)
-    // only means embedded textures fall back to importing blank, not that
-    // nothing imports at all.
+    // Only for embedded-image extraction; empty just means embedded textures import blank.
     const std::string resolvedFilename = files.resolve(filename);
     const std::string realDirectory =
         directoryOf(resolvedFilename.empty() ? filename : resolvedFilename);
-    // A .glb carries every texture inside the binary chunk, so importing one
-    // writes them out as real files. They go in a folder of their own named
-    // after the mesh rather than loose beside it - a single flight helmet is
-    // fifteen images, and dropping those into whatever directory the .glb
-    // happened to sit in buries it.
+    // A .glb's textures are written into a folder named after the mesh, not loose beside it.
     const std::string textureFolder = stem(filename) + "_textures";
     std::vector<const cgltf_material*> materialSources;
 
@@ -562,8 +495,7 @@ bool GltfImporter::import(const std::string& filename, ByteArray& data, FileSyst
             continue;
 
         const bool skinned = node.skin != nullptr && node.skin->joints_count > 0;
-        // A skinned mesh is stored in its own node-local space and driven by
-        // the skeleton; node transforms are only baked into static geometry.
+        // Skinned meshes stay node-local; node transforms are baked only into static geometry.
         const Math::mat4 nodeXform = skinned ? Math::mat4(1.0f) : nodeGlobalMatrix(node);
         const Math::mat3 normalMatrix =
             skinned ? Math::mat3(1.0f)
@@ -716,8 +648,6 @@ bool GltfImporter::import(const std::string& filename, ByteArray& data, FileSyst
     return true;
 }
 
-// ------------------------------------------------------------ skeleton/anim
-
 bool loadGltfSkeleton(const std::string& filename, FileSystem& files, Skeleton& skeleton)
 {
     ByteArray data = files.readBinary(filename);
@@ -734,7 +664,6 @@ bool loadGltfSkeleton(const std::string& filename, FileSystem& files, Skeleton& 
         return false;
     }
 
-    // first node with a mesh + skin
     const cgltf_skin* skin = nullptr;
     for (cgltf_size i = 0; i < gltf->nodes_count; ++i)
     {
@@ -816,9 +745,7 @@ bool loadGltfAnimation(const std::string& filename, FileSystem& files, const Ske
         return false;
     }
 
-    // Channels target nodes by pointer, but this file has its own node
-    // objects - rebind by name against the already-loaded skeleton, same
-    // contract as the native format's animation loader.
+    // Channels target this file's own nodes by pointer; rebind by name against the loaded skeleton.
     std::unordered_map<const cgltf_node*, int> boneOf;
     for (cgltf_size i = 0; i < gltf->nodes_count; ++i)
     {

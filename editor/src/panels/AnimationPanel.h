@@ -25,19 +25,12 @@ private:
     void drawClipAuthoring(Animator& animator, const Skeleton& skeleton,
                            EditorApplication::AnimationPoseTarget& target);
 
-    // The Animator currently left in pose-edit mode, so a selection change
-    // can take it back out rather than leaving it frozen off-screen.
+    // Animator left in pose-edit mode, so a selection change can take it back out.
     Animator* mEditingAnimator = nullptr;
 
-    // Applies to the next Play click, not retroactively to whatever is
-    // already playing - AnimationLayer has no mode() getter to read the
-    // current clip's mode back from (SceneSerializer's writeAnimator() notes
-    // the same gap), so there is nothing to initialise this from besides a
-    // sensible default.
+    // Applies to the next Play click; AnimationLayer has no mode() getter to read it back.
     bool mLoop = true;
-    // Only converts the Frame field below to/from wrappedTime()'s seconds -
-    // clips are always sampled by seconds regardless of this, it has no
-    // effect on playback itself.
+    // Only converts the Frame field to/from wrappedTime() seconds; clips are always sampled in seconds.
     f32 mFps = 30.0f;
 
     bool mHasClip = false;

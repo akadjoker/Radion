@@ -16,8 +16,7 @@ constexpr u32 BiomeSeedMix = 0x27D4EB2Fu;
 constexpr u32 TreeSeedMix = 0x165667B1u;
 constexpr u32 OreSeedMix = 0x9E3779B1u;
 
-// Resolves through the registry so a project that never registered a block
-// simply does without it, instead of writing InvalidBlockId into the world.
+// Resolves through the registry so a project that never registered a block does without it instead of writing InvalidBlockId.
 BlockId resolveBlock(const BlockRegistry& blocks, const char* name)
 {
     const BlockId id = blocks.findId(name);
@@ -197,8 +196,7 @@ bool VoxelTerrain::carved(s32 x, s32 y, s32 z) const
 
 BlockId VoxelTerrain::oreAt(s32 x, s32 y, s32 z, s32 depth) const
 {
-    // Hashed on halved coordinates, so a hit spreads over a 2x2x2 pocket
-    // instead of a single lonely block.
+    // Hashed on halved coordinates so a hit spreads over a 2x2x2 pocket, not a lone block.
     const f32 value = hashUnit(x >> 1, y >> 1, z >> 1, mSeed ^ OreSeedMix);
     if (mDiamondOre != AirBlockId && value < 0.0016f && y <= mSettings.minWorldY + 16)
         return mDiamondOre;
@@ -217,9 +215,7 @@ bool VoxelTerrain::intersects(ChunkCoord coordinate) const
     if (originY > mSettings.maxWorldY || originY + VoxelChunk::Size - 1 < mSettings.minWorldY)
         return false;
 
-    // Surface heights are clamped and water never rises past its level, so a
-    // chunk that starts above both can only ever be air - except for the trees
-    // that stand on the highest ground.
+    // Heights are clamped and water never rises past its level, so a chunk above both is air, except trees on the highest ground.
     const s32 highest = std::max(mSettings.maxSurfaceHeight, mSettings.waterLevel) + 12;
     return originY <= highest;
 }
@@ -299,10 +295,8 @@ void VoxelTerrain::placeTrees(VoxelChunk& chunk) const
     const ChunkCoord coordinate = chunk.coordinate();
     const s32 originX = coordinate.x * VoxelChunk::Size;
     const s32 originZ = coordinate.z * VoxelChunk::Size;
-    // Trunks outside the chunk still drop leaves inside it, so the search runs
-    // over a margin and every write is clipped. No chunk ever writes into
-    // another, which is what keeps trees identical whatever order chunks
-    // arrive in.
+    // Trunks outside the chunk still drop leaves inside, so search a margin and clip every write; no chunk writes into
+    // another, keeping trees identical whatever order chunks arrive in.
     constexpr s32 Margin = 3;
 
     for (s32 z = -Margin; z < VoxelChunk::Size + Margin; ++z)

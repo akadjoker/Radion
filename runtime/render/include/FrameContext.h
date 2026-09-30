@@ -38,15 +38,8 @@ struct PresentationView
     f32 aspect = 1.0f;
 };
 
-// Size of the buffers the scene is rendered into, which is independent of the
-// window: the last post pass stretches the result to the presentation rect,
-// and the camera's aspect comes from that rect rather than from these numbers,
-// so changing them costs sharpness and never distorts geometry.
-//
-// width/height of 0 follow the presentation rect, and `scale` then applies -
-// which is what a demo wants while the window is resizable. Setting both pins
-// the buffers to exactly that size no matter how large the window is, and
-// `scale` is ignored.
+// Size of the scene buffers, independent of the window: the last post pass stretches to the presentation rect, so changing them costs sharpness, not geometry.
+// width/height 0 follow the presentation rect with `scale`; setting both pins the size and `scale` is ignored.
 struct RenderResolution
 {
     u32 width = 0;
@@ -104,8 +97,6 @@ inline PresentationView computePresentation(const PresentationSettings& settings
     return view;
 }
 
-// What every technique gets for the frame. Passed by const reference, rebuilt
-// each frame by whoever drives the loop - today a demo, later the scene.
 struct FrameContext
 {
     const RenderList* list = nullptr;
@@ -122,16 +113,10 @@ struct FrameContext
     Math::vec2 prevJitter = Math::vec2(0.0f);
     Math::vec3 cameraPosition = Math::vec3(0.0f);
 
-    // (0,0,0,0) = no clip: a world point is kept when
-    // dot(vec4(pos,1), clipPlane) >= 0. Set by whoever builds this camera - a
-    // planar reflection's mirrored one, e.g. - never toggled elsewhere.
+    // (0,0,0,0) = no clip: a world point is kept when dot(vec4(pos,1), clipPlane) >= 0.
     Math::vec4 clipPlane = Math::vec4(0.0f);
 
-    // Where the technique should draw, and how much of it. An invalid target
-    // is the screen. Each technique binds this itself - viewport is not
-    // global GL state one setViewport() call covers for the whole frame,
-    // it belongs to the pass, the way a camera owns its own width/height/
-    // scissor. A ReflectionPass rendering into a smaller RTT needs its own.
+    // Where the technique draws; an invalid target is the screen. Each technique binds its own viewport.
     TargetHandle target;
     TextureHandle ambientOcclusion;
     TextureHandle directionalShadow;
@@ -139,10 +124,7 @@ struct FrameContext
     SamplerHandle directionalShadowRawSampler;
     BufferHandle directionalShadowBlock;
 
-    // Filled by Lighting::prepare()/cull(), read by ForwardPass. See
-    // Lighting.h - the entity buffer holds the sun (index 0, by convention)
-    // and every local light, the matrix buffer their shadow view-projections,
-    // the tile buffer the cull dispatch's per-tile bitmasks.
+    // Filled by Lighting::prepare()/cull(), read by ForwardPass (see Lighting.h); the entity buffer holds the sun at index 0, then local lights.
     BufferHandle entityBuffer;
     BufferHandle entityMatrixBuffer;
     BufferHandle lightTileBuffer;
@@ -150,27 +132,16 @@ struct FrameContext
     TextureHandle shadowAtlas;
     SamplerHandle shadowAtlasSampler;
 
-    // Set by whoever owns a DecalSystem, alongside submitDecals() into the
-    // entity buffer above. Left invalid, ForwardPass binds its own neutral
-    // placeholder instead - a Lit pipeline declares these arrays statically,
-    // so something has to be bound whether or not any decal exists this frame.
+    // Set by the DecalSystem owner; left invalid, ForwardPass binds a neutral placeholder since Lit pipelines declare these arrays statically.
     TextureHandle decalAlbedo;
     TextureHandle decalNormal;
     TextureHandle decalSurface;
 
-    // The colour and depth textures behind `target`, when the frame renders
-    // into one it owns. A pass that has to READ what the scene already drew
-    // cannot sample these directly - they are still attached to the bound
-    // target, which is a feedback loop - but it needs them to copy out a match:
-    // a copy whose format differs is a silently failed blit, since a depth blit
-    // between unlike formats is an error GL reports nowhere the frame can see.
+    // Colour and depth textures behind `target`. A pass reading the scene cannot sample them directly (still attached, a feedback loop) and must copy into a same-format texture; a mismatched depth blit fails silently.
     TextureHandle sceneColor;
     TextureHandle sceneDepth;
 
-    // The environment probe's cubemap and where it was captured from, for
-    // image-based reflections. Left invalid, ForwardPass binds a neutral cube
-    // instead - see BindingEnvironmentCube. Extents all zero means the
-    // reflection is treated as infinitely distant (no parallax correction).
+    // Probe cubemap and capture position; left invalid, ForwardPass binds a neutral cube (BindingEnvironmentCube). Zero extents = infinitely distant, no parallax.
     TextureHandle environmentCube;
     SamplerHandle environmentCubeSampler;
     Math::vec3 environmentProbePosition = Math::vec3(0.0f);
@@ -190,10 +161,7 @@ struct FrameContext
     f32 deltaTime = 0.0f;
     const SkySettings* sky = nullptr;
 
-    // Only WaterPass reads this: a water surface projects its own vertices
-    // through the reflection camera too (see water.vert), which has its own
-    // projection unrelated to `viewProjection` above. Whoever renders the
-    // reflection target sets this to that camera's matrix.
+    // Only WaterPass reads this: water projects its vertices through the reflection camera (see water.vert), unrelated to `viewProjection`.
     Math::mat4 reflectionViewProj = Math::mat4(1.0f);
 };
 

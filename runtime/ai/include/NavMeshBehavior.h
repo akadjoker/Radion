@@ -1,15 +1,6 @@
 #ifndef RADION_AI_NAVMESHBEHAVIOR_H
 #define RADION_AI_NAVMESHBEHAVIOR_H
 
-// NavMeshBehavior.h - steering behavior that walks an Agent across a
-// NavMesh.
-//
-// The counterpart to PathfindBehavior, which routes over a hand-authored
-// WaypointNetwork: this one routes over the walkable surface generated from
-// the level's own geometry, so a route can never leave the floor. Same
-// division of labour as its sibling - it only steers, and the avoidance that
-// keeps several agents out of each other is applied here too.
-
 #include "Behavior.h"
 
 #include "Math.h"
@@ -30,33 +21,22 @@ class NavMeshBehavior final : public Behavior
 public:
     struct Settings
     {
-        float turnRate = 0.35f;    // desired-move strength toward the next corner
-        float goalRadius = 1.0f;   // distance at which the goal counts as reached
-        float cornerRadius = 0.6f; // how near a corner has to be to pop it
+        float turnRate = 0.35f;
+        float goalRadius = 1.0f;
+        float cornerRadius = 0.6f;
         float avoidDistance = 0.0f; // <= 0 disables agent avoidance
-        // Seconds between route queries. A moving goal needs re-pathing, but
-        // not every frame: findPath() is a real A* over the surface.
+        // Seconds between route queries; findPath() is a real A*.
         float repathInterval = 0.35f;
-        // And not even every interval: a route is only recomputed once the
-        // goal has actually travelled this far from where it was when the
-        // current one was found (or the agent ran out of corners). A player
-        // standing still costs no searches at all after the first.
+        // A route is recomputed only once the goal has moved this far from where the current one was found.
         float goalMoveThreshold = 1.0f;
-        // How far off the mesh a point may sit and still snap onto it - the
-        // goal is usually a player standing on the floor, not a point already
-        // known to be on the navmesh.
+        // Max distance off the mesh a point may sit and still snap onto it.
         Math::vec3 searchExtents = Math::vec3(2.0f, 6.0f, 2.0f);
     };
 
-    // The Settings-less overload default-constructs one in the .cpp rather
-    // than taking `= Settings()` here: a default argument that value-
-    // initializes a nested class through its own default member
-    // initializers cannot be evaluated mid-definition of the enclosing one.
+    // Defined in the .cpp: a default argument cannot value-initialize a nested class mid-definition of the enclosing one.
     explicit NavMeshBehavior(const NavMesh* navMesh = nullptr);
     NavMeshBehavior(const NavMesh* navMesh, const Settings& settings);
 
-    // The resolved source (Fase 5 finds it from the scene's NavMeshSurface,
-    // or the inspector picks one); create() alone never has one.
     void setNavMesh(const NavMesh* navMesh)
     {
         mNavMesh = navMesh;
@@ -92,11 +72,7 @@ public:
     }
 
 private:
-    // Route state for the one agent this behavior is attached to. Used to
-    // live in an std::unordered_map<const Entity*, Route> because a single
-    // shared Behavior instance served every agent using it (DESVIO 2); now
-    // that Agent::addBehavior() owns one instance per agent, the map
-    // collapses to this single field - no hash lookup per agent per frame.
+    // Route state for this behavior's one agent.
     struct Route
     {
         std::vector<Math::vec3> corners;
@@ -104,8 +80,6 @@ private:
         float sinceRepath = 0.0f;
         Math::vec3 goalWhenFound = Math::vec3(0.0f);
         bool hasRoute = false;
-        // Last position known to be on the walkable surface, which every
-        // following move is slid from.
         Math::vec3 surfacePosition = Math::vec3(0.0f);
         bool onSurface = false;
     };

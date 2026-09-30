@@ -22,8 +22,7 @@ namespace
 
 constexpr s32 kMaxPolys = 512;
 constexpr s32 kMaxStraightPath = 2048;
-// One frame's move crosses very few polygons; the same 16 the Detour path
-// corridor uses for the identical call.
+// Same 16 as the Detour path corridor uses for this call.
 constexpr s32 kMaxVisitedPolys = 16;
 
 } // namespace
@@ -56,11 +55,7 @@ bool NavMesh::valid() const
 namespace
 {
 
-// Polygon-adjacency BFS from `seedRef`, walking each poly's own link list
-// (dtPoly::firstLink -> dtMeshTile::links[...].next) rather than distance or
-// height - so a flat roof with no stairs/ramp actually connecting it to the
-// ground comes out unreached even though its slope alone would pass the
-// same walkable test the ground did.
+// Polygon-adjacency BFS over each poly's link list, not distance/height, so a roof with no connecting stairs stays unreached.
 void collectReachablePolys(const dtNavMesh& navMesh, dtPolyRef seedRef,
                            std::vector<dtPolyRef>& outReachable)
 {
@@ -127,7 +122,6 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
     rcVcopy(cfg.bmin, boundsMin);
     rcVcopy(cfg.bmax, boundsMax);
 
-    // 1. Heightfield: rasterise every walkable triangle into voxel spans.
     rcHeightfield* heightfield = rcAllocHeightfield();
     if (!heightfield || !rcCreateHeightfield(&ctx, *heightfield, cfg.width, cfg.height, cfg.bmin,
                                              cfg.bmax, cfg.cs, cfg.ch))
@@ -150,8 +144,7 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
     rcFilterLedgeSpans(&ctx, cfg.walkableHeight, cfg.walkableClimb, *heightfield);
     rcFilterWalkableLowHeightSpans(&ctx, cfg.walkableHeight, *heightfield);
 
-    // 2. Compact heightfield, eroded by the agent radius so the surface
-    // already excludes what the agent's own body could not fit into.
+    // Eroded by the agent radius so the surface excludes what the body cannot fit.
     rcCompactHeightfield* compact = rcAllocCompactHeightfield();
     if (!compact || !rcBuildCompactHeightfield(&ctx, cfg.walkableHeight, cfg.walkableClimb,
                                                *heightfield, *compact))
@@ -170,7 +163,6 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
         return false;
     }
 
-    // 3. Contours.
     rcContourSet* contours = rcAllocContourSet();
     if (!contours ||
         !rcBuildContours(&ctx, *compact, cfg.maxSimplificationError, cfg.maxEdgeLen, *contours))
@@ -180,7 +172,6 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
         return false;
     }
 
-    // 4. Polygon mesh.
     rcPolyMesh* polyMesh = rcAllocPolyMesh();
     if (!polyMesh || !rcBuildPolyMesh(&ctx, *contours, cfg.maxVertsPerPoly, *polyMesh))
     {
@@ -190,7 +181,6 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
         return false;
     }
 
-    // 5. Detail mesh - the height detail the flat polygons alone lose.
     rcPolyMeshDetail* detailMesh = rcAllocPolyMeshDetail();
     if (!detailMesh || !rcBuildPolyMeshDetail(&ctx, *polyMesh, *compact, cfg.detailSampleDist,
                                               cfg.detailSampleMaxError, *detailMesh))
@@ -207,8 +197,6 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
     for (s32 i = 0; i < polyMesh->npolys; ++i)
         polyMesh->flags[i] = 1;
 
-    // Debug geometry from the detail mesh, before it is freed - world-space
-    // triangles of the surface exactly as the query sees it.
     mDebugTriangles.clear();
     for (s32 mesh = 0; mesh < detailMesh->nmeshes; ++mesh)
     {
@@ -226,7 +214,6 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
             }
     }
 
-    // 6. Detour data.
     dtNavMeshCreateParams params;
     std::memset(&params, 0, sizeof(params));
     params.verts = polyMesh->verts;
@@ -262,7 +249,7 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
     rcFreePolyMesh(polyMesh);
     rcFreePolyMeshDetail(detailMesh);
 
-    // 7. The navmesh owns navData from here (DT_TILE_FREE_DATA).
+    // The navmesh owns navData from here (DT_TILE_FREE_DATA).
     dtNavMesh* navMesh = dtAllocNavMesh();
     if (!navMesh || dtStatusFailed(navMesh->init(navData, navDataSize, DT_TILE_FREE_DATA)))
     {
@@ -290,8 +277,7 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
         filter.setIncludeFlags(0xffff);
         filter.setExcludeFlags(0);
         const f32 seedPosition[3] = {groundSeed->x, groundSeed->y, groundSeed->z};
-        // Generous vertical reach - the seed is whatever the caller judged
-        // to be ground level, not a point already known to sit on the mesh.
+        // Generous vertical reach: the seed is the caller's guess at ground level, not a point known to be on the mesh.
         const f32 seedExtents[3] = {4.0f, 200.0f, 4.0f};
         dtPolyRef seedRef = 0;
         f32 nearest[3];
@@ -302,15 +288,8 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
             std::vector<dtPolyRef> reachable;
             collectReachablePolys(*navMesh, seedRef, reachable);
 
-            // Unreachable polys lose their walkable flag rather than being
-            // removed from the tile - dtQueryFilter::passFilter() then
-            // excludes them from findNearestPoly()/findPath() the same as
-            // any other flagged-off polygon, with no need to touch the
-            // Recast build that produced them.
-            // getTile(int) is overloaded const/non-const and the non-const
-            // one is private - calling it through a non-const dtNavMesh*
-            // picks that overload regardless of what the result is assigned
-            // to, so the cast forces the public const one instead.
+            // Unreachable polys lose their walkable flag rather than being removed; passFilter() then excludes them from queries.
+            // getTile(int) non-const overload is private; the cast forces the public const one.
             const dtMeshTile* tile = static_cast<const dtNavMesh*>(navMesh)->getTile(0);
             if (tile)
             {
@@ -323,9 +302,7 @@ bool NavMesh::build(const f32* vertices, s32 vertexCount, const s32* indices, s3
                         navMesh->setPolyFlags(polyRef, 0);
                 }
 
-                // debugTriangles() mirrors the same prune: a roof that
-                // queries now refuse to route onto should not still draw as
-                // if it were part of the walkable surface.
+                // Mirrors the prune in debugTriangles(): an unroutable roof should not draw as walkable.
                 std::vector<Math::vec3> reachableTriangles;
                 reachableTriangles.reserve(mDebugTriangles.size());
                 for (s32 meshIndex = 0; meshIndex < tile->header->detailMeshCount; ++meshIndex)
@@ -411,8 +388,7 @@ bool NavMesh::moveAlongSurface(const Math::vec3& from, const Math::vec3& to, Mat
                                                visited, &visitedCount, kMaxVisitedPolys)))
         return false;
 
-    // Sit on top of the surface: moveAlongSurface only constrains the move in
-    // the XZ plane and leaves the height of the input point.
+    // moveAlongSurface only constrains XZ and leaves the input height.
     f32 height = result[1];
     const dtPolyRef endRef = visitedCount > 0 ? visited[visitedCount - 1] : startRef;
     if (dtStatusSucceed(query->getPolyHeight(endRef, result, &height)))
@@ -453,8 +429,7 @@ bool NavMesh::findPath(const Math::vec3& start, const Math::vec3& end,
         polyCount == 0)
         return false;
 
-    // A route that stops short of the goal is still a route: pull the end
-    // onto the last polygon actually reached instead of discarding it.
+    // Partial route: pull the end onto the last polygon reached.
     f32 endClamped[3];
     rcVcopy(endClamped, endPosition);
     if (polys[polyCount - 1] != endRef)
@@ -489,10 +464,7 @@ bool NavMesh::save(const std::string& filename) const
     if (!valid())
         return false;
 
-    // init() below is the single-tile convenience form (DT_TILE_FREE_DATA,
-    // no separate dtNavMeshParams/addTile() call), so the whole navmesh is
-    // tile 0 - its data/dataSize is exactly the buffer dtCreateNavMeshData()
-    // produced in build(), still owned by the dtNavMesh itself.
+    // init() is the single-tile form (DT_TILE_FREE_DATA), so the navmesh is tile 0 and owns the build() buffer.
     const dtNavMesh* navMesh = static_cast<const dtNavMesh*>(mNavMesh);
     const dtMeshTile* tile = navMesh->getTile(0);
     if (!tile || !tile->data || tile->dataSize <= 0)
@@ -568,9 +540,7 @@ bool NavMesh::load(const std::string& filename)
         return false;
     }
 
-    // dtNavMesh wants its own copy it can free later - Detour's own
-    // convention is dtAlloc'd memory paired with DT_TILE_FREE_DATA, not
-    // whatever container the caller happened to read the file into.
+    // dtNavMesh needs its own dtAlloc'd copy (DT_TILE_FREE_DATA), not the caller's container.
     u8* ownedData = static_cast<u8*>(dtAlloc(navData.size(), DT_ALLOC_PERM));
     if (!ownedData)
     {

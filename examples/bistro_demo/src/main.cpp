@@ -30,10 +30,7 @@ using namespace Radion;
 namespace
 {
 const char* kDefaultMesh = "/media/projectos/assets/bistro/extrior.rstm";
-// Measured off the file's own bounds, not assumed: extrior.rstm spans
-// 170 x 50 x 180 in its own units, so it is already in metres. The 0.01 in
-// tools/lightmapbake/bistro_settings.json belongs to a centimetre export
-// this .rstm is no longer one of.
+// extrior.rstm spans 170 x 50 x 180 units, already metres; bistro_settings.json's 0.01 is for a cm export.
 constexpr f32 kSceneScale = 1.0f;
 
 void addSearchPathIfPresent(FileSystem& files, const std::filesystem::path& path)
@@ -53,19 +50,13 @@ std::string companionMaterialFile(const std::string& meshFile)
 
 int main(int argc, char** argv)
 {
-    // The per-second report below is the whole point of this demo, and
-    // release builds start Passive.
+    // Release builds start Passive; the per-second report needs Verbose.
     Log::setMode(LogMode::Verbose);
 
-    // radion_bistro_demo [mesh] [split target triangles] - so the same binary
-    // measures the baked mesh against the one it came from, and a split
-    // against no split, without a rebuild. 0 leaves the submeshes as the file
-    // has them.
+    // Args: [mesh] [split target triangles; 0 keeps the file's submeshes]
     const std::string meshFile = argc > 1 ? argv[1] : kDefaultMesh;
     const u32 splitTriangles = argc > 2 ? static_cast<u32>(std::max(0, std::atoi(argv[2]))) : 0u;
-    // Third argument: keep this fraction of the triangles. Not a LOD chain,
-    // a ceiling measurement - one level applied to the whole mesh says what
-    // a per-cell chain could be worth before anyone builds one.
+    // Fraction of triangles to keep: one level over the whole mesh, a ceiling measurement not a LOD chain.
     const f32 simplifyRatio = argc > 3 ? static_cast<f32>(std::atof(argv[3])) : 0.0f;
 
     FileSystem& files = FileSystem::getSingleton();
@@ -104,10 +95,7 @@ int main(int argc, char** argv)
         engine.shutdown();
         return 1;
     }
-    // A mesh file carries material names only; the textures, colours and
-    // flags live in the companion .mat, and load() replaces the list by the
-    // file's order rather than matching on name - so it has to run before
-    // createMesh() uploads anything.
+    // load() replaces the list by file order, so it must run before createMesh() uploads.
     const std::string materialFile = companionMaterialFile(meshFile);
     if (!MaterialManager::getSingleton().load(materialFile, data.materials))
         Log::warning("Bistro demo: no material file at '%s' - the scene will have no albedo",
@@ -117,13 +105,7 @@ int main(int argc, char** argv)
     const usize sourceSubmeshCount = data.submeshes.size();
     const usize triangleCount = data.indices.size() / 3;
 
-    // The whole of phase 1, borrowed for a measurement: the SceneBVH indexes
-    // one entry per submesh, so cutting the file's scene-wide material groups
-    // into spatially local pieces is what gives the frustum test something it
-    // can reject. Done here rather than in the loader on purpose - this is
-    // the demo answering a question, not the engine changing for it.
-    // Before the split, not after: simplifyMesh() holds submesh borders, and
-    // 701 cells worth of border would lock most of the mesh in place.
+    // Simplify before splitting: simplifyMesh() holds submesh borders, which would lock most of a split mesh.
     f32 simplifyError = 0.0f;
     if (simplifyRatio > 0.0f && simplifyRatio < 1.0f)
     {
@@ -152,8 +134,7 @@ int main(int argc, char** argv)
 
     GameObject* worldObject = scene->createGameObject("Bistro");
     worldObject->setScale(Math::vec3(kSceneScale));
-    // Only a static renderer enters the SceneBVH - see Scene::rebuildStaticIndex().
-    // Without this the whole measurement is of the unindexed path.
+    // Only static renderers enter the SceneBVH (Scene::rebuildStaticIndex()).
     worldObject->setStatic(true);
     MeshRenderer* renderer = worldObject->addComponent<MeshRenderer>();
     renderer->setMesh(mesh);
@@ -189,8 +170,7 @@ int main(int argc, char** argv)
     Log::info("Bistro demo: hold right to look, F1 hides the panels, F2 toggles static culling, "
               "F3 cycles the shadow cascade count, F4 toggles vsync, F5 toggles shadows");
 
-    // The baseline runs without vsync: with it on, FPS reports the monitor
-    // and not the frame's cost.
+    // Vsync off so FPS reflects frame cost, not the monitor.
     bool vsync = false;
     engine.getWindow().setVSync(vsync);
 
@@ -210,8 +190,6 @@ int main(int argc, char** argv)
             engine.setImGuiVisible(!engine.imGuiVisible());
         if (Input::isKeyPressed(KEY_F2))
         {
-            // The lever the whole baseline exists to pull: with 132 submeshes
-            // spanning the scene, on and off should read the same.
             const bool enabled = !scene->staticCullingEnabled();
             scene->setStaticCullingEnabled(enabled);
             Log::info("Bistro demo: static culling %s", enabled ? "on" : "off");
@@ -240,9 +218,7 @@ int main(int argc, char** argv)
         scene->update(deltaTime);
         engine.render(*scene);
 
-        // After render(), not at the top of the loop: Engine::update() calls
-        // GPU::beginFrame(), which zeroes GPUStats - reading them before the
-        // frame draws anything reports zeros.
+        // After render(): Engine::update() calls GPU::beginFrame(), which zeroes GPUStats.
         if (reportThisFrame)
         {
             const GPUStats& gpu = GPU::getSingleton().stats();
@@ -260,10 +236,6 @@ int main(int argc, char** argv)
                       view ? view->culledMeshes : 0u, view ? view->culledSubmeshes : 0u,
                       shadowList ? shadowList->packets : 0u);
 
-            // Where those GPU milliseconds went. Engine::renderInternal()
-            // already brackets every phase with RADION_GPU_PROFILE_SCOPE; the
-            // panel shows the table and this puts the same numbers in the log,
-            // which is what a run measured from outside can quote.
             const GPUProfiler& gpuProfiler = GPUProfiler::getSingleton();
             std::string breakdown;
             for (u32 index = 0; index < gpuProfiler.sampleCount(); ++index)

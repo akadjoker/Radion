@@ -1,8 +1,3 @@
-// TiledTerrainTests.cpp - Radion::TiledTerrain patch/UV/wrap math, verified
-// without a live GPU device: patch count from tilemap dimensions, the
-// rebuild counter after an edit, the tile-atlas UV rectangle, and the
-// wrap-around helper a patch overhanging the map edge samples through.
-
 #include "PCH.h"
 
 #include "GameObject.h"
@@ -51,22 +46,15 @@ void testLoadTilemapProducesExpectedPatchCount()
     std::vector<u8> map(static_cast<usize>(width) * height, 0);
     terrain->loadTilemap(width, height, map.data());
 
-    // ceil(5/2) x ceil(4/2) = 3 x 2 patches.
     CHECK(terrain->patchCount() == 6);
     CHECK(terrain->mapWidth() == width);
     CHECK(terrain->mapHeight() == height);
 
-    // No live GPU device in this test binary - the rebuild must stay data-
-    // only and never abort trying to reach one.
+    // No GPU device in this binary: the rebuild must stay data-only and never abort.
     CHECK(!terrain->mesh().valid());
 }
 
-// Regression: the Inspector's own "Build Tilemap" defaults to an 8x8 map
-// (InspectorPanel.cpp, drawTiledTerrainComponent) and the Create-menu popup
-// matches it - with tilesPerPatch left at whatever a fresh component
-// defaults to (never touched by either flow unless the user opens the
-// tooltip and changes it), the two must agree on a single patch, not the
-// sixty-four one-tile ones a default of 1 used to produce.
+// Regression: the Inspector and Create menu default to an 8x8 map; with the default tilesPerPatch that must be one patch, not sixty-four.
 void testDefaultTilesPerPatchMatchesDefaultMapSize()
 {
     Scene scene;
@@ -98,14 +86,12 @@ void testSetTileTriggersRebuildAndUpdatesCell()
     terrain->setTile(1, 2, 7);
     CHECK(terrain->revision() == revisionAfterLoad + 1);
     CHECK(terrain->tile(1, 2) == 7);
-    // 3x3 tiles, 1 tile per patch -> 9 patches, unaffected by repainting a
-    // single cell.
     CHECK(terrain->patchCount() == 9);
 }
 
 void testAtlasUVMatchesExpectedCell()
 {
-    // 2% of the cell, inset on every side - see atlasUV()'s own comment.
+    // 2% of the cell, inset on every side - see atlasUV().
     const int tilesInSide = 4;
     const f32 step = 0.25f;
     const f32 inset = step * 0.02f;
@@ -120,7 +106,7 @@ void testAtlasUVMatchesExpectedCell()
     CHECK(near(uvMin, Math::vec2(0.75f + inset, inset)));
     CHECK(near(uvMax, Math::vec2(1.0f - inset, step - inset)));
 
-    TiledTerrain::atlasUV(5, tilesInSide, uvMin, uvMax); // row 1, col 1
+    TiledTerrain::atlasUV(5, tilesInSide, uvMin, uvMax);
     CHECK(near(uvMin, Math::vec2(0.25f + inset, 0.5f + inset)));
     CHECK(near(uvMax, Math::vec2(0.5f - inset, 0.75f - inset)));
 
@@ -224,8 +210,7 @@ void testAtlasMaterialRoundTripAndSizeWithNoGPU()
     terrain->setAtlasMaterial("materials/tiles.material");
     CHECK(terrain->atlasMaterial() == "materials/tiles.material");
 
-    // No live GPU device in this test binary - atlasSize() must fail closed,
-    // not crash trying to reach one.
+    // No GPU device: atlasSize() must fail closed.
     u32 width = 0, height = 0;
     CHECK(!terrain->atlasSize(width, height));
     CHECK(width == 0);
@@ -245,9 +230,7 @@ void testFillCellsPaintsOnlyConnectedRegion()
     std::vector<u8> map(static_cast<usize>(width) * height, 0);
     terrain->loadTilemap(width, height, map.data());
 
-    // A plus-shaped region of tile 3 in a sea of tile 0, plus one isolated
-    // tile-3 cell in the far corner - not 4-connected to the plus, so it
-    // must survive a flood fill starting inside the plus untouched.
+    // An isolated tile-3 cell, not 4-connected to the plus, must survive a flood fill inside the plus.
     terrain->setTile(2, 1, 3);
     terrain->setTile(1, 2, 3);
     terrain->setTile(2, 2, 3);
@@ -262,9 +245,9 @@ void testFillCellsPaintsOnlyConnectedRegion()
     CHECK(terrain->tile(2, 2) == 9);
     CHECK(terrain->tile(3, 2) == 9);
     CHECK(terrain->tile(2, 3) == 9);
-    CHECK(terrain->tile(4, 4) == 3); // disconnected island, untouched
-    CHECK(terrain->tile(0, 0) == 0); // background, untouched
-    CHECK(terrain->tile(2, 0) == 0); // touching the plus's boundary, untouched
+    CHECK(terrain->tile(4, 4) == 3);
+    CHECK(terrain->tile(0, 0) == 0);
+    CHECK(terrain->tile(2, 0) == 0);
 }
 
 void testPaintRectangleClampsToMapBounds()
@@ -280,8 +263,6 @@ void testPaintRectangleClampsToMapBounds()
     std::vector<u8> map(static_cast<usize>(width) * height, 0);
     terrain->loadTilemap(width, height, map.data());
 
-    // Rectangle from (2,2) to (10,10) - the far corner sits well outside the
-    // 4x4 map, the clamp must cut it down to (2,2)-(3,3).
     TiledTerrain::paintRectangle(*terrain, 2, 2, 10, 10, 5);
 
     CHECK(terrain->tile(2, 2) == 5);
@@ -293,7 +274,6 @@ void testPaintRectangleClampsToMapBounds()
     CHECK(terrain->tile(0, 3) == 0);
     CHECK(terrain->tile(3, 0) == 0);
 
-    // A start corner outside the map (negative) must clamp on that side too.
     TiledTerrain::paintRectangle(*terrain, -5, -5, 1, 1, 7);
     CHECK(terrain->tile(0, 0) == 7);
     CHECK(terrain->tile(1, 1) == 7);
@@ -301,11 +281,7 @@ void testPaintRectangleClampsToMapBounds()
     CHECK(terrain->tile(1, 0) == 7);
 }
 
-// Regression: fillCells/paintRectangle painted through setTile(), and every
-// setTile() rebuilt the entire mesh - so a fill over N cells regenerated the
-// whole map N times in one frame (and destroyed/recreated the GPU mesh N
-// times with a live device). The revision counter is the observable proxy:
-// one batched edit must bump it exactly once, not once per cell.
+// Regression: each setTile() rebuilt the whole mesh, so a fill regenerated it N times; one batched edit must bump the revision once.
 void testMultiCellEditsRebuildOnce()
 {
     Scene scene;
@@ -319,40 +295,28 @@ void testMultiCellEditsRebuildOnce()
     std::vector<u8> map(static_cast<usize>(width) * height, 0);
     terrain->loadTilemap(width, height, map.data());
 
-    // A rectangle over 16 cells: one rebuild, not sixteen.
     u64 revision = terrain->revision();
     TiledTerrain::paintRectangle(*terrain, 0, 0, 3, 3, 4);
     CHECK(terrain->revision() == revision + 1);
     CHECK(terrain->tile(0, 0) == 4);
     CHECK(terrain->tile(3, 3) == 4);
 
-    // A flood fill over the remaining 48 zero cells: also one.
     revision = terrain->revision();
     TiledTerrain::fillCells(*terrain, 7, 7, 9);
     CHECK(terrain->revision() == revision + 1);
     CHECK(terrain->tile(7, 7) == 9);
-    // The rectangle painted above is a different tile, so the fill must have
-    // stopped at it rather than flooding the whole map.
     CHECK(terrain->tile(0, 0) == 4);
 
-    // A fill that paints nothing (target already the wanted tile) returns
-    // early and must not bump the revision at all.
     revision = terrain->revision();
     TiledTerrain::fillCells(*terrain, 7, 7, 9);
     CHECK(terrain->revision() == revision);
 
-    // One cell through setTile() still rebuilds immediately - batching must
-    // not have made a single edit lazy.
     revision = terrain->revision();
     terrain->setTile(5, 5, 3);
     CHECK(terrain->revision() == revision + 1);
 }
 
-// One tile is four vertices, so both editor size fields accepting 4096 per
-// side means 67 million vertices - the editor froze building it rather than
-// saying anything. loadTilemap() is where every caller (Create popup,
-// Inspector, image import, a loaded scene) meets, so the refusal lives there
-// and the map is left exactly as it was.
+// 4096x4096 tiles is 67M vertices and froze the editor; loadTilemap() is where every caller meets, so it refuses there and leaves the map as it was.
 void testLoadTilemapRefusesAnAbsurdSize()
 {
     Scene scene;
@@ -367,13 +331,10 @@ void testLoadTilemapRefusesAnAbsurdSize()
     terrain->loadTilemap(width, height, good.data());
     CHECK(terrain->mapWidth() == 4);
 
-    // 2048x2048 = 4M tiles, past the limit. No allocation of that map is
-    // attempted - the pointer is never read - so a small buffer is enough to
-    // prove the guard runs before the copy.
+    // Past the limit: the pointer is never read, so a small buffer proves the guard runs before the copy.
     u8 probe = 0;
     terrain->loadTilemap(2048, 2048, &probe);
 
-    // The previous map survived intact.
     CHECK(terrain->mapWidth() == 4);
     CHECK(terrain->mapHeight() == 4);
     CHECK(terrain->tile(1, 1) == 2);

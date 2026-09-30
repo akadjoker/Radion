@@ -1,10 +1,3 @@
-// physics_lab - one scene per thing worth watching, all built from
-// primitives so what is on screen is the simulation and not an asset.
-//
-// 1-4 switch scenes, R rebuilds the current one, Space pauses, F1 toggles
-// the panels. Nothing here draws or steps anything itself: it picks a scene,
-// feeds it time, and lets the engine run.
-
 #include "AssetPaths.h"
 #include "Engine.h"
 #include "FileSystem.h"
@@ -63,7 +56,6 @@ int main(int argc, char** argv)
         return 1;
     engine.setBuiltinPanelsVisible(true);
     engine.setImGuiVisible(true);
-    // The colliders are the point of this demo, so they start visible.
     engine.debugShowPhysicsShapes = true;
 
     Scene* scene = engine.createScene();
@@ -74,8 +66,6 @@ int main(int argc, char** argv)
     }
     scene->setRunningInEditor(false);
 
-    // First argument opens a specific scene, so one can be iterated on
-    // without clicking through the others.
     Lab::LabScene current = Lab::LabScene::JointGallery;
     if (argc > 1)
     {
@@ -102,9 +92,7 @@ int main(int argc, char** argv)
         const Lab::LabScene wanted = requestedScene(current);
         if (wanted != current || Input::isKeyPressed(KEY_R))
         {
-            // A fresh scene rather than clearing this one: it is one call,
-            // and it guarantees nothing survives - no joint still holding a
-            // body, no agent still registered.
+            // Fresh scene rather than clearing: nothing (joint, agent) can survive.
             current = wanted;
             elapsed = 0.0f;
             engine.sceneManager().unload();

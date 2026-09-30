@@ -34,8 +34,7 @@ struct CascadeShadowSettings
 {
     bool enabled = true;
     u32 count = 4;
-    // Resolution of one cascade region. Four 2048 cascades therefore create
-    // the same 4096x4096 directional atlas used by Godot on desktop.
+    // Resolution of one cascade region; four 2048 cascades give Godot's 4096x4096 atlas.
     u32 resolution = 1024;
     f32 distance = 150.0f;
     bool blend = true;
@@ -48,22 +47,12 @@ struct CascadeShadowSettings
     f32 blur = 1.0f;
     f32 fadeStart = 0.8f;
     f32 opacity = 1.0f;
-    // Angular diameter of the sun in degrees; above zero switches the shader
-    // to the penumbra path, whose width comes from the blocker distance.
+    // Angular diameter of the sun in degrees; above zero switches to the penumbra path (width from blocker distance).
     f32 angularDiameter = 0.0f;
 
-    // A starting point scaled to the scene instead of these defaults above,
-    // which are sized for a courtyard-scale demo (playground's own ~120
-    // unit radius) and read as almost switched off on anything bigger.
-    // Not a fix for the far cascade's texel density - that is FOV and
-    // distance squared, no combination of settings makes it go away, only
-    // moves where it starts - just numbers that match the scene instead of
-    // fighting it. See Shadows.cpp for the reasoning behind each one.
+    // Settings scaled to the scene; the defaults above suit a ~120 unit demo radius and look nearly off on larger scenes. Does not fix far-cascade texel density. See Shadows.cpp for the reasoning per value.
     static CascadeShadowSettings sizedForScene(f32 sceneRadius);
-    // Solves only `distance` (and the extrusion that follows it) so cascade 0
-    // reaches `targetTexelsPerUnit`, keeping every other field of `base` -
-    // count, resolution, taps and bias all feed that density, so they
-    // have to be the ones already in use rather than this factory's defaults.
+    // Solves only `distance` (and its extrusion) so cascade 0 reaches `targetTexelsPerUnit`, keeping the other fields of `base` since they all feed the density.
     static CascadeShadowSettings sizedForCamera(const CascadeShadowSettings& base, f32 sceneRadius,
                                                 const ShadowCamera& camera,
                                                 const Math::vec3& lightDirection,
@@ -73,8 +62,7 @@ struct CascadeShadowSettings
 struct CascadeShadowData
 {
     Math::mat4 viewProjection[MaxShadowCascades];
-    // Same volume with the near plane pushed back towards the sun, so caster
-    // culling keeps geometry that only the pancake clamp can flatten in.
+    // Same volume with the near plane pushed toward the sun, so culling keeps geometry only the pancake clamp can flatten in.
     Math::mat4 cullViewProjection[MaxShadowCascades];
     // World to atlas UV, split rect and NDC-to-UV bias already folded in.
     Math::mat4 shadowMatrix[MaxShadowCascades];
@@ -88,8 +76,7 @@ struct CascadeShadowData
     f32 fadeFrom = 0.0f;
     f32 fadeTo = 0.0f;
     f32 softShadowScale = 1.0f;
-    // Convex hull of the camera slice and that slice extruded towards the
-    // sun. A caster outside it cannot possibly shadow a visible receiver.
+    // Convex hull of the camera slice and its extrusion toward the sun; casters outside it cannot shadow a visible receiver.
     std::vector<Plane> casterPlanes[MaxShadowCascades];
     u32 count = 0;
 };
@@ -112,14 +99,10 @@ struct ShadowAtlasSettings
     bool point = true;
     bool spot = true;
 
-    // Depth bias for a point light's atlas tiles. Written straight into the
-    // linear distance depth_point.frag outputs, since glPolygonOffset has no
-    // effect on a fragment shader's own gl_FragDepth write.
+    // Depth bias for point-light tiles, written into the linear distance depth_point.frag outputs (glPolygonOffset does not affect gl_FragDepth writes).
     f32 pointBias = 0.003f;
 
-    // Depth bias for spot/rect atlas tiles, applied through glPolygonOffset -
-    // unlike pointBias above, these draw through the ordinary depth.frag and
-    // do get one. Point lights never use these two.
+    // Depth bias for spot/rect tiles via glPolygonOffset (they draw through depth.frag); point lights do not use these.
     f32 biasSlope = 2.5f;
     f32 biasConstant = 8.0f;
 };

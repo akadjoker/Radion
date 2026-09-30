@@ -9,11 +9,7 @@ bool OffscreenTarget::create(u32 w, u32 h, Format colorFormat, Format depthForma
                              const char* debugName, bool mips, Format velocityFormat,
                              Format reactiveFormat, bool storage)
 {
-    // Built into a temporary set first, and only swapped in once every piece
-    // of it has succeeded: destroying the old set up front - as this used to
-    // do - meant a resize that failed partway (an OOM on the depth texture,
-    // an incomplete FBO on some driver) left the caller with nothing valid
-    // at all, when the old, still-good set was sitting right there.
+    // Build into a temporary set and swap only once everything succeeds, so a failed resize keeps the old set.
     OffscreenTarget next;
     GPU& gpu = GPU::getSingleton();
 
@@ -77,7 +73,6 @@ bool OffscreenTarget::create(u32 w, u32 h, Format colorFormat, Format depthForma
     next.width = w;
     next.height = h;
 
-    // Only now does the set this call replaces go away.
     destroy();
     *this = next;
     return true;

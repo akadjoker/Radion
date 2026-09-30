@@ -16,8 +16,7 @@ class Obstacle;
 
 using ObstacleGroup = std::vector<Obstacle*>;
 
-// Which side of an obstacle is solid ("seenFrom"): outside = a solid chunk in
-// clear space, inside = clear space enclosed by solid, both = hollow shell.
+// Solid side ("seenFrom"): outside = solid chunk, inside = enclosed clear space, both = hollow shell.
 enum class ObstacleSeenFrom
 {
     Outside,
@@ -25,20 +24,17 @@ enum class ObstacleSeenFrom
     Both
 };
 
-// Information about an intersection of a vehicle's path with an obstacle.
 struct PathIntersection
 {
-    bool intersect = false;                    // was an intersection found?
-    float distance = 0.0f;                     // how far the intersection is from the vehicle
-    Math::vec3 surfacePoint = Math::vec3(0.0f);  // position of intersection
-    Math::vec3 surfaceNormal = Math::vec3(0.0f); // unit normal at intersection
-    Math::vec3 steerHint = Math::vec3(0.0f);     // where to steer away from it
-    bool vehicleOutside = true;                // is the vehicle outside the obstacle?
-    const Obstacle* obstacle = nullptr;        // obstacle the path intersects
+    bool intersect = false;
+    float distance = 0.0f;
+    Math::vec3 surfacePoint = Math::vec3(0.0f);
+    Math::vec3 surfaceNormal = Math::vec3(0.0f);
+    Math::vec3 steerHint = Math::vec3(0.0f);
+    bool vehicleOutside = true;
+    const Obstacle* obstacle = nullptr;
 
-    // Determine steering once path intersections have been found: lateral
-    // component of steerHint, scaled to the vehicle's maxForce, if the
-    // intersection is inside minTimeToCollision seconds of travel.
+    // Lateral component of steerHint scaled to maxForce, if the intersection is within minTimeToCollision.
     Math::vec3 steerToAvoidIfNeeded(const Radion::Agent& vehicle, float minTimeToCollision) const;
 };
 
@@ -48,21 +44,16 @@ public:
     Obstacle() = default;
     virtual ~Obstacle() = default;
 
-    // Compute steering for a vehicle to avoid this obstacle, if needed.
     Math::vec3 steerToAvoid(const Radion::Agent& vehicle, float minTimeToCollision) const;
 
-    // Apply steerToAvoid to the nearest obstacle in a group.
     static Math::vec3 steerToAvoidObstacles(const Radion::Agent& vehicle, float minTimeToCollision,
                                            const ObstacleGroup& obstacles);
 
-    // Find the first vehicle-path intersection in a group, storing the nearest
-    // in `nearest`.
     static void firstPathIntersectionWithObstacleGroup(const Radion::Agent& vehicle,
                                                        const ObstacleGroup& obstacles,
                                                        PathIntersection& nearest,
                                                        PathIntersection& next);
 
-    // Find the first intersection of the vehicle's path with this obstacle.
     virtual void findIntersectionWithVehiclePath(const Radion::Agent& vehicle,
                                                  PathIntersection& pi) const = 0;
 
@@ -79,7 +70,6 @@ private:
     ObstacleSeenFrom mSeenFrom = ObstacleSeenFrom::Outside;
 };
 
-// A simple ball-shaped obstacle.
 class SphereObstacle final : public Obstacle
 {
 public:
@@ -95,8 +85,7 @@ public:
                                          PathIntersection& pi) const override;
 };
 
-// A planar obstacle (the XY / side-up plane of a local space). The +Z
-// (forward) half-space is "outside". Base class for rectangle/box faces.
+// Planar obstacle in the local XY plane; the +Z half-space is outside.
 class PlaneObstacle : public Obstacle
 {
 public:
@@ -109,7 +98,6 @@ public:
     void findIntersectionWithVehiclePath(const Radion::Agent& vehicle,
                                          PathIntersection& pi) const override;
 
-    // Is a point on the local XY plane inside this obstacle's 2D shape?
     virtual bool xyPointInsideShape(const Math::vec3& point, float radius) const
     {
         (void)point;
@@ -162,7 +150,6 @@ private:
     Math::vec3 mPosition = Math::vec3(0.0f);
 };
 
-// A rectangular obstacle, centered on the XY (side/up) plane of a local space.
 class RectangleObstacle final : public PlaneObstacle
 {
 public:
@@ -183,13 +170,12 @@ public:
     bool xyPointInsideShape(const Math::vec3& point, float radius) const override;
 };
 
-// A box-shaped (cuboid) obstacle, centered on and aligned with a local space.
 class BoxObstacle final : public PlaneObstacle
 {
 public:
-    float width = 1.0f;  // extent along local X (side)
-    float height = 1.0f; // extent along local Y (up)
-    float depth = 1.0f;  // extent along local Z (forward)
+    float width = 1.0f;
+    float height = 1.0f;
+    float depth = 1.0f;
 
     BoxObstacle() = default;
     BoxObstacle(float w, float h, float d, const Math::vec3& s, const Math::vec3& u,

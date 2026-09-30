@@ -30,8 +30,7 @@ bool buildHullMesh(const std::vector<Math::vec3>& vertices,
         edge = edge->getNextEdgeOfFace();
         int v2 = edge->getTargetVertex();
 
-        // Guard against a step count rather than trusting the loop to close:
-        // a malformed face would otherwise walk its edges forever.
+        // Guard against a malformed face walking its edges forever.
         int steps = 0;
         while (v2 != v0 && steps < edgeCount)
         {

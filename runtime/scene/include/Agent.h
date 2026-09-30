@@ -1,18 +1,11 @@
 #ifndef RADION_AGENT_H
 #define RADION_AGENT_H
 
-// Agent.h - a flocking/steering AI agent, one per GameObject.
-//
-// Ported from runtime/ai's AI::Entity + AI::SquadEntity + AI::SquadLeaderEntity
-// (now gone): the whole role hierarchy collapses into one Component, with a
-// squadId() of 0 marking the leader (SquadLeaderEntity's member list/POIs/
-// command state lives here, guarded by that convention, until Squad exists).
-
-#include "BehaviorFactory.h"    // AI::BehaviorType
+#include "BehaviorFactory.h"
 #include "Component.h"
-#include "FormationBehavior.h" // AI::SquadFormation
-#include "SquadEntity.h"       // AI::SquadCommand
-#include "WaypointNetwork.h"   // AI::Path, AI::WaypointID
+#include "FormationBehavior.h"
+#include "SquadEntity.h"
+#include "WaypointNetwork.h"
 
 #include "Math.h"
 #include <vector>
@@ -35,8 +28,6 @@ class Agent;
 
 using AgentType = Radion::u32;
 
-// Sense data entry: a visible agent plus its distance, kept in
-// Agent::mVisibleGroupMembers / mVisibleEnemies sorted ascending by distance.
 struct EntityDist
 {
     f32 distance = 0.0f;
@@ -51,25 +42,20 @@ public:
     struct Settings
     {
         AgentType type = 0;
-        f32 senseRange = 4.0f;        // radius in which others are "sensed"
-        f32 maxVelocityChange = 1.0f; // max acceleration per update()
+        f32 senseRange = 4.0f;
+        f32 maxVelocityChange = 1.0f;
         f32 maxSpeed = 5.0f;
         f32 desiredSpeed = 2.0f;
-        f32 radius = 0.5f;      // bounding-sphere radius
-        f32 moveXScalar = 1.0f; // per-axis velocity scalars (0 = locked)
+        f32 radius = 0.5f;
+        f32 moveXScalar = 1.0f;
         f32 moveYScalar = 0.0f;
         f32 moveZScalar = 1.0f;
     };
 
     ~Agent() override;
 
-    // Replaces the Entity(World&, Settings&) constructor: the Agent already
-    // exists (GameObject::addComponent<Agent>() built it), this just applies
-    // the tuning.
     void applySettings(const Settings& settings);
 
-    // Stepped by Scene::update() for every simulating agent - sensing,
-    // behaviors and the steering integration in one pass.
     void update(f32 deltaTime);
 
     void setFriendMask(AgentType mask)
@@ -89,17 +75,13 @@ public:
     {
         return mAgentType;
     }
-    // Changes what others sense this agent AS, leaving friend/enemy masks
-    // alone - applySettings() sets all three together, which is not what an
-    // inspector field or a loader restoring one value at a time wants.
+    // Leaves friend/enemy masks alone, unlike applySettings().
     void setType(AgentType type)
     {
         mAgentType = type;
     }
 
-    // Sense data refreshed each update(); sorted ascending by distance. Both
-    // lists only ever hold living agents - a dead one stops being sensed by
-    // anyone the same frame its health reaches zero.
+    // Sorted ascending by distance; only living agents are held.
     const std::vector<EntityDist>& visibleGroupMembers() const
     {
         return mVisibleGroupMembers;
@@ -109,10 +91,7 @@ public:
         return mVisibleEnemies;
     }
 
-    // Combat: plain hit points, no regen. update() freezes a dead agent in
-    // place (skips sensing, behaviors and movement) rather than removing it
-    // from the Scene's list, so a caller can still find it, play a death
-    // pose on it, or hide its GameObject.
+    // update() freezes a dead agent in place rather than removing it from the Scene's list.
     f32 health() const
     {
         return mHealth;
@@ -130,10 +109,6 @@ public:
         mHealth = Math::max(mHealth - amount, 0.0f);
     }
 
-    // CombatBehavior's own per-agent cooldown between shots - kept here with
-    // the rest of the agent's steering state (mDesiredMoveVector and the
-    // sense lists) rather than inside the Behavior, which is where it lived
-    // back when one Behavior instance served a whole flock.
     f32 attackCooldown() const
     {
         return mAttackCooldown;
@@ -147,11 +122,7 @@ public:
         mAttackCooldown = Math::max(mAttackCooldown - timeDelta, 0.0f);
     }
 
-    // One shot's worth of event state, valid for the frame CombatBehavior
-    // actually fires and cleared at the top of the next update() - a caller
-    // polls this once per frame (after Scene::update()) to trigger a muzzle
-    // flash / tracer / fire animation without CombatBehavior needing to know
-    // anything about rendering.
+    // Valid for the frame CombatBehavior fires; cleared at the top of the next update().
     bool firedThisFrame() const
     {
         return mFiredThisFrame;
@@ -166,36 +137,24 @@ public:
         mLastFireTarget = target;
     }
 
-    // Behaviors are owned by the agent, which deletes them. Nothing here
-    // hands a caller a raw pointer it has to remember to place: this builds
-    // the behavior itself, exactly like GameObject::addComponent<T>(), and
-    // an agent that refuses one destroys it rather than leaking it. Null
-    // when refused.
+    // Takes ownership; null when the agent refuses the behavior.
     template <class T, class... Args> T* addBehavior(Args&&... args)
     {
         T* behavior = new T(static_cast<Args&&>(args)...);
         if (adoptBehavior(behavior))
             return behavior;
-        // Freshly built, so nothing else can be holding it: a refusal here
-        // would strand it, which is exactly the hole this overload exists
-        // to close.
+        // Freshly built, so deleting on refusal cannot strand anything.
         delete behavior;
         return nullptr;
     }
 
-    // Same, chosen at runtime instead of at compile time - what the editor's
-    // "+" menu and the scene loader call, both of which only know a name.
     AI::Behavior* addBehavior(AI::BehaviorType type);
 
-    // Takes ownership of an already-built behavior. False, and the behavior
-    // untouched, when it already belongs to an agent - that agent still owns
-    // and will still free it, so this must not. Prefer addBehavior<T>()
-    // above, which leaves no raw pointer to get this wrong with.
+    // Takes ownership. False, behavior untouched, when it already belongs to an agent (which still frees it).
     bool adoptBehavior(AI::Behavior* behavior);
 
     bool removeBehavior(AI::Behavior& behavior);
     bool removeBehavior(AI::BehaviorType type);
-    // First behavior of this type, or null.
     AI::Behavior* behavior(AI::BehaviorType type) const;
     void clearBehaviors();
     usize behaviorCount() const;
@@ -210,9 +169,6 @@ public:
         return mGroupId;
     }
 
-    // Scene the agent is registered with, for behaviors that need to scan
-    // every agent (FormationBehavior's leader/point-man lookup, the
-    // Pathfind/NavMesh avoidance passes) - mirrors RigidBody::scene().
     Scene* scene() const
     {
         return mScene;
@@ -255,9 +211,6 @@ public:
     {
         return mMaxSpeed;
     }
-    // Read every update() (Behavior.cpp's own speed-matching and flee
-    // terms), never cached - safe to change on a live agent, not just at
-    // construction through Settings.
     void setMaxSpeed(f32 speed)
     {
         mMaxSpeed = Math::max(speed, 0.0f);
@@ -279,9 +232,7 @@ public:
         mSenseRange = Math::max(range, 0.0f);
     }
 
-    // Per-axis velocity scalars: 0 locks an axis (Y is locked by default, so
-    // agents stay on the ground plane), 1 leaves it free. Above 1
-    // destabilises the integration - see update().
+    // 0 locks an axis (Y by default), 1 leaves it free; above 1 destabilises the integration.
     f32 moveXScalar() const
     {
         return mMoveXScalar;
@@ -301,17 +252,8 @@ public:
         mMoveZScalar = z;
     }
 
-    // ---- vehicle interface --------------------------------------------------
-    // Local frame convention (consistent with FormationBehavior): right = +X,
-    // up = +Y, forward (look) = +Z, all read from the orientation quaternion.
-    // This is the reference demos' convention (D3DX-era: forward = +Z), kept
-    // as-is because the AI's own math is internally self-consistent and
-    // tested against it.
-    //
-    // It does NOT match the rest of runtime/scene: GameObject::forward() is
-    // rotation * (0,0,-1) - forward = -Z (right() and up() do agree: +X,
-    // +Y). pushOwnerPose()/pullAgentPose() apply the 180 degree turn around
-    // up() that reconciles the two conventions - see their comments.
+    // Local frame: right = +X, up = +Y, forward = +Z. Unlike GameObject::forward() (-Z);
+    // pushOwnerPose()/pullAgentPose() apply the 180 degree turn between the two.
 
     Math::vec3 forward() const
     {
@@ -326,8 +268,6 @@ public:
         return Math::mat3_cast(mOrientation)[1];
     }
 
-    // Velocity is a free vector; speed() is its magnitude and setSpeed()
-    // rescales it.
     f32 speed() const
     {
         return Math::length(mVelocity);
@@ -343,8 +283,6 @@ public:
         mRadius = radius;
     }
 
-    // maxForce() is the steering-force limit; it maps to the acceleration
-    // limit maxVelocityChange that update() clamps against.
     f32 maxForce() const
     {
         return mMaxVelocityChange;
@@ -354,24 +292,17 @@ public:
         mMaxVelocityChange = force;
     }
 
-    // Predicted position in `predictionTime` seconds (straight-line
-    // extrapolation).
     Math::vec3 predictFuturePosition(f32 predictionTime) const
     {
         return mPosition + (mVelocity * predictionTime);
     }
 
-    // Transform helpers in the vehicle's local frame.
     Math::vec3 localizeDirection(const Math::vec3& globalDirection) const;
     Math::vec3 localizePosition(const Math::vec3& globalPosition) const;
     Math::vec3 globalizePosition(const Math::vec3& localPosition) const;
     Math::vec3 globalizeDirection(const Math::vec3& localDirection) const;
 
-    // Rotate the orientation so forward() points along the current velocity,
-    // keeping up as close as possible.
     void alignWithVelocity();
-
-    // ---- squad-member state (ported from AI::SquadEntity) -------------------
 
     void setPath(const AI::Path& path)
     {
@@ -436,10 +367,7 @@ public:
     void onGoalReached();
     void onWaitingForCommand();
 
-    // Owned (unlike AI::SquadEntity::setStateMachine(), which was not):
-    // replacing or destroying the Agent deletes the previous machine, so a
-    // caller that builds one (SquadAI.h) hands it over and never deletes it
-    // itself.
+    // Owned: replacing or destroying the Agent deletes the previous machine.
     void setStateMachine(AI::StateMachine* machine);
     AI::StateMachine* stateMachine() const
     {
@@ -492,9 +420,7 @@ public:
         return mLOSStatus;
     }
 
-    // -1 = no squad. 0 identifies the leader (player-controlled; skips
-    // formation and owns the member list/POI/command state below) until
-    // Squad exists as its own Component.
+    // -1 = no squad, 0 = the leader (owns member list/POI/command state).
     void setSquadId(int id)
     {
         mSquadId = id;
@@ -513,8 +439,6 @@ public:
         return mGoalRadius;
     }
 
-    // Formation is the squad's, not the soldier's - stays here only until
-    // Squad exists to own it (Phase 3).
     void setSquadFormation(int formation)
     {
         mSquadFormation = formation;
@@ -524,17 +448,12 @@ public:
         return mSquadFormation;
     }
 
-    // On the leader (squadId() == 0) this also dispatches the command to
-    // every squad member and, for AttackTarget, sends the squad at the
-    // selected point of interest - AI::SquadLeaderEntity::setCommand()
-    // folded into one method, dispatching on squadId() instead of a vtable.
+    // On the leader (squadId() == 0) also dispatches the command to every squad member.
     void setCommand(AI::SquadCommand command);
     AI::SquadCommand command() const
     {
         return mCommand;
     }
-
-    // ---- leader-only state (ported from AI::SquadLeaderEntity) ---------------
 
     bool hasCommandChanged() const
     {
@@ -576,10 +495,7 @@ public:
         return mPointsOfInterest;
     }
 
-    // Squad members are NOT owned by the leader - but the link is recorded on
-    // both ends, so whichever side is destroyed first takes itself out of the
-    // other's reach instead of leaving a dangling pointer behind. A member
-    // joining a second leader leaves the first.
+    // Members are not owned by the leader; the link is recorded on both ends so either side's destruction unlinks cleanly.
     void addSquadMember(Agent* member);
     void removeSquadMember(Agent* member);
     void clearSquadMembers();
@@ -595,8 +511,6 @@ public:
     {
         return mSquadMembers;
     }
-
-    // ---- pose sync with the owning GameObject --------------------------------
 
     void setSyncPosition(bool sync)
     {
@@ -658,7 +572,6 @@ private:
     bool mFiredThisFrame = false;
     Agent* mLastFireTarget = nullptr;
 
-    // Squad-member state (AI::SquadEntity).
     AI::WaypointNetwork* mWaypointNetwork = nullptr;
     AI::WaypointID mNextWaypoint = 0;
     AI::WaypointID mCurrentWaypoint = 0;
@@ -674,7 +587,6 @@ private:
     int mSquadId = -1;
     int mSquadFormation = static_cast<int>(AI::SquadFormation::Abreast);
 
-    // Leader-only state (AI::SquadLeaderEntity), valid when squadId() == 0.
     std::vector<Agent*> mSquadMembers; // non-owning, back-linked by mSquadLeader
     Agent* mSquadLeader = nullptr;     // the agent whose mSquadMembers holds this one
     AI::PointsOfInterest* mPointsOfInterest = nullptr;

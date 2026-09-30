@@ -12,10 +12,8 @@ namespace Voxel
 
 class VoxelWorld;
 
-// One chunk plus the single-block shell around it, copied out of the world in
-// one go. A worker thread meshes from this copy and never reads the chunk map,
-// which is what lets the main thread keep loading and unloading chunks while
-// meshing is in flight.
+// One chunk plus a one-block shell copied out of the world: a worker meshes from this copy without reading the chunk map,
+// so the main thread can keep loading and unloading chunks.
 class VoxelNeighbourhood
 {
 public:

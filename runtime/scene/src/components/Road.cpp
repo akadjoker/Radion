@@ -341,11 +341,7 @@ void Road::rebuild()
         const u32 quad[6] = {a, a + 2, a + 1, a + 1, a + 2, a + 3};
         data.indices.insert(data.indices.end(), quad, quad + 6);
     }
-    // Scene::buildRenderList() always submits Road with mMaterial as an
-    // override. Keep only an authored placeholder in the generated Mesh and
-    // never copy mMaterial's live paramsBuffer into it: destroying a previous
-    // rebuilt mesh would otherwise release the same UBO still owned by Road,
-    // after which its tint/UV parameters read unrelated recycled GPU data.
+    // Scene::buildRenderList() submits Road with mMaterial as an override; do not copy its live paramsBuffer into the Mesh, or destroying a rebuilt mesh would release the UBO Road still owns.
     Material meshMaterial = mMaterial;
     meshMaterial.paramsBuffer = BufferHandle();
     meshMaterial.pipeline = PipelineHandle();

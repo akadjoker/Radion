@@ -31,9 +31,7 @@ f32 Grass::random()
 
 bool Grass::loadAtlas(const std::string& filename)
 {
-    // Four levels take a ~400px region down to ~25px, which is already under a
-    // pixel on screen at the distance the grass fades out. Past that the box
-    // filter is averaging one plant into the next one along in the atlas.
+    // Four levels take ~400px to ~25px, under a pixel at fade-out distance; further, the box filter blends neighbouring atlas plants.
     const TextureHandle atlas =
         Assets().loadTexture(filename, Material::colorSpaceFor(SlotAlbedo), true, 4);
     if (!atlas.valid())
@@ -170,8 +168,7 @@ bool Grass::plant(const Math::vec3& position, const Math::vec3& normal, f32 scal
     if (mRegions.empty() || scale <= 0.0f)
         return false;
 
-    // Weighted pick, so a lawn can be mostly dense tufts with the odd tall
-    // stalk instead of an even mix of everything in the atlas.
+    // Weighted pick.
     u32 region = 0;
     if (mTotalWeight > 0.0f)
     {
@@ -223,8 +220,7 @@ u32 Grass::paint(const Math::vec3& centre, f32 radius, u32 count)
     u32 planted = 0;
     for (u32 i = 0; i < count; ++i)
     {
-        // Square root of the random radius: area grows with r², so a uniform
-        // one would pile every tuft in the middle.
+        // Square root of the random radius (area grows with r^2).
         const f32 angle = random() * 2.0f * Math::pi<f32>();
         const f32 distance = std::sqrt(random()) * radius;
         const Math::vec3 position =
@@ -394,10 +390,7 @@ u32 Grass::paintFromGrid()
     return planted;
 }
 
-// Tufts are authored where they were painted, in the owner's space, but the
-// pass culls against world-space planes and the shader never sees a model
-// matrix. Baking the transform in is the one place that gap is closed, and it
-// only runs when the field or the object actually moved.
+// Tufts are in the owner's space but the pass culls in world space and the shader has no model matrix; bake the transform here, only when the field or object moved.
 void Grass::rebuildWorld(const Math::mat4& transform)
 {
     mWorldClumps.resize(mClumps.size());

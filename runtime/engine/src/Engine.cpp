@@ -135,12 +135,10 @@ bool Engine::initialize(const EngineConfig& config)
     if (mInitialized)
         return true;
 
-    // Ahead of everything: addDefaultPasses() below asks for its first shader
-    // before this function returns, and the fallback has to already be there.
+    // First: addDefaultPasses() asks for a shader before this returns, so the fallback must already exist.
     DefaultPack::mount(FileSystem::getSingleton());
 
-    // A machine with no output device still runs the game, silently: every
-    // AudioEngine call is a no-op until a later initialize() succeeds.
+    // No output device: the game runs silently; AudioEngine calls no-op until a later initialize() succeeds.
     Audio().initialize();
 
 #if defined(RADION_DEBUG)
@@ -189,22 +187,15 @@ bool Engine::initialize(const EngineConfig& config)
         return false;
     }
 
-    // Fixed internal resolution, not the window's own. On a HiDPI display the
-    // drawable size is twice the window (2560x1408 for a 1280x720 window), and
-    // every post-process target was being allocated at that size - four times
-    // the fill rate for a demo nobody asked to run at 4K. A demo that wants
-    // native can still call setRenderResolution({0, 0, 1.0f}).
+    // Fixed internal resolution, not the window's: HiDPI drawables are 2x, making post targets 4x the fill rate.
+    // setRenderResolution({0, 0, 1.0f}) restores native.
     RenderResolution defaultResolution;
     defaultResolution.width = 1280;
     defaultResolution.height = 720;
     setRenderResolution(defaultResolution);
 
-    // Off by default: a demo that wants the look opts in, rather than every
-    // demo paying the cost and fighting the softening/glow to see its own
-    // change clearly.
-    // 128 is the reference's own middle ground for a realtime probe: six
-    // faces of it is a quarter of the pixels of one 720p frame, and the
-    // reflection is blurred by roughness anyway.
+    // Off by default: demos opt in rather than all paying for the softening/glow.
+    // 128: six faces are a quarter of a 720p frame, and roughness blurs the reflection anyway.
     if (!mProbe.create(128))
         Log::warning("Engine: no environment probe, reflections will be flat");
 
@@ -214,10 +205,7 @@ bool Engine::initialize(const EngineConfig& config)
     mPostProcess->add(PostEffect::FXAA);
     mPostProcess->setEnabled(PostEffect::FXAA, false);
 
-    // So a scene file also carries shadow/post-process settings, not just
-    // the object graph - Renderer/Lighting/PostProcessStack all exist by
-    // this point, and every scene loaded/saved from here on shares the same
-    // three structs (they are Engine-wide, not per-Scene).
+    // Scene files carry shadow/post-process settings; these structs are Engine-wide, not per-Scene.
     mSceneManager.bindRenderSettings(mRenderer->cascadeSettings(),
                                      mRenderer->lighting()
                                          ? &mRenderer->lighting()->atlasSettings()
@@ -226,9 +214,7 @@ bool Engine::initialize(const EngineConfig& config)
                                      mRenderer->lighting(), mRenderer->volumetric(), &mSky,
                                      &mRenderResolution, &ParticleDraws());
 
-    // Same reasoning as Bloom/FXAA above: a light still has to opt in with
-    // its own setVolumetric(true), but these master switches are what let a
-    // demo skip the cost across the board instead of per light.
+    // Lights still opt in via setVolumetric(true); these are master switches to skip the cost globally.
     VolumetricPass* volumetric = mRenderer->volumetric();
     volumetric->sunEnabled = false;
     volumetric->spotEnabled = false;
@@ -252,9 +238,7 @@ void Engine::shutdown()
         mFrameActive = false;
     }
 
-    // Window position/size (and everything else EngineSettings tracks) as
-    // they stand right before teardown - a plain window-close should not
-    // lose them just because nobody pressed "Guardar settings".
+    // Saved right before teardown so a plain window-close keeps position/size.
     if (!mSettingsFile.empty())
         EngineSettings::save(*this, mSettingsFile);
 
@@ -284,18 +268,13 @@ void Engine::shutdown()
     mRenderer = nullptr;
     mImGui.shutdown();
 
-    // Everything that owns GPU resources, released here in a fixed order
-    // while the context is still alive: assets (meshes, textures, samplers)
-    // first, then the pipelines they referenced, then whatever the device
-    // still has live. Leaving any of it to a destructor would put GL calls
-    // at whatever point the owner happened to die.
-    // Before FileSystem goes: every voice still playing holds decoded bytes
-    // this owns, and the device thread is reading them until it stops.
+    // Release GPU resources in a fixed order while the context is alive: assets, then pipelines, then the rest;
+    // a destructor would make GL calls at an arbitrary point.
+    // Before FileSystem goes: playing voices hold decoded bytes the device thread reads until it stops.
     Audio().shutdown();
 
     GPUProfiler::getSingleton().shutdown();
-    // Joins the worker thread before anything it might still be touching
-    // (FileSystem, the texture cache below) goes away.
+    // Join the worker before FileSystem and the texture cache it may touch go away.
     AsyncTextureLoader::getSingleton().shutdown();
     Assets().shutdown();
     MaterialManager::getSingleton().destroyAllPipelines();
@@ -303,8 +282,7 @@ void Engine::shutdown()
 
     GPU::destroyDevice(mGpu);
     mGpu = nullptr;
-    // The global pool owns SDL threads. Join them while SDL is still alive,
-    // rather than relying on static destruction after Window::destroy().
+    // Join pool threads while SDL is alive, not in static destruction.
     shutdownJobs();
     mWindow.destroy();
     mInitialized = false;
@@ -331,10 +309,7 @@ bool Engine::update()
     Profiler::getSingleton().addSample("Present (frame anterior)", mPresentMilliseconds);
     DebugDraw().clear();
     ScreenDraws().clear();
-    // The UI lays out in the same pixels ScreenDrawPass resolves into, so it
-    // takes the drawable size and not the window's own. Set here, at the top
-    // of the frame, because Scene::update() consumes it before anything has
-    // reached the renderer.
+    // The UI lays out in drawable pixels (what ScreenDrawPass resolves into); set at frame top since Scene::update() consumes it.
     {
         int uiWidth = 0;
         int uiHeight = 0;
@@ -361,9 +336,7 @@ bool Engine::update()
     }
 
     mGpu->beginFrame();
-    // GL context is current from here on - the one place in the frame that
-    // is both safe (main thread, no draw in flight yet) and early enough for
-    // a texture that finished streaming to render correctly this same frame.
+    // GL context is current from here: safe (main thread, no draw yet) and early enough for freshly streamed textures.
     Assets().processAsyncTextureLoads();
     if (Assets().processAsyncMeshLoads() > 0)
         if (Scene* active = mSceneManager.active())
@@ -515,9 +488,7 @@ DecalSystem* Engine::decals()
 
 void Engine::setSkyCubemap(const std::string& baseName)
 {
-    // Switching the mode is this function's job and not loadSkyCubemap()'s:
-    // asking for a sky by name is a request to see it, whereas restoring
-    // settings resolves the same name without disturbing the saved mode.
+    // Mode switching belongs here, not loadSkyCubemap(): restoring settings must not disturb the saved mode.
     if (loadSkyCubemap(mSky, baseName) && !baseName.empty())
         mSky.mode = SkyMode::Cubemap;
 }
@@ -579,20 +550,8 @@ const std::string& Engine::gifRecordingFilename() const
 namespace
 {
 
-// The scene buffers are rounded up to this. Two things downstream want it and
-// a raw window size gives neither:
-//
-//  - bloom and SSAO run at half resolution, and an odd height makes the halves
-//    cover one row less than the full target. Every upsample from them is then
-//    half a pixel off, which reads as shimmer along edges rather than as the
-//    misalignment it is.
-//  - the tiled light cull dispatches one group per 32x32 tile, so a size that
-//    is not a multiple of 32 leaves the last row of tiles hanging outside.
-//
-// Rounding up rather than down keeps the whole image: the final post pass
-// stretches the buffer to the presentation rect, and the camera takes its
-// aspect from that rect, so a slightly larger buffer only changes sampling
-// density - it cannot distort geometry.
+// Scene buffers are rounded up: half-res bloom/SSAO need even sizes (else edge shimmer),
+// and the tiled light cull needs multiples of 32. Up, not down, so the image is kept and only sampling density changes.
 constexpr u32 kRenderAlignment = 32;
 
 u32 alignUp(u32 value)
@@ -631,8 +590,7 @@ u32 Engine::renderRecordingCameras(Scene& scene)
             !object->isActiveInHierarchy())
             continue;
 
-        // The camera's own aspect follows its own texture, not the window's -
-        // a 320x240 sensor is 4:3 whatever shape the game view happens to be.
+        // The camera's aspect follows its own texture, not the window's.
         const f32 aspect =
             static_cast<f32>(camera->recordWidth()) / static_cast<f32>(camera->recordHeight());
         camera->setAspect(aspect);
@@ -645,9 +603,7 @@ u32 Engine::renderRecordingCameras(Scene& scene)
         view.aspect = aspect;
         view.nearPlane = camera->nearPlane();
 
-        // A sensor is a bystander: it must not touch the game camera's
-        // occlusion bookkeeping, and temporal accumulation across frames
-        // would smear a picture that is being read back frame by frame.
+        // A sensor must not touch the game camera's occlusion state, and temporal accumulation would smear readback.
         RenderTextureSettings settings;
         settings.temporalAA = false;
 
@@ -668,8 +624,7 @@ bool Engine::render(Scene& scene)
     if (!mFrameActive || !scene.activeCamera())
         return false;
 
-    // Before the main view, so a monitor in the scene showing a sensor's
-    // picture shows this frame's rather than the last one's.
+    // Before the main view, so a monitor showing a sensor displays this frame's picture.
     renderRecordingCameras(scene);
 
     int width = 0;
@@ -705,8 +660,7 @@ bool Engine::renderToTexture(Scene& scene, u32 width, u32 height, RenderTextureO
         output = RenderTextureOutput();
         return false;
     }
-    // The offscreen resolve leaves its target bound. ImGui is submitted after
-    // the scene and must return to the window framebuffer without clearing it.
+    // The offscreen resolve leaves its target bound; ImGui must return to the window framebuffer without clearing.
     ClearValue noClear;
     noClear.bits = 0;
     mGpu->setTarget(TargetHandle(), noClear);
@@ -757,18 +711,13 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
         passes &= ~RenderPassLensFlares;
     if (!settings.temporalAA)
         passes &= ~RenderPassTemporalAA;
-    // TAA resolves inside the post-process stack and jitters the projection
-    // to feed it. With post-process off there is nothing to resolve into, so
-    // leaving the jitter on would only shake the image.
+    // TAA resolves in the post-process stack; with post-process off the jitter would only shake the image.
     if (!(passes & RenderPassPostProcess))
         passes &= ~(RenderPassTemporalAA | RenderPassAmbientOcclusion | RenderPassVolumetrics);
     const bool wantShadows = (passes & RenderPassShadows) != 0;
     const bool wantPostProcess = (passes & RenderPassPostProcess) != 0;
 
-    // Here rather than in render(): every path into this function needs the
-    // sun current, and an editor that only ever renders through
-    // renderToTexture() never calls render() at all. updateSun() recomputes
-    // from timeOfDay with no accumulation, so running it per render is safe.
+    // Here, not render(): editors rendering via renderToTexture() never call render(). updateSun() has no accumulation, so per-render is safe.
     mSky.updateSun();
     if (mSky.enabled)
     {
@@ -783,16 +732,11 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
 
     FrameContext frame;
     frame.list = mRenderList;
-    // RenderView is commonly assembled on the caller's stack each frame, so
-    // its address cannot identify a temporal stream. The output object is
-    // persistent for the editor/game view that owns this history instead.
+    // RenderView is usually a stack temporary, so its address cannot identify a temporal stream; the persistent output does.
     const void* viewIdentity = explicitView ? static_cast<const void*>(output) : nullptr;
     if (explicitView)
     {
-        // An editor observer's own render: nothing here is scene.activeCamera(),
-        // not even to read it - buildRenderList()'s explicit-view overload
-        // does not touch it either, and everything past this point only
-        // ever reads frame.*.
+        // An editor observer's render: scene.activeCamera() is never read, only frame.*.
         RADION_PROFILE_SCOPE("Scene build list");
         frame.view = explicitView->view;
         frame.projectionNoJitter = explicitView->projection;
@@ -897,9 +841,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
     if (!mPostProcess->begin(frame.width, frame.height, frame, temporalIndex, resetTemporal))
         return false;
 
-    // Before anything else this frame: the capture renders into its own
-    // targets and the reflection has to exist before the surfaces that read
-    // it are drawn.
+    // First: the capture renders into its own targets and must exist before the surfaces reading it are drawn.
     if (mProbe.consumeCapture(frame.deltaTime, mProbeCaptureDeferred))
     {
         const auto captureStart = std::chrono::steady_clock::now();
@@ -914,8 +856,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
             std::chrono::duration<f32, std::milli>(captureEnd - captureStart).count(), frame.time);
     }
 
-    // Every placeable ReflectionProbe the scene owns, with the same
-    // invalidation/defer gating as Engine's global probe above.
+    // Placeable ReflectionProbes, with the same invalidation/defer gating as the global probe.
     for (ReflectionProbe* reflectionProbe : scene.reflectionProbes())
     {
         EnvironmentProbe& probe = reflectionProbe->probe();
@@ -944,8 +885,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
         mRenderer->submitDecals(frame);
     }
 
-    // Before the scene's own target is bound: the mirrored view renders into a
-    // target of its own, and the surfaces that read it are drawn below.
+    // Before the scene target is bound: the mirrored view renders into its own target read by surfaces below.
     if (passes & RenderPassPlanarReflections)
         mRenderer->executeReflection(scene, frame);
     else
@@ -959,9 +899,8 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
     clear.color[2] = 0.08f;
     mGpu->setTarget(frame.target, clear);
     const f32 velocityClear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    // Any pass that has not opted into velocity MRT (water, particles,
-    // vegetation) retains this value and therefore uses current colour only
-    // in TAA. A wrong vector is substantially worse than no history.
+    // Passes without velocity MRT (water, particles, vegetation) keep this value and use current colour only in TAA;
+    // a wrong vector is worse than no history.
     const f32 reactiveClear[4] = {1.0f, 0.0f, 0.0f, 0.0f};
     mGpu->clearColorAttachment(frame.target, 1, velocityClear);
     mGpu->clearColorAttachment(frame.target, 2, reactiveClear);
@@ -976,11 +915,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
     {
         RADION_PROFILE_SCOPE("Occlusion queries");
         RADION_GPU_PROFILE_SCOPE("Occlusion queries");
-        // Reads last frame's verdict for every entry this frame's
-        // buildRenderList() already saw, then launches this frame's query
-        // against the depth prepass just above - the result of THIS one
-        // only ever gets read next frame, from the top of the next
-        // buildRenderList() call.
+        // Reads last frame's verdicts, then launches this frame's query against the depth prepass (read next frame).
         scene.updateOcclusionQueries(frame.target, frame.viewProjection, frame.cameraPosition);
     }
     {
@@ -1033,10 +968,7 @@ bool Engine::renderInternal(Scene& scene, u32 renderWidth, u32 renderHeight,
                                   static_cast<u32>(windowHeight));
         }
     }
-    // Screen-space overlays draw here, after the resolve, rather than as a
-    // RenderTechnique: those all run inside Renderer::execute(), before
-    // tonemapping and TAA, so a menu drawn there would pick up bloom, tonemap
-    // and TAA blur meant for the 3D scene.
+    // Drawn after the resolve, not as a RenderTechnique, which would pick up bloom/tonemap/TAA meant for the 3D scene.
     if (!output)
     {
         if (!mScreenDrawPass)
@@ -1095,9 +1027,7 @@ bool Engine::presentLoadingFrame(const char* stage, f32 progress)
         }
     }
 
-    // Straight to the backbuffer, cleared to black: the level behind this is
-    // half-built, and a loading screen showing pieces of it arriving is worse
-    // than showing nothing.
+    // Straight to the backbuffer, cleared to black: the half-built level should not show.
     ClearValue clear;
     clear.bits = ClearColor | ClearDepth;
     clear.color[0] = 0.0f;
@@ -1121,9 +1051,7 @@ bool Engine::presentLoadingFrame(const char* stage, f32 progress)
     const f32 centerY = static_cast<f32>(height) * 0.5f;
     const f32 textWidth = mLoadingBatch->textWidth(kTextSize, stage);
 
-    // Amber rather than white: white on black is the one pairing that reads
-    // as a blown-out gap in the picture rather than as text put there on
-    // purpose.
+    // Amber: white on black reads as a blown-out gap, not text.
     mLoadingBatch->setColor(static_cast<unsigned char>(255), static_cast<unsigned char>(200),
                             static_cast<unsigned char>(60));
     mLoadingBatch->drawText(centerX - textWidth * 0.5f, centerY - kTextSize, kTextSize, stage);
@@ -1152,9 +1080,7 @@ bool Engine::presentLoadingFrame(const char* stage, f32 progress)
 
 bool Engine::waitForAsyncLoads(const char* stage)
 {
-    // The totals only ever grow while work is outstanding - a mesh landing
-    // can queue the textures its materials need - so the denominator is the
-    // high-water mark, not the count at entry, or the bar would jump back.
+    // Denominator is the high-water mark: a landing mesh can queue textures, and the bar must not jump back.
     u32 peak = 0;
     char label[256];
 
@@ -1202,9 +1128,7 @@ void Engine::flip(const RenderList* profileList)
     }
     else
     {
-        // update() always starts an ImGui frame. A standalone runner hides
-        // it for a clean game window, but Dear ImGui still requires that
-        // frame to be closed before the next NewFrame().
+        // update() always starts an ImGui frame; a hidden one must still be closed before the next NewFrame().
         mImGui.endFrame();
     }
 

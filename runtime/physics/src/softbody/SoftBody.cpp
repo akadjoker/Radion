@@ -22,9 +22,8 @@ u64 edgeKey(u32 a, u32 b)
     return (low << 32) | high;
 }
 
-// Signed angle between the normals of the two triangles sharing edge x0-x1,
-// with x2 and x3 the opposite vertices. The same expression the projection
-// uses, so the rest angle measured at build time cancels exactly at rest.
+// Signed angle between the normals of the triangles sharing edge x0-x1 (x2, x3 opposite); same expression as the projection,
+// so the build-time rest angle cancels exactly at rest.
 f32 dihedralAngle(const Math::vec3& x0, const Math::vec3& x1, const Math::vec3& x2,
                   const Math::vec3& x3)
 {
@@ -39,14 +38,9 @@ f32 dihedralAngle(const Math::vec3& x0, const Math::vec3& x1, const Math::vec3& 
     return sign * std::acos(d);
 }
 
-// How far this particle can move before determineContactPlanes() runs again:
-// its own speed over the step plus what predict() will add to it inside the
-// step. A search below this lets a particle cross a collider and pop back out
-// in one substep; a search above it only widens the narrowphase, which for a
-// level-sized trimesh means every triangle within that distance, per
-// particle, per step. mMaxLinearVelocity is not the number for this - it is
-// the safety clamp step() applies at the end, 500 m/s by default, which is
-// metres of reach at any normal frame rate.
+// How far this particle can move before determineContactPlanes() runs again: its speed over the step plus what predict() adds.
+// Too small lets it cross a collider and pop back out; too large widens the narrowphase (every triangle in range for a level trimesh).
+// Not mMaxLinearVelocity: that safety clamp is 500 m/s by default, metres of reach.
 f32 particleTravel(const SoftBody::Particle& particle, const Math::vec3& gravity,
                    const Math::vec3& windPerParticle, f32 dt)
 {
@@ -234,9 +228,8 @@ void SoftBody::buildAttachments(f32 maxDistanceMultiplier)
 void SoftBody::predict(f32 dt)
 {
     const f32 damping = mDamping < 1.0f ? std::pow(mDamping, dt) : 1.0f;
-    // Jolt distributes an accumulated body force over all vertices before
-    // applying inverse mass. Without this division, refining a cloth mesh
-    // multiplies its wind acceleration by its vertex count.
+    // Jolt distributes the accumulated body force over all vertices before applying inverse mass; without the division, refining a cloth mesh
+    // multiplies its wind acceleration by the vertex count.
     const Math::vec3 windPerParticle =
         mParticles.empty() ? Math::vec3(0.0f)
                            : mWind / static_cast<f32>(mParticles.size());
@@ -351,12 +344,8 @@ void SoftBody::projectAttachments()
     }
 }
 
-// Once per step, not per substep: each particle gets the plane of the
-// closest collider surface it could reach this step, and every substep
-// projects against that same plane. Stable normals are what make the
-// velocity handling below safe - a fresh narrowphase normal per substep
-// turns a resting pile into a feedback loop between the constraints and
-// the contact push-out.
+// Once per step: each particle gets the plane of the closest collider surface it can reach, and every substep projects against it.
+// Stable normals make the velocity handling safe; a fresh normal per substep makes a resting pile a feedback loop.
 void SoftBody::determineContactPlanes(f32 dt)
 {
     mContactPlanes.assign(mParticles.size(), ContactPlane{});
@@ -433,13 +422,9 @@ void SoftBody::determineContactPlanes(f32 dt)
                     deepest = manifold.points[i].penetration;
 
                     ContactPlane& plane = mContactPlanes[index];
-                    // Narrowphase normal runs from its first shape (the
-                    // particle) towards the collider; the plane wants the
-                    // opposite direction, out of the collider.
+                    // Narrowphase normal runs particle to collider; the plane wants the opposite, out of the collider.
                     plane.normal = -manifold.normal;
-                    // The particle centre sits margin - penetration from the
-                    // surface along the normal; anchor the plane there so a
-                    // later position measures its true clearance against it.
+                    // Particle centre sits margin - penetration from the surface along the normal; anchor the plane there so later positions measure true clearance.
                     plane.offset = Math::dot(plane.normal, particle.position) -
                                    (mCollisionMargin - deepest);
                     plane.body = candidate;
@@ -470,15 +455,10 @@ void SoftBody::applyContactPlanes(f32 dt)
         if (projected <= 0.0f)
             continue;
 
-        // Push-out after updateVelocities() has already run, so it changes
-        // pose without injecting velocity - the next substep's predict()
-        // rebases previousPosition on the corrected pose.
+        // Push-out after updateVelocities(), so it changes pose without injecting velocity (the next predict() rebases previousPosition).
         particle.position += plane.normal * projected;
 
-        // Deviation from the reference, kept from the old solver: contact
-        // velocity is read from the collider so a kinematic body drags and
-        // carries the cloth; the reference's simple path assumes a static
-        // collider and works on absolute velocity.
+        // Deviates from the reference: contact velocity is read from the collider so a kinematic body drags the cloth (the reference assumes a static collider).
         Math::vec3 colliderVelocity(0.0f);
         if (plane.body)
             colliderVelocity = plane.body->velocityAtPoint(particle.position);
@@ -491,12 +471,8 @@ void SoftBody::applyContactPlanes(f32 dt)
             particle.velocity -=
                 tangent * Math::min(plane.friction * projected / (tangentSpeed * dt), 1.0f);
 
-        // The whole normal component goes, separating or not - while the
-        // particle still reaches the plane, a resting pile's own constraint
-        // corrections keep generating small outward velocities, and letting
-        // those live is a sheet that jitters and glides instead of settling.
-        // Bounce comes back only through restitution, decided on the
-        // velocity as it stood before this substep's update.
+        // The whole normal component goes, separating or not: a resting pile's constraint corrections keep generating small outward velocities
+        // that make a sheet jitter and glide. Bounce returns only through restitution, from the pre-update velocity.
         particle.velocity -= plane.normal * normalVelocity;
         const f32 previousNormalVelocity =
             Math::dot(particle.previousVelocity - colliderVelocity, plane.normal);
@@ -540,9 +516,7 @@ void SoftBody::step(f32 dt, u32 substeps)
         applyContactPlanes(h);
     }
 
-    // Jolt clamps vertex velocity at the end of a soft-body update. A dense
-    // constraint graph can otherwise turn one large positional correction
-    // into an extreme velocity for the following frame.
+    // Jolt clamps vertex velocity at the end of a soft-body update; a dense constraint graph can turn one large positional correction into an extreme velocity.
     const f32 maximumSquared = mMaxLinearVelocity * mMaxLinearVelocity;
     for (Particle& particle : mParticles)
     {

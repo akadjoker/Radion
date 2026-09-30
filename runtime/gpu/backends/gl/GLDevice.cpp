@@ -318,14 +318,8 @@ u32 mipCountFor(u32 width, u32 height)
     return levels;
 }
 
-// Rejects a descriptor before a single GL call is made from it. None of
-// these used to be checked: a zero dimension, a mip count past what the
-// dimensions could ever produce, a sample count on a type that is not
-// Tex2D (createTexture forced GL_TEXTURE_2D_MULTISAMPLE onto it regardless
-// of what desc.type asked for), or a compressed mip count past the storage
-// that was actually allocated - each one reached a GL call with a
-// parameter GL was never going to accept, or an upload that wrote past the
-// mips the texture has.
+// Rejects a descriptor before any GL call: zero dimensions, too many mips, samples on a non-Tex2D type,
+// or compressed mip counts past the allocated storage would reach GL with invalid parameters or write past the mips.
 bool validateTextureDesc(const TextureDesc& desc, std::string& error)
 {
     if (desc.width == 0 || desc.height == 0)
@@ -406,9 +400,7 @@ GLDevice::GLDevice(Platform::Window& window) : mWindow(window)
 
 GLDevice::~GLDevice()
 {
-    // No GL here on purpose - see GPU::shutdown(). Reaching this with the
-    // device still up means nobody called it, so the leak is reported rather
-    // than papered over by deleting names at an uncontrolled moment.
+    // No GL here on purpose (see GPU::shutdown()); a live device reaching this means shutdown was skipped, so report the leak.
     if (mInitialized)
     {
         Log::warning("GPU: device destroyed without shutdown(); %zu buffers, %zu textures, "
@@ -426,9 +418,7 @@ void GLDevice::shutdown()
     if (mCaps.timerQuery)
         glDeleteQueries(TimerQueryCount, mTimerQueries);
 
-    // Dependency order: a target references textures and a pipeline owns a
-    // VAO that references buffer bindings, so both go before the resources
-    // underneath them.
+    // Dependency order: targets and pipelines (VAOs) reference textures/buffers, so they go first.
     mTargets.forEach(
         [](GLTarget& target)
         {
@@ -487,11 +477,8 @@ bool GLDevice::initialize()
 
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
-    // Off by default: GL_CLIP_DISTANCE0 active with a vertex shader that
-    // never writes gl_ClipDistance[0] is undefined, not the harmless zero it
-    // used to be assumed to be. The reflection capture - the only pass that
-    // clips - turns this on around itself and off again; see
-    // Renderer::executeReflection().
+    // Off by default: GL_CLIP_DISTANCE0 with a shader not writing gl_ClipDistance[0] is undefined;
+    // the reflection capture enables it around itself (Renderer::executeReflection()).
     mClipDistanceEnabled = false;
 
     if (mCaps.timerQuery)
@@ -500,8 +487,6 @@ bool GLDevice::initialize()
     mInitialized = true;
     return true;
 }
-
-// ------------------------------------------------------------------ buffers
 
 BufferHandle GLDevice::createBuffer(const BufferDesc& desc)
 {
@@ -515,9 +500,7 @@ BufferHandle GLDevice::createBuffer(const BufferDesc& desc)
 
     if (desc.usage & BufferReadback)
     {
-        // Coherent as well as persistent: without it every read would need an
-        // explicit glMemoryBarrier and a fence to be well defined, and the
-        // point of this buffer is that reading it costs nothing.
+        // Coherent as well as persistent: otherwise reads need an explicit glMemoryBarrier and fence.
         constexpr GLbitfield flags =
             GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
         glNamedBufferStorage(buffer.id, static_cast<GLsizeiptr>(desc.size), desc.data, flags);
@@ -578,20 +561,14 @@ bool GLDevice::readDepthPixels(TextureHandle handle, u32 x, u32 y, u32 width, u3
     if (texture->format != Format::Depth24 && texture->format != Format::Depth24Stencil8 &&
         texture->format != Format::Depth32F)
         return false;
-    // Readback coordinates routinely come from a caller doing its own
-    // window/render-target math (a mouse pick, e.g.) - u64 here, not the u32
-    // the parameters arrive as, because `width * height` and `x + width` can
-    // each overflow before ever reaching the comparison that was supposed to
-    // reject them.
+    // u64, not u32: width * height and x + width can overflow before the bounds check (callers do their own window math).
     if (static_cast<u64>(count) < static_cast<u64>(width) * height)
         return false;
     if (x > texture->width || width > texture->width - x || y > texture->height ||
         height > texture->height - y)
         return false;
 
-    // glGetTextureSubImage is GL 4.5: it reads straight from the texture,
-    // without binding it to an FBO or touching any of the state a frame in
-    // flight is relying on.
+    // glGetTextureSubImage (GL 4.5) reads straight from the texture without touching FBO or in-flight frame state.
     glGetTextureSubImage(texture->id, 0, static_cast<GLint>(x), static_cast<GLint>(y), 0,
                          static_cast<GLsizei>(width), static_cast<GLsizei>(height), 1,
                          GL_DEPTH_COMPONENT, GL_FLOAT,
@@ -615,8 +592,7 @@ bool GLDevice::readColorPixels(TextureHandle handle, u32 x, u32 y, u32 width, u3
         height > texture->height - y)
         return false;
 
-    // Requesting float output makes the readback representation independent
-    // of the target's storage format (including RGBA8 and RGBA16F).
+    // Float output makes readback independent of the target's storage format.
     glGetTextureSubImage(texture->id, 0, static_cast<GLint>(x), static_cast<GLint>(y), 0,
                          static_cast<GLsizei>(width), static_cast<GLsizei>(height), 1,
                          GL_RGBA, GL_FLOAT,
@@ -642,9 +618,7 @@ void GLDevice::destroy(BufferHandle handle)
     if (!isGPUContextAlive())
         return;
 
-    // Unmapped before deletion. Deleting a mapped buffer is legal in GL, but
-    // leaving the mapping to be torn down implicitly is how a stale pointer
-    // outlives the thing it pointed into.
+    // Unmapped before deletion so no stale mapping pointer outlives the buffer.
     if (buffer.persistent)
         glUnmapNamedBuffer(buffer.id);
     forgetBuffer(buffer.id);
@@ -721,8 +695,6 @@ void GLDevice::copyBuffer(BufferHandle dst, u64 dstOffset, BufferHandle src, u64
                              static_cast<GLintptr>(dstOffset), static_cast<GLsizeiptr>(size));
 }
 
-// ----------------------------------------------------------------- textures
-
 TextureHandle GLDevice::createTexture(const TextureDesc& desc)
 {
     GLTexture texture;
@@ -741,11 +713,7 @@ bool GLDevice::replaceTexture(TextureHandle handle, const TextureDesc& desc)
     if (!buildTexture(desc, texture))
         return false;
 
-    // The old GL object is gone the instant the new one is built - a
-    // placeholder is only ever 1x1, so there is no useful window where
-    // keeping both alive would matter, and dropping it first would leave
-    // `handle` briefly pointing at nothing if buildTexture() below failed
-    // and this returned early.
+    // The old GL object goes only once the new one is built, so a failed buildTexture() leaves `handle` valid.
     if (slot->id)
     {
         forgetTexture(slot->id);
@@ -809,9 +777,7 @@ bool GLDevice::buildTexture(const TextureDesc& desc, GLTexture& outTexture)
 
     if (info.compressed && desc.compressedMips && desc.compressedMipCount > 0 && !multisample)
     {
-        // Every level already comes encoded straight from the DDS mip chain -
-        // glGenerateTextureMipmap cannot rebuild a compressed level, and the
-        // file already carries the ones GPU sampling needs.
+        // Levels come pre-encoded from the DDS chain; glGenerateTextureMipmap cannot rebuild compressed levels.
         u32 mipWidth = desc.width;
         u32 mipHeight = desc.height;
         for (u32 mip = 0; mip < desc.compressedMipCount; ++mip)
@@ -845,12 +811,8 @@ bool GLDevice::buildTexture(const TextureDesc& desc, GLTexture& outTexture)
             glGenerateTextureMipmap(texture.id);
     }
 
-    // Filtering normally comes from a sampler object, but a texture bound
-    // without one falls back to its own parameters - and GL's defaults are
-    // GL_NEAREST_MIPMAP_LINEAR with a maximum level of 1000, which leaves any
-    // texture without a full mip chain incomplete. Sampling an incomplete
-    // texture fails the whole draw, so give every texture parameters that are
-    // consistent with what it actually has.
+    // A texture bound without a sampler uses its own parameters; GL's defaults (NEAREST_MIPMAP_LINEAR, max level 1000)
+    // make textures without a full mip chain incomplete, which fails the draw. So set consistent parameters.
     if (!multisample)
     {
         glTextureParameteri(texture.id, GL_TEXTURE_MIN_FILTER,
@@ -892,11 +854,7 @@ void GLDevice::updateTexture(TextureHandle handle, u32 mip, u32 slice, u32 x, u3
     if (!texture || !data || width == 0 || height == 0)
         return;
 
-    // None of this used to be checked: a mip past what the texture was
-    // created with, or a region that runs past that mip's own (halved,
-    // floored to 1) dimensions, reached glTextureSubImage2D/3D as a plain
-    // GL_INVALID_VALUE at best - silently dropped without the debug context
-    // on - or wrote into memory the driver had not allocated at worst.
+    // Reject a mip or region outside the texture: GL_INVALID_VALUE at best, unallocated memory writes at worst.
     if (texture->target == GL_TEXTURE_2D_MULTISAMPLE || mip >= texture->mips)
         return;
     const u32 mipWidth = texture->width >> mip ? texture->width >> mip : 1u;
@@ -934,8 +892,6 @@ void GLDevice::generateMips(TextureHandle handle)
     if (texture && texture->mips > 1)
         glGenerateTextureMipmap(texture->id);
 }
-
-// ----------------------------------------------------------------- samplers
 
 SamplerHandle GLDevice::createSampler(const SamplerDesc& desc)
 {
@@ -1000,8 +956,6 @@ void GLDevice::destroy(SamplerHandle handle)
     glDeleteSamplers(1, &sampler.id);
 }
 
-// ---------------------------------------------------------------- pipelines
-
 GLuint GLDevice::compileShader(GLenum stage, const ShaderSource& source)
 {
     if (!source.code)
@@ -1058,16 +1012,8 @@ bool GLDevice::linkProgram(GLuint program, const char* debugName)
     return true;
 }
 
-// Neither attribCount nor streamCount is bounded by its own type (u8, so up
-// to 255) against the fixed arrays they index - VertexLayout::MaxAttribs
-// (16) and MaxStreams (4). A caller-built layout with either set too high
-// used to read straight past those C arrays in buildVertexArray() below,
-// before a single GL call - undefined behaviour on the CPU, not a GL error
-// the debug callback would ever see. Each attrib's own stream is checked
-// against streamCount for the same reason: glVertexArrayAttribBinding()
-// only silently ignores an invalid one, but nothing stopped attrib.stream
-// from indexing past MaxStreams somewhere else callers rely on the layout
-// for (ForwardPass's per-stream stride lookup, e.g.).
+// attribCount/streamCount (u8) are not bounded by the fixed arrays (MaxAttribs 16, MaxStreams 4); an oversized
+// layout would read past them in buildVertexArray() with no GL error. Each attrib.stream is checked against streamCount too.
 bool validateVertexLayout(const VertexLayout& layout, std::string& error)
 {
     if (layout.attribCount > VertexLayout::MaxAttribs)
@@ -1241,8 +1187,6 @@ void GLDevice::destroy(PipelineHandle handle)
     glDeleteProgram(pipeline.program);
 }
 
-// ------------------------------------------------------------------ targets
-
 TargetHandle GLDevice::createTarget(const TargetDesc& desc)
 {
     GLTarget target;
@@ -1313,11 +1257,7 @@ TargetHandle GLDevice::createTarget(const TargetDesc& desc)
 
             if (target.width == 0)
             {
-                // Was the base texture dimension unconditionally - a
-                // depth-only target (no color attachments, target.width
-                // still 0 here) at mip > 0 reported the wrong size for every
-                // mip but 0, and callers that size a viewport off it drew
-                // into a fraction of the actual attachment.
+                // Not the base dimension: a depth-only target (width 0) at mip > 0 reported the wrong size.
                 target.width = Math::max(1u, texture->width >> desc.depth.mip);
                 target.height = Math::max(1u, texture->height >> desc.depth.mip);
             }
@@ -1377,11 +1317,7 @@ void GLDevice::beginOcclusionQuery(QueryHandle handle)
     GLQuery* query = mQueries.get(handle);
     if (!query)
         return;
-    // Every caller of this only ever compares the result against zero (see
-    // Scene::updateOcclusionQueries()) - never needs an exact sample count.
-    // The conservative any-samples query lets the GPU stop as soon as one
-    // fragment passes instead of rasterizing and depth-testing the whole
-    // box, which is strictly cheaper for a question with a boolean answer.
+    // Callers only compare against zero, so the conservative any-samples query lets the GPU stop at the first fragment.
     glBeginQuery(GL_ANY_SAMPLES_PASSED_CONSERVATIVE, query->id);
 }
 
@@ -1396,11 +1332,7 @@ void GLDevice::resolveQuery(QueryHandle handle, BufferHandle target, u64 offsetB
     const GLBuffer* buffer = mBuffers.get(target);
     if (!query || !buffer)
         return;
-    // GL_QUERY_RESULT, not GL_QUERY_RESULT_NO_WAIT: the wait happens on the
-    // GPU, which is exactly the point - the copy is ordered after the query
-    // in the command stream and the CPU never learns about it. Asking for
-    // NO_WAIT here would write a stale value whenever the query had not
-    // finished, and nothing downstream could tell that had happened.
+    // GL_QUERY_RESULT, not NO_WAIT: the wait is on the GPU (copy ordered after the query); NO_WAIT would write a stale value.
     glGetQueryBufferObjectuiv(query->id, buffer->id, GL_QUERY_RESULT,
                               static_cast<GLintptr>(offsetBytes));
 }
@@ -1446,8 +1378,6 @@ void GLDevice::blitTarget(TargetHandle dst, TargetHandle src, const Rect& dstRec
                            dstRect.x + dstRect.width, dstRect.y + dstRect.height, mask,
                            depth ? GL_NEAREST : GL_LINEAR);
 }
-
-// -------------------------------------------------------------------- state
 
 void GLDevice::applyBlend(const BlendState& state)
 {
@@ -1607,9 +1537,7 @@ void GLDevice::setTarget(TargetHandle handle, const ClearValue& clear)
     if (clear.bits == 0)
         return;
 
-    // ClearBuffer* obeys the scissor test whatever it is clearing, so a
-    // scissor left on by an earlier pass would clip the clear to that
-    // rectangle and leave the rest of the target holding the last frame.
+    // ClearBuffer* obeys the scissor test, so a leftover scissor would clip the clear.
     if (mScissorEnabled)
     {
         glDisable(GL_SCISSOR_TEST);
@@ -1618,12 +1546,8 @@ void GLDevice::setTarget(TargetHandle handle, const ClearValue& clear)
 
     if (clear.bits & ClearColor)
     {
-        // And it obeys the colour write mask, exactly as the depth clear
-        // below obeys the depth one. A depth-only pass leaves the mask off
-        // (see DepthPass), and the shadow passes run before the scene's own
-        // clear - so without this the clear is dropped and only the sky's
-        // fullscreen triangle hides it. Turn the sky off and last frame
-        // stays on screen, smearing as the camera moves.
+        // It also obeys the colour write mask: depth-only passes leave it off (DepthPass), and without this the clear is dropped,
+        // leaving last frame visible wherever the sky does not cover.
         if (!mBlend.writeRGB || !mBlend.writeA)
         {
             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -1832,8 +1756,6 @@ void GLDevice::setDepthBias(f32 slope, f32 constant)
     applyRaster(state);
 }
 
-// ----------------------------------------------------------------- bindings
-
 void GLDevice::bindTexture(u32 slot, TextureHandle handle, SamplerHandle samplerHandle)
 {
     if (slot >= MaxTextureSlots)
@@ -1888,9 +1810,7 @@ void GLDevice::bindUniform(u32 slot, BufferHandle handle, u64 offset, u64 size)
         Log::error("GPU: bindUniform out of range");
         return;
     }
-    // glBindBufferRange raises GL_INVALID_VALUE for an offset that is not a
-    // multiple of GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT - queried once into
-    // mCaps.uniformOffsetAlignment already, just never checked against here.
+    // glBindBufferRange raises GL_INVALID_VALUE for offsets not a multiple of GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT (mCaps.uniformOffsetAlignment).
     if (mCaps.uniformOffsetAlignment && offset % mCaps.uniformOffsetAlignment != 0)
     {
         Log::error("GPU: bindUniform offset %llu is not a multiple of the required alignment %u",
@@ -1952,8 +1872,6 @@ void GLDevice::forgetBuffer(GLuint id)
     }
 }
 
-// -------------------------------------------------------------------- draws
-
 bool GLDevice::bindDrawState(const DrawDesc& desc, GLPipeline*& pipeline)
 {
     pipeline = mPipelines.get(mCurrentPipeline);
@@ -2012,9 +1930,7 @@ void GLDevice::draw(const DrawDesc& desc)
         return;
 
 #ifdef RADION_DEBUG
-    // Asks the driver why a draw would fail, which the plain GL error never
-    // says. Once per program: the answer is about how the program is wired to
-    // the current state, and that does not change between frames.
+    // Asks the driver why a draw would fail, once per program: the answer depends on program/state wiring, not the frame.
     if (mValidatedPrograms.insert(pipeline->program).second)
     {
         glValidateProgram(pipeline->program);
@@ -2036,10 +1952,7 @@ void GLDevice::draw(const DrawDesc& desc)
     {
         const usize stride = indexSize(desc.indexType);
         const usize offset = desc.indexOffset + static_cast<usize>(desc.first) * stride;
-        // Neither indexOffset nor first*stride was ever checked against the
-        // buffer glVertexArrayElementBuffer() just bound: a caller's range
-        // arithmetic bug reached the driver as a byte offset with nothing on
-        // this side to catch it first.
+        // Check the offset range against the bound element buffer; range arithmetic bugs otherwise reach the driver.
         const GLBuffer* indexBuffer = mBuffers.get(desc.indexBuffer);
         const usize span = static_cast<usize>(desc.count) * stride;
         if (!indexBuffer || offset > indexBuffer->size || span > indexBuffer->size - offset)
@@ -2068,12 +1981,8 @@ void GLDevice::draw(const DrawDesc& desc)
 
 namespace
 {
-// GL_DrawArraysIndirectCommand is 4 u32s; GL_DrawElementsIndirectCommand is
-// 5 - both packed with no padding, which is what stride 0 below asks the
-// driver to assume. Nothing previously confirmed drawCount commands of that
-// size, at that offset, actually fit the buffer bound to
-// GL_DRAW_INDIRECT_BUFFER; a producer that under-sized or mis-offset it had
-// the driver read whatever memory followed.
+// Indirect commands are 4 u32s (arrays) or 5 (elements), tightly packed (stride 0). Check drawCount commands at
+// this offset fit the GL_DRAW_INDIRECT_BUFFER, or the driver reads past it.
 bool validateIndirectRange(const GLBuffer* buffer, u64 offset, u32 drawCount, bool indexed,
                            const char* who)
 {
@@ -2132,9 +2041,7 @@ void GLDevice::drawIndirectCount(const DrawDesc& base, BufferHandle args, u64 ar
 {
     if (!mCaps.indirectParameters)
     {
-        // Without the count buffer every slot is issued; entries the GPU left
-        // at zero instances are no-ops, so the result matches as long as the
-        // producer zeroes what it does not use.
+        // Without the count buffer every slot is issued; zero-instance entries are no-ops if the producer zeroes unused ones.
         drawIndirect(base, args, argsOffset, maxDraws);
         return;
     }
@@ -2177,8 +2084,6 @@ void GLDevice::drawIndirectCount(const DrawDesc& base, BufferHandle args, u64 ar
     ++mStats.drawCalls;
 }
 
-// ------------------------------------------------------------------ compute
-
 void GLDevice::dispatch(u32 x, u32 y, u32 z)
 {
     GLPipeline* pipeline = mPipelines.get(mCurrentPipeline);
@@ -2213,8 +2118,6 @@ void GLDevice::barrier(u32 bits)
 {
     glMemoryBarrier(barrierBitsToGL(bits));
 }
-
-// -------------------------------------------------------------------- frame
 
 void GLDevice::beginFrame()
 {
@@ -2320,8 +2223,6 @@ void GLDevice::popMarker()
         glPopDebugGroup();
 }
 
-// ------------------------------------------------------------------ factory
-
 GPU* GPU::createOpenGL(Platform::Window& window)
 {
     GLDevice* device = new GLDevice(window);
@@ -2337,8 +2238,7 @@ GPU* GPU::createOpenGL(Platform::Window& window)
 
 void GPU::destroyDevice(GPU* gpu)
 {
-    // getSingleton() aborts when no device is set - exactly the case a
-    // cleanup path must tolerate, which is what tryGet() is for.
+    // getSingleton() aborts with no device, which cleanup paths must tolerate: use tryGet().
     if (gpu == tryGet())
         setSingleton(nullptr);
     delete gpu;

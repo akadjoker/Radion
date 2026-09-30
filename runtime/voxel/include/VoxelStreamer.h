@@ -18,27 +18,19 @@ namespace Radion
 namespace Voxel
 {
 
-// Keeps the chunks around an origin loaded and meshed, one chunk at a time,
-// instead of rebuilding a whole world whenever the origin moves.
-//
-// Threading contract, which the rest of the class exists to keep:
+// Keeps chunks around an origin loaded and meshed, one at a time.
+// Threading contract:
 //  - the chunk map is touched by the main thread only;
 //  - a generation job fills a chunk it owns, and the main thread moves it in;
-//  - a mesh job reads a gathered VoxelNeighbourhood copy, never the map, so
-//    loading and unloading may continue while meshing is in flight.
-//
-// The same class serves an endless world and a bounded one: `bounded` clamps
-// the wanted set to a fixed box, and everything else - generation, meshing,
-// edits, persistence - stays identical.
+//  - a mesh job reads a gathered VoxelNeighbourhood copy, never the map.
+// `bounded` clamps the wanted set to a fixed box; everything else is identical.
 class VoxelStreamer
 {
 public:
     struct Settings
     {
         bool bounded = false;
-        // Chunks kept meshed around the origin. Generation runs one ring
-        // wider so a chunk never meshes against a neighbour that has not
-        // arrived and grows a wall of faces at the seam.
+        // Chunks kept meshed; generation runs one ring wider so no chunk meshes against a missing neighbour (wall of seam faces).
         s32 viewRadius = 6;
         s32 boundsMinX = -8;
         s32 boundsMaxX = 8;
@@ -46,11 +38,9 @@ public:
         s32 boundsMaxZ = 8;
         u32 maxGenerationJobs = 8;
         u32 maxMeshJobs = 8;
-        // Meshes handed to the renderer per update. This is the frame budget
-        // that keeps a moving origin from stalling on GPU uploads.
+        // Meshes handed to the renderer per update: the frame budget against GPU upload stalls.
         u32 maxUploadsPerFrame = 4;
-        // False runs every job inline on the calling thread, which is what
-        // tests need to stay deterministic.
+        // False runs jobs inline on the calling thread, for deterministic tests.
         bool useJobs = true;
     };
 
@@ -147,9 +137,7 @@ private:
     void markDirty(ChunkCoord coordinate);
     void rebuildCandidates();
 
-    // Tasks and chunks are all the same size and their number in flight is
-    // capped, so they are recycled rather than allocated: a moving camera
-    // otherwise churns a megabyte of 64 and 78 KB blocks every frame.
+    // Tasks and chunks are fixed-size with capped in-flight count, so they are recycled: a moving camera otherwise churns ~1 MB per frame.
     GenerationTask* acquireGenerationTask();
     MeshTask* acquireMeshTask();
     VoxelChunk* acquireChunk(ChunkCoord coordinate);
@@ -174,11 +162,8 @@ private:
 
     std::unordered_set<ChunkCoord, ChunkCoordHash> mGenerating;
     std::unordered_set<ChunkCoord, ChunkCoordHash> mMeshing;
-    // Chunks waiting to be meshed, and the wanted set waiting to be
-    // generated. Both are rebuilt when the origin moves and consumed a
-    // budget at a time after that: scanning either the loaded world or the
-    // wanted volume every frame is what makes a large view radius cost the
-    // main thread more than the geometry costs the GPU.
+    // Chunks waiting to be meshed and the wanted set waiting to be generated: rebuilt when the origin moves, consumed by budget,
+    // since rescanning the world or wanted volume every frame stalls the main thread at large radii.
     std::unordered_set<ChunkCoord, ChunkCoordHash> mDirty;
     bool mNeedsRescan = true;
     std::vector<ChunkMesh> mReadyMeshes;
@@ -192,8 +177,7 @@ private:
     usize mUnloadedCursor = 0;
     u32 mUploadsThisUpdate = 0;
 
-    // Members rather than locals: collectFinished() runs every frame and
-    // would otherwise allocate two vectors to hold what is usually nothing.
+    // Members, not locals: collectFinished() runs every frame and would allocate two vectors for usually nothing.
     std::vector<GenerationTask*> mFinishedGeneration;
     std::vector<MeshTask*> mFinishedMeshing;
     std::vector<GenerationTask*> mCollectedGeneration;

@@ -13,13 +13,8 @@ namespace Radion
 namespace
 {
 
-// GL's cube face order is +X, -X, +Y, -Y, +Z, -Z, and its cube texture space
-// has Y running DOWN - which is why five of these six up vectors are negative
-// Y or its equivalent. These are the conventional capture matrices; whether
-// the result lands mirrored is not something to reason about, it is what
-// Content::FaceColors is for.
-// Plain floats rather than Math::vec3: this math routine does not need vectors.
-// constexpr, so a constexpr table has to be built out of scalars.
+// GL cube faces are +X,-X,+Y,-Y,+Z,-Z and cube texture space has Y down, hence the negative up vectors.
+// constexpr table, so scalars rather than Math::vec3.
 struct FaceBasis
 {
     f32 forward[3];
@@ -27,12 +22,12 @@ struct FaceBasis
 };
 
 constexpr FaceBasis kFaces[EnvironmentProbe::FaceCount] = {
-    {{1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}},  // +X
-    {{-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}}, // -X
-    {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},   // +Y
-    {{0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}}, // -Y
-    {{0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}},  // +Z
-    {{0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}}, // -Z
+    {{1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}},
+    {{-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}},
+    {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+    {{0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}},
+    {{0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}},
+    {{0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}},
 };
 
 Math::vec3 toVector(const f32 (&values)[3])
@@ -66,13 +61,9 @@ bool EnvironmentProbe::create(u32 resolution)
     desc.width = resolution;
     desc.height = resolution;
     desc.depth = FaceCount;
-    // HDR, like the reference's own probes: a sky carries values well past 1
-    // and a reflection that clipped them would lose the sun entirely. It uses
-    // BC6H (compressed HDR); RGBA16F is the uncompressed equivalent and needs
-    // no compression pass to exist first.
+    // HDR: a sky carries values well past 1; BC6H, or RGBA16F uncompressed.
     desc.format = Format::RGBA16F;
-    // 0 asks for the full chain, per TextureDesc's own convention - and the
-    // chain is not decoration here, it is the roughness axis.
+    // 0 = full chain; the chain is the roughness axis.
     desc.mips = 0;
     desc.usage = TextureSampled | TextureTarget;
     desc.debugName = "probe.cubemap";
@@ -122,8 +113,7 @@ bool EnvironmentProbe::create(u32 resolution)
     }
 
     SamplerDesc samplerDesc;
-    // Trilinear: the roughness lookup reads BETWEEN mips, so a sampler that
-    // snapped to the nearest level would step visibly as roughness changes.
+    // Trilinear: roughness reads between mips.
     samplerDesc.filter = Filter::Trilinear;
     samplerDesc.wrapU = Wrap::Clamp;
     samplerDesc.wrapV = Wrap::Clamp;
@@ -142,12 +132,7 @@ bool EnvironmentProbe::create(u32 resolution)
 
 void EnvironmentProbe::shutdown()
 {
-    // tryGet(), not getSingleton(): Engine's own probe is shut down at the
-    // right point in Engine::shutdown(), before the GPU device goes away,
-    // but a ReflectionProbe (scene/) is owned by a GameObject, and a Scene
-    // outlives engine.shutdown() in every demo's main() - its destructor,
-    // and every component destructor under it, runs after the device is
-    // already gone. Nothing left to destroy at that point anyway.
+    // tryGet(): a Scene may outlive engine.shutdown(), so destructors can run after the device is gone.
     GPU* gpu = GPU::tryGet();
     if (!gpu)
     {
@@ -213,9 +198,7 @@ bool EnvironmentProbe::consumeCapture(f32 deltaTime, bool deferred)
     const bool due = mCaptureRequested || (refresh == Refresh::Automatic && mDirty) || timedDue;
     if (!due || deferred)
     {
-        // A timed deadline also has to survive deferral. The same one-bit
-        // request coalesces every deadline that passes while navigation is
-        // active into one capture when interaction stops.
+        // Timed deadlines must survive deferral; coalesce into one capture when interaction stops.
         if (timedDue)
             mCaptureRequested = true;
         return false;
@@ -260,8 +243,7 @@ u32 EnvironmentProbe::mipCount() const
 
 void EnvironmentProbe::faceViewProjections(Math::mat4 out[6]) const
 {
-    // 90 degrees, square aspect: six of them tile the whole sphere of
-    // directions exactly, which is the entire point of a cube.
+    // 90 degrees, square aspect: six tile the sphere exactly.
     const Math::mat4 projection =
         Math::perspective(Math::half_pi<f32>(), 1.0f, Math::max(nearPlane, 0.0001f),
                          Math::max(farPlane, nearPlane + 0.001f));

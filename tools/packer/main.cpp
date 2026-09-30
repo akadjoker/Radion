@@ -110,8 +110,7 @@ std::string joinRelative(const std::string& prefix, const std::string& name)
     return prefix + "/" + name;
 }
 
-// `relative` is where the walk has reached inside `root`; `prefix` is what
-// goes in front of the stored name and never touches the path on disk.
+// `relative` is where the walk has reached inside `root`; `prefix` precedes the stored name, never the disk path.
 bool addDirectory(FilePackWriter& writer, const FileSystem& files, const std::string& root,
                   const std::string& prefix, const std::string& relative, bool verbose, u32& added)
 {
@@ -144,9 +143,7 @@ bool addDirectory(FilePackWriter& writer, const FileSystem& files, const std::st
     return true;
 }
 
-// The pack, byte for byte, as something the compiler will put in .rodata.
-// FilePack::openFromMemory() reads it in place - it is never copied, never
-// decompressed as a whole, and costs nothing at startup beyond its directory.
+// The pack as bytes for .rodata; FilePack::openFromMemory() reads it in place, never copying or decompressing it whole.
 bool writeSource(const std::string& packPath, const std::string& sourcePath,
                  const std::string& key)
 {

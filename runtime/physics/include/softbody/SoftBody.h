@@ -27,9 +27,7 @@ public:
 
         Math::vec3 previousPosition{0.0f};
         Math::vec3 velocity{0.0f};
-        // Velocity as it stood before updateVelocities() rewrote it from the
-        // positions - the reference decides restitution on this one, not on
-        // the freshly derived velocity.
+        // Velocity before updateVelocities() rewrote it from positions; the reference decides restitution on this.
         Math::vec3 previousVelocity{0.0f};
 
         f32 invMass = 0.0f;
@@ -43,11 +41,8 @@ public:
         f32 compliance = 0.0f;
     };
 
-    // Two triangles sharing the edge a-b, with c and d the opposite
-    // vertices; the constraint holds the angle between their normals at its
-    // rest value. A distance across the diagonal only pretends to do this,
-    // and turns near-rigid when a fold is pressed flat - the exact
-    // configuration a crumpled sheet is full of.
+    // Two triangles sharing edge a-b (c, d opposite); holds the angle between their normals at rest. A diagonal distance only pretends to,
+    // and turns near-rigid when a fold is pressed flat.
     struct DihedralBendConstraint
     {
         u32 a = 0;
@@ -58,7 +53,6 @@ public:
         f32 initialAngle = 0.0f;
     };
 
- 
     struct LongRangeAttachment
     {
         u32 anchor = 0;
@@ -66,11 +60,7 @@ public:
         f32 maxDistance = 0.0f;
     };
 
-    // A read-only view of determineContactPlanes()'s own per-particle
-    // result - whether a particle is resting against something as of the
-    // last step(), and against what. Lets a caller (a blood splash marking
-    // where it landed, say) react to a particle's own contact without
-    // re-deriving it from position and velocity itself.
+    // Read-only view of determineContactPlanes()'s per-particle result as of the last step(): resting against something, and what.
     struct Contact
     {
         bool active = false;
@@ -85,20 +75,11 @@ public:
     // topology is dropped.
     void setParticles(const Math::vec3* positions, u32 count, f32 totalMass);
 
-    // Redistributes `totalMass` evenly across every particle that is not
-    // currently pinned (pinned() is invMass 0 - see setPinned()), leaving
-    // pinned particles, positions, velocities and every constraint alone.
-    // Same formula setParticles() uses, but live: a caller retuning "how
-    // heavy" a draped sheet is does not have to rebuild its topology, or
-    // reset the drape, to do it.
+    // Redistributes totalMass evenly across non-pinned particles (same formula as setParticles()) without rebuilding topology or resetting the drape.
     void setTotalMass(f32 totalMass);
 
-    // How bending resistance is built, mirroring the reference's bend types.
-    // Distance is the default there too: a distance constraint between the
-    // two vertices opposite each shared edge - approximate, but stable in a
-    // crumpled pile. Dihedral holds the true angle between the triangles and
-    // folds more naturally, but without self collision a fully folded pile
-    // traps it in degenerate configurations that never settle.
+    // Bending mirrors the reference. Distance (default) is a distance constraint across the two vertices opposite each shared edge: approximate but
+    // stable in a crumpled pile. Dihedral holds the true angle but, without self collision, traps a fully folded pile in configurations that never settle.
     enum class BendType : u8
     {
         None,
@@ -106,10 +87,8 @@ public:
         Dihedral
     };
 
-    // Structural constraints along every triangle edge, and a bending
-    // constraint across each edge two triangles share. Rest lengths and rest
-    // angles come from the positions as they stand, so the mesh is its own
-    // rest pose. A negative bend compliance skips bending entirely.
+    // Structural constraints along every triangle edge, bending across each shared edge; rest lengths/angles come from current positions.
+    // A negative bend compliance skips bending.
     void buildFromMesh(const u32* indices, u32 indexCount, f32 structuralCompliance,
                        f32 bendCompliance, BendType bendType = BendType::Distance);
 
@@ -124,8 +103,7 @@ public:
     // the current pose. Does nothing when nothing is pinned.
     void buildAttachments(f32 maxDistanceMultiplier = 1.0f);
 
-    // Splits `dt` into `substeps` slices, each predicted, projected once and
-    // read back. Sub-stepping, not iterating: see step()'s own note.
+    // Splits `dt` into `substeps` slices, each predicted, projected once and read back (sub-stepping, not iterating).
     void step(f32 dt, u32 substeps);
 
     void setGravity(const Math::vec3& gravity)
@@ -136,8 +114,7 @@ public:
     {
         return mGravity;
     }
-    // Per-second exponential velocity damping: velocity *= pow(damping, dt).
-    // 1 disables it.
+    // Velocity *= pow(damping, dt) per second; 1 disables.
     void setDamping(f32 damping)
     {
         mDamping = damping;
@@ -159,8 +136,7 @@ public:
     {
         mWind = wind;
     }
-    // Non-owning scene used for particle contacts. Shapes, transforms,
-    // velocities and collision filtering come from the engine's bodies.
+    // Non-owning; shapes, transforms, velocities and filtering come from the engine's bodies.
     void setCollisionScene(const Radion::Scene* scene)
     {
         mCollisionScene = scene;
@@ -169,15 +145,12 @@ public:
     {
         mCollisionQuery.collision = filter;
     }
-    // Excluded from every collision query this body makes - the body a
-    // splash of particles just came out of, say, so it does not immediately
-    // recollide with the very thing that spawned it.
+    // Excluded from every collision query: the body a splash just came out of, so it does not immediately recollide.
     void setIgnoredBody(const RigidBody* body)
     {
         mCollisionQuery.ignoredBody = body;
     }
-    // Kept off the surface by this much, so a sheet does not shimmer with its
-    // own thickness against the collider it rests on.
+    // Kept off the surface by this much so a sheet does not shimmer against its collider.
     void setCollisionMargin(f32 margin)
     {
         mCollisionMargin = Math::max(margin, 0.0f);
@@ -207,16 +180,11 @@ public:
         return static_cast<u32>(mAttachments.size());
     }
 
-    // Longest constraint as a fraction of its rest length, over the whole
-    // body. 1 is inextensible; a sheet that reads 1.4 is stretched 40% and
-    // looks like rubber, which is the number LRA exists to hold down.
+    // Longest constraint as a fraction of rest length over the body; 1 is inextensible, 1.4 looks like rubber (what LRA holds down).
     f32 worstStretch() const;
 
 private:
-    // One collision plane per particle, held fixed across every substep of a
-    // step - the reference determines contacts once per update and lets the
-    // substeps project against a stable plane, instead of re-running the
-    // narrowphase with a fresh normal each substep.
+    // One plane per particle, fixed across a step's substeps (the reference determines contacts once per update, not a fresh narrowphase normal per substep).
     struct ContactPlane
     {
         Math::vec3 normal{0.0f, 1.0f, 0.0f};

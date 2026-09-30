@@ -329,13 +329,7 @@ bool DebugPass::initializeOutline(const VertexLayout& layout)
     outlineDesc.stencil.enabled = true;
     outlineDesc.stencil.compare = Compare::NotEqual;
     outlineDesc.stencil.writeMask = 0;
-    // Culling front faces (leaving only the inflated backside visible) is the
-    // classic version of this trick, but it silently draws nothing on meshes
-    // whose winding is inverted relative to their normals - an interior room
-    // authored so its walls face inward, for one. The stencil test already
-    // rejects every fragment that lands back on top of the object's own
-    // silhouette (mask == 1), so no culling is needed for correctness; only
-    // the pixels genuinely outside the silhouette - the outline ring - pass.
+    // No face culling: inverted-winding meshes would draw nothing; the stencil test already rejects the silhouette interior.
     outlineDesc.raster.cull = CullMode::None;
     outlineDesc.debugName = "debug.outline.color";
     mOutlinePipeline = gpu.createPipeline(outlineDesc);
@@ -380,8 +374,7 @@ void DebugPass::drawOutlines(const FrameContext& frame, const DebugDraw3D& debug
         draw.vertexBufferCount = 2;
         draw.indexBuffer = mesh->indexBuffer;
         draw.indexType = mesh->indexType;
-        // Same convention ForwardPass draws a submesh with (first = the
-        // submesh's index offset); a count of 0 asks for the whole mesh.
+        // A count of 0 asks for the whole mesh.
         draw.first = command.indexCount != 0 ? command.indexOffset : 0;
         draw.count = command.indexCount != 0 ? command.indexCount : mesh->indexCount;
 
@@ -421,9 +414,7 @@ void DebugPass::shutdown()
 namespace
 {
 
-// Any two vectors orthogonal to `direction` and to each other work as a
-// gizmo's local right/up - which pair does not matter, only that neither
-// degenerates when `direction` is near-vertical.
+// Any orthogonal pair works, as long as neither degenerates when direction is near-vertical.
 void perpendicularBasis(const Math::vec3& direction, Math::vec3& right, Math::vec3& up)
 {
     const Math::vec3 reference =
@@ -600,9 +591,7 @@ void DebugDraw3D::cross(const Math::vec3& position, f32 size, Color color)
     line(position - Math::vec3(0.0f, 0.0f, size), position + Math::vec3(0.0f, 0.0f, size), color);
 }
 
-// Two short segments splayed off `from`, pointing back along from->to. The
-// head sits in the plane perpendicular to world up, so a link seen from
-// above still reads as directed.
+// Head lies in the plane perpendicular to world up so a link seen from above still reads as directed.
 void DebugDraw3D::arrowHead(const Math::vec3& from, const Math::vec3& to, f32 size, Color color)
 {
     const Math::vec3 delta = to - from;
@@ -638,8 +627,6 @@ void DebugDraw3D::arc(const Math::vec3& from, const Math::vec3& to, f32 height, 
     const Math::vec3 delta = to - from;
     const f32 rise = Math::length(delta) * height;
 
-    // Parabola through both ends, peaking at the midpoint - the bow is what
-    // separates it from an ordinary walked segment.
     const auto evaluate = [&](f32 u)
     {
         const f32 bow = 1.0f - (u * 2.0f - 1.0f) * (u * 2.0f - 1.0f);
@@ -660,9 +647,6 @@ void DebugDraw3D::arc(const Math::vec3& from, const Math::vec3& to, f32 height, 
         arrowHead(evaluate(1.0f - kPad), evaluate(1.0f - kPad - 0.05f), headTo, color);
 }
 
-// Three orthogonal great circles: a single flat ring reads as a disc from
-// some angles and vanishes from others, three of them read as a sphere from
-// any of them.
 void DebugDraw3D::pointLightGizmo(const Math::vec3& position, f32 range, Color color, u32 segments)
 {
     if (!(range > 0.0f))
@@ -675,8 +659,6 @@ void DebugDraw3D::pointLightGizmo(const Math::vec3& position, f32 range, Color c
            color);
 }
 
-// Two cones sharing the apex: the outer at full colour, the inner lightened
-// so the falloff band between them is the thing the eye picks out.
 void DebugDraw3D::spotLightGizmo(const Math::vec3& position, const Math::vec3& direction, f32 range,
                                  f32 innerAngleDegrees, f32 outerAngleDegrees, Color color,
                                  u32 segments)
@@ -732,8 +714,7 @@ void DebugDraw3D::rectangleLightGizmo(const Math::vec3& position, const Math::ve
         line(position, position + forward * normalLength, color);
 }
 
-// Position is meaningless for a directional light - the small ring and its
-// rays exist only to show the direction, not to mark a place in the world.
+// Position is meaningless for a directional light; the ring only shows direction.
 void DebugDraw3D::directionalLightGizmo(const Math::vec3& position, const Math::vec3& direction,
                                         Color color, f32 radius, f32 rayLength, u32 rayCount)
 {

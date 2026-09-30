@@ -1,6 +1,3 @@
-// HullMeshTests.cpp - triangles out of the edge/face structure the hull
-// computer and the shatter shards both carry. Nothing here touches the GPU.
-
 #include "PCH.h"
 
 #include "HullMesh.h"
@@ -52,13 +49,11 @@ void testHullOfABox()
     CHECK(Geometry::buildConvexHullMesh(boxCorners(1.0f), mesh));
 
     CHECK(indicesValid(mesh));
-    // Six square faces, two triangles each, however the hull chose to fan them.
     CHECK(mesh.indices.size() / 3 == 12);
     CHECK(mesh.submeshes.size() == 1);
     CHECK(mesh.submeshes[0].indexCount == mesh.indices.size());
 
-    // Three vertices per triangle, none shared: a hull has no smooth edges,
-    // and sharing them would average the normals across the corners.
+    // No shared vertices: sharing would average normals across corners.
     CHECK(mesh.positions.size() == mesh.indices.size());
     CHECK(mesh.normals.size() == mesh.positions.size());
     CHECK(mesh.uvs.size() == mesh.positions.size());
@@ -67,8 +62,6 @@ void testHullOfABox()
     CHECK(Math::abs(mesh.bounds.max.z - 1.0f) < 1e-4f);
 }
 
-// Every triangle of a box hull has an axis-aligned normal, and the three
-// vertices of one triangle share it exactly.
 void testFaceNormalsAreFlat()
 {
     MeshData mesh;
@@ -86,8 +79,6 @@ void testFaceNormalsAreFlat()
     }
 }
 
-// The hull of points already on a convex shape is that shape; points inside
-// it change nothing.
 void testInteriorPointsAreDropped()
 {
     std::vector<Math::vec3> points = boxCorners(1.0f);
@@ -103,8 +94,6 @@ void testInteriorPointsAreDropped()
     CHECK(Math::abs(withInterior.bounds.max.x - plain.bounds.max.x) < 1e-4f);
 }
 
-// A concave cloud comes back as its hull - the dent is filled in. That is
-// what a hull is, and a caller reaching for one has to expect it.
 void testConcaveCloudFillsIn()
 {
     std::vector<Math::vec3> points = boxCorners(1.0f);
@@ -126,15 +115,12 @@ void testRejectsTooFewPoints()
     CHECK(!Geometry::buildConvexHullMesh(triangle, mesh));
     CHECK(mesh.positions.empty());
 
-    // Empty face and edge lists have nothing to walk.
     std::vector<Math::vec3> vertices = boxCorners(1.0f);
     std::vector<Geometry::ConvexHullComputer::Edge> edges;
     std::vector<int> faces;
     CHECK(!Geometry::buildHullMesh(vertices, edges, faces, mesh));
 }
 
-// A cloud that is flat has no volume, so the hull has no faces to walk, and
-// the function has to say so rather than hand back an empty mesh as success.
 void testDegenerateCloud()
 {
     std::vector<Math::vec3> flat;
@@ -143,8 +129,7 @@ void testDegenerateCloud()
             flat.push_back(Math::vec3(static_cast<f32>(x), 0.0f, static_cast<f32>(y)));
 
     MeshData mesh;
-    // Either it produces a degenerate-free result or it refuses; what it must
-    // not do is return true with triangles that have no area.
+    // Either refuse or return no zero-area triangles.
     if (Geometry::buildConvexHullMesh(flat, mesh))
     {
         CHECK(indicesValid(mesh));

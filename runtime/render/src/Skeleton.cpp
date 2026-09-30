@@ -24,9 +24,7 @@ Math::quat nlerp(const Math::quat& from, Math::quat to, f32 amount)
     return Math::normalize(from * (1.0f - amount) + to * amount);
 }
 
-// Same "match by name suffix" convention Ragdoll::build() uses to find a
-// humanoid rig's Hips regardless of the exporter's own prefix
-// ("mixamorig:Hips", "Hips", ...).
+// Match by name suffix, as Ragdoll::build() does, regardless of exporter prefix ("mixamorig:Hips").
 s32 findBoneBySuffix(const Skeleton& skeleton, const char* suffix)
 {
     const usize suffixLength = std::strlen(suffix);
@@ -40,15 +38,7 @@ s32 findBoneBySuffix(const Skeleton& skeleton, const char* suffix)
     return -1;
 }
 
-// A locomotion/action clip's Hips track should sit at roughly the same
-// height as every other clip sharing this skeleton - that is what the
-// FbxImporter in-place conversion pins it to (FbxImporter.cpp, the
-// "!keepRootMotion" block). A clip whose Hips baseline drifts far from the
-// rest of the set is either missing that conversion (imported with root
-// motion kept by mistake) or ends on a pose far off the character's own
-// standing height - either way the character visibly steps up or down when
-// switching into that clip, so this is caught here once, for every set,
-// instead of an artist spotting a floating/sunken character per demo.
+// Hips height should be consistent across clips of one skeleton (FbxImporter in-place conversion pins it); drift means a missing conversion and a visible step when switching clips.
 constexpr f32 kHipsHeightMismatchThreshold = 8.0f; // asset-space units (cm for a Mixamo rig)
 
 f32 lowestTrackHeight(const AnimationClip& clip, s32 boneIndex)
@@ -194,16 +184,12 @@ void Skeleton::evaluate(const std::vector<LocalPose>& localPose, std::vector<Mat
     }
 }
 
-// ------------------------------------------------------------ inverse kinematics
-
 namespace
 {
 
 Math::mat4 composeLocal(const LocalPose& pose)
 {
-    // The same composition Skeleton::evaluate() uses - the solver writes back
-    // into localPose, so it has to rebuild world matrices exactly the way the
-    // evaluate step would, or the pose it hands back would not match itself.
+    // Same composition as Skeleton::evaluate(): the solver writes localPose, so world matrices must be rebuilt identically.
     return Math::translate(Math::mat4(1.0f), pose.position) * Math::mat4_cast(pose.rotation) *
            Math::scale(Math::mat4(1.0f), pose.scale);
 }
@@ -223,9 +209,7 @@ Math::vec3 translationOf(const Math::mat4& matrix)
     return Math::vec3(matrix[3]);
 }
 
-// acos of the dot product, clamped - the reference's XMScalarACos does the
-// clamp itself, and without it a dot product a hair past 1.0 from rounding
-// returns NaN and poisons the whole chain.
+// acos of the clamped dot product: a dot a hair past 1.0 from rounding would return NaN and poison the chain.
 f32 angleBetweenNormals(const Math::vec3& a, const Math::vec3& b)
 {
     return std::acos(Math::clamp(Math::dot(a, b), -1.0f, 1.0f));
@@ -247,8 +231,7 @@ IKConstraint IKConstraint::thigh()
 
 IKConstraint IKConstraint::knee()
 {
-    // wiScene.cpp:3492-3497, verbatim: zero on two axes is what makes a knee
-    // a hinge instead of a ball joint.
+    // wiScene.cpp:3492-3497, verbatim: zero on two axes makes a knee a hinge.
     IKConstraint constraint;
     constraint.enabled = true;
     constraint.minimum = Math::vec3(0.0f);
@@ -276,8 +259,7 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
     if (chain.length == 0 || chain.iterations == 0)
         return;
 
-    // The pose lives in the owner's space, the target arrives in world space -
-    // one conversion here rather than at every call site.
+    // Pose is in owner space, target in world space: convert once here.
     const Math::mat4 toPoseSpace = Math::inverse(ownerTransform);
     const Math::vec3 target = Math::vec3(toPoseSpace * Math::vec4(chain.target, 1.0f));
 
@@ -293,23 +275,20 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
         {
             stack[link] = childBone;
 
-            // No parent left to rotate: the chain root, the reference's own
-            // "chain root reached, exit".
             if (parentBone < 0 || static_cast<u32>(parentBone) >= boneCount)
                 break;
 
             const Math::mat4& parentWorld = globalPose[static_cast<usize>(parentBone)];
             const Math::vec3 parentPosition = translationOf(parentWorld);
 
-            // The TIP, not the current child - CCD always aims the end
-            // effector at the target, whichever link is being rotated.
+            // The TIP, not the current child: CCD always aims the end effector at the target.
             const Math::vec3 tipPosition =
                 translationOf(globalPose[static_cast<usize>(chain.tipBone)]);
 
             const Math::vec3 toTip = tipPosition - parentPosition;
             const Math::vec3 toTarget = target - parentPosition;
             if (Math::dot(toTip, toTip) <= 1e-12f || Math::dot(toTarget, toTarget) <= 1e-12f)
-                break; // the tip sits on the joint: no direction to rotate along
+                break;
             const Math::vec3 directionToTip = Math::normalize(toTip);
             const Math::vec3 directionToTarget = Math::normalize(toTarget);
 
@@ -317,10 +296,7 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
             Math::quat rotation;
             if (constraint.enabled)
             {
-                // Constrained: one rotation PER AXIS rather than a single
-                // shortest one, each limited and each divided by the
-                // iteration count so the limit is a total spread over all
-                // the passes, not a per-pass allowance.
+                // Constrained: one rotation per axis, each limited and divided by the iteration count so the limit is a total over all passes.
                 rotation = Math::quat(1.0f, 0.0f, 0.0f, 0.0f);
                 Math::mat4 axisFrame = parentWorld;
                 const f32 iterationReciprocal = 1.0f / static_cast<f32>(chain.iterations);
@@ -338,9 +314,6 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
                         continue;
                     const Math::vec3 axis = Math::normalize(axisWorld);
 
-                    // Both directions flattened onto the plane the axis is
-                    // normal to: what is left is the part of the rotation
-                    // this axis is allowed to answer for.
                     const Math::vec3 flatTip =
                         directionToTip - axis * Math::dot(axis, directionToTip);
                     const Math::vec3 flatTarget =
@@ -358,12 +331,7 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
                         angle = Math::min(angle, axisMaximum);
 
                     const Math::quat axisRotation = Math::normalize(Math::angleAxis(angle, axis));
-                    // The reference's own order (`W = R(Q1) * W`, row-vector,
-                    // so R applies before W) written for Mathc's column-vector
-                    // convention, where that same order is `W * R`. Left as
-                    // the reference has it on purpose: it reads like a
-                    // local-space rotation where a world one would be
-                    // expected, and changing it would change the result.
+                    // The reference's order (W = R(Q1) * W, row-vector) written as W * R for Mathc's column-vector convention; left as-is on purpose, changing it changes the result.
                     axisFrame = axisFrame * Math::mat4_cast(axisRotation);
                     rotation = rotation * axisRotation;
                 }
@@ -371,22 +339,15 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
             }
             else
             {
-                // Unconstrained: the shortest rotation that takes the tip
-                // direction onto the target direction.
                 const Math::vec3 axis = Math::cross(directionToTip, directionToTarget);
                 if (Math::dot(axis, axis) <= 1e-12f)
-                    break; // already aligned, or exactly opposed
+                    break;
                 rotation = Math::normalize(
                     Math::angleAxis(angleBetweenNormals(directionToTip, directionToTarget),
                                    Math::normalize(axis)));
             }
 
-            // Rotate the parent about its OWN position, keeping its
-            // translation and scale: what the reference gets out of
-            // ApplyTransform() + Rotate() + UpdateTransform(). Mathc's product
-            // order is reversed from the reference's XMQuaternionMultiply
-            // (which reads "local first, then Q"), so the world rotation
-            // goes on the left here.
+            // Rotate the parent about its OWN position; Mathc's product order is reversed from XMQuaternionMultiply, so the world rotation goes on the left.
             Math::vec3 parentScale;
             Math::quat parentRotation;
             Math::vec3 parentTranslation;
@@ -401,9 +362,7 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
                                            Math::mat4_cast(parentRotation) *
                                            Math::scale(Math::mat4(1.0f), parentScale);
 
-            // Back to local, against the grandparent - the reference's
-            // MatrixTransform(inverse(parent_of_parent.world)) step, which it
-            // skips when the parent is a root.
+            // Back to local against the grandparent (skipped when the parent is a root), as the reference does.
             const s32 grandParent = skeleton.bone(static_cast<u32>(parentBone)).parent;
             const Math::mat4 newLocal =
                 grandParent >= 0
@@ -416,9 +375,7 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
             localPose[static_cast<usize>(parentBone)] = updated;
             globalPose[static_cast<usize>(parentBone)] = rotatedWorld;
 
-            // Push the change back down every link already traversed, from
-            // the rotated parent to the tip, so the next link up measures
-            // against a pose that is consistent again.
+            // Push the change down every traversed link so the next link measures a consistent pose.
             s32 propagationParent = parentBone;
             for (s32 index = static_cast<s32>(link); index >= 0; --index)
             {
@@ -430,7 +387,7 @@ void IKSolver::solve(const Skeleton& skeleton, const IKChain& chain,
             }
 
             if (grandParent < 0)
-                break; // chain root reached
+                break;
 
             childBone = parentBone;
             parentBone = grandParent;
@@ -563,8 +520,7 @@ void AnimationClip::addEvent(f32 time, const std::string& name)
     AnimationEvent event;
     event.time = Math::clamp(time, 0.0f, mDuration > 0.0f ? mDuration : time);
     event.name = name;
-    // Sorted by time, which is what lets a layer fire a whole frame's worth
-    // with one walk instead of searching per event.
+    // Sorted by time so a layer fires a frame's events with one walk.
     const auto position =
         std::upper_bound(mEvents.begin(), mEvents.end(), event,
                          [](const AnimationEvent& a, const AnimationEvent& b)
@@ -744,8 +700,7 @@ bool AnimationManager::destroy(AnimationSetHandle handle)
     AnimationSet removed;
     if (!mSets.remove(handle, removed))
         return false;
-    // The pool recycles the slot, so a stale entry left behind would end up
-    // naming whatever set lands there next.
+    // The pool recycles the slot, so a stale entry would name whatever lands there next.
     const auto entry = mSourceByHandle.find(packHandle(handle));
     if (entry != mSourceByHandle.end())
     {

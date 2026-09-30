@@ -18,9 +18,7 @@ struct GLBuffer
     u32 usage = 0;
     Residency residency = Residency::Static;
     bool mapped = false;
-    // Non-null only for BufferReadback: the buffer is mapped once at
-    // creation and stays mapped for its whole life, so reading it costs a
-    // pointer dereference instead of a driver round trip.
+    // Only for BufferReadback: mapped once at creation for its whole life, so reads are a pointer dereference.
     void* persistent = nullptr;
 };
 
@@ -166,9 +164,7 @@ private:
     bool linkProgram(GLuint program, const char* debugName);
     GLuint buildVertexArray(const VertexLayout& layout);
 
-    // The whole body of createTexture() minus the pool insertion - shared
-    // with replaceTexture(), which needs the same GL object built but
-    // written into an existing pool slot instead of a new one.
+    // createTexture() minus pool insertion; shared with replaceTexture(), which writes into an existing slot.
     bool buildTexture(const TextureDesc& desc, GLTexture& outTexture);
 
     void applyBlend(const BlendState& state);

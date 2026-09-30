@@ -1,11 +1,9 @@
 #pragma once
 
-// ---------------------------------------------------------------------------
 // INTERNAL - embedded 8x8 monochrome bitmap font, ASCII 32..127.
 // Public domain IBM VGA font, via font8x8 by Daniel Hepper
 // (https://github.com/dhepper/font8x8). Each byte is one glyph row,
 // LSB = leftmost pixel.
-// ---------------------------------------------------------------------------
 
 namespace Radion
 {

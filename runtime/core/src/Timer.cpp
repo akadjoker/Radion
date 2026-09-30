@@ -1,8 +1,5 @@
 #include "PCH.h"
 
-/** ****************************************************************************
-  Radion Platform - Timer implementation (SDL2 backend).
-**************************************************************************** */
 #include "Timer.h"
 
 #include <SDL2/SDL.h>
@@ -40,8 +37,7 @@ void Timer::tick()
 
     if (mPaused)
     {
-        // Keep mLastTime moving with real time so resume() doesn't see a
-        // huge gap and report one giant dt for the whole paused interval.
+        // Keep mLastTime moving so resume() does not report one giant dt.
         mLastTime = now;
         mDeltaTime = 0.0f;
         return;

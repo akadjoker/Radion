@@ -21,11 +21,7 @@ using namespace Radion;
 
 namespace
 {
-// Set from the SIGINT handler, which may do nothing else - the unwrap's
-// progress callback is what reads it and tells xatlas to stop. Packing a
-// large atlas is one call that can run for many minutes with nothing else
-// getting a turn, so without this the only way out of a bad texel density
-// is killing the process.
+// Set from the SIGINT handler; the unwrap's progress callback reads it and tells xatlas to stop (packing is one long call).
 std::atomic<bool> gInterrupted{false};
 
 void onInterrupt(int)
@@ -33,10 +29,7 @@ void onInterrupt(int)
     gInterrupted.store(true, std::memory_order_relaxed);
 }
 
-// xatlas reports the same stage repeatedly as it climbs from 0 to 100 - only
-// worth a log line every time the stage changes or the percentage moves by
-// a whole decile, or a multi-million-triangle mesh drowns the console.
-// Returning false aborts the unwrap; see LightmapUnwrapSettings.
+// xatlas repeats the same stage from 0 to 100: log only on a stage change or each decile. Returning false aborts the unwrap.
 bool logUnwrapProgress(const char* stage, u32 percent, void* userData)
 {
     static std::string lastStage;
@@ -53,17 +46,14 @@ bool logUnwrapProgress(const char* stage, u32 percent, void* userData)
     return true;
 }
 
-// Every field optional; anything missing keeps the LightmapBakeSettings
-// default, so a preset only has to spell out what it wants to change.
+// Every field optional; missing ones keep the LightmapBakeSettings default.
 void readBakeSettings(const nlohmann::json& node, LightmapBakeSettings& settings, u32& resolution)
 {
     if (auto it = node.find("resolution"); it != node.end())
         resolution = it->get<u32>();
     if (auto it = node.find("bias"); it != node.end())
         settings.bias = it->get<f32>();
-    // "ambient" takes either a single number (grey) or [r, g, b] - presets
-    // written before the sky term became a colour keep working as the grey
-    // they always meant.
+    // "ambient" is a single number (grey) or [r, g, b]; older presets meant grey.
     if (auto it = node.find("ambient"); it != node.end())
     {
         if (it->is_array() && it->size() == 3)
@@ -114,10 +104,7 @@ int main(int argc, char** argv)
     files.addSearchPath(assetDirectory);
     files.addSearchPath(assetDirectory + "/shaders");
 
-    // Shaders always come from the engine's own assets; the mesh being
-    // baked (and whatever it needs, e.g. Bistro's textures) usually lives
-    // somewhere else entirely - one file per scene, added before the mesh
-    // load so material texture lookups can find it.
+    // Shaders come from the engine's assets; the mesh's own directory is added before the mesh load so texture lookups find it.
     const std::string text = files.readText(settingsFile);
     if (text.empty())
     {
@@ -180,13 +167,8 @@ int main(int argc, char** argv)
             submesh.materialSlot = 0;
     }
 
-    // A mesh file carries only material NAMES; every texture, colour and flag
-    // lives in the companion .mat. Without loading it the bake runs on the
-    // placeholder materials importMesh() synthesizes - no albedo, and the
-    // default pale base colour - and then saves those as the baked material
-    // set, so the scene comes back untextured with the lightmap multiplied
-    // into flat grey. Load replaces the list positionally, so it has to
-    // happen here: before the unwrap copies the materials into its output.
+    // A mesh file carries only material names; without loading the companion .mat the bake saves placeholder materials
+    // (untextured). Load replaces the list positionally, so it must run before the unwrap copies the materials.
     std::string materialFile = root.value("material", std::string());
     if (materialFile.empty())
     {
@@ -198,21 +180,16 @@ int main(int argc, char** argv)
                     "the result will have no albedo",
                     materialFile.c_str());
 
-    // The mesh file's own units, not necessarily what the scene renders it
-    // at - a raw FBX export (Bistro, say) commonly needs shrinking to match
-    // the rest of a scene authored in metres. The saved mesh keeps the
-    // file's original coordinates untouched; only texel density and the
-    // bake's own shadow frustum need to know about the mismatch.
+    // The mesh file's own units, not the scene's: e.g. a raw FBX export needing shrinking to metres.
+    // The saved mesh keeps the original coordinates; only texel density and the bake's shadow frustum use this.
     const f32 sceneScale = root.value("scale", 1.0f);
 
     LightmapUnwrapSettings unwrapSettings;
     const nlohmann::json unwrapNode = root.value("unwrap", nlohmann::json::object());
     unwrapSettings.resolution = unwrapNode.value("resolution", unwrapSettings.resolution);
     unwrapSettings.padding = unwrapNode.value("padding", unwrapSettings.padding);
-    // texelsPerUnit in the settings file means texels per real-world unit;
-    // xatlas measures against the mesh's own (unscaled) coordinates, so it
-    // needs the density scaled up by the same factor the mesh will later be
-    // scaled down by.
+    // texelsPerUnit is per real-world unit; xatlas measures unscaled mesh coordinates, so scale the density
+    // up by the factor the mesh is later scaled down by.
     unwrapSettings.texelsPerUnit =
         unwrapNode.value("texelsPerUnit", unwrapSettings.texelsPerUnit) * sceneScale;
     unwrapSettings.progress = logUnwrapProgress;
@@ -232,9 +209,7 @@ int main(int argc, char** argv)
         lightmapPages = Math::max(lightmapPages, submesh.lightmapPage + 1);
     if (lightmapPages > 1)
     {
-        // bake() has no per-page filter yet - it would draw every submesh
-        // into the same target using UV coordinates meant for different
-        // pages, on top of each other.
+        // bake() has no per-page filter: it would draw every submesh into one target with UVs meant for different pages.
         Log::error("LightmapBake: unwrap generated %u pages, this tool only bakes a single page",
                   lightmapPages);
         Log::error("LightmapBake: set unwrap.resolution to 0 - that is the only value that "

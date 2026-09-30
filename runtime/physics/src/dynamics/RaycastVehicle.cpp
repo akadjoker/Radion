@@ -24,12 +24,8 @@ f32 impulseDenominator(const RigidBody& body, const Math::vec3& pos, const Math:
     return body.inverseMass() + Math::dot(normal, vec);
 }
 
-// The friction pair is always resolved against an immovable ground point:
-// the reference substitutes its own fixed, zero-velocity body for whichever
-// object the raycast actually hit before any friction math runs, so the
-// second body in every one of these formulas always has zero velocity and
-// infinite mass. Specialising the two-body versions for that case is what
-// removes the ground body's terms below rather than approximating them.
+// Friction is always resolved against an immovable ground point (the reference substitutes a fixed zero-velocity body for whatever was hit),
+// so the second body has zero velocity and infinite mass; the two-body formulas are specialised to drop its terms.
 f32 resolveSingleBilateral(RigidBody& chassis, const Math::vec3& pos, const Math::vec3& normal)
 {
     const f32 normalLenSqr = Math::dot(normal, normal);
@@ -119,11 +115,8 @@ void RaycastVehicle::updateWheelTransform(Wheel& wheel)
 
     const Math::vec3 up = -wheel.directionWorld;
     const Math::vec3& right = wheel.axleWorld;
-    // A wheel configured with its suspension direction along its own axle has
-    // no forward: the cross product is zero and normalising it is NaN, which
-    // goes straight into the wheel's world transform and from there into
-    // anything drawn or queried from it. Bad configuration, but it should
-    // cost that wheel a sane default, not the whole vehicle.
+    // A suspension direction along the wheel's own axle gives a zero cross product: normalising it is NaN, which would reach the wheel's
+    // transform; fall back to a sane default for that wheel.
     const Math::vec3 forwardRaw = Math::cross(up, right);
     const f32 forwardLength = Math::length(forwardRaw);
     const Math::vec3 fwd =
@@ -266,12 +259,8 @@ void RaycastVehicle::updateFriction(f32 step)
         const f32 proj = Math::dot(mAxleWS[i], surfaceNormal);
         mAxleWS[i] -= surfaceNormal * proj;
 
-        // With the axle square to the surface - a car on its side against a
-        // wall, a wheel against a steep ramp - the projection above cancels
-        // it out, and normalising zero is NaN, which then leaves through the
-        // side impulse into the chassis. There is no lateral direction to
-        // speak of in that pose, so the wheel simply takes no side force
-        // this step instead of poisoning the vehicle.
+        // Axle square to the surface (car on its side, steep ramp): the projection cancels and normalising zero is NaN, which would reach the
+        // chassis via the side impulse; take no side force this step.
         const f32 axleLength = Math::length(mAxleWS[i]);
         if (axleLength < 1.0e-6f)
         {

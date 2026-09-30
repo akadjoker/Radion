@@ -9,9 +9,7 @@
 namespace Radion
 {
 
-// A material file states the colour space only when it disagrees with the
-// slot. Defaulting to a plain `false` made every albedo need an `srgb true`
-// line, which is boilerplate nobody misses until the one time it is absent.
+// Colour space is stated only when it disagrees with the slot.
 enum class ColorSpaceOverride : u8
 {
     FromSlot,
@@ -26,10 +24,7 @@ struct MaterialTextureSource
     std::string target;
     std::vector<std::string> frames;
     TextureSource source = TextureSource::None;
-    // Not Linear: that is GL_LINEAR on the minification filter, which ignores
-    // the mip chain entirely - and generateMips below defaults to true, so the
-    // chain was being built and then never sampled. Every surface seen at an
-    // angle or at distance aliased for it.
+    // Not Linear: that is GL_LINEAR minification, which ignores the mip chain generateMips builds.
     Filter filter = Filter::Anisotropic;
     Wrap wrap = Wrap::Repeat;
     Math::vec2 scrollSpeed = Math::vec2(0.0f);

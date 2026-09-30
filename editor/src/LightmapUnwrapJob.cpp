@@ -31,8 +31,7 @@ bool LightmapUnwrapJob::start(const MeshData& input, const LightmapUnwrapSetting
     if (!mMutex || running())
         return false;
 
-    // A previous run's thread is finished but never joined - collect() only
-    // takes the result. Joining here keeps exactly one handle alive.
+    // collect() never joins a finished previous thread; join here to keep one handle alive.
     if (mThread)
     {
         SDL_WaitThread(mThread, nullptr);

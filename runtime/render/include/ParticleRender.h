@@ -42,45 +42,31 @@ public:
 
         f32 rotationVelocity = 1.5f; // rad/s, randomised sign
 
-        // Initial position spread over a sphere of this radius.
         f32 startRadius = 0.0f;
     };
 
-    // Global forces, the same for every particle. Properties of the WORLD,
-    // not of the emitter - which is why they live here and not on Emitter.
+    // Global forces: properties of the world, not the emitter.
     Math::vec3 gravity = Math::vec3(0.0f, -9.8f, 0.0f);
 
-    // Exponential drag. High stops the spread quickly: it is what tells a
-    // fireball (high drag, stays put) from flying shrapnel (low drag, keeps
-    // going).
+    // Exponential drag; high stops the spread quickly (fireball vs flying shrapnel).
     f32 drag = 0.6f;
 
-    // Sampled per-particle in particle.frag, multiplied into the procedural
-    // radial falloff every particle already has - a soft round sprite reads
-    // as an actual mote/spark instead of pure math, the same role a texture
-    // plays in every particle system this one gets compared to. One texture
-    // for the whole pool, same limitation gravity/drag above already have:
-    // every emitter sharing this system (smoke, sparks, dust...) draws with
-    // it. Left invalid, render() binds a 1x1 white pixel instead - visually
-    // identical to not having a texture at all.
+    // Sampled per particle in particle.frag and multiplied into the radial falloff. One texture for the whole pool (shared by all emitters); left invalid, render() binds a 1x1 white pixel.
     TextureHandle texture;
 
     bool create(u32 maxParticles = 262144);
     void shutdown();
 
-    // Requests N particles at once. This is the basis of explosions and
-    // fireworks: a burst is an emitter with rate 0 and a one-off count.
+    // Requests N particles at once: a burst is an emitter with rate 0 and a one-off count.
     void burst(const Emitter& emitter, u32 count);
 
-    // Continuous emission over the frame. Accumulates the leftover fraction,
-    // so a low rate does not get stuck at zero from truncation.
+    // Accumulates the leftover fraction so a low rate does not truncate to zero.
     void emitContinuous(const Emitter& emitter, f32 deltaTime);
 
     // Runs the four passes. Call once per frame.
     void update(f32 deltaTime);
 
-    // Draws. A single indirect draw, with the instance count written by the
-    // GPU.
+    // A single indirect draw; the GPU writes the instance count.
     void render(const Math::mat4& viewProjection, const Math::vec3& cameraRight,
                const Math::vec3& cameraUp, bool additive);
 
@@ -89,13 +75,7 @@ public:
         return mMax;
     }
 
-    // OPTIONAL diagnostics. Reading the counter buffer back SYNCHRONISES with
-    // the GPU: a full pipeline stall. Called every frame, alone, it would tank
-    // the frame rate - and it would contradict the whole point of this
-    // system, which exists precisely to never read anything back.
-    //
-    // So it samples every N frames and returns the cached value the rest of
-    // the time. Plenty for a number on screen.
+    // OPTIONAL diagnostics: reading the counter buffer back stalls the GPU, so this samples every N frames and returns the cached value otherwise.
     struct Stats
     {
         u32 alive = 0;

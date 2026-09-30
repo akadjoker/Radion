@@ -362,11 +362,7 @@ void PostProcessStack::shutdown()
 
 namespace
 {
-// The fixed relative order this effect set's maths requires: Bloom sums
-// additively in the HDR linear buffer, ToneMap converts that to display
-// space exactly once, and FXAA needs the display-encoded result ToneMap just
-// produced. Nothing here makes the layers arbitrarily interchangeable despite
-// sharing one PostLayer type - see finding 24 in docs/review.md.
+// Fixed relative order: Bloom sums in HDR linear, ToneMap converts to display space once, FXAA needs the display-encoded result.
 u8 domainOrder(PostEffect effect)
 {
     switch (effect)
@@ -398,9 +394,7 @@ const char* effectName(PostEffect effect)
 
 PostLayer& PostProcessStack::add(PostEffect effect)
 {
-    // A duplicate does not just double the work - two ToneMaps means gamma
-    // applied twice, and a repeated Bloom convolves an already-tone-mapped
-    // buffer instead of the HDR one it expects.
+    // A duplicate ToneMap applies gamma twice; a repeated Bloom convolves an already tone-mapped buffer.
     for (PostLayer& layer : mLayers)
         if (layer.effect == effect)
         {
@@ -409,11 +403,7 @@ PostLayer& PostProcessStack::add(PostEffect effect)
             return layer;
         }
 
-    // Inserted by domainOrder, not appended - a caller adding these out of
-    // order (a preset file, a UI list, anything not literally Bloom then
-    // ToneMap then FXAA) would otherwise corrupt the stack the same way
-    // move() already refuses to: no crash, no warning, just FXAA smoothing
-    // linear HDR values or Bloom convolving an already-encoded buffer.
+    // Inserted by domainOrder, not appended, so out-of-order callers cannot corrupt the stack (as move() refuses).
     auto it = std::upper_bound(mLayers.begin(), mLayers.end(), effect,
                                [](PostEffect e, const PostLayer& layer)
                                {
@@ -466,9 +456,7 @@ bool PostProcessStack::move(usize from, usize to)
     next.erase(next.begin() + from);
     next.insert(next.begin() + to, layer);
 
-    // Reject only if the result would put a layer before one whose output it
-    // depends on - not just "any" reorder: two effects with the same
-    // domainOrder (none currently) would still be free to swap.
+    // Reject only if a layer would move before one whose output it depends on.
     for (usize i = 1; i < next.size(); ++i)
     {
         if (domainOrder(next[i - 1].effect) > domainOrder(next[i].effect))
@@ -494,12 +482,7 @@ bool PostProcessStack::resize(u32 width, u32 height)
     const u32 halfWidth = Math::max(1u, width / 2);
     const u32 halfHeight = Math::max(1u, height / 2);
 
-    // Checking only mScene's dimensions used to be enough to call the whole
-    // stack "already the right size" - until a previous resize() got mScene
-    // recreated and then failed on mPing[0]. The next frame's mScene check
-    // agreed nothing had changed and never retried it, leaving mPing/mBloom/
-    // mAO at the old size or invalid indefinitely. Every member must both
-    // match and be valid before this is allowed to skip.
+    // Every member must match and be valid before skipping: a failed earlier resize could leave mPing/mBloom/mAO stale.
     if (mScene.width == width && mScene.height == height && mScene.valid() &&
         mScene.velocity.valid() && mScene.reactive.valid() &&
         mPing[0].width == width && mPing[0].height == height && mPing[0].valid() &&
@@ -510,10 +493,7 @@ bool PostProcessStack::resize(u32 width, u32 height)
         mAO[1].width == halfWidth && mAO[1].height == halfHeight && mAO[1].valid())
         return true;
 
-    // Each create() is itself transactional (see OffscreenTarget::create()):
-    // a member that already has the right size and is valid is left alone,
-    // and one that failed a previous attempt gets retried here instead of
-    // silently staying broken.
+    // Each create() is transactional: right-sized valid members are left alone, failed ones retried.
     bool ok = true;
     if (mScene.width != width || mScene.height != height || !mScene.valid())
         ok &= mScene.create(width, height, Format::RGBA16F, Format::Depth24Stencil8, "post.scene",
@@ -549,11 +529,7 @@ bool PostProcessStack::begin(u32 width, u32 height, FrameContext& frame, u32 tem
     frame.viewport = {0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height)};
     mTemporalIndex = Math::min(temporalIndex, 2u);
     mTemporalAAAllowed = frame.temporalAA;
-    // Each stream keeps its history at its own resolution. Streams render
-    // interleaved at different sizes (editor viewport and game panel), so a
-    // stream's history may only be dropped when that stream itself changes
-    // size - resize() touching every stream would invalidate the others each
-    // frame and TAA would never accumulate.
+    // Each stream keeps history at its own resolution (streams interleave at different sizes); drop it only when that stream resizes, or TAA never accumulates.
     OffscreenTarget* history = mTAAHistory[mTemporalIndex];
     if (history[0].width != width || history[0].height != height ||
         history[1].width != width || history[1].height != height)
@@ -726,15 +702,7 @@ void PostProcessStack::resolve(const Rect& destination, u32 windowWidth, u32 win
     bool displayEncoded = false;
     const TextureHandle source = runLayers(displayEncoded);
 
-    // Gamma encoding is presentation, not an optional artistic effect. The
-    // scene target is linear RGBA16F; copying it verbatim to an ordinary
-    // window backbuffer makes mid-tones far too dark. When the post stack or
-    // its tone-map layer is disabled, mode 1 with no tone curve and unit
-    // exposure is what makes "post off" still mean a correctly encoded
-    // image - folded straight into this final draw instead of writing it to
-    // the ping target first just to copy it back out again right after: with
-    // everything disabled that used to mean two full-resolution fullscreen
-    // passes to do what one already does everywhere else in this function.
+    // Gamma encoding is presentation: with post or tone-map off, mode 1 with no tone curve still encodes correctly, folded into this final draw instead of an extra pass.
     ClearValue clear;
     clear.bits = ClearColor;
     Viewport viewport{static_cast<f32>(destination.x), static_cast<f32>(destination.y),
@@ -755,9 +723,7 @@ TextureHandle PostProcessStack::resolveToTexture(u32 outputIndex, bool applyPost
         return TextureHandle();
 
     OffscreenTarget& resolved = mResolved[outputIndex];
-    // Lazily sized to the scene target - the editor's viewport drives that
-    // size through Engine::renderToTexture(), so following it here keeps the
-    // resolved image 1:1 with what was rendered, no rescale.
+    // Lazily sized to the scene target (driven by Engine::renderToTexture()) for a 1:1 resolve.
     if (resolved.width != mScene.width || resolved.height != mScene.height)
     {
         resolved.destroy();
@@ -774,8 +740,7 @@ TextureHandle PostProcessStack::resolveToTexture(u32 outputIndex, bool applyPost
     Viewport viewport{0.0f, 0.0f, static_cast<f32>(resolved.width),
                       static_cast<f32>(resolved.height)};
     GPU::getSingleton().setTarget(resolved.target, clear);
-    // Same two modes as resolve() above, for the same reason - the only
-    // difference is where the draw lands.
+    // Same modes as resolve() above; only the draw destination differs.
     if (!displayEncoded && (!ssaoDebug || !applyPostProcess))
         draw(source, TextureHandle(), resolved.target, viewport, 1,
              Math::vec4(1.0f, static_cast<f32>(ToneMapMode::None), 0.0f, 0.0f));

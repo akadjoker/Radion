@@ -12,45 +12,28 @@ namespace Radion
 class Pixmap;
 class DDSImage;
 
-// Everything AssetManager::loadTexture() used to do minus the GPU upload -
-// reads the file and decodes it (stb_image via Pixmap, or DDSImage for
-// block-compressed) into a TextureDesc ready for GPU::createTexture()/
-// replaceTexture(). Pure CPU work, no GL calls anywhere in here, which is
-// the one property that lets AsyncTextureLoader call this from a worker
-// thread - the synchronous AssetManager::loadTexture() path uses the exact
-// same function so the two never drift apart.
+// Reads and decodes a texture file into a TextureDesc for GPU upload. Pure CPU work with no GL calls, so AsyncTextureLoader may call it from a worker thread; AssetManager::loadTexture() uses the same function.
 struct DecodedTexture
 {
     bool ok = false;
     TextureDesc desc;
 
-    // Backing storage desc.data/desc.compressedMips point into - own until
-    // the GPU upload (createTexture()/replaceTexture()) has actually run,
-    // then free. Exactly one of pixmap/dds is set on success.
+    // Backing storage desc.data/desc.compressedMips point into; own until the GPU upload has run. Exactly one of pixmap/dds is set on success.
     Pixmap* pixmap = nullptr;
     DDSImage* dds = nullptr;
     std::vector<CompressedMip> ddsMips;
 
-    // No destructor of its own on purpose - pixmap/dds are freed by
-    // releaseDecodedTexture(), explicitly, once the GPU upload built from
-    // `desc` is done with them. Letting a destructor free them here would
-    // make every copy in and out of a queue (this crosses one, worker thread
-    // to main thread) a use-after-free race waiting to happen.
+    // No destructor on purpose: freed explicitly by releaseDecodedTexture(); copies crossing the worker-to-main queue would otherwise race on free.
 };
 
 DecodedTexture decodeTextureFile(const std::string& filename, ColorSpace space, bool generateMips,
                                  u32 mipLimit);
 
-// Shared with loadCubemap()'s own decode (never off-thread, six faces packed
-// into one buffer by hand instead of going through decodeTextureFile()), so
-// the linear/sRGB format choice for a given source never disagrees between
-// the two loaders.
+// Shared with loadCubemap()'s decode so the linear/sRGB choice never disagrees between loaders.
 Format formatFor(int components, ColorSpace space);
 Format ddsFormatFor(Format base, ColorSpace space);
 
-// Frees whatever decodeTextureFile() allocated - call once the GPU upload
-// built from `texture.desc` has finished (createTexture()/replaceTexture()
-// have already copied out everything they need by the time they return).
+// Frees what decodeTextureFile() allocated; call once the GPU upload has finished.
 void releaseDecodedTexture(DecodedTexture& texture);
 
 } // namespace Radion

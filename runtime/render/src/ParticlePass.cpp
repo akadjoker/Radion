@@ -38,8 +38,6 @@ public:
 
         system.update(frame.deltaTime);
 
-        // Extract camera basis vectors from the view matrix. The columns of an
-        // orthonormal view matrix are the camera axes in world space.
         const Math::mat3 viewRotation(frame.view);
         const Math::vec3 cameraRight = Math::normalize(Math::vec3(viewRotation[0][0],
                                                                viewRotation[1][0],
@@ -48,12 +46,7 @@ public:
                                                             viewRotation[1][1],
                                                             viewRotation[2][1]));
 
-        // TODO: separate alpha and additive draws if the effect system starts
-        // tracking blend mode per effect. For now all particles draw with the
-        // same pipeline selected by the single global flag below - additive,
-        // since ParticleSystem::texture is a black-background glow map (the
-        // whole Particles/ asset pack is), and alpha blend would paint that
-        // black background as an opaque square.
+        // TODO: separate alpha/additive draws if effects track blend mode. All particles draw additive: ParticleSystem::texture is a black-background glow map.
         system.render(frame.viewProjection, cameraRight, cameraUp, true);
     }
 
@@ -120,14 +113,7 @@ const std::string& ParticleRenderQueue::textureFile() const
 
 void ParticleRenderQueue::clear()
 {
-    // The underlying ParticleSystem accumulates pending bursts in mPending and
-    // tracks continuous emission state. Between frames we only need to discard
-    // requests that were not consumed; update() already drains mPending, so
-    // this is mainly defensive against submit calls after the pass has run.
-    //
-    // No explicit clear exists on ParticleSystem today; its update() drains the
-    // pending vector. We leave it alone and rely on update() being called once
-    // per frame.
+    // update() already drains mPending; ParticleSystem has no explicit clear, so rely on one update() per frame.
 }
 
 void ParticleRenderQueue::submitBurst(const ParticleSystem::Emitter& emitter, u32 count)

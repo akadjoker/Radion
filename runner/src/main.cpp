@@ -60,9 +60,7 @@ bool resolveRunTarget(const char* argument, RunTarget& out, std::string& error)
     out.projectRoot = input.parent_path();
     out.assetRoot = out.projectRoot / "Assets";
 
-    // A scene does not need a preliminary JSON parse. For a project manifest
-    // we need its active scene and asset search paths before SceneManager
-    // starts resolving mesh/material/texture references.
+    // For a project manifest, the active scene and search paths are needed before SceneManager resolves references.
     const std::string text = FileSystem::getSingleton().readText(input.string());
     if (text.empty())
         return true; // SceneManager will report the real load error with its diagnostics.
@@ -163,9 +161,7 @@ int main(int argc, char** argv)
     }
 
     FileSystem& files = FileSystem::getSingleton();
-    // Engine's own sample assets keep built-in materials/shaders available;
-    // project paths then take part in normal asset lookup just like they do
-    // in the editor before it opens the active scene.
+    // Built-in assets first so project paths then join normal lookup, as in the editor.
     const std::filesystem::path builtInAssets = resolveAssetDirectory(RADION_ASSET_DIR);
     addSearchPathIfPresent(files, builtInAssets);
     addSearchPathIfPresent(files, builtInAssets / "shaders");
@@ -188,8 +184,7 @@ int main(int argc, char** argv)
     engine.setImGuiVisible(false);
     if (disablePost)
     {
-        // Keep the game scene, lighting and shadows intact, but strip every
-        // screen-space or post-lighting effect for an honest render baseline.
+        // Keep scene, lighting and shadows; strip screen-space/post effects for a render baseline.
         const u32 disabled = RenderPassPostProcess | RenderPassAmbientOcclusion |
                              RenderPassTemporalAA | RenderPassVolumetrics |
                              RenderPassLensFlares | RenderPassPlanarReflections;

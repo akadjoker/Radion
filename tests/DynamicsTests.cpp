@@ -51,42 +51,29 @@ RigidBody makeBox(f32 mass = 2.0f, const Math::vec3& halfExtents = Math::vec3(0.
     return body;
 }
 
-// ---------------------------------------------------------------- inertia
-
 void testInertiaFormulas()
 {
-    // I_xx = m/12 * (height^2 + depth^2), the other two FULL sides. A cube of
-    // side 1 and mass 12 is therefore 12/12 * (1 + 1) = 2 on every axis, not
-    // 1 - the halved extents in the call are not the ones in the formula.
+    // I_xx = m/12 * (height^2 + depth^2) uses FULL sides: cube side 1, mass 12 gives 2, not 1.
     const Math::mat3 cube = Inertia::box(12.0f, Math::vec3(0.5f));
     CHECK(near(cube[0][0], 2.0f));
     CHECK(near(cube[1][1], 2.0f));
     CHECK(near(cube[2][2], 2.0f));
     CHECK(near(cube[0][1], 0.0f));
 
-    // Same formula on unequal sides, worked out by hand: m=12, full sides
-    // (2, 4, 6) gives m/12 * (16 + 36) = 52 about x, (4 + 36) = 40 about y,
-    // (4 + 16) = 20 about z.
     const Math::mat3 slab = Inertia::box(12.0f, Math::vec3(1.0f, 2.0f, 3.0f));
     CHECK(near(slab[0][0], 52.0f));
     CHECK(near(slab[1][1], 40.0f));
     CHECK(near(slab[2][2], 20.0f));
 
-    // A box that is long in x has its SMALLEST moment about x - that is the
-    // axis it is easiest to spin around, and getting this backwards is the
-    // classic way a body tumbles wrongly.
+    // The smallest moment is about the long axis (easiest to spin).
     const Math::mat3 rod = Inertia::box(1.0f, Math::vec3(4.0f, 0.25f, 0.25f));
     CHECK(rod[0][0] < rod[1][1]);
     CHECK(rod[0][0] < rod[2][2]);
     CHECK(near(rod[1][1], rod[2][2]));
 
-    // Solid sphere: 2/5 m r^2, and a hollow one is more, since its mass sits
-    // further out.
     CHECK(near(Inertia::solidSphere(5.0f, 2.0f)[0][0], 0.4f * 5.0f * 4.0f));
     CHECK(Inertia::hollowSphere(5.0f, 2.0f)[0][0] > Inertia::solidSphere(5.0f, 2.0f)[0][0]);
 
-    // A capsule is a cylinder plus two caps, so it must be heavier to spin
-    // end-over-end than the bare cylinder of the same length.
     const Math::mat3 cylinder = Inertia::cylinderY(3.0f, 0.5f, 2.0f);
     const Math::mat3 capsule = Inertia::capsuleY(3.0f, 0.5f, 2.0f);
     CHECK(capsule[0][0] > cylinder[0][0]);
@@ -97,17 +84,12 @@ void testInertiaFormulas()
     CHECK(std::abs(Math::determinant(capsule)) > 1e-9f);
 }
 
-// ------------------------------------------------------------- integration
-
 void testFreeFall()
 {
     RigidBody body = makeBox();
     body.setAcceleration(Math::vec3(0.0f, -10.0f, 0.0f));
 
-    // v = a t and y = 0.5 a t^2 exactly only in the continuous case; a
-    // semi-implicit Euler step lands one step of a*dt^2 ahead. Check the
-    // velocity exactly and the position against that known bias, rather than
-    // loosening the tolerance until anything passes.
+    // Semi-implicit Euler lands a*dt^2 ahead: check velocity exactly, position against that bias.
     constexpr f32 step = 1.0f / 100.0f;
     constexpr u32 steps = 100;
     for (u32 i = 0; i < steps; ++i)
@@ -130,12 +112,10 @@ void testMassScalesForce()
     light.integrate(0.5f);
     heavy.integrate(0.5f);
 
-    // a = F/m, so four times the mass is a quarter of the speed.
     CHECK(near(light.velocity().x, 4.0f));
     CHECK(near(heavy.velocity().x, 1.0f));
 
-    // Gravity is not a force and must not be divided by mass: both fall the
-    // same. This is why acceleration is kept apart from the accumulator.
+    // Gravity is not a force and is not divided by mass.
     RigidBody lightFall = makeBox(1.0f);
     RigidBody heavyFall = makeBox(1000.0f);
     lightFall.setAcceleration(Math::vec3(0.0f, -9.8f, 0.0f));
@@ -151,28 +131,21 @@ void testAccumulatorsCleared()
     body.addForce(Math::vec3(10.0f, 0.0f, 0.0f));
     body.integrate(0.1f);
     const Math::vec3 after = body.velocity();
-    // A force applied once must act for exactly one step. Left in the
-    // accumulator it would keep pushing forever.
+    // A force applied once acts for exactly one step.
     body.integrate(0.1f);
     CHECK(near(body.velocity(), after));
 }
-
-// ---------------------------------------------------------------- rotation
 
 void testTorqueFromOffsetForce()
 {
     RigidBody body = makeBox(2.0f, Math::vec3(0.5f));
 
-    // Straight through the centre of mass: it moves and does not turn.
     body.addForceAtPoint(Math::vec3(0.0f, 0.0f, 10.0f), body.position());
     body.integrate(0.1f);
     CHECK(body.velocity().z > 0.0f);
     CHECK(near(body.angularVelocity(), Math::vec3(0.0f)));
 
-    // Same push, one edge away. Worked out rather than guessed:
-    // r x F = (0.5,0,0) x (0,0,10), whose y component is r_z*F_x - r_x*F_z
-    // = 0 - 5 = -5. So an offset along +x with a force along +z spins about
-    // MINUS y.
+    // r x F = (0.5,0,0) x (0,0,10) has y = -5: spins about MINUS y.
     RigidBody offset = makeBox(2.0f, Math::vec3(0.5f));
     offset.addForceAtPoint(Math::vec3(0.0f, 0.0f, 10.0f),
                            offset.position() + Math::vec3(0.5f, 0.0f, 0.0f));
@@ -180,28 +153,23 @@ void testTorqueFromOffsetForce()
     CHECK(offset.angularVelocity().y < 0.0f);
     CHECK(near(offset.angularVelocity().x, 0.0f));
     CHECK(near(offset.angularVelocity().z, 0.0f));
-    // The linear part is untouched by where the force landed.
     CHECK(near(offset.velocity(), body.velocity()));
 }
 
 void testInertiaTensorRotatesIntoWorld()
 {
-    // A rod that is long in x: easy to spin about x, hard about z.
     const Math::vec3 halfExtents(4.0f, 0.25f, 0.25f);
     RigidBody body = makeBox(1.0f, halfExtents);
 
     const Math::mat3 upright = body.inverseInertiaTensorWorld();
     CHECK(upright[0][0] > upright[2][2]); // inverse, so easy axis is larger
 
-    // Stand it on end - a quarter turn about z sends the long axis to y. The
-    // world tensor must follow, or a body would resist the same in world
-    // space however it is turned.
+    // The world tensor must follow a quarter turn about z (long axis to y).
     body.setOrientation(Math::angleAxis(Math::half_pi<f32>(), Math::vec3(0.0f, 0.0f, 1.0f)));
     const Math::mat3 onEnd = body.inverseInertiaTensorWorld();
     CHECK(onEnd[1][1] > onEnd[2][2]);
     CHECK(near(onEnd[1][1], upright[0][0], 1e-3f));
 
-    // Still symmetric: R I R^T of a symmetric tensor has to be.
     CHECK(near(onEnd[0][1], onEnd[1][0], 1e-4f));
     CHECK(near(onEnd[0][2], onEnd[2][0], 1e-4f));
 }
@@ -212,8 +180,7 @@ void testOrientationStaysNormalized()
     body.setAngularVelocity(Math::vec3(0.0f, 12.0f, 0.0f));
     for (u32 i = 0; i < 2000; ++i)
         body.integrate(1.0f / 60.0f);
-    // Two thousand steps of "add a vector to a quaternion" drift a long way
-    // without the renormalise in calculateDerivedData().
+    // Without the renormalise in calculateDerivedData() thousands of steps drift.
     CHECK(near(Math::length(body.orientation()), 1.0f, 1e-3f));
     CHECK(std::isfinite(body.orientation().w));
 }
@@ -222,16 +189,12 @@ void testSpinDirection()
 {
     RigidBody body = makeBox(1.0f);
     body.setAngularVelocity(Math::vec3(0.0f, Math::half_pi<f32>(), 0.0f));
-    // A quarter turn per second about +y, for one second: +x ends on -z,
-    // which is the right-handed direction. A sign error here reads as the
-    // whole world spinning backwards.
+    // A quarter turn per second about +y sends +x to -z (right-handed).
     for (u32 i = 0; i < 1000; ++i)
         body.integrate(1.0f / 1000.0f);
     const Math::vec3 axis = body.directionToWorld(Math::vec3(1.0f, 0.0f, 0.0f));
     CHECK(near(axis, Math::vec3(0.0f, 0.0f, -1.0f), 1e-2f));
 }
-
-// ------------------------------------------------------------------ frames
 
 void testSpaceConversions()
 {
@@ -242,13 +205,11 @@ void testSpaceConversions()
     const Math::vec3 local(0.25f, -0.5f, 0.75f);
     CHECK(near(body.pointToLocal(body.pointToWorld(local)), local, 1e-4f));
 
-    // A direction ignores the translation; a point does not.
     CHECK(near(body.directionToWorld(Math::vec3(0.0f)), Math::vec3(0.0f)));
     CHECK(near(body.pointToWorld(Math::vec3(0.0f)), body.position()));
     CHECK(near(Math::length(body.directionToWorld(Math::vec3(0.0f, 1.0f, 0.0f))), 1.0f));
 
-    // The transform matrix and the point conversion have to agree - the
-    // solver uses one and the renderer the other.
+    // Transform matrix and point conversion must agree (solver vs renderer).
     const Math::vec3 throughMatrix = Math::vec3(body.transform() * Math::vec4(local, 1.0f));
     CHECK(near(throughMatrix, body.pointToWorld(local), 1e-4f));
 }
@@ -259,32 +220,25 @@ void testVelocityAtPoint()
     body.setVelocity(Math::vec3(1.0f, 0.0f, 0.0f));
     body.setAngularVelocity(Math::vec3(0.0f, 2.0f, 0.0f));
 
-    // At the centre a point moves at the body's own velocity.
     CHECK(near(body.velocityAtPoint(body.position()), Math::vec3(1.0f, 0.0f, 0.0f)));
 
-    // One unit along +x, spinning about +y: w x r points along -z.
+    // w x r points along -z.
     const Math::vec3 point = body.position() + Math::vec3(1.0f, 0.0f, 0.0f);
     CHECK(near(body.velocityAtPoint(point), Math::vec3(1.0f, 0.0f, -2.0f)));
 }
-
-// ------------------------------------------------------------------ impulses
 
 void testImpulses()
 {
     RigidBody body = makeBox(4.0f);
     body.applyLinearImpulse(Math::vec3(8.0f, 0.0f, 0.0f));
-    // An impulse changes velocity there and then: dv = J/m, no step needed.
     CHECK(near(body.velocity().x, 2.0f));
 
     RigidBody spun = makeBox(2.0f, Math::vec3(0.5f));
     spun.applyImpulseAtPoint(Math::vec3(0.0f, 0.0f, 4.0f),
                              spun.position() + Math::vec3(0.5f, 0.0f, 0.0f));
     CHECK(spun.velocity().z > 0.0f);
-    // Same r x F as testTorqueFromOffsetForce: about minus y.
     CHECK(spun.angularVelocity().y < 0.0f);
 }
-
-// --------------------------------------------------------------- body types
 
 void testBodyTypes()
 {
@@ -294,11 +248,9 @@ void testBodyTypes()
     stat.addForce(Math::vec3(100.0f, 0.0f, 0.0f));
     stat.applyLinearImpulse(Math::vec3(100.0f, 0.0f, 0.0f));
     stat.integrate(1.0f);
-    // Nothing reaches it: not gravity, not a force, not an impulse.
     CHECK(near(stat.position(), Math::vec3(0.0f)));
     CHECK(near(stat.velocity(), Math::vec3(0.0f)));
     CHECK(stat.inverseMass() == 0.0f);
-    // Infinite inverse inertia would be zero: an angular impulse does nothing.
     CHECK(near(stat.inverseInertiaTensorWorld()[0][0], 0.0f));
 
     RigidBody kinematic = makeBox();
@@ -307,13 +259,10 @@ void testBodyTypes()
     kinematic.setAcceleration(Math::vec3(0.0f, -10.0f, 0.0f));
     kinematic.addForce(Math::vec3(0.0f, 0.0f, 500.0f));
     kinematic.integrate(1.0f);
-    // Moves by its own velocity only. Gravity and forces are ignored, but it
-    // does move - that is the whole difference from Static.
     CHECK(near(kinematic.position(), Math::vec3(2.0f, 0.0f, 0.0f)));
     CHECK(near(kinematic.velocity(), Math::vec3(2.0f, 0.0f, 0.0f)));
 
-    // Switching back to Dynamic must restore the mass the caller gave, not
-    // leave the body with the infinite mass Static forced on it.
+    // Switching back to Dynamic must restore the caller's mass, not Static's infinite one.
     RigidBody restored = makeBox(3.0f);
     const f32 before = restored.inverseMass();
     restored.setBodyType(BodyType::Static);
@@ -330,22 +279,17 @@ void testMassGuards()
     body.setMass(0.0f);
     body.setMass(-1.0f);
     body.setMass(std::numeric_limits<f32>::quiet_NaN());
-    // Refused, and the body keeps what it had rather than becoming infinite.
     CHECK(near(body.inverseMass(), before));
 
-    // A singular inertia tensor is refused for the same reason: inverting it
-    // gives infinities that spread through every later step.
+    // A singular tensor is refused: inverting it gives infinities.
     const Math::mat3 kept = body.inverseInertiaTensor();
     body.setInertiaTensor(Math::mat3(0.0f));
     CHECK(near(body.inverseInertiaTensor()[0][0], kept[0][0]));
 }
 
-// ------------------------------------------------------------------- damping
-
 void testDampingIsStepIndependent()
 {
-    // pow(damping, dt) means the same amount of energy is removed per second
-    // however the second is divided up - two half steps must match one whole.
+    // pow(damping, dt): two half steps must match one whole.
     RigidBody coarse = makeBox(1.0f);
     RigidBody fine = makeBox(1.0f);
     coarse.setDamping(0.5f, 0.5f);
@@ -359,8 +303,6 @@ void testDampingIsStepIndependent()
     CHECK(near(coarse.velocity().x, fine.velocity().x, 1e-3f));
 }
 
-// --------------------------------------------------------------------- sleep
-
 void testSleep()
 {
     RigidBody body = makeBox(1.0f);
@@ -372,20 +314,17 @@ void testSleep()
     for (u32 i = 0; i < 600 && body.awake(); ++i)
         body.integrate(1.0f / 60.0f);
     CHECK(!body.awake());
-    // Falling asleep zeroes the velocities, so nothing creeps.
     CHECK(near(body.velocity(), Math::vec3(0.0f)));
 
     const Math::vec3 restingAt = body.position();
     body.integrate(1.0f);
     CHECK(near(body.position(), restingAt));
 
-    // Any force has to wake it, or a sleeping body is unhittable.
     body.addForce(Math::vec3(0.0f, 0.0f, 5.0f));
     CHECK(body.awake());
     body.integrate(1.0f / 60.0f);
     CHECK(body.position().z > restingAt.z);
 
-    // A body told it cannot sleep must not, however still it goes.
     RigidBody restless = makeBox(1.0f);
     restless.setCanSleep(false);
     for (u32 i = 0; i < 600; ++i)
@@ -393,13 +332,9 @@ void testSleep()
     CHECK(restless.awake());
 }
 
-// ------------------------------------------------------------------ stability
-
 void testNoDriftAtRest()
 {
-    // A body with nothing acting on it must sit exactly still. Any drift here
-    // is an integrator that adds energy, and it shows up later as a stack
-    // that will not settle.
+    // A body with nothing acting on it must not drift (an integrator adding energy).
     RigidBody body = makeBox(1.0f);
     body.setCanSleep(false);
     for (u32 i = 0; i < 10000; ++i)
@@ -416,15 +351,12 @@ void testDegenerateStepsIgnored()
     body.integrate(0.0f);
     body.integrate(-1.0f);
     body.integrate(std::numeric_limits<f32>::quiet_NaN());
-    // A zero, negative or NaN step leaves the body exactly as it was rather
-    // than sending it to infinity.
     CHECK(near(body.position(), Math::vec3(0.0f)));
     CHECK(std::isfinite(body.position().x));
 }
 
 void testAngularMomentumIsConserved()
 {
-    // No damping, no torque: a free body keeps spinning at the same rate.
     RigidBody body = makeBox(2.0f, Math::vec3(0.5f, 1.0f, 0.25f));
     body.setCanSleep(false);
     body.setAngularVelocity(Math::vec3(0.0f, 3.0f, 0.0f));
@@ -434,10 +366,7 @@ void testAngularMomentumIsConserved()
     CHECK(near(Math::length(body.angularVelocity()), before, 1e-3f));
 }
 
-// A loose body's destructor must pull it out of any Scene it was registered
-// with directly (Scene::addBody(), no GameObject involved - Ragdoll's own
-// parts and this test both use that path) - otherwise the Scene's own body
-// list outlives the memory it points at the moment this scope ends.
+// A loose body's destructor must unregister it from its Scene (Scene::addBody(), no GameObject), or the Scene's list dangles.
 void testLooseRigidBodyDeregistersOnDestruction()
 {
     Scene scene;
@@ -450,15 +379,7 @@ void testLooseRigidBodyDeregistersOnDestruction()
     CHECK(scene.bodyCount() == 0);
 }
 
-// std::vector<RigidBody> reallocates by moving its elements to new storage -
-// every existing joint/dynamics test that builds one sidesteps this with an
-// upfront reserve(), which is exactly what would hide a move constructor
-// that forgets to carry a body's Scene registration to its new address. A
-// reserve() upfront is the supported way to keep several registered bodies
-// in one vector - RigidBody::moveFrom() deliberately drops a moved body's
-// registration rather than risk a dangling Scene entry (see the next test
-// for what happens without the reserve), so this is what makes that safe:
-// with no reallocation, nothing ever moves, and every body stays registered.
+// std::vector<RigidBody> reallocation: moveFrom() drops registration, so reserve() upfront is the supported way to keep bodies registered.
 void testRigidBodyVectorGrowthKeepsSceneRegistrationCorrect()
 {
     Scene scene;
@@ -485,13 +406,7 @@ void testRigidBodyVectorGrowthKeepsSceneRegistrationCorrect()
     }
 }
 
-// The unsupported counterpart to the test above, with no reserve(): every
-// push_back past the small starting capacity reallocates and moves the
-// existing bodies, and RigidBody::moveFrom() drops each one's registration
-// rather than leave a dangling Scene entry pointing at the freed old buffer.
-// The guarantee this checks is narrower than "it still works" - only that it
-// fails SAFELY (no crash, no stale pointer ever dereferenced, the count
-// exactly matches the bodies that survived) rather than corrupting the Scene.
+// No reserve(): reallocation drops registrations; this must fail SAFELY (no stale pointer, count matches survivors).
 void testRigidBodyVectorGrowthWithoutReserveDropsRegistrationSafely()
 {
     Scene scene;
@@ -501,9 +416,7 @@ void testRigidBodyVectorGrowthWithoutReserveDropsRegistrationSafely()
         bodies.push_back(makeBox());
         scene.addBody(bodies.back());
     }
-    // Whatever survived registration is exactly what the final buffer holds -
-    // never more (a stale pointer counted as still there) and never in a
-    // count that does not match a real, live body.
+    // The registered count must equal the live bodies in the final buffer.
     CHECK(scene.bodyCount() <= bodies.size());
 
     scene.setGravity(Math::vec3(0.0f, -10.0f, 0.0f));
@@ -529,10 +442,7 @@ void testWingTurnsSpeedIntoLift()
     plane.applyForces();
     body.integrate(1.0f / 60.0f);
 
-    // The wings have to push it up. This is the whole point of the tensor:
-    // no lift equation, no angle of attack, just forward speed mapped onto
-    // upward force - and it is also the check that catches a transposed
-    // tensor, which would push it sideways or backwards instead.
+    // Forward speed maps to upward force; also catches a transposed tensor.
     CHECK(body.velocity().y > 0.0f);
     CHECK(std::abs(body.velocity().z) < 1e-3f);
 }
@@ -569,14 +479,11 @@ void testAileronsRollOppositeWays()
         body.setVelocity(Math::vec3(-40.0f, 0.0f, 0.0f));
         plane.applyForces();
         body.integrate(1.0f / 60.0f);
-        // Roll is rotation about the forward axis.
         return body.angularVelocity().x;
     };
 
     const f32 left = rollRate(-1.0f);
     const f32 right = rollRate(1.0f);
-    // Opposite signs, or the ailerons are moving together and the plane
-    // climbs instead of rolling.
     CHECK(left * right < 0.0f);
     CHECK(std::abs(rollRate(0.0f)) < std::abs(left));
 }
@@ -615,7 +522,6 @@ void testControlSurfaceInterpolates()
     body.setInertiaTensor(Math::mat3(1.0f));
     body.setVelocity(Math::vec3(1.0f, 0.0f, 0.0f));
 
-    // Half deflection has to sit between rest and full, not jump to it.
     surface.setControl(0.5f);
     const f32 half = Math::length(surface.tensor() * Math::vec3(1.0f));
     surface.setControl(2.0f);
@@ -635,15 +541,13 @@ void testThrustPushesAlongTheNose()
     Airplane plane;
     plane.setBody(&body);
     plane.setThrust(10.0f);
-    // Wings make no force at rest, so what remains is thrust alone.
     body.setVelocity(Math::vec3(0.0f));
     plane.applyForces();
     body.integrate(1.0f / 60.0f);
     CHECK(body.velocity().x < 0.0f);
     CHECK(std::abs(body.velocity().y) < 1e-5f);
 
-    // Rolled upside down, the same thrust has to point the other way in
-    // world space - the force is in body space, not world.
+    // The force is in body space: upside down, thrust points the other way in world space.
     RigidBody flipped;
     flipped.setMass(2.5f);
     flipped.setInertiaTensor(Math::mat3(1.0f));

@@ -12,10 +12,8 @@ namespace Radion::Physics
 
 namespace
 {
-// Sleep decides on a running average of v^2 + w^2, so a body that is briefly
-// slow at the top of an arc is not mistaken for one that has stopped. The
-// weight is raised to the step so the average decays at the same rate in
-// seconds however often it is updated.
+// Sleep uses a running average of v^2 + w^2, so a body briefly slow at the top of an arc is not mistaken for stopped;
+// the weight is raised to the step so decay is the same in seconds at any update rate.
 f32 motionBias(f32 duration)
 {
     return std::pow(0.5f, duration);
@@ -70,12 +68,8 @@ Math::mat3 Inertia::convexHull(f32 mass, const Math::vec3* vertices, u32 vertexC
     using Edge = Radion::Geometry::ConvexHullComputer::Edge;
     (void)edgeCount;
 
-    // Signed tetrahedron decomposition: every face triangle plus the hull's
-    // own centroid forms a tetrahedron, and both the volume and the
-    // second-moment matrix are sums of those tetrahedra's own closed-form
-    // contributions - the same triangle-fan walk VoronoiShatter::shatter
-    // already uses to accumulate volume and centroid, extended here to also
-    // accumulate the inertia terms.
+    // Signed tetrahedron decomposition: each face triangle plus the hull centroid forms a tetrahedron; volume and second moment are sums
+    // of their closed-form contributions (same fan as VoronoiShatter::shatter).
     if (vertexCount < 4 || faceCount == 0 || mass <= 0.0f)
         return Math::mat3(0.0f);
 
@@ -103,12 +97,8 @@ Math::mat3 Inertia::convexHull(f32 mass, const Math::vec3* vertices, u32 vertexC
     centroid /= volume6 * 4.0f;
     const f32 volume = volume6 / 6.0f;
 
-    // Second moment of the reference tetrahedron (apex at the origin, the
-    // other three vertices at the unit axis points) - a fixed matrix, derived
-    // once by integrating u_i*u_j over the standard simplex {u,v,w >= 0,
-    // u+v+w <= 1}: a!b!c!/(a+b+c+3)! gives 1/60 on the diagonal (a=2) and
-    // 1/120 off it (a=b=1). Every actual tetrahedron below maps to this one
-    // through its own Jacobian, so it is only computed once.
+    // Second moment of the reference tetrahedron (apex at origin, others on the unit axes): integral of u_i*u_j over the simplex,
+    // a!b!c!/(a+b+c+3)! = 1/60 on the diagonal, 1/120 off it. Every tetrahedron maps to it via its Jacobian.
     const Math::mat3 referenceMoment(Math::vec3(1.0f / 60.0f, 1.0f / 120.0f, 1.0f / 120.0f),
                                     Math::vec3(1.0f / 120.0f, 1.0f / 60.0f, 1.0f / 120.0f),
                                     Math::vec3(1.0f / 120.0f, 1.0f / 120.0f, 1.0f / 60.0f));
@@ -123,10 +113,7 @@ Math::mat3 Inertia::convexHull(f32 mass, const Math::vec3* vertices, u32 vertexC
         int v2 = edge->getTargetVertex();
         while (v2 != v0)
         {
-            // Tetrahedron (centroid, v0, v1, v2), apex at the centroid - so
-            // measuring from the centroid puts the apex at the local origin,
-            // and the integral below is already the contribution to the
-            // inertia about the centroid, with no parallel-axis shift needed.
+            // Apex at the centroid, so the integral is already the inertia about the centroid, with no parallel-axis shift.
             const Math::vec3 a = vertices[v0] - centroid;
             const Math::vec3 b = vertices[v1] - centroid;
             const Math::vec3 c = vertices[v2] - centroid;
@@ -155,10 +142,8 @@ Math::mat3 Inertia::convexHull(f32 mass, const Math::vec3* vertices, u32 vertexC
 
 Math::mat3 Inertia::capsuleY(f32 mass, f32 radius, f32 cylinderHeight)
 {
-    // Split the mass between the cylinder and the two hemispheres by volume,
-    // then move each hemisphere's own tensor out to where it actually sits
-    // with the parallel axis theorem - a capsule treated as one cylinder
-    // spins visibly wrong once the caps are a real share of its length.
+    // Mass split between cylinder and hemispheres by volume, hemisphere tensors moved with the parallel axis theorem
+    // (one cylinder spins visibly wrong once the caps are a real share).
     const f32 radiusSquared = radius * radius;
     const f32 cylinderVolume = Math::pi<f32>() * radiusSquared * cylinderHeight;
     const f32 sphereVolume = (4.0f / 3.0f) * Math::pi<f32>() * radiusSquared * radius;
@@ -182,20 +167,15 @@ Math::mat3 Inertia::capsuleY(f32 mass, f32 radius, f32 cylinderHeight)
 
 RigidBody::RigidBody() : Component(Type)
 {
-    // Awake AND seeded above the threshold, which is what setAwake(true)
-    // means. Setting only the flag left the motion average at zero, and
-    // since sleep is decided on that average, a body that starts at rest and
-    // is then let go fell asleep on its first step - before it had moved far
-    // enough for the average to catch up with it. It then hung in the air.
+    // Awake AND seeded above the threshold (what setAwake(true) means): setting only the flag left the motion average at zero,
+    // so a body starting at rest fell asleep on its first step and hung in the air.
     setAwake(true);
     calculateDerivedData();
 }
 
 RigidBody::~RigidBody()
 {
-    // A loose body outliving nothing but itself - a test local, a ragdoll
-    // part, a character's own body - would otherwise leave the scene holding
-    // a pointer to freed memory until its next step walked over it.
+    // A loose body outliving nothing but itself (test local, ragdoll part) would otherwise leave the scene holding a dangling pointer.
     if (mScene)
         mScene->removeBody(*this);
     if (mOwnsShape)
@@ -219,10 +199,7 @@ RigidBody& RigidBody::operator=(RigidBody&& other) noexcept
 
 void RigidBody::moveFrom(RigidBody& other) noexcept
 {
-    // The scene stores bodies by address, so a registered one cannot follow a
-    // move: its entry would still name the old object. The source leaves the
-    // scene and the destination arrives unregistered, to be added by whoever
-    // now owns it.
+    // The scene stores bodies by address, so a registered one cannot follow a move: the source leaves the scene and the destination arrives unregistered.
     if (other.mScene)
         other.mScene->removeBody(other);
 
@@ -293,9 +270,7 @@ void RigidBody::applyBodyTypeMass()
     }
     else
     {
-        // Infinite mass and infinite inertia. An impulse divided by these
-        // changes nothing, which is exactly what "a contact does not move
-        // this" means to the solver - no special case anywhere else.
+        // Infinite mass and inertia: impulses change nothing, which is what "a contact does not move this" means to the solver.
         mInverseMass = 0.0f;
         mInverseInertiaTensor = Math::mat3(0.0f);
     }
@@ -443,9 +418,6 @@ void RigidBody::addForceAtPoint(const Math::vec3& force, const Math::vec3& world
 {
     if (!isDynamic() || !finiteVec(force) || !finiteVec(worldPoint))
         return;
-    // The torque is the offset from the centre of mass crossed with the
-    // force. This is the whole reason a body rotates from a hit that is not
-    // aimed at its middle.
     mForceAccumulator += force;
     mTorqueAccumulator += Math::cross(worldPoint - mPosition, force);
     setAwake(true);
@@ -514,8 +486,7 @@ void RigidBody::setAwake(bool awake)
     if (awake)
     {
         mAwake = true;
-        // Seeded above the threshold so the very next step does not put it
-        // straight back to sleep before anything has had time to happen.
+        // Seeded above the threshold so the next step does not put it straight back to sleep.
         mMotion = mSleepEpsilon * 2.0f;
         return;
     }
@@ -549,10 +520,7 @@ void RigidBody::calculateDerivedData()
     mTransform = Math::mat4(rotation);
     mTransform[3] = Math::vec4(mPosition, 1.0f);
 
-    // The tensor is stored in body space because that is where it is
-    // constant. Rotating it into world space is R * I * R^T, and it has to
-    // happen every step the orientation changes - a torque is applied in
-    // world space and there is nothing to divide it by otherwise.
+    // Stored in body space where it is constant; rotated to world as R * I * R^T every step the orientation changes.
     mInverseInertiaTensorWorld = rotation * mInverseInertiaTensor * Math::transpose(rotation);
 }
 
@@ -601,8 +569,7 @@ void RigidBody::integrateVelocity(f32 duration)
     if (mMotion < mSleepEpsilon && !mSleepDeferred)
         setAwake(false);
     else if (mMotion > 10.0f * mSleepEpsilon)
-        // Capped so a body that has been thrown hard does not need as long to
-        // settle as it spent moving.
+        // Capped so a body thrown hard does not take as long to settle as it spent moving.
         mMotion = 10.0f * mSleepEpsilon;
 }
 

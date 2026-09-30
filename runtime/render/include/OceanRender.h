@@ -11,8 +11,7 @@
 namespace Radion
 {
 
-// As many Gerstner waves as the shader sums; the CPU side agrees on this
-// number so heightAt() never reads past what the GPU was given.
+// As many Gerstner waves as the shader sums; heightAt() relies on the same count.
 constexpr u32 kOceanMaxWaves = 6;
 
 // Published only for the OceanDemo/debug UI after the refraction scene copy.
@@ -28,9 +27,7 @@ struct OceanWave
     f32 amplitude = 0.35f;
 };
 
-// What the surface samples, from cheapest to most expensive. Waves, foam and
-// normal-map detail stay in every tier - only the extra render targets a
-// higher tier needs to look correct come and go.
+// Cheapest to most expensive. Waves, foam and normal detail stay in every tier; only the extra render targets come and go.
 enum class OceanQuality : u8
 {
     SkyOnly,             // sky/environment reflection only, no render target
@@ -38,8 +35,6 @@ enum class OceanQuality : u8
     ReflectionRefraction // + depth-based shallow/deep absorption and shoreline foam
 };
 
-// What an Ocean component hands the pass for the frame. The grid mesh is
-// built once by the component; this only carries what changes.
 struct OceanDrawCommand
 {
     MeshHandle mesh;
@@ -76,8 +71,7 @@ struct OceanDrawCommand
 
     f32 fresnelDetail = 0.25f;
     f32 fresnelMax = 1.0f;
-    // fresnel = bias + scale * pow(1 - dot(N, V), power) - same shape as the
-    // fresnel demo's water material, tunable the same way.
+    // fresnel = bias + scale * pow(1 - dot(N, V), power)
     f32 fresnelBias = 0.10f;
     f32 fresnelScale = 0.90f;
     f32 fresnelPower = 4.0f;
@@ -91,8 +85,7 @@ struct OceanDrawCommand
 
     s32 debugMode = 0;
 
-    // Defaults match Grass/ForwardPass: a fake sun until the sky/scene light
-    // takes over.
+    // Defaults match Grass/ForwardPass: a fake sun until the sky/scene light takes over.
     Math::vec3 lightDirection = -Math::normalize(Math::vec3(0.4f, 0.8f, 0.3f));
     Math::vec3 lightColor = Math::vec3(1.0f);
     Math::vec3 ambient = Math::vec3(0.2f);
@@ -114,9 +107,7 @@ private:
 
 OceanRenderQueue& OceanDraws();
 
-// Compiles one pipeline variant per OceanQuality tier (SkyOnly/Reflection/
-// ReflectionRefraction), the same #define-driven variant scheme
-// MaterialManager uses for materials.
+// One pipeline variant per OceanQuality tier, #define-driven like MaterialManager's.
 RenderTechnique* createOceanPass();
 
 } // namespace Radion

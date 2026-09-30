@@ -16,12 +16,8 @@ namespace Radion::Physics
 
 class RigidBody;
 
-// A rigid body turned into a car by four (or more) suspended, raycast-probed
-// wheels. Each wheel has no collision shape of its own - it is a ray shot
-// from the chassis along its suspension travel, a spring-damper reacting to
-// how far that ray reached, and a friction pair (forward, sideways) applied
-// as impulses at the contact point. The chassis stays one ordinary dynamic
-// body; the wheels never enter the broadphase.
+// Rigid body turned into a car by suspended, raycast-probed wheels: no collision shape of their own, just a ray along the suspension travel,
+// a spring-damper and a friction pair applied as impulses at the contact. The chassis stays one ordinary dynamic body; wheels never enter the broadphase.
 class RaycastVehicle
 {
 public:
@@ -71,8 +67,7 @@ public:
         f32 suspensionRelativeVelocity = 0.0f;
         f32 clippedInvContactDotSuspension = 1.0f;
         f32 suspensionForce = 0.0f;
-        // What the last update actually applied, for anything balancing on
-        // top of the wheels - a lean controller weighs its target by these.
+        // What the last update actually applied, for anything balancing on the wheels (a lean controller weighs its target by these).
         f32 appliedSuspensionImpulse = 0.0f;
         f32 appliedSideImpulse = 0.0f;
         Math::vec3 lateralWorld{1.0f, 0.0f, 0.0f};

@@ -16,9 +16,7 @@ namespace Radion
 namespace
 {
 
-// Matches the cubemap-face convention CubeFaceUV() in lit.frag decodes a
-// world-space direction with. The two tables have to agree, or a point
-// light's shadow samples the wrong face.
+// Cubemap-face convention of CubeFaceUV() in lit.frag; the two tables must agree.
 const Math::vec3 kFaceDirection[6] = {
     {1.0f, 0.0f, 0.0f},  {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
     {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},  {0.0f, 0.0f, -1.0f},
@@ -46,8 +44,7 @@ bool Lighting::setup()
     entityDesc.debugName = "lighting.entities";
     mEntityBuffer = gpu.createBuffer(entityDesc);
 
-    // Six matrices for every light, the point-light worst case: it is the
-    // simplest bound that never needs to grow.
+    // Six matrices per light: the point-light worst case.
     BufferDesc matrixDesc;
     matrixDesc.size = static_cast<u64>(RenderList::MaxLights) * 6 * sizeof(Math::mat4);
     matrixDesc.usage = BufferStorage;
@@ -70,10 +67,7 @@ bool Lighting::setup()
     cullingDesc.debugName = "lighting.culling";
     mCullingBlock = gpu.createBuffer(cullingDesc);
 
-    // Not loaded here: setup() runs during Engine::initialize(), before a demo
-    // has added its asset search paths (see DepthPass::pipelineFor() and
-    // MaterialManager::resolvePipeline(), which defer for the same reason).
-    // ensureCullPipeline() compiles it on first use instead.
+    // Not loaded in setup(): it runs before assets are mounted; ensureCullPipeline() compiles on first use.
 
     return mEntityBuffer.valid() && mMatrixBuffer.valid() && mLightingBlock.valid() &&
            mCullingBlock.valid() && createAtlasTexture();
@@ -158,9 +152,7 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
     if (!frame.list)
         return;
 
-    // The sun goes in first, by convention: it is the one directional the
-    // Environment path shades, with cascades, so lit.frag's entity loop skips
-    // index 0 and takes every directional after it as an unshadowed fill.
+    // Sun first: lit.frag's entity loop skips index 0 and treats later directionals as unshadowed fill.
     const RenderLight* sun = frame.list->sun();
     u32 shadowedExtras = 0;
     for (const RenderLight& light : frame.list->lights())
@@ -195,13 +187,7 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
         light.shadowAtlasMulAdd = Math::vec4(0.0f);
     }
 
-    // frame.list never holds more than MaxLights to begin with (see
-    // RenderList::addLight), and the sun replaces one directional light
-    // rather than adding on top of it, so this can only shrink the count.
-
-    // Preview mode still needs the light entities for shading and tiled
-    // culling, but their default matrixIndex=-1/shadowFade=0 already means
-    // "unshadowed" to the shaders. Stop before atlas allocation and draws.
+    // Preview mode: default matrixIndex=-1/shadowFade=0 already mean unshadowed; stop before atlas allocation.
     if (!renderShadows)
         return;
 
@@ -211,10 +197,7 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
         return;
 
     GPU& gpu = GPU::getSingleton();
-    // No whole-atlas clear here: with only draws this frame reusing shared
-    // tiles, that would wipe every light's shadow to redraw one. Each tile
-    // below clears and is scissored to just itself instead (see clearRegion),
-    // the same shape as the reference's BeginFrame/SetViewport/EndFrame.
+    // No whole-atlas clear: each tile clears and scissors itself (see clearRegion).
     if (!mAtlas.tiles().empty())
     {
         gpu.setTarget(mAtlasTarget);
@@ -240,9 +223,7 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
             light.matrixIndex = static_cast<s32>(mMatrices.size());
             const Math::mat4 projection =
                 Math::perspective(Math::radians(90.0f), 1.0f, 0.05f, Math::max(0.5f, light.range));
-            // Nothing outside the light's own range is ever lit, whichever
-            // face is drawing - a sphere reject is cheaper than the 90-degree
-            // frustum test and correct for all six faces at once.
+            // Sphere reject is cheaper than the frustum test and valid for all six faces.
             const Sphere cullSphere{light.position, light.range};
             for (u32 face = 0; face < 6; ++face)
             {
@@ -264,9 +245,7 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
                 ClearValue faceClear;
                 faceClear.bits = ClearDepth;
                 gpu.clearRegion(mAtlasTarget, faceRect, faceClear);
-                // A point light's tile never gets polygon offset: depth_point.frag
-                // writes gl_FragDepth by hand and bakes pointBias into that value
-                // itself, so glPolygonOffset here would have no effect on it.
+                // No polygon offset for point lights: depth_point.frag bakes pointBias into gl_FragDepth.
                 depthPass.executePoint(tileFrame, light.position, light.range,
                                        mAtlas.settings.pointBias);
             }
@@ -276,8 +255,7 @@ void Lighting::buildEntities(ShadowCasterSource& casters, FrameContext& frame, D
             light.matrixIndex = static_cast<s32>(mMatrices.size());
             const Math::vec3 up = Math::abs(light.direction.y) > 0.99f ? Math::vec3(0.0f, 0.0f, 1.0f)
                                                                      : Math::vec3(0.0f, 1.0f, 0.0f);
-            // Recovered from coneAngleCos: RenderLight keeps the cosine the
-            // shading needs, not the degrees a shadow FOV is built from.
+            // Recovered from coneAngleCos (RenderLight keeps the cosine).
             const f32 outerDegrees =
                 Math::degrees(std::acos(Math::clamp(light.coneAngleCos, -1.0f, 1.0f)));
             const f32 fov = light.type == RenderLightType::Rectangle
@@ -337,12 +315,7 @@ void Lighting::submitDecals(const DecalSystem& decals)
             break;
         }
 
-        // Reuses the light fields for decal purposes, the same way the
-        // ShaderEntity they land in does: coneAngleCos becomes the slope-fade
-        // exponent, coneAngleScale the opacity, rectangleWidth the normal
-        // strength. direction is the box's own +Z in world space - not the
-        // projection's -Z - because that is the normal a surface facing the
-        // decal should have, and the slope fade compares against it directly.
+        // Decals reuse light fields like ShaderEntity: coneAngleCos = slope-fade exponent, coneAngleScale = opacity, rectangleWidth = normal strength; direction is the box's +Z.
         RenderLight entity;
         entity.type = RenderLightType::Decal;
         entity.flags = decal.baseColorOnlyAlpha ? static_cast<u32>(RenderDecalBaseColorOnlyAlpha) : 0u;
@@ -415,16 +388,8 @@ void Lighting::cull(FrameContext& frame, TextureHandle sceneDepth, u32 screenWid
         frame.lightTileBuffer = mTileBuffer;
     }
 
-    // Bound even when tiled is off: lit.frag declares this SSBO unconditionally,
-    // and an unbound storage binding a shader statically references makes
-    // every following draw fail.
-    //
-    // `tiled` is the setting; `tiledActive` is whether the dispatch below
-    // actually ran this frame. They used to be the same value everywhere -
-    // block.counts.y always published `tiled` - so a missing compute shader,
-    // an invalid depth, an empty entity list or a failed buffer allocation
-    // left the fragment shader reading the tile path anyway, against tile
-    // masks that were never written this frame.
+    // Bound even when tiled is off: lit.frag declares this SSBO unconditionally.
+    // `tiledActive` is whether the dispatch actually ran, unlike the `tiled` setting.
     const bool tiledActive = tiled && mTileBuffer.valid() && sceneDepth.valid() &&
                              screenWidth > 0 && screenHeight > 0 && !mEntities.empty() &&
                              ensureCullPipeline();
@@ -432,9 +397,7 @@ void Lighting::cull(FrameContext& frame, TextureHandle sceneDepth, u32 screenWid
     {
         gpu.bindStorage(0, mEntityBuffer);
         gpu.bindStorage(1, mTileBuffer);
-        // Unit 8, never 0: unit 0 is where a Lit material samples its albedo,
-        // and leaving the scene depth there fails every draw whose shader
-        // statically samples it.
+        // Unit 8, never 0: unit 0 is where a Lit material samples albedo.
         gpu.bindTexture(kCullDepthUnit, sceneDepth);
 
         CullingBlock block;

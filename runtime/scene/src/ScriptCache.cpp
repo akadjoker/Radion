@@ -31,12 +31,7 @@ static bool classDefinesAnyHook(zen::VM& vm, zen::ObjClass* klass)
            classDefinesSlot(klass, vm.intern_selector("on_event", 8));
 }
 
-// A global slot belongs to the script that was just compiled if it did not
-// exist before the run, or if it did and now holds a different class object.
-// Counting only slots past the old num_globals() would miss a recompile: the
-// compiler resolves a name it already knows to the SAME slot index
-// (Compiler::require_global_slot), so a reload declaring "class Foo" again
-// adds no globals at all - it overwrites the one Foo already had.
+// A slot belongs to the new script if it did not exist or now holds a different class. A recompile reuses the same slot index (Compiler::require_global_slot), so counting only new slots would miss it.
 static bool isNewOrRebuiltClass(const std::vector<zen::Value>& before, int index,
                                 zen::ObjClass* klass)
 {
@@ -46,9 +41,7 @@ static bool isNewOrRebuiltClass(const std::vector<zen::Value>& before, int index
     return !zen::is_class(previous) || zen::as_class(previous) != klass;
 }
 
-// The behaviour-class convention documented on ScriptCache: an exact name
-// match among the classes this script just defined wins outright, otherwise
-// the first of them (in declaration order) that defines one of the hooks.
+// An exact name match among the just-defined classes wins, otherwise the first (declaration order) defining a hook.
 static zen::ObjClass* pickBehaviourClass(zen::VM& vm, const std::vector<zen::Value>& before,
                                          const std::string& hintName)
 {
@@ -79,11 +72,7 @@ static zen::ObjClass* pickBehaviourClass(zen::VM& vm, const std::vector<zen::Val
     return nullptr;
 }
 
-// The properties the compiler itself recorded: a field the class body gave a
-// value to. No text is parsed and nothing is guessed - the name, the value
-// and the type are what the class holds. A field that only ever appears
-// inside a method has a name here but no value, which is what keeps working
-// state (and the owner/scene the bindings add) out of the inspector.
+// Only what the compiler recorded: fields given a value in the class body. A field that only appears in a method has a name but no value, which keeps working state out of the inspector.
 static void collectClassProperties(zen::ObjClass* klass, std::vector<ScriptProperty>& out)
 {
     if (!klass || !klass->field_names || !klass->field_defaults)
@@ -124,7 +113,7 @@ static void collectClassProperties(zen::ObjClass* klass, std::vector<ScriptPrope
         }
         else
         {
-            // None, or something with no editor representation.
+            // None, or no editor representation.
             continue;
         }
         out.push_back(property);
@@ -145,17 +134,13 @@ static int resolveSlot(zen::VM& vm, zen::ObjClass* klass, const char* name, int 
     return classDefinesSlot(klass, slot) ? slot : -1;
 }
 
-// Zero-initialised before any dynamic initialisation runs, so it is already
-// false while the singleton does not exist yet and false again once it is
-// gone. Only the constructor and destructor below ever write it.
+// Zero-initialised before dynamic initialisation, so false before and after the singleton's life; only the constructor and destructor write it.
 static bool gScriptCacheAlive = false;
 
 static const char* const kFileKeyPrefix = "file:";
 static const usize kFileKeyPrefixLength = 5;
 
-// Raw tick count of the file's last write, or 0 if it cannot be read. The
-// value is only ever compared against another reading of the same file, so
-// the epoch it counts from does not matter.
+// Raw tick count; only compared against another reading of the same file, so the epoch does not matter.
 static s64 fileWriteTime(const std::string& path)
 {
     std::error_code error;
@@ -178,10 +163,7 @@ ScriptCache::ScriptCache()
 {
     gScriptCacheAlive = true;
     mScriptVM.registerModule(SceneScriptBindings::library());
-    // Passed directly rather than through getSingleton(): this constructor is
-    // still on the stack under the static local that getSingleton() guards,
-    // so calling back into it here would re-enter that guard before this
-    // object is fully constructed.
+    // Passed directly, not via getSingleton(): this constructor is still under the static-local guard, so calling back would re-enter it.
     SceneScriptBindings::registerComponentClasses(*this);
     zen::GC& gc = mScriptVM.vm()->get_gc();
     gc.extra_mark = &ScriptCache::gcMarkExtraRoots;
@@ -197,23 +179,16 @@ void ScriptCache::gcMarkExtraRoots(zen::GC* gc, void* userData)
 {
     ScriptCache* cache = static_cast<ScriptCache*>(userData);
 
-    // Every cached class stays alive for the cache's whole lifetime, even
-    // if a later script reuses its class name and shadows it in the VM's
-    // globals - without this, the old ObjClass (and any instance still
-    // running it) would dangle the moment the GC swept it.
+    // Every cached class stays alive for the cache's lifetime, else a shadowed ObjClass (and instances running it) would dangle when the GC swept it.
     for (auto& entry : cache->mEntries)
         zen::gc_mark_value(gc, entry.second.classValue);
 
-    // Instances of script-defined classes are ordinary (non-persistent) GC
-    // objects; a ZenBehaviour is the only thing holding one between frames.
+    // Instances of script-defined classes are ordinary GC objects; a ZenBehaviour is the only holder between frames.
     for (const zen::Value& value : cache->mProtectedInstances)
         zen::gc_mark_value(gc, value);
 }
 
-// The whole file as text, empty (with ok false) if it cannot be opened.
-// ScriptCache reads scripts itself rather than through ScriptVM::runFile()
-// because the source text is needed twice: once to compile, once to scan the
-// declared properties out of it.
+// Read here, not via ScriptVM::runFile(): the source is needed twice (compile, and scanning declared properties).
 static std::string readWholeFile(const std::string& path, bool& ok)
 {
     std::ifstream file(path, std::ios::binary);
@@ -278,9 +253,7 @@ ScriptCache::Entry* ScriptCache::buildEntry(const std::string& key, bool isFile,
     stored.properties.clear();
     collectClassProperties(klass, stored.properties);
 
-    // A field a constructor declares is not on the class - __init__ writes it
-    // on the instance - so the source is still read for those, and anything
-    // the class already declared wins over it.
+    // Constructor-declared fields live on the instance, not the class, so the source is scanned; class-declared ones win.
     std::vector<ScriptProperty> fromInit;
     ScriptProperties::scan(text.c_str(), fromInit);
     for (usize i = 0; i < fromInit.size(); ++i)
@@ -292,11 +265,7 @@ ScriptCache::Entry* ScriptCache::buildEntry(const std::string& key, bool isFile,
 
 const ScriptCache::Entry* ScriptCache::loadFile(const std::string& path, std::string& outError)
 {
-    // Scene files keep the authored path (usually "Scripts/foo.zen"), while
-    // FileSystem owns the project's search paths. Compile from its resolved
-    // real path so the editor and the standalone runner find the same script
-    // regardless of their working directory; the component still retains the
-    // authored path for serialization and Inspector display.
+    // Scene files keep the authored path while FileSystem owns the search paths: compile from the resolved path so editor and standalone runner agree; the component keeps the authored path.
     const std::string resolved = FileSystem::getSingleton().resolve(path);
     if (resolved.empty())
     {
@@ -354,16 +323,11 @@ int ScriptCache::refreshChangedFiles()
 
         const std::string path = pair.first.substr(kFileKeyPrefixLength);
         const s64 written = fileWriteTime(path);
-        // A file that has gone missing keeps the compile it already has:
-        // dropping a working script because the path broke would be a worse
-        // outcome than running a version one edit behind.
+        // A missing file keeps its existing compile rather than dropping a working script.
         if (written == 0 || written == pair.second.sourceTime)
             continue;
 
-        // buildEntry() writes back through mEntries[key] for a key that is
-        // already present, which replaces the mapped value in place - no
-        // insert, no rehash, so iterating here stays valid. A failed
-        // recompile leaves the old entry untouched.
+        // buildEntry() replaces the mapped value in place (no insert, no rehash), so iterating stays valid. A failed recompile leaves the old entry.
         const std::string hint = std::filesystem::path(path).stem().string();
         std::string error;
         if (buildEntry(pair.first, true, path, hint, error))
@@ -451,11 +415,7 @@ void ScriptCache::forgetInstance(void* pointer)
     auto found = mInstances.find(pointer);
     if (found == mInstances.end())
         return;
-    // The cached handle's class is persistent (registerComponentClasses()),
-    // so it is never collected - dropping the cache entry alone would leave
-    // native_data pointing at whatever the component's freed memory becomes
-    // next. Clearing it here is what every component native's own
-    // self*(args) null check (selfCamera, selfLight, ...) then sees.
+    // The handle's class is persistent, so dropping the cache entry alone would leave native_data dangling; clearing it is what the self*(args) null checks see.
     if (zen::is_instance(found->second.value))
         zen::as_instance(found->second.value)->native_data = nullptr;
     mInstances.erase(found);

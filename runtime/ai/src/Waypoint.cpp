@@ -1,5 +1,3 @@
-// Waypoint.cpp - implementation of Waypoint.
-
 #include "PCH.h"
 
 #include "Waypoint.h"
@@ -60,10 +58,7 @@ void Waypoint::clearEdges()
 float Waypoint::costForEdge(const NetworkEdge& edge, const WaypointNetwork& network) const
 {
     const Waypoint* dest = network.findWaypoint(edge.destination);
-    // WaypointNetwork::findPath() already skips edges whose destination does
-    // not resolve, so this path never feeds the search. It is still reachable
-    // by any other caller, so a missing destination must read as "impassable",
-    // not "free": 0.0f here used to look like a zero-cost edge.
+    // findPath() skips unresolved destinations, but other callers can reach this: a missing one must read as impassable, not free.
     if (!dest)
         return FLT_MAX;
     return Math::length(mPosition - dest->position()) * edge.costModifier;

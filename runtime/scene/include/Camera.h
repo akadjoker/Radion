@@ -2,7 +2,7 @@
 #define RADION_CAMERA_H
 
 #include "Component.h"
-#include "GPU.h" // TextureHandle, for the recording target
+#include "GPU.h"
 #include "GameObject.h"
 #include "Math.h"
 
@@ -34,28 +34,15 @@ public:
     Math::mat4 projectionMatrix() const;
     Math::mat4 viewProjectionMatrix() const;
 
-    // Builds a world-space picking ray from window mouse coordinates. The
-    // viewport is supplied by the render pass, so split-screen and editor
-    // previews use the same camera API.
     Ray rayFromMouse(f32 mouseX, f32 mouseY, const FloatRect& viewport) const;
 
-    // ---- recording -----------------------------------------------------
-    //
-    // A recording camera renders its own view into its own texture every
-    // frame, at its own resolution - nothing to do with the window's. That
-    // is what a camera sensor is, and it is equally what feeds a monitor in
-    // the scene, a rear-view mirror or a security screen.
-    //
-    // The resolution is the point: a sensor wants 320x240 or 640x480, not
-    // whatever the window happens to be. A small target costs a small
-    // render.
+    // Renders into its own texture at its own resolution (sensor, monitor, mirror).
     void setRecording(bool recording);
     bool recording() const
     {
         return mRecording;
     }
-    // Clamped to at least 1x1. Changing it drops the current texture, so a
-    // handle taken before the call must not be kept across it.
+    // Changing it drops the texture; do not keep a handle across the call.
     void setRecordSize(u32 width, u32 height);
     u32 recordWidth() const
     {
@@ -66,9 +53,6 @@ public:
         return mRecordHeight;
     }
 
-    // Last frame's picture, or an invalid handle before the first one is
-    // rendered (and whenever recording is off). Valid to sample, draw, or
-    // read back.
     TextureHandle recordTexture() const
     {
         return mRecordTexture;

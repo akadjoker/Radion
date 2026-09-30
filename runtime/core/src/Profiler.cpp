@@ -33,9 +33,7 @@ void Profiler::endFrame()
     if (frameSample < MaxSamples)
         mSamples[frameSample].milliseconds = mFrameMilliseconds;
 
-    // One frame in four hundred milliseconds' worth is handed to the panel,
-    // whole - every row from the same frame, so what they add up to is a
-    // frame that actually happened rather than a mixture of several.
+    // A frame is handed to the panel whole, so every row comes from the same frame.
     const bool refresh = (now - mLastRefresh) > static_cast<u64>(RefreshSeconds * mFrequency);
     if (refresh)
     {

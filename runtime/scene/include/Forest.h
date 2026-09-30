@@ -21,11 +21,7 @@ class Forest final : public Component
 public:
     static constexpr ComponentType Type = ComponentType::Forest;
 
-    // Generates the mesh and scales it so the tree stands `height` metres
-    // tall, whatever the parameters happened to produce. `twigTexture` picks
-    // which entry set by setTwigTextures() this species' leaf cards sample -
-    // out of range falls back to entry 0. Returns the species index, or -1 if
-    // the generator gave nothing usable.
+    // Out-of-range twigTexture falls back to entry 0. Returns the species index, or -1.
     s32 addSpecies(const TreeParams& params, f32 height = 14.0f, f32 weight = 1.0f,
                    u32 twigTexture = 0);
     bool rebuildSpecies(u32 species, const TreeParams& params, f32 height);
@@ -48,48 +44,35 @@ public:
 
     void setBarkTexture(const std::string& albedo, const std::string& normalMap = std::string());
 
-    // Twig cards vary by species; each entry here is what a species'
-    // `twigTexture` index into addSpecies() refers to.
     void setTwigTextures(const std::vector<std::string>& albedoPaths);
     void addTwigTexture(const std::string& albedoPath);
     bool removeTwigTexture(u32 index);
 
-    // Trees redraw once per shadow cascade, so turning this off is the knob
-    // for a scene where that cost outweighs the shadows it buys.
+    // Trees redraw once per shadow cascade.
     void setCastShadows(bool enabled);
     bool castsShadows() const;
 
-    // Leaf sway. Only the leaves move - the trunk is rigid and its base is in
-    // the ground, so swaying it would give a rubber tree.
+    // Only the leaves sway; the trunk is rigid.
     void setWind(f32 strength);
     f32 wind() const;
     void setBarkBumpForce(f32 force);
     f32 barkBumpForce() const;
 
-    // Where the leaf cards are cut. Low lets the thin tips through but also
-    // the texture's halo; high eats the tips and the crown thins out.
     void setAlphaCut(f32 cut);
     f32 alphaCut() const;
 
-    // Beyond swapDistance a tree becomes a photographed quad. The band is the
-    // overlap where both draw and the impostor fades in over the mesh - zero
-    // makes the handover a pop.
+    // The band is where both draw; zero makes the handover pop.
     void setImpostorsEnabled(bool enabled);
     bool impostorsEnabled() const;
     void setSwapDistance(f32 metres);
     f32 swapDistance() const;
     void setSwapBand(f32 metres);
     f32 swapBand() const;
-    // The impostor quad's width over its height. A tree is taller than it is
-    // wide, so a square quad leaves the crown floating in empty space; too
-    // narrow and the crown is clipped at the handover.
     void setImpostorWidth(f32 ratio);
     f32 impostorWidth() const;
     u32 impostorsVisible() const;
 
-    // Scatters `count` trees inside a disc, in the owner's local space, flat
-    // on the centre's own y plane. Following terrain height is the caller's
-    // job - plant() takes whatever position it is given.
+    // Flat on the centre's y plane; following terrain is the caller's job.
     u32 paint(const Math::vec3& centre, f32 radius, u32 count);
     bool plant(const Math::vec3& position, u32 species, f32 scale = 1.0f, f32 yawDegrees = 0.0f);
     void clear();
@@ -110,8 +93,6 @@ public:
     void setSeed(u32 seed);
     u32 seed() const;
 
-    // Optional occupancy grid. When set, paintFromGrid() plants one tree per
-    // cell marked as Tree using the species/scale/yaw stored in the cell.
     void setGrid(VegetationGrid* grid);
     const VegetationGrid* grid() const;
     u32 paintFromGrid();
@@ -130,14 +111,11 @@ private:
         f32 height = 14.0f;
         u32 twigTexture = 0;
 
-        // Rebuilt each frame in submitCamera(): world-space instances for the
-        // tree pass, already distance-culled. Kept per species so the vector's
-        // storage survives between frames instead of reallocating.
+        // Rebuilt each frame in submitCamera(); kept per species to reuse storage.
         std::vector<TreeInstanceData> batch;
         std::vector<TreeInstanceData> impostorBatch;
 
-        // Bumped by buildSpecies(): the mesh changed, so whatever photographs
-        // the tree pass holds of it are stale.
+        // Bumped by buildSpecies(); stale impostor photographs.
         u32 impostorRevision = 0;
     };
 
@@ -152,9 +130,6 @@ private:
     Forest();
     void onDestroy() override;
 
-    // Drops what is beyond the draw distance and hands the rest to the list,
-    // which does the frustum test itself. Grouped by species so the sort has
-    // less to move.
     void submit(RenderList& list, const Math::mat4& transform, const Math::vec3& cameraPosition);
     void submitCamera(const Math::mat4& transform, const Math::vec3& cameraPosition);
     void submitShadow(RenderList& list, const Math::mat4& transform,

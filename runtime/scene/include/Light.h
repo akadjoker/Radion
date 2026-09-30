@@ -107,9 +107,7 @@ private:
     f32 mHeight = 1.0f;
 };
 
-// All four register as ComponentType::Light and share one slot on the object,
-// so the slot says a light is there but never which one. lightType() is the
-// only thing that does - these are what let is<T>()/as<T>() ask it.
+// All four light classes share ComponentType::Light; lightType() is the discriminator.
 #define RADION_LIGHT_MATCH(Class, Kind)                                                            \
     template <> struct ComponentMatch<Class>                                                       \
     {                                                                                              \

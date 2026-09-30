@@ -11,10 +11,7 @@ namespace Radion
 
 namespace
 {
-// Material GPU resources belong to the material instance that created them.
-// An override is a value copy, so carrying these handles across aliases the
-// mesh material's uniform buffer/pipeline and lets editing one object affect
-// other objects (or update a destroyed buffer after a mesh replacement).
+// An override is a value copy; carrying GPU handles across would alias the mesh material's UBO/pipeline, so editing one object would affect others.
 Material materialForOverride(const Material& source)
 {
     Material copy = source;
@@ -41,8 +38,7 @@ void MeshRenderer::setMesh(MeshHandle mesh)
 {
     if (mMesh == mesh)
         return;
-    // Overrides are authored against the old mesh's slot layout and own
-    // their parameter buffers. Neither may follow a different mesh.
+    // Overrides are authored against the old mesh's slot layout and own their parameter buffers; neither may follow a different mesh.
     clearMaterialOverrides();
     if (!mHiddenSubmeshes.empty())
     {
@@ -72,14 +68,7 @@ void MeshRenderer::setMaterialOverride(u32 slot, const Material& material)
 {
     if (slot >= mMaterialOverrides.size())
     {
-        // std::vector::resize value-initializes every new slot to a blank
-        // Material() - and emitSubmesh() (RenderList.cpp) reads ANY index
-        // below materialOverrideCount() as a real override, mesh's own
-        // material or not. Left blank, setting slot 12 alone would silently
-        // blank out every submesh on slots 0-11 too: untextured, unlit,
-        // white. Filling each new slot with the mesh's own material first
-        // keeps every index genuinely valid the instant it exists, so only
-        // the one slot actually being set here ever changes what renders.
+        // resize() value-initializes blank Materials, and emitSubmesh() reads any index below materialOverrideCount() as a real override; fill new slots with the mesh's own material or setting slot 12 would blank slots 0-11.
         const usize previousCount = mMaterialOverrides.size();
         mMaterialOverrides.resize(slot + 1);
         const Mesh* mesh = Assets().getMesh(mMesh);
@@ -88,8 +77,7 @@ void MeshRenderer::setMaterialOverride(u32 slot, const Material& material)
                 mMaterialOverrides[i] = materialForOverride(mesh->materials[i]);
     }
     Material replacement = materialForOverride(material);
-    // sync() may already have allocated a UBO for this slot. Replacing the
-    // value without releasing it leaks one buffer on every Inspector edit.
+    // sync() may have allocated a UBO for this slot; replacing without releasing leaks one buffer per Inspector edit.
     MaterialManager::getSingleton().release(mMaterialOverrides[slot]);
     mMaterialOverrides[slot] = std::move(replacement);
     if (const Mesh* mesh = Assets().getMesh(mMesh))

@@ -1,19 +1,4 @@
-// FormationBehavior.cpp - formation placement for squad members.
-//
-// All offset arithmetic is done on the XZ plane; a zero-length guard protects
-// the final orientation build (a zero dir would feed NaNs through).
-//
-// Pentagon/Diamond/Abreast/SingleFile are a faithful port of
-// docs/ai/AI_Demo/Source/FormationBehavior.cpp (offsets verified line by
-// line). Wedge, V and Circle have no counterpart there - that reference only
-// defines the first four - they are original additions, not a port.
-//
-// Pentagon's mirrored flank direction deliberately does not match the
-// reference: it computed v2 by negating v1's world-X component, which only
-// mirrors correctly while the leader faces world +Z. Here v2 is the -45
-// degree rotation of the leader's look (mirrored across the plane spanned by
-// the look direction and the rotation axis), which is correct for any leader
-// heading.
+// Offsets are on the XZ plane; a zero-length guard protects the final orientation build (NaNs).
 
 #include "PCH.h"
 
@@ -81,11 +66,7 @@ void FormationBehavior::iterate(float timeDelta, Agent& entity)
     if (entity.squadId() == 0)
         return;
 
-    // The leader comes from this agent's own squad link, not from a scan of
-    // the scene. Scanning found "the last agent with squadId 0 anywhere",
-    // which is one squad's leader picked at random once a second squad
-    // exists - members of A formed up on B's leader. The link also makes
-    // this O(1) instead of a walk over every agent, per member, per frame.
+    // Leader comes from this agent's squad link, not a scene scan (which picked another squad's leader).
     mSquadLeader = entity.squadLeader();
     mPointMan = nullptr;
     if (!mSquadLeader)
@@ -103,7 +84,6 @@ void FormationBehavior::iterate(float timeDelta, Agent& entity)
     if (!mPointMan || !mSquadLeader)
         return;
 
-    // Orientation basis vectors: right = +X, up = +Y, forward (look) = +Z.
     Math::mat3 pointManBasis = Math::mat3_cast(mPointMan->orientation());
     mPointManLook = pointManBasis[2];
     mPointManRight = pointManBasis[0];
@@ -142,18 +122,14 @@ void FormationBehavior::iterate(float timeDelta, Agent& entity)
         break;
     }
 
-    // The formation slot becomes the member's goal radius.
     entity.setGoalRadius(mFormationRadius);
     mPointMan->setGoalRadius(mGoalRadius);
 
-    // Build the facing orientation from the formation direction (XZ only).
     dir.y = 0.0f;
     Math::vec3 up(0.0f, 1.0f, 0.0f);
     Math::vec3 lk = dir;
     float lkLen = Math::length(lk);
-    // Near a formation slot the direction is dominated by floating-point
-    // noise. Rebuilding the quaternion from that tiny vector makes a stopped
-    // agent flip between two headings every frame.
+    // Near a slot the direction is float noise; rebuilding the quaternion would flip a stopped agent between headings.
     if (lkLen > 0.1f)
     {
         lk /= lkLen;
@@ -164,7 +140,6 @@ void FormationBehavior::iterate(float timeDelta, Agent& entity)
     }
     else
     {
-        // No direction yet - keep the goal, leave the current orientation.
         entity.setGoal(goal);
     }
 }
@@ -219,7 +194,6 @@ void FormationBehavior::abreast(Agent& entity, Math::vec3& goal, Math::vec3& dir
         break;
     }
 
-    // Everyone orients on the goal.
     dir = goal - squadmate.position();
 }
 
@@ -255,9 +229,7 @@ void FormationBehavior::pentagon(Agent& entity, Math::vec3& goal, Math::vec3& di
 {
     const Agent& squadmate = entity;
 
-    // Rotate the leader's look by 45 degrees about the world up axis.  The
-    // opposite diagonal must be rotated in the leader's local frame; mirroring
-    // the global X component only works while the leader faces +Z.
+    // Rotate the leader's look 45 degrees about world up, in the leader's local frame (mirroring global X only works facing +Z).
     Math::vec3 v1 = Math::angleAxis(Math::radians(45.0f), Math::vec3(0.0f, 1.0f, 0.0f)) * mLeaderLook;
     Math::vec3 v2 = Math::angleAxis(Math::radians(-45.0f), Math::vec3(0.0f, 1.0f, 0.0f)) * mLeaderLook;
 

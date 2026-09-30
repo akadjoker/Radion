@@ -13,16 +13,11 @@
 namespace Radion
 {
 
-// Radion's own archive: one file holding many, deflated and optionally
-// encrypted, laid out as
-//
-//   header      64 bytes, the only part ever stored in the clear
-//   data        every entry's bytes, back to back, in the order added
-//   directory   the table below plus the name blob, encrypted as one region
-//
-// Unlike ZipArchive, which keeps the whole archive in memory, only the
-// directory is resident: an entry's bytes are read from the open file when
-// asked for. Reads are not thread-safe - one file cursor is shared.
+// Radion archive: deflated, optionally encrypted. Layout:
+//   header      64 bytes, the only part stored in the clear
+//   data        entry bytes back to back, in order added
+//   directory   table plus name blob, encrypted as one region
+// Only the directory is resident; reads are not thread-safe (one shared file cursor).
 class FilePack : public Archive
 {
 public:
@@ -47,13 +42,9 @@ public:
     FilePack(const FilePack&) = delete;
     FilePack& operator=(const FilePack&) = delete;
 
-    // Pass the same key the pack was written with, or an empty string for one
-    // written without. A wrong key is rejected here, with its own message,
-    // rather than surfacing later as entries that fail their checksum.
+    // Key must match the one used to write (empty for none); a wrong key is rejected here.
     bool open(const std::string& path, const std::string& key);
-    // Reads a pack that is already in memory - a build's own embedded copy,
-    // typically. The bytes are borrowed, not copied: they must outlive this
-    // FilePack, which static storage does by definition.
+    // Reads an in-memory pack; the bytes are borrowed and must outlive this FilePack.
     bool openFromMemory(const u8* data, usize size, const std::string& key);
     void close();
     bool isOpen() const;
@@ -62,7 +53,6 @@ public:
     ByteArray readBinary(const std::string& name) const override;
 
     u32 entryCount() const;
-    // Empty / zero for an index past entryCount().
     const std::string& entryName(u32 index) const;
     u32 entrySizeRaw(u32 index) const;
     u32 entrySizeStored(u32 index) const;
@@ -90,8 +80,7 @@ private:
     bool mEncrypted;
 };
 
-// Builds a FilePack. Entries are held in memory until write(), already
-// deflated, so a pack costs about its own compressed size to assemble.
+// Builds a FilePack; entries are held in memory, already deflated, until write().
 class FilePackWriter
 {
 public:
@@ -101,15 +90,11 @@ public:
     FilePackWriter(const FilePackWriter&) = delete;
     FilePackWriter& operator=(const FilePackWriter&) = delete;
 
-    // An empty key writes a pack with no encryption at all, not one keyed on
-    // the empty string.
+    // An empty key means no encryption, not a key of the empty string.
     void setKey(const std::string& key);
-    // miniz deflate level, 0 (store) to 9. Defaults to 9.
     void setCompressionLevel(int level);
 
-    // `name` is what FilePack::readBinary() will be asked for; `path` is where
-    // the bytes come from now. Adding a name twice fails - the second one
-    // could never be read back.
+    // `name` is what FilePack::readBinary() is asked for; adding a name twice fails.
     bool addFile(const std::string& name, const std::string& path);
     bool addData(const std::string& name, const u8* data, usize size);
 

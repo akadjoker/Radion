@@ -8,14 +8,8 @@
 namespace Radion
 {
 
-// ChaCha20 as specified in RFC 8439: a 32-byte key and a 12-byte nonce select
-// a keystream, which process() XORs into the caller's bytes. Encrypting and
-// decrypting are the same call.
-//
-// What this buys, and what it does not: a shipped build carries the key it
-// uses, so anyone willing to read the binary can recover it. This raises the
-// cost of opening a pack from "rename it to .zip" to "reverse the loader",
-// and nothing beyond that. It is not protection against an attacker.
+// ChaCha20 per RFC 8439; encrypting and decrypting are the same call.
+// Obfuscation only: a shipped build carries its key, so this stops casual pack opening, not an attacker.
 class ChaCha20
 {
 public:
@@ -27,16 +21,11 @@ public:
     ChaCha20();
 
     void setKey(const u8 key[KeySize]);
-    // `counter` is the block index the next process() call starts from.
     void setNonce(const u8 nonce[NonceSize], u32 counter);
 
-    // XORs the keystream into `data` in place, advancing the block counter.
     void process(u8* data, usize size);
 
-    // Stretches a passphrase of any length into a key, iterating the ChaCha20
-    // permutation over the salt. An iterated permutation, not a memory-hard
-    // KDF: it makes a short passphrase cost something to guess offline, and
-    // makes two packs built from the same passphrase carry different keys.
+    // Iterated permutation over the salt, not a memory-hard KDF.
     static void deriveKey(const std::string& passphrase, const u8 salt[SaltSize],
                           u8 key[KeySize]);
 

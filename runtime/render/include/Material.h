@@ -23,67 +23,34 @@ enum MaterialFlags : u32
     MaterialNoDepthWrite = 1 << 7,
     MaterialAnimated = 1 << 8,
 
-    // Shaded by lit.vert/lit.frag - the sun with cascades, the local
-    // lights out of the entity buffer, and the shadow atlas. Without it a
-    // material takes the unlit path.
+    // Shaded by lit.vert/lit.frag (sun cascades, local lights, shadow atlas); otherwise the unlit path.
     MaterialLit = 1 << 9,
 
-    // Compiles lit.frag with LANDSCAPE_REGIONS: the vertex's four weights pick
-    // among four textures instead of sampling one through uAlbedoTex. Only
-    // Landscape sets this - an ordinary mesh has no weight attribute for the
-    // shader to read.
+    // Compiles lit.frag with LANDSCAPE_REGIONS: the vertex's four weights pick among four textures. Only Landscape sets this (other meshes have no weight attribute).
     MaterialLandscape = 1 << 10,
 
-    // A flat mirror, ordinary Lit geometry otherwise - not Water/Ocean's own
-    // pipeline. Compiles lit.frag with HAS_MIRROR, which samples the same
-    // planar reflection Renderer::executeReflection() renders for a water
-    // surface, screen-space projected the same way (ocean.frag's own
-    // technique). Renderer picks the first MaterialMirror packet it finds
-    // in the frame's opaque list as ITS plane too, alongside water - one
-    // plane per frame, same "first one wins" the water path already
-    // documents (Renderer::executeReflection).
+    // A flat mirror, otherwise ordinary Lit geometry. Compiles lit.frag with HAS_MIRROR, sampling the planar reflection Renderer::executeReflection() renders for water.
+    // One plane per frame: the first MaterialMirror packet in the opaque list wins (see Renderer::executeReflection).
     MaterialMirror = 1 << 11,
 
-    // Offsets vUV by the view direction before Albedo/Normal/Surface sample
-    // it, using SlotHeight - lit.frag's HAS_PARALLAX path. Needs SlotHeight
-    // bound to do anything; the flag alone with no texture leaves the UV
-    // untouched, same as MaterialReflection with no probe in range.
+    // Offsets vUV by view direction via SlotHeight (lit.frag HAS_PARALLAX path); with no SlotHeight bound the UV is untouched.
     MaterialParallax = 1 << 12,
 
-    // SlotSurface is read as a glTF-style metallic-roughness texture
-    // (G channel = roughness, B channel = metalness, both still multiplied
-    // by the material's own uRoughness/uMetallic scalars) instead of the
-    // legacy specular map lit.frag otherwise reads there (R channel,
-    // roughness = 1 - specular). A material never means both at once from
-    // the same texture.
+    // SlotSurface is a glTF metallic-roughness texture (G = roughness, B = metalness, times uRoughness/uMetallic) instead of the legacy specular map (R, roughness = 1 - specular).
     MaterialMetallicRoughnessMap = 1 << 13,
 
-    // SlotSurface is read as a glTF KHR_materials_pbrSpecularGlossiness map:
-    // RGB = specular colour, A = glossiness. Mutually exclusive with the two
-    // readings above - the three are different packings of the same slot.
-    // params.custom0 carries (specularFactor.rgb, glossinessFactor); a
-    // material using this never also uses a detail map, which is the other
-    // claimant on custom0.
+    // SlotSurface is a glTF KHR_materials_pbrSpecularGlossiness map (RGB = specular, A = glossiness); exclusive with the two readings above.
+    // params.custom0 carries (specularFactor.rgb, glossinessFactor), so no detail map.
     MaterialSpecularGlossinessMap = 1 << 14,
 
-    // Finite heightmap terrain. Slots 0-3 are four albedo layers rather than
-    // the ordinary albedo/normal/surface/detail meanings; SlotColorMap is an
-    // optional RGBA splat map and SlotHeight an optional large-scale colour
-    // map. It keeps the shared Lit lighting path, but selects TerrainSurface()
-    // in lit.frag.
+    // Finite heightmap terrain. Slots 0-3 are four albedo layers; SlotColorMap is an optional RGBA splat map, SlotHeight an optional large-scale colour map. Selects TerrainSurface() in lit.frag.
     MaterialTerrain = 1 << 15,
 
-    // The terrain's other surface state. Instead of blending four layers by
-    // height and slope, SlotAlbedo is one authored image stretched over the
-    // whole terrain through uv2, multiplied by SlotDetail tiled across it -
-    // params.custom0 carries (detail tiles, detail strength), the same pair
-    // the ordinary Lit detail path reads. Only meaningful with
-    // MaterialTerrain: alone it does nothing.
+    // Terrain variant: SlotAlbedo is one image stretched over the terrain through uv2, times SlotDetail tiling; params.custom0 = (detail tiles, detail strength).
+    // Only meaningful with MaterialTerrain.
     MaterialTerrainClassic = 1 << 16,
 
-    // A voxel mesh stores repeated face coordinates in UV0 and the atlas tile
-    // origin in UV1. Lit reconstructs the sample UV within that tile so a
-    // greedy quad repeats its block texture instead of stretching it.
+    // Voxel meshes store repeated face coordinates in UV0 and the atlas tile origin in UV1; Lit rebuilds the sample UV within the tile so greedy quads repeat the texture.
     MaterialVoxelAtlas = 1 << 17,
 };
 
@@ -107,14 +74,7 @@ enum MaterialPipelinePass : u8
     MaterialPipelineNoTemporal = 1 << 0
 };
 
-// ------------------------------------------------------------ slots
-
-// The first four positions in Material::textures are fixed; the rest are
-// free per kind. The shader relies on this order. Slots 4-7 have a fixed
-// meaning too, just not one every material uses - ForwardPass only binds
-// them under the pipeline variant that reads them (Detail under Lit,
-// ColorMap under MaterialLandscape, Lightmap when uv2 carries one, Height
-// under MaterialParallax).
+// The first four slots are fixed and the shader relies on the order. Slots 4-7 are fixed too but bound only under the variant that reads them (Detail under Lit, ColorMap under Landscape, Lightmap with uv2, Height under Parallax).
 enum MaterialSlot : u8
 {
     SlotAlbedo = 0,
@@ -129,10 +89,7 @@ enum MaterialSlot : u8
     MaterialSlotCount = 8
 };
 
-// How the bytes in a texture file are to be read. Colour authored for a
-// display (albedo, emissive) is sRGB-encoded and has to be decoded before it
-// can be shaded with; data that only looks like colour (normals, roughness,
-// masks, height) is already linear and decoding it would corrupt it.
+// How texture bytes are read: sRGB colour (albedo, emissive) must be decoded; data textures (normals, roughness, masks, height) are already linear.
 enum class ColorSpace : u8
 {
     Linear,
@@ -151,18 +108,14 @@ struct MaterialTexture
 {
     TextureHandle texture;
     SamplerHandle sampler;
-    // Source path retained so runtime-generated materials can be serialized
-    // again (for example a baked lightmap written by the Bistro demo).
+    // Source path retained so runtime-generated materials can be serialized again.
     std::string file;
     TextureSource source = TextureSource::None;
     u16 layers = 0;     // Sequence only
     u32 targetName = 0; // name hash, RenderTarget only
 };
 
-// ------------------------------------------------------------ parameters
-
-// std140 block of 128 bytes uploaded verbatim. Every field up to 'custom' has
-// a fixed meaning; the render technique decides how custom fields are used.
+// std140 block of 128 bytes uploaded verbatim; fields up to 'custom' have fixed meaning.
 struct MaterialParams
 {
     Math::vec4 baseColor = Math::vec4(1.0f);
@@ -177,8 +130,6 @@ struct MaterialParams
 
 static_assert(sizeof(MaterialParams) == 128, "block must match the std140 layout in the shader");
 
-// ------------------------------------------------------------ animation
-
 enum class Curve : u8
 {
     Linear,
@@ -187,8 +138,7 @@ enum class Curve : u8
     Noise
 };
 
-// Points at one field of MaterialParams: the vec4 index plus which of the four
-// components the curve writes.
+// Points at one MaterialParams field: the vec4 index plus which components the curve writes.
 struct MaterialAnim
 {
     u8 field = 0;
@@ -200,16 +150,11 @@ struct MaterialAnim
     Math::vec4 max = Math::vec4(1.0f);
 };
 
-// ------------------------------------------------------------ material
-
 struct Material
 {
     static constexpr u32 MaxAnims = 4;
 
-    // The one place the slot-to-colour-space rule lives. Callers never decide
-    // this themselves: forgetting once leaves a texture undecoded but still
-    // encoded on the way out, which reads as washed-out colour and nothing
-    // else in the frame points at the cause.
+    // The one place the slot-to-colour-space rule lives; a wrong choice reads as washed-out colour with no visible cause.
     static ColorSpace colorSpaceFor(MaterialSlot slot);
     static ColorSpace colorSpaceFor(MaterialSlot slot, u32 flags);
 
@@ -233,29 +178,21 @@ struct Material
     u32 nameHash = 0;
 };
 
-// Bindings every forward shader agrees on. BindingMaterial is filled by
-// MaterialManager::sync(); the rest belong to the technique doing the draw.
+// Bindings every forward shader agrees on; BindingMaterial is filled by MaterialManager::sync(), the rest by the drawing technique.
 enum UniformBinding : u32
 {
     BindingCamera = 0,
     BindingMaterial = 1,
 
-    // The reflection camera's own view-projection - only water.vert reads
-    // this, to project a point through a different camera than the one
-    // drawing it. Set by WaterPass from the same matrix ReflectionPass used.
+    // Reflection camera view-projection; only water.vert reads it. Set by WaterPass from ReflectionPass's matrix.
     BindingReflectionCamera = 2,
     BindingDirectionalShadow = 3,
 
-    // The frame's sun and ambient, from the sky. See EnvironmentBlock.h.
     BindingEnvironment = 4,
 
-    // Per-frame entity/tile counts the lit pipeline reads alongside the
-    // entity SSBOs below. See Lighting.h.
     BindingLighting = 5,
 
-    // Time and the camera's near/far, which the water surface needs and no
-    // other block carries: near/far to linearize the refraction depth it
-    // samples, time to scroll its noise. See WaterBlock.
+    // Time and camera near/far for water: near/far linearize the refraction depth, time scrolls noise. See WaterBlock.
     BindingWater = 6,
     BindingTemporal = 7,
 };
@@ -266,19 +203,13 @@ enum StorageBinding : u32
     BindingInstances = 0,
     BindingPalettes = 1,
 
-    // Local lights and decals, and the shadow matrices they index into. Only
-    // bound while drawing Lit materials - see Lighting.h and ForwardPass.
+    // Local lights/decals and their shadow matrices; bound only while drawing Lit materials.
     BindingEntities = 2,
     BindingEntityMatrices = 3,
     BindingLightTiles = 4,
 };
 
-// Texture unit bindings, a third namespace of its own. Reflection/Refraction
-// are not per-material assets like Albedo - they are published every frame by
-// whichever technique renders them (ReflectionPass, the scene colour copy),
-// resolved by name through AssetManager::resolveRenderTarget() and bound by
-// the technique that draws Water/Refraction-category geometry, not by
-// anything stored on the Material itself.
+// Texture unit bindings (a third namespace). Reflection/Refraction are published each frame by their techniques (resolved via AssetManager::resolveRenderTarget()), not stored on the Material.
 enum TextureBinding : u32
 {
     BindingAlbedo = 0,
@@ -287,64 +218,38 @@ enum TextureBinding : u32
     BindingDetail = 3,
     BindingAmbientOcclusion = 4,
     BindingDirectionalShadowMap = 5,
-    // The same atlas texture bound a second time without depth comparison,
-    // so the penumbra blocker search can read raw depth.
+    // Same atlas bound again without depth comparison, for the penumbra blocker search.
     BindingDirectionalShadowRaw = 14,
 
-    // The lit pipeline's own units. Reusing Reflection/Refraction's numbers is
-    // safe: those only mean something while WaterPass's program is active, and
-    // Normal/Surface only mean something while a Lit material's program is -
-    // the two pipelines are never bound at the same time.
+    // Lit pipeline units alias Reflection/Refraction: safe because Water's and Lit's programs are never bound together.
     BindingNormal = BindingReflection,
     BindingSurface = BindingRefraction,
 
-    // The depth half of the scene copy the water samples for refraction, so
-    // the surface can tell how deep the column under each pixel is.
+    // Depth half of the scene copy, for water refraction depth.
     BindingRefractionDepth = BindingDetail,
     BindingShadowAtlas = 6,
 
-    // A landscape chunk's colour map (SlotColorMap) - a large authored texture
-    // draped over the whole terrain (roads, clearings, an island's painted
-    // shoreline) that no slope/altitude rule could invent. Only meaningful
-    // while MaterialLandscape's pipeline is bound, same as Normal/Surface
-    // above are only meaningful while Lit's is.
+    // Landscape colour map (SlotColorMap) draped over the terrain; only meaningful under MaterialLandscape's pipeline.
     BindingColorMap = 7,
 
-    // The environment probe's cubemap, for image-based reflections. Frame
-    // state, not per-material: every Lit surface reflects the same
-    // surroundings. Declared unconditionally by the lit shader, so ForwardPass
-    // binds a neutral cube when no probe exists - a declared samplerCube left
-    // unbound fails every draw after it, the same trap the decal arrays below
-    // already carry a warning about.
+    // Probe cubemap; frame state. Declared unconditionally by the lit shader, so ForwardPass binds a neutral cube when no probe exists (an unbound samplerCube fails every later draw).
     BindingEnvironmentCube = 8,
 
-    // The emissive map (SlotEmissive) - which PART of a surface is lit up.
-    // Without it an emissive material glows over its whole area, which is
-    // wrong for a tail light on a body panel.
+    // Emissive map (SlotEmissive): which PART of a surface glows.
     BindingEmissive = 12,
 
-    // Decal arrays. Declared by the lit shader whether or not any decal
-    // exists, and a sampler with no explicit binding lands on unit 0 - where
-    // it collides with the albedo sampler and fails every draw. They get
-    // units of their own, and a neutral array until decals are real.
+    // Decal arrays: a sampler with no explicit binding lands on unit 0 and collides with albedo, failing every draw, so they get their own units and a neutral array.
     BindingDecalAlbedo = 9,
     BindingDecalNormal = 10,
     BindingDecalSurface = 11,
 
-    // A baked lightmap (SlotLightmap), sampled through the mesh's second UV
-    // set (MeshAttribs::uv2) instead of the tiling UV0 the base texture uses.
+    // Baked lightmap (SlotLightmap), sampled through uv2 (MeshAttribs::uv2).
     BindingLightmap = 13,
 
-    // MaterialMirror's planar reflection - the same texture kReflectionTargetName
-    // publishes for water, read by lit.frag's own HAS_MIRROR path instead of
-    // Water's pipeline. A unit of its own rather than reusing Reflection/
-    // Refraction's aliasing trick above: those alias because Water and Lit
-    // never bind at once, but a mirror IS a Lit material and wants its own
-    // Normal (unit 1) at the same time as this.
+    // MaterialMirror's planar reflection (same texture as kReflectionTargetName), read by lit.frag's HAS_MIRROR path. Own unit because a mirror is a Lit material and needs Normal (unit 1) at the same time.
     BindingMirrorReflection = 14,
 
-    // Parallax offset source (SlotHeight), sampled before Albedo/Normal/
-    // Surface to displace vUV. Only meaningful under MaterialParallax.
+    // Parallax offset source (SlotHeight); only meaningful under MaterialParallax.
     BindingHeight = 15,
 };
 
@@ -352,15 +257,9 @@ enum TextureBinding : u32
 constexpr const char* kReflectionTargetName = "Reflection";
 constexpr const char* kRefractionTargetName = "Refraction";
 
-// The refraction pass' own depth, for a surface that needs to know how deep
-// the column under each of its pixels is.
 constexpr const char* kRefractionDepthTargetName = "RefractionDepth";
 
-// Which optional shader code a pipeline was compiled with, on top of `kind`.
-// Kept out of MaterialFlags (bits 0-8): those are authored intent, these are
-// derived from what the material actually has attached (a texture, e.g.) and
-// only exist to pick a compile-time #define. ORed into PipelineKey::flags,
-// high enough not to collide.
+// Optional shader code a pipeline was compiled with, derived from what the material has attached; ORed into PipelineKey::flags above MaterialFlags (bits 0-8).
 enum VariantFlags : u32
 {
     VariantHasAlbedo = 1u << 16,
@@ -371,16 +270,13 @@ enum VariantFlags : u32
     VariantHasEmissive = 1u << 21,
     VariantHasLightmap = 1u << 22,
 
-    // SlotDetail bound to a Sequence texture, not Static - samples a
-    // sampler2DArray and blends a frame by time. Set alongside
-    // VariantHasDetail, not instead of it.
+    // SlotDetail bound to a Sequence texture (sampler2DArray, frame blended by time); set alongside VariantHasDetail.
     VariantHasDetailSequence = 1u << 23,
 
     VariantHasHeight = 1u << 24,
 };
 
-// What the pipeline resolver consumes; two materials with the same key share
-// a pipeline.
+// Materials with the same key share a pipeline.
 struct PipelineKey
 {
     RenderCategory category;

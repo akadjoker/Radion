@@ -25,12 +25,7 @@ GPU& GPU::getSingleton()
 {
     if (!gDevice)
     {
-        // Logging "no device" and then handing back *gDevice anyway used to
-        // be a null dereference dressed up as a recoverable error - undefined
-        // behaviour a caller could not tell from a real device. This path is
-        // always a caller bug (calling before createOpenGL or after
-        // destroyDevice), never a normal runtime condition, so it fails loud
-        // and deterministic instead.
+        // A caller bug (before createOpenGL or after destroyDevice): fail loud instead of returning a null deref.
         Log::error("GPU: getSingleton() called with no device; this is a caller bug, "
                    "not a recoverable error - use GPU::tryGet() in cleanup paths instead");
         std::abort();

@@ -1,13 +1,8 @@
 #ifndef RADION_AI_FORMATIONBEHAVIOR_H
 #define RADION_AI_FORMATIONBEHAVIOR_H
 
-// FormationBehavior.h - places squad members into a formation around the
-// squad leader and point man.
-//
 // squadId() == 0 is the leader (player controlled; skips the formation).
-//
-// Orientation convention: the local frame is right = +X, up = +Y,
-// forward (look) = +Z.
+// Local frame: right = +X, up = +Y, forward = +Z.
 
 #include "Behavior.h"
 
@@ -52,8 +47,7 @@ public:
     f32 paramFloat(u32 index) const override;
     void setParamFloat(u32 index, f32 value) override;
 
-    // Goal radius handed to the point man's Agent::setGoalRadius(); the
-    // radius handed to every other member is formationRadius() instead.
+    // Goal radius for the point man; every other member uses formationRadius().
     float goalRadius() const
     {
         return mGoalRadius;
@@ -83,11 +77,6 @@ private:
     float mGoalRadius;
     float mFormationRadius;
 
-    // DESVIO 2: with behaviors owned one-per-agent instead of shared
-    // (Agent::addBehavior()), this cache is this member's alone - it used to
-    // be shared by every member using the same FormationBehavior instance,
-    // recomputed by whichever one happened to run last. See Steering.cpp's
-    // WanderBehavior comment for the same change.
     Radion::Agent* mSquadLeader = nullptr; // non-owning
     Radion::Agent* mPointMan = nullptr;    // non-owning
 

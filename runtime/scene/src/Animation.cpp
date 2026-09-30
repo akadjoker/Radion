@@ -24,9 +24,7 @@ f32 playbackTime(f32 time, f32 duration, PlayMode mode)
     return mode == PlayMode::PingPong && wrapped > duration ? cycle - wrapped : wrapped;
 }
 
-// Everything in [from, to) along the clip, appended in order. The interval
-// is half-open at the end so an event exactly on the boundary fires once,
-// on the frame that reaches it, and not again on the next.
+// Half-open at the end so an event on the boundary fires once.
 void collectEvents(const AnimationClip& clip, f32 from, f32 to,
                    std::vector<const AnimationEvent*>& out)
 {
@@ -35,12 +33,7 @@ void collectEvents(const AnimationClip& clip, f32 from, f32 to,
             out.push_back(&event);
 }
 
-// The events a single advance crossed, given where playback was and where it
-// landed. Handles the two cases a naive `from < t < to` gets wrong: a loop
-// that wrapped past the end (fire the tail, then the head), and a frame long
-// enough to cover the whole clip more than once - which fires each event
-// once rather than as many times as it lapped, because a stutter should not
-// spawn ten footsteps.
+// Handles a loop wrapping past the end (tail then head) and a frame longer than the clip (each event fires once, not per lap).
 void collectFiredEvents(const AnimationClip& clip, f32 previous, f32 current, PlayMode mode,
                         f32 advance, std::vector<const AnimationEvent*>& out)
 {
@@ -50,8 +43,7 @@ void collectFiredEvents(const AnimationClip& clip, f32 previous, f32 current, Pl
 
     if (mode == PlayMode::Once || advance >= duration)
     {
-        // Either it cannot wrap, or it covered everything: one pass over the
-        // range, clamped to the clip.
+        // Cannot wrap, or covered everything: one pass clamped to the clip.
         if (advance >= duration)
             collectEvents(clip, 0.0f, duration, out);
         else
@@ -63,7 +55,7 @@ void collectFiredEvents(const AnimationClip& clip, f32 previous, f32 current, Pl
         collectEvents(clip, previous, current, out);
     else
     {
-        // Wrapped: the tail of the clip, then the head of it.
+        // Wrapped: the tail of the clip, then the head.
         collectEvents(clip, previous, duration, out);
         collectEvents(clip, 0.0f, current, out);
     }
@@ -176,13 +168,8 @@ void Animator::update(f32 deltaTime)
                 layer.mCurrent = findClip(layer.mCurrentName);
             if (!layer.mCurrent)
                 continue;
-            // Paused freezes advancement (time, crossfade) but not sampling -
-            // seek()'s mTime write still shows up below, which is the whole
-            // point: a scrub bar drags the frozen frame around instead of
-            // the next update() immediately marching past it.
+            // Paused freezes advancement but not sampling, so seek() shows up and a scrub bar can drag the frozen frame.
             const f32 layerDt = layer.mPaused ? 0.0f : dt;
-            // Where playback stood before this frame moved it - the other
-            // end of the interval the clip's events are tested against.
             const f32 timeBefore =
                 playbackTime(layer.mTime, layer.mCurrent->duration(), layer.mMode);
             layer.mFiredEvents.clear();
@@ -199,8 +186,7 @@ void Animator::update(f32 deltaTime)
             }
             const f32 currentTime =
                 playbackTime(layer.mTime, layer.mCurrent->duration(), layer.mMode);
-            // After the return-to switch above, so a one-shot that just
-            // handed over does not fire the clip it left behind.
+            // After the return-to switch, so a one-shot that just handed over does not fire the clip it left.
             collectFiredEvents(*layer.mCurrent, timeBefore, currentTime, layer.mMode,
                                std::abs(layerDt * layer.mSpeed), layer.mFiredEvents);
             if (layer.mPrevious)
@@ -217,11 +203,7 @@ void Animator::update(f32 deltaTime)
     }
     set->skeleton.evaluate(mLocalPose, mGlobalPose, mPalette);
 
-    // IK last, on the finished pose, then evaluate again - the reference does
-    // the same by setting recompute_hierarchy: it is a correction applied to a
-    // pose that has already been built, not a step inside building it. The
-    // second evaluate is also what rebuilds the skinning palette from the
-    // corrected pose rather than the pre-IK one.
+    // IK runs last on the finished pose, then evaluate again (as the reference's recompute_hierarchy): the second pass rebuilds the skinning palette from the corrected pose.
     if (!mIKChains.empty())
     {
         const Math::mat4 ownerTransform = owner() ? owner()->globalTransform() : Math::mat4(1.0f);

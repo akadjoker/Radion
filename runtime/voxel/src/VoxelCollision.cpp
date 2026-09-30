@@ -9,8 +9,7 @@ namespace Voxel
 {
 namespace
 {
-// Kept off the surface by this much after a contact, so the next test does
-// not find the box already touching what it just landed on.
+// Kept off the surface by this much after a contact so the next test does not start touching.
 constexpr f32 Skin = 0.001f;
 // No substep crosses a whole block, whatever the frame time was.
 constexpr f32 MaxStep = 0.4f;
@@ -41,10 +40,8 @@ bool boxOverlapsSolid(const VoxelWorld& world, const BlockRegistry& blocks, cons
     return false;
 }
 
-// One axis of one substep. `axis` indexes the vector; the box is moved and, if
-// that put it inside a block, snapped back to the boundary it just crossed.
-// Unit cubes on integer coordinates are what make the snap a floor/ceil rather
-// than a search.
+// One axis of one substep: the box moves and, if inside a block, snaps back to the boundary just crossed
+// (a floor/ceil on integer coordinates, not a search).
 bool resolveAxis(const VoxelWorld& world, const BlockRegistry& blocks, Math::vec3& position,
                  const Math::vec3& halfExtents, f32 delta, int axis)
 {

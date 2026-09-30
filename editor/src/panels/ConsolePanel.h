@@ -16,8 +16,7 @@ public:
 
     void onImGui() override;
 
-    // Log has one sink and two things need it, so EditorApplication owns the
-    // registration and calls this - see EditorApplication::logSink().
+    // EditorApplication owns the Log sink registration and calls this.
     static void pushEntry(LogLevel level, const char* message);
 
 private:
@@ -27,11 +26,7 @@ private:
         std::string text;
     };
 
-    // Shared across every ConsolePanel instance, of which there is only ever
-    // one - the sink above has no `this` to route through, so the buffer it
-    // writes into has to live at namespace/class scope instead of on an
-    // instance. Capped in pushEntry(): an editor session left running for
-    // hours must not grow this without bound.
+    // Shared by all instances (the sink has no `this`); capped in pushEntry() to bound growth.
     static std::vector<Entry> sEntries;
     static constexpr usize kMaxEntries = 2000;
 

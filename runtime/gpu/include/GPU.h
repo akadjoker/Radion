@@ -16,8 +16,6 @@ class Window;
 
 struct GPUCaps;
 
-// ---------------------------------------------------------------- handles
-
 using BufferHandle = Handle<struct BufferTag>;
 using TextureHandle = Handle<struct TextureTag>;
 using SamplerHandle = Handle<struct SamplerTag>;
@@ -25,8 +23,6 @@ using ShaderHandle = Handle<struct ShaderTag>;
 using PipelineHandle = Handle<struct PipelineTag>;
 using TargetHandle = Handle<struct TargetTag>;
 using QueryHandle = Handle<struct QueryTag>;
-
-// ---------------------------------------------------------------- formats
 
 enum class Format : u8
 {
@@ -49,9 +45,7 @@ enum class Format : u8
     RG32U,
     RGBA32U,
 
-    // Block-compressed, uploaded pre-compressed straight from a DDS mip
-    // chain - never produced by the GPU, only ever the target of a texture
-    // load.
+    // Block-compressed, uploaded pre-compressed from a DDS mip chain; never produced by the GPU.
     BC1_RGBA,      // DXT1, 4bpp, 1-bit alpha
     BC1_RGBA_sRGB,
     BC3_RGBA,      // DXT5, 8bpp, full alpha
@@ -81,8 +75,6 @@ enum class AttribFormat : u8
     UInt4,
 };
 
-// ---------------------------------------------------------------- buffers
-
 enum BufferUsage : u32
 {
     BufferVertex = 1 << 0,
@@ -91,10 +83,7 @@ enum BufferUsage : u32
     BufferStorage = 1 << 3,
     BufferIndirect = 1 << 4,
     BufferStaging = 1 << 5,
-    // Mapped once at creation and left mapped, so the CPU reads it through
-    // mappedData() without ever asking the driver for anything. What a
-    // per-frame readback needs: readBuffer() below synchronises with the GPU
-    // and is the wrong tool for something read every single frame.
+    // Mapped once and left mapped: read through mappedData() with no driver call. For per-frame readback; readBuffer() synchronises.
     BufferReadback = 1 << 6,
 };
 
@@ -122,8 +111,6 @@ enum class IndexType : u8
     U16,
     U32
 };
-
-// --------------------------------------------------------------- textures
 
 enum class TextureType : u8
 {
@@ -161,10 +148,7 @@ struct TextureDesc
     const void* data = nullptr;
     const char* debugName = nullptr;
 
-    // Set for block-compressed formats instead of `data`: one entry per mip
-    // level, already sized and encoded, uploaded verbatim - a compressed
-    // format has no uncompressed source to generate mips from, so the whole
-    // chain has to come from the file.
+    // Block-compressed formats: one pre-encoded entry per mip, uploaded verbatim; there is no source to generate mips from.
     const CompressedMip* compressedMips = nullptr;
     u32 compressedMipCount = 0;
 };
@@ -195,8 +179,6 @@ struct SamplerDesc
     f32 border[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     bool compare = false; // shadow comparison sampling
 };
-
-// --------------------------------------------------------------- pipeline
 
 enum class ShaderStage : u8
 {
@@ -339,8 +321,6 @@ struct PipelineDesc
     const char* debugName = nullptr;
 };
 
-// --------------------------------------------------------------- targets
-
 struct TargetAttachment
 {
     TextureHandle texture;
@@ -386,8 +366,6 @@ struct Rect
     s32 width = 0, height = 0;
 };
 
-// ----------------------------------------------------------------- draws
-
 struct DrawDesc
 {
     BufferHandle vertexBuffers[VertexLayout::MaxStreams];
@@ -428,8 +406,6 @@ struct GPUStats
     f32 gpuMilliseconds = 0.0f;
 };
 
-// --------------------------------------------------------------------- GPU
-
 class GPU
 {
 public:
@@ -438,117 +414,63 @@ public:
     static GPU* createOpenGL(Platform::Window& window);
     static void destroyDevice(GPU* gpu);
 
-    // Deletes every resource still live, dependents first (targets and
-    // pipelines before the buffers and textures they reference), and marks
-    // the context gone. This is deliberately not the destructor's job: a
-    // destructor runs wherever the owner happens to die, which may be after
-    // the window - and the context - is already gone, and deleting GL names
-    // without a current context is undefined. Call it at a controlled point,
-    // while the context still lives. Idempotent.
+    // Deletes every live resource, dependents first, and marks the context gone. Not the destructor's job: it may run
+    // after the context is gone, where deleting GL names is undefined. Call while the context lives. Idempotent.
     virtual void shutdown() = 0;
 
-    // There is one device for the life of the process, so everything that
-    // needs it reaches it here instead of carrying a GPU& through every
-    // signature. Only valid between createOpenGL and destroyDevice - calling
-    // this outside that window is a caller bug, so it logs and aborts rather
-    // than handing back a reference built from a null pointer: a device is
-    // never optional for code that reaches this call, only for cleanup and
-    // teardown paths, which must use tryGet() instead.
+    // One device per process. Only valid between createOpenGL and destroyDevice; outside that it logs and aborts.
+    // Cleanup and teardown paths must use tryGet().
     static GPU& getSingleton();
 
-    // For cleanup/fallback paths that may legitimately run before
-    // createOpenGL or after destroyDevice - a singleton's own destructor,
-    // static teardown order being what it is. Returns null instead of
-    // asserting; the caller decides whether "no device" is fine to skip.
+    // For cleanup/fallback paths that may run before createOpenGL or after destroyDevice. Returns null instead of asserting.
     static GPU* tryGet();
     static bool ready();
-
-    // -- resources
 
     virtual BufferHandle createBuffer(const BufferDesc& desc) = 0;
     virtual TextureHandle createTexture(const TextureDesc& desc) = 0;
 
-    // Rebuilds the GPU object behind an already-issued handle from `desc`,
-    // in place - the handle itself (index and generation) does not change,
-    // so every Material/RenderList/etc. still holding a copy of it keeps
-    // working unmodified and now sees the new content next draw. What an
-    // async loader uses to turn a small placeholder texture into the real
-    // decoded image once decoding finishes off the GL thread: createTexture()
-    // alone cannot do this, since by the time decoding finishes the caller
-    // already has copies of the placeholder's handle scattered across the
-    // scene. Unlike updateTexture() below, the new image does not need to
-    // match the old one's size/format/mip count.
+    // Rebuilds the GPU object behind an issued handle in place: the handle (index and generation) is unchanged, so
+    // copies held elsewhere see the new content. Lets an async loader swap a placeholder for the decoded image;
+    // unlike updateTexture(), size/format/mip count may differ.
     virtual bool replaceTexture(TextureHandle handle, const TextureDesc& desc) = 0;
 
     virtual SamplerHandle createSampler(const SamplerDesc& desc) = 0;
     virtual PipelineHandle createPipeline(const PipelineDesc& desc) = 0;
     virtual TargetHandle createTarget(const TargetDesc& desc) = 0;
 
-    // One query, GL_SAMPLES_PASSED, lives as long as the object it measures -
-    // never recreated per frame. GPUProfiler already polls its own GPU
-    // timers this exact way (queryResultAvailable() before queryResult(),
-    // never the other order), this is the same pattern for occlusion: only
-    // ever read the *previous* frame's result, never stall waiting for the
-    // one just submitted.
+    // One GL_SAMPLES_PASSED query lives as long as its object. Only read the previous frame's result; never stall on the latest.
     virtual QueryHandle createQuery() = 0;
     virtual void destroy(QueryHandle) = 0;
     virtual void beginOcclusionQuery(QueryHandle) = 0;
     virtual void endOcclusionQuery() = 0;
     virtual bool queryResultAvailable(QueryHandle) const = 0;
-    // Sample count that passed the depth test. Only ever compared against
-    // zero by callers - not meant to be read as a pixel-accurate coverage
-    // count.
+    // Samples that passed the depth test; callers only compare against zero.
     virtual u32 queryResult(QueryHandle) const = 0;
 
-    // Size, format and mip count of a live texture. False leaves `out`
-    // untouched: a caller that needs an atlas's pixel size has no other way
-    // back to it once the file is uploaded and the loader is gone.
+    // Size, format and mip count of a live texture. False leaves `out` untouched.
     virtual bool textureInfo(TextureHandle, TextureDesc& out) const = 0;
 
-    // The backend's own id for a texture, for the one case a handle is not
-    // enough: handing a render target to an outside library that binds it
-    // itself. ImGui::Image is the reason this exists - it takes an
-    // ImTextureID, never a handle of ours. Returns 0 for a dead handle.
+    // The backend's own id for a texture, for outside libraries that bind it themselves (ImGui::Image). 0 for a dead handle.
     // Nothing inside the engine should need this; use bindTexture().
     virtual u32 nativeTextureId(TextureHandle) const = 0;
 
-    // Reads a rectangle of depth back to the CPU as floats, `count` of them.
-    // Deliberately narrow: this is for picking - reading the depth the frame
-    // already wrote at the cursor and unprojecting it - and nothing else.
-    //
-    // It SYNCHRONISES with the GPU. Per click that does not matter; per frame
-    // it would, and the fix there is a pixel buffer with a frame of latency,
-    // not this call. False leaves `out` untouched.
+    // Reads a rectangle of depth back as floats, for picking only. SYNCHRONISES with the GPU: fine per click, not per frame.
+    // False leaves `out` untouched.
     virtual bool readDepthPixels(TextureHandle, u32 x, u32 y, u32 width, u32 height, f32* out,
                                  u32 count) const = 0;
 
-    // Reads an RGBA colour rectangle back as floats (four values per pixel).
-    // The backend converts RGBA8/half-float/HDR textures to GL_FLOAT. This is
-    // intentionally a synchronous operation for one-off readback, such as a
-    // completed lightmap bake, never for a per-frame path.
+    // Reads an RGBA rectangle back as floats (four per pixel); backend converts RGBA8/half/HDR. Synchronous: one-off use, not per frame.
     virtual bool readColorPixels(TextureHandle, u32 x, u32 y, u32 width, u32 height, f32* out,
                                  u32 floatCount) const = 0;
 
-    // Reads a byte range of a buffer back to the CPU. SYNCHRONISES with the
-    // GPU the same way readDepthPixels does - it exists for occasional
-    // diagnostics (a particle system's live/dead counters, sampled every N
-    // frames), never for anything read every frame.
+    // Reads a byte range of a buffer back. SYNCHRONISES with the GPU like readDepthPixels; occasional diagnostics only.
     virtual bool readBuffer(BufferHandle, u64 offset, u64 size, void* out) const = 0;
 
-    // The CPU-visible pointer of a BufferReadback buffer, or null for any
-    // other kind. Reading it is a plain memory read - what is there is
-    // whatever the GPU has finished writing, so the caller is responsible for
-    // being a frame or two behind rather than asking for anything fresh.
+    // CPU-visible pointer of a BufferReadback buffer, else null. Contents are whatever the GPU finished; stay a frame or two behind.
     virtual const void* mappedData(BufferHandle) const = 0;
 
-    // Copies a query's result into `target` at `offsetBytes` ON THE GPU
-    // TIMELINE. Nothing synchronises: unlike queryResultAvailable() and
-    // queryResult(), which have to flush the command buffer the query's own
-    // end packet is still sitting in, this is just another command in the
-    // stream. Paired with a BufferReadback target read a frame later, the
-    // whole occlusion result path costs no synchronisation at all - which is
-    // how the reference does it (one QueryResolve for the whole heap into a
-    // buffer, read from its mapping next frame).
+    // Copies a query's result into `target` at `offsetBytes` ON THE GPU TIMELINE, with no synchronisation,
+    // unlike queryResult(). Paired with a BufferReadback read a frame later, occlusion results cost no sync.
     virtual void resolveQuery(QueryHandle, BufferHandle target, u64 offsetBytes) = 0;
 
     virtual void destroy(BufferHandle) = 0;
@@ -567,21 +489,14 @@ public:
     virtual void* mapWrite(BufferHandle, u64 offset, u64 size) = 0;
     virtual void unmap(BufferHandle) = 0;
 
-    // -- frame
-
     virtual void beginFrame() = 0;
     virtual void endFrame() = 0;
     virtual void present() = 0;
 
-    // -- state
-
     virtual void setTarget(TargetHandle target, const ClearValue& clear = {}) = 0;
 
-    // Clears only `rect` of `target`, leaving the rest of it untouched -
-    // setTarget's own clear always covers the whole target (it disables the
-    // scissor test first, on purpose). A tiled target sharing one texture
-    // across many draws (the shadow atlas) needs this instead, one tile at a
-    // time. Restores whatever scissor state was current before the call.
+    // Clears only `rect` of `target` (setTarget's clear covers the whole target), for tiled targets like the shadow atlas.
+    // Restores the prior scissor state.
     virtual void clearRegion(TargetHandle target, const Rect& rect, const ClearValue& clear) = 0;
     virtual void clearColorAttachment(TargetHandle target, u32 attachment, const f32 color[4]) = 0;
 
@@ -590,27 +505,20 @@ public:
     virtual void setScissor(const Rect&) = 0;
     virtual void setScissorEnabled(bool) = 0;
 
-    // GL_CLIP_DISTANCE0 (or its equivalent). Off by default at initialize().
-    // Only the vertex shaders drawn while this is on may declare and write
-    // gl_ClipDistance[0] - an unwritten clip output is undefined, not zero -
-    // so the caller must turn it off again once the clipped pass is done.
+    // Enables GL_CLIP_DISTANCE0; off by default. Only shaders drawn while on may write gl_ClipDistance[0]
+    // (unwritten is undefined, not zero), so turn it off after the clipped pass.
     virtual void setClipDistanceEnabled(bool) = 0;
     virtual void setStencilRef(u32) = 0;
     virtual void setBlendFactor(f32 r, f32 g, f32 b, f32 a) = 0;
 
-    // Overrides the depth bias of whichever pipeline is currently bound,
-    // without touching it - a pipeline's own raster state is what setPipeline
-    // re-applies every time, so this only holds until the next setPipeline
-    // call. Lets one cached pipeline (built once, bias-free) serve both a
-    // biased shadow draw and an unbiased ordinary depth pass.
+    // Overrides the bound pipeline's depth bias until the next setPipeline, letting one bias-free cached pipeline
+    // serve both biased shadow and ordinary depth draws.
     virtual void setDepthBias(f32 slope, f32 constant) = 0;
 
     virtual void bindTexture(u32 slot, TextureHandle, SamplerHandle = {}) = 0;
     virtual void bindImage(u32 slot, TextureHandle, u32 mip, bool write) = 0;
     virtual void bindUniform(u32 slot, BufferHandle, u64 offset = 0, u64 size = 0) = 0;
     virtual void bindStorage(u32 slot, BufferHandle, u64 offset = 0, u64 size = 0) = 0;
-
-    // -- submission
 
     virtual void draw(const DrawDesc&) = 0;
     virtual void drawIndirect(const DrawDesc& base, BufferHandle args, u64 offset,
@@ -626,8 +534,6 @@ public:
                             u64 size) = 0;
     virtual void blitTarget(TargetHandle dst, TargetHandle src, const Rect& dstRect,
                             const Rect& srcRect, bool depth = false) = 0;
-
-    // -- queries
 
     // Puts GL back to what code outside gpu/ expects: no program, no vertex
     // array, no sampler objects, fill mode, texture unit 0. The render target

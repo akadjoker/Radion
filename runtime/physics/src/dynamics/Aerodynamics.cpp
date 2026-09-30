@@ -54,9 +54,8 @@ Airplane::Airplane()
 
 void Airplane::setDefaultSurfaces()
 {
-    // Math::mat3 takes columns; the reference tensors are written row-major,
-    // so each one below is transposed. The wings' -1 at row 1, column 0 maps
-    // forward velocity onto upward force.
+    // Math::mat3 takes columns but the reference tensors are row-major, so each is transposed
+    // (the wings' -1 at row 1, column 0 maps forward velocity to upward force).
     const Math::mat3 wingBase = Math::transpose(Math::mat3(0.0f, 0.0f, 0.0f,
                                                         -1.0f, -0.5f, 0.0f,
                                                         0.0f, 0.0f, 0.0f));

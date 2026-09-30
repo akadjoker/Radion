@@ -32,11 +32,8 @@ public:
         Math::vec3 lastNormal{0.0f, 1.0f, 0.0f};
     };
 
-    // Epsilon: how far a resting contact is pushed off the surface it just
-    // hit, so the next substep's sweep does not immediately re-report the
-    // same contact at t = 0. zeroEpsilon: how small a remaining slide/crease
-    // direction has to be before it counts as "not actually moving" and the
-    // loop stops instead of dividing by it.
+    // epsilon: push-off from a resting contact so the next sweep does not re-report it at t = 0.
+    // zeroEpsilon: below this a slide direction counts as not moving.
     struct MoveConfig
     {
         f32 epsilon = 0.001f;
@@ -57,10 +54,6 @@ public:
     MoveConfig& moveConfig();
     const MoveConfig& moveConfig() const;
 
-    // Resolves a moving sphere from `from` towards `to` against every
-    // collider whose type pairs with `movingType`, sliding/stopping per the
-    // pair's own response. The mover itself carries no Collider - a purely
-    // geometric query, same as the character controller's ellipsoid sweep.
     MoveResult moveSphere(const Math::vec3& from, const Math::vec3& to, f32 radius,
                           u32 movingType, u32 maxHits = 10) const;
 

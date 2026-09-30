@@ -1,9 +1,7 @@
 #ifndef RADION_MATERIAL_SLOT_NAMES_H
 #define RADION_MATERIAL_SLOT_NAMES_H
 
-// Shared with tools/exporter, a separate CMake project - kept dependency-free
-// so it can be included without linking radion_render. Order matches
-// MaterialSlot in Material.h.
+// Shared with tools/exporter (separate CMake project), so dependency-free. Order matches MaterialSlot in Material.h.
 constexpr int kMaterialSlotCount = 8;
 
 constexpr const char* kMaterialSlotNames[kMaterialSlotCount] = {

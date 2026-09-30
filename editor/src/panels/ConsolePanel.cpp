@@ -50,9 +50,7 @@ void ConsolePanel::onImGui()
     ImGui::SameLine();
     if (ImGui::Button("Copy"))
     {
-        // Only what the active filters currently show - copying the raw
-        // full log when Info/Debug are toggled off would hand back lines
-        // the user just asked not to see.
+        // Only what the active filters show, not the raw log.
         std::string text;
         for (const Entry& entry : sEntries)
         {

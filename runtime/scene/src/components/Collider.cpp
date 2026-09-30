@@ -52,9 +52,7 @@ void Collider::setMesh(const TriangleOctree* octree)
 
 bool Collider::rebuildMeshFromRenderer()
 {
-    // Mesh is the shape either way - a renderer added later, or a mesh
-    // re-assigned on the sibling MeshRenderer, is what a rebuild call is
-    // for. Only whether there is geometry to bake right now differs.
+    // Mesh is the shape either way; a rebuild call handles a later renderer or reassigned mesh.
     releaseOwnedMesh();
     mShape = ColliderShape::Mesh;
     mMesh = nullptr;
@@ -63,11 +61,7 @@ bool Collider::rebuildMeshFromRenderer()
     if (!object)
         return false;
 
-    // The octree is baked once, in world space, at whatever transform the
-    // object has right now, and never re-baked on its own - the same
-    // promise GameObject::isStatic() already makes for the renderer's own
-    // static BVH (SceneBVH::build()). Refusing here is what keeps a moved
-    // object from colliding against where its mesh used to be.
+    // Baked once in world space at the current transform, never re-baked (same promise as isStatic() for SceneBVH::build()); refusing avoids colliding against where the mesh used to be.
     if (!object->isStatic())
     {
         Log::warning("Collider: '%s' needs GameObject::setStatic(true) before a Mesh shape can "

@@ -11,9 +11,7 @@
 namespace Radion
 {
 
-// Per-vertex keyframes: one position and normal per vertex per frame, in the
-// same order and count as the mesh's own vertex buffer. There is no skeleton
-// here - the "bone" is the frame index.
+// Per-vertex keyframes: one position and normal per vertex per frame, in the mesh's vertex order. No skeleton; the "bone" is the frame index.
 struct MorphKeyframes
 {
     std::vector<std::vector<Math::vec3>> framePositions;
@@ -29,9 +27,7 @@ struct MorphKeyframes
     }
 };
 
-// One frame of one tag: a named attachment point that moves with the
-// animation. What glues separate parts together - legs to torso to head, or
-// a weapon onto a hand.
+// One frame of a tag: a named attachment point that moves with the animation (legs to torso to head, weapon to hand).
 struct MorphTagFrame
 {
     Math::vec3 origin{0.0f};
@@ -51,9 +47,7 @@ struct MorphTags
     s32 find(const std::string& name) const;
 };
 
-// A named frame range: "run" is frames 40 to 47 at 10 fps, looping. The
-// Quake animation.cfg model, given directly instead of parsed - which is
-// what lets a caller say play("run") instead of remembering numbers.
+// A named frame range, e.g. "run" = frames 40 to 47 at 10 fps, looping (Quake animation.cfg model).
 struct MorphClip
 {
     std::string name;
@@ -63,22 +57,15 @@ struct MorphClip
     bool loop = true;
 };
 
-// Drives a MorphKeyframes/MorphTags pair over time: advances the current
-// clip, resolves it to a frame pair plus a blend factor, and crossfades from
-// whatever was playing into a newly requested clip - two clips blended
-// together, each interpolating its own two keyframes. That crossfade is the
-// one real step beyond plain frame interpolation.
-//
-// Pure CPU maths, with no mesh or GPU behind it: the caller owns the mesh
-// and pushes the result.
+// Drives a MorphKeyframes/MorphTags pair: advances the current clip, resolves a frame pair plus blend, and crossfades into a newly requested clip.
+// Pure CPU maths; the caller owns the mesh and pushes the result.
 class MorphAnimator
 {
 public:
     void addClip(const std::string& name, s32 first, s32 last, f32 fps, bool loop = true);
     bool hasClip(const std::string& name) const;
     void removeClip(const std::string& name);
-    // For scene persistence and for an inspector's clip list - nothing else
-    // can enumerate what is registered.
+    // For scene persistence and inspector clip lists.
     const std::unordered_map<std::string, MorphClip>& clips() const
     {
         return mClips;
@@ -91,19 +78,14 @@ public:
 
     void update(f32 deltaTime);
 
-    // Forces the current clip to an exact time, dropping any crossfade in
-    // progress first - a scrub bar wants this exact pose, not "70% faded
-    // into whatever was playing before". Does nothing when nothing is
-    // playing.
+    // Sets the current clip to an exact time, dropping any crossfade (scrub bar). No-op when nothing is playing.
     void seek(f32 time);
     f32 time() const
     {
         return mCurrent.time;
     }
 
-    // Blends the keyframes into `positions` and `normals`, which must
-    // already be sized to keyframes.vertexCount(). Only those two: uvs,
-    // tangents and colours are the base mesh's and are never touched.
+    // Blends into `positions`/`normals`, which must be sized to keyframes.vertexCount(); uvs, tangents and colours are untouched.
     void writeVertices(const MorphKeyframes& keyframes, std::vector<Math::vec3>& positions,
                        std::vector<Math::vec3>& normals) const;
 
@@ -118,8 +100,7 @@ private:
         f32 time = 0.0f; // seconds into the clip
     };
 
-    // Resolves a PlayState to frame a, frame b and the blend between them,
-    // handling loop wraparound and one-shot clamping.
+    // Resolves a PlayState to frame a, frame b and blend, handling loop wrap and one-shot clamp.
     void framePair(const PlayState& state, s32& a, s32& b, f32& t) const;
 
     // Clips are keyed by name because PlayState holds a pointer into this

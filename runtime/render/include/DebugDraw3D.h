@@ -47,15 +47,10 @@ struct DebugMeshOutline3D
     MeshHandle mesh;
     Math::mat4 transform = Math::mat4(1.0f);
     Color color = Color::Yellow;
-    // Fraction the hull is scaled up by around the mesh's own local pivot for
-    // the second (visible) pass - 0.05 means 5% bigger. Not a pixel size:
-    // the outline's on-screen width scales with the mesh's own screen size.
+    // Fraction the hull is scaled up around the mesh's local pivot (0.05 = 5%); not a pixel size.
     f32 thickness = 0.05f;
 
-    // Which slice of the index buffer to outline. A count of 0 means the whole
-    // mesh, which is what a single-object outline wants. Anything picked out of
-    // a model that is one mesh with many submeshes needs the range instead -
-    // outlining all of Sponza to show which arch was clicked says nothing.
+    // Index-buffer slice to outline; count 0 = whole mesh. Needed to pick one submesh out of a multi-submesh mesh.
     u32 indexOffset = 0;
     u32 indexCount = 0;
 };
@@ -79,13 +74,9 @@ public:
     void outline(MeshHandle mesh, const Math::mat4& transform, Color color = Color::Yellow,
                  f32 thickness = 0.05f);
 
-    // One submesh of a larger mesh - see DebugMeshOutline3D::indexCount.
     void outlineRange(MeshHandle mesh, const Math::mat4& transform, u32 indexOffset, u32 indexCount,
                       Color color = Color::Yellow, f32 thickness = 0.05f);
 
-    // Light gizmos, wireframe shapes built from line(). Each takes the
-    // light's own colour so several lights stay tellable apart, and a
-    // segment count for the curved parts rather than a fixed tessellation.
     void pointLightGizmo(const Math::vec3& position, f32 range, Color color, u32 segments = 24);
     void spotLightGizmo(const Math::vec3& position, const Math::vec3& direction, f32 range,
                         f32 innerAngleDegrees, f32 outerAngleDegrees, Color color,
@@ -97,16 +88,10 @@ public:
     void circle(const Math::vec3& center, const Math::vec3& u, const Math::vec3& v, f32 radius,
                 u32 segments, Color color);
 
-    // Three axis-aligned segments through a point - marks a position without
-    // implying a facing the way an axis gizmo does.
+    // Three axis-aligned segments through a point; implies no facing.
     void cross(const Math::vec3& position, f32 size, Color color);
-    // A straight segment with an arrow head on either end (size 0 for none),
-    // so a link reads as directed.
     void arrow(const Math::vec3& from, const Math::vec3& to, f32 headFrom, f32 headTo, Color color);
-    // A segment bowed upward, `height` as a fraction of its own length. What
-    // draws a connection between two points that is NOT a walk along the
-    // ground - a jump, a ladder, a teleport - so it cannot be mistaken for
-    // one that is.
+    // Segment bowed upward (`height` as a fraction of its length), for non-walk links such as jumps or teleports.
     void arc(const Math::vec3& from, const Math::vec3& to, f32 height, f32 headFrom, f32 headTo,
              Color color);
     void arrowHead(const Math::vec3& from, const Math::vec3& to, f32 size, Color color);
@@ -122,8 +107,6 @@ public:
 private:
     DebugDraw3D();
 
-    // One of spotLightGizmo()'s two cones: a ring at the end plus `ribs`
-    // lines back to the apex.
     void spotCone(const Math::vec3& apex, const Math::vec3& endCenter, const Math::vec3& right,
                   const Math::vec3& up, f32 range, f32 angleDegrees, u32 segments, u32 ribs,
                   Color color);

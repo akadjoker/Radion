@@ -23,10 +23,7 @@ public:
     void position(const Math::vec3& value);
     void normal(const Math::vec3& value);
     void uv(const Math::vec2& value);
-    // setColor(), not color(u32) - position/normal/uv's "value" setter and
-    // "by index" getter never collide, their parameter types differ, but a
-    // colour is a u32 both ways: same signature as the getter below, which
-    // C++ cannot resolve by return type alone.
+    // setColor(), not color(u32): same signature as the getter, which C++ cannot resolve by return type.
     void setColor(u32 value);
     void index(u32 value);
     void triangle(u32 a, u32 b, u32 c);

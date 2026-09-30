@@ -73,8 +73,7 @@ struct alignas(16) DrawBlock
     Math::vec4 cameraUp = Math::vec4(0.0f, 1.0f, 0.0f, 0.0f); // w = additive flag
 };
 
-// Storage bindings, identical across every particle shader - the reference's
-// own numbers, kept because the C++ side binds by these too.
+// Storage bindings shared by every particle shader; the C++ side binds by these numbers too.
 enum ParticleStorageBinding : u32
 {
     BindingParticles = 0,
@@ -85,7 +84,7 @@ enum ParticleStorageBinding : u32
     BindingAliveNew = 5,
 };
 
-constexpr u32 kUniformBinding = 0; // EmitBlock/SimulateBlock/DrawBlock each take it in turn
+constexpr u32 kUniformBinding = 0;
 constexpr u32 kThreadCountEmit = 64;
 
 } // namespace
@@ -97,8 +96,7 @@ bool ParticleSystem::create(u32 maxParticles)
 
     GPU& gpu = GPU::getSingleton();
 
-    // Particle pool, uninitialised: emit overwrites a slot before anyone reads
-    // it. The only thing that defines the initial state is the dead list.
+    // Pool uninitialised: emit overwrites a slot before it is read; the dead list defines the state.
     BufferDesc particleDesc;
     particleDesc.size = static_cast<u64>(mMax) * sizeof(GPUParticle);
     particleDesc.usage = BufferStorage;
@@ -117,8 +115,6 @@ bool ParticleSystem::create(u32 maxParticles)
     aliveDesc.debugName = "particle.alive1";
     mAliveBuffer[1] = gpu.createBuffer(aliveDesc);
 
-    // Every slot starts free. The stack holds the indices in order; emit pops
-    // off the top.
     {
         std::vector<u32> free(mMax);
         for (u32 i = 0; i < mMax; ++i)
@@ -136,7 +132,7 @@ bool ParticleSystem::create(u32 maxParticles)
     {
         GPUCounters counters;
         counters.aliveCount = 0;
-        counters.deadCount = static_cast<s32>(mMax); // full stack = everything free
+        counters.deadCount = static_cast<s32>(mMax);
         counters.emitCount = 0;
         counters.aliveCountAfterSim = 0;
         BufferDesc counterDesc;
@@ -256,8 +252,7 @@ void ParticleSystem::shutdown()
     mValid = false;
 }
 
-// Built on first use, not in create(): a system can be created while the
-// engine starts, before a demo has mounted its asset search paths.
+// Built on first use: assets are not mounted when a system is created.
 bool ParticleSystem::ensurePipelines()
 {
     if (mPipelinesReady)
@@ -307,17 +302,14 @@ bool ParticleSystem::ensurePipelines()
     drawDesc.fs = {fragment.c_str(), 0, "particle.frag"};
     drawDesc.topology = Topology::TriangleStrip;
     drawDesc.depth.test = true;
-    // Writes colour but NOT depth: transparent particles writing depth would
-    // occlude each other depending on submission order rather than blending.
+    // Colour but not depth: depth writes would make particles occlude each other by submission order.
     drawDesc.depth.write = false;
     drawDesc.raster.cull = CullMode::None;
     drawDesc.blend.mode = BlendMode::Alpha;
     drawDesc.debugName = "particle.draw";
     mDrawPipeline = gpu.createPipeline(drawDesc);
 
-    // Same shaders, different blend state: the reference toggles
-    // glBlendFunc per draw, but a pipeline here bakes its blend mode in, so
-    // additive gets a pipeline of its own instead of a runtime switch.
+    // Pipelines bake blend mode, so additive gets its own pipeline.
     PipelineDesc additiveDesc = drawDesc;
     additiveDesc.blend.mode = BlendMode::Additive;
     additiveDesc.debugName = "particle.draw.additive";
@@ -341,9 +333,7 @@ void ParticleSystem::emitContinuous(const Emitter& emitter, f32 deltaTime)
     if (emitter.rate <= 0.0f)
         return;
 
-    // Accumulate the fraction. rate=10 at 60 fps is 0.166 particles per
-    // frame; without an accumulator truncation would give zero and the
-    // emitter would never emit anything.
+    // Accumulate the fraction: truncating rate=10 at 60 fps (0.166/frame) would never emit.
     mEmitAccumulator += emitter.rate * deltaTime;
     const u32 count = static_cast<u32>(mEmitAccumulator);
     if (count > 0)
@@ -369,9 +359,7 @@ void ParticleSystem::update(f32 deltaTime)
     gpu.bindStorage(BindingIndirectStorage, mIndirectBuffer);
     gpu.bindStorage(BindingAliveNew, mAliveBuffer[next]);
 
-    // ---- 1. EMIT ----
-    // Before kickoff, on purpose: new particles enter the CURRENT list right
-    // after the survivors and are already simulated this frame.
+    // Emit before kickoff: new particles join the CURRENT list and simulate this frame.
     if (!mPending.empty())
     {
         gpu.setPipeline(mEmitPipeline);
@@ -396,23 +384,18 @@ void ParticleSystem::update(f32 deltaTime)
 
             gpu.dispatch((count + kThreadCountEmit - 1) / kThreadCountEmit, 1, 1);
 
-            // Between bursts: they all touch the same atomic counters.
             gpu.barrier(BarrierStorage);
         }
         mPending.clear();
     }
 
-    // ---- 2. KICKOFF ----
     gpu.barrier(BarrierStorage);
     gpu.setPipeline(mKickoffPipeline);
     gpu.dispatch(1, 1, 1);
 
-    // The kickoff just wrote the next dispatch's arguments into this buffer,
-    // and dispatchIndirect is about to read them as a command. Without the
-    // indirect barrier the GPU can read last frame's arguments instead.
+    // Kickoff wrote the indirect args; the barrier stops the GPU reading last frame's.
     gpu.barrier(BarrierStorage | BarrierIndirect);
 
-    // ---- 3. SIMULATE (indirect) ----
     gpu.setPipeline(mSimulatePipeline);
     SimulateBlock simulateBlock;
     simulateBlock.gravityDt = Math::vec4(gravity, deltaTime);
@@ -421,15 +404,12 @@ void ParticleSystem::update(f32 deltaTime)
     gpu.bindUniform(kUniformBinding, mSimulateBlockBuffer);
     gpu.dispatchIndirect(mIndirectBuffer, offsetof(GPUIndirect, dispatchX));
 
-    // ---- 4. FINISH ----
     gpu.barrier(BarrierStorage);
     gpu.setPipeline(mFinishPipeline);
     gpu.dispatch(1, 1, 1);
 
-    // The finish pass's writes are read back as draw arguments.
     gpu.barrier(BarrierStorage | BarrierIndirect);
 
-    // Swap the lists: this frame's NEW is next frame's CURRENT.
     mCurrent = next;
 }
 
@@ -448,8 +428,6 @@ void ParticleSystem::render(const Math::mat4& viewProjection, const Math::vec3& 
     gpu.updateBuffer(mDrawBlockBuffer, 0, sizeof(block), &block);
     gpu.bindUniform(kUniformBinding, mDrawBlockBuffer);
 
-    // The list to read is the one simulation just wrote. update() already
-    // swapped mCurrent, so that is the one.
     gpu.bindStorage(BindingParticles, mParticleBuffer);
     gpu.bindStorage(BindingAliveNew, mAliveBuffer[mCurrent]);
     gpu.bindTexture(0, texture.valid() ? texture : mWhiteTexture, mSampler);
@@ -457,7 +435,7 @@ void ParticleSystem::render(const Math::mat4& viewProjection, const Math::vec3& 
     gpu.setPipeline(additive ? mAdditivePipeline : mDrawPipeline);
 
     DrawDesc draw;
-    draw.instanceCount = 0; // overwritten by the indirect args
+    draw.instanceCount = 0;
     gpu.drawIndirect(draw, mIndirectBuffer, offsetof(GPUIndirect, vertexCount), 1);
 }
 
@@ -466,8 +444,7 @@ ParticleSystem::Stats ParticleSystem::readStats() const
     if (!mValid)
         return mStatsCache;
 
-    // Sampled sparsely: this readback stalls the GPU. See the comment on the
-    // declaration.
+    // Sampled sparsely: this readback stalls the GPU.
     if (statsIntervalFrames <= 0)
         return mStatsCache;
 

@@ -44,8 +44,7 @@ enum class BlockFaceRotation : u8
     CounterClockwise90
 };
 
-// A tile in a texture atlas. The mesher turns these coordinates into UVs;
-// chunks and world generation never need to know about texture assets.
+// A tile in a texture atlas; the mesher turns these into UVs.
 struct BlockFaceMaterial
 {
     u16 atlasX = 0;
@@ -65,9 +64,7 @@ struct BlockDefinition
     std::array<BlockFaceMaterial, static_cast<usize>(BlockFace::Count)> faces = {};
 };
 
-// Stable block IDs belong to the registry, rather than the mesher or world
-// generator.  This lets a project extend its block set without teaching each
-// subsystem about individual materials.
+// Stable block IDs belong to the registry, so a project can extend its block set without touching other subsystems.
 class BlockRegistry
 {
 public:

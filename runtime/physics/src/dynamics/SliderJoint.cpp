@@ -193,8 +193,7 @@ void SliderJoint::setServo(f32 targetPosition, f32 maxForce, f32 maxSpeed)
 {
     if (!std::isfinite(targetPosition) || !std::isfinite(maxForce) || !std::isfinite(maxSpeed))
         return;
-    // See HingeJoint::setServo(): a settled body is asleep, and the solver
-    // skips it, so a new target has to wake it or the machine never moves.
+    // A settled body is asleep and skipped, so a new target must wake it (see HingeJoint::setServo()).
     if (targetPosition != mServoTargetPosition || !mServoEnabled)
         wakeBodies();
     mServoTargetPosition = targetPosition;
@@ -330,17 +329,14 @@ void SliderJoint::setup(f32 duration)
     calculateRotationProperties();
     calculateSlideAxisAndPosition();
     calculateLimitProperties();
-    // See HingeJoint::setup(): the servo is the velocity motor fed the speed
-    // that would close the whole position error in one step, rationed by
-    // mMotorMaxImpulse.
+    // As HingeJoint::setup(): servo = velocity motor fed the speed that closes the error in one step, rationed by mMotorMaxImpulse.
     if (mServoEnabled && duration > 0.0f)
     {
         f32 target = mServoTargetPosition;
         if (mHasLimits)
             target = Math::clamp(target, mLimitsMin, mLimitsMax);
         const f32 error = target - currentPosition();
-        // See HingeJoint::setup(): a servo with work left keeps its bodies
-        // awake, or the solver skips the very joint that was given an order.
+        // A servo with work left keeps its bodies awake (see HingeJoint::setup()).
         if (std::abs(error) > 0.001f)
             wakeBodies();
         f32 velocity = error / duration;

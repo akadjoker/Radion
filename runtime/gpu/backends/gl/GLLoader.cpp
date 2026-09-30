@@ -1,7 +1,6 @@
 #include "PCH.h"
 
-// The single translation unit that carries the glad implementation. Every
-// other file only sees the declarations.
+// The single TU carrying the glad implementation.
 
 #include <cstdlib>
 

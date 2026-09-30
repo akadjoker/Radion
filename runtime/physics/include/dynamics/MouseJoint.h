@@ -7,10 +7,8 @@
 namespace Radion::Physics
 {
 
-// Drags one anchor point on a body towards a moving world target through a
-// soft spring, capped by a maximum force - picking a body up with the cursor
-// without teleporting it. Single-body: both joint endpoints report the
-// dragged body.
+// Drags an anchor point on a body toward a moving world target through a soft spring capped by a max force.
+// Single-body: both endpoints report the dragged body.
 class MouseJoint final : public Joint
 {
 public:
@@ -36,9 +34,7 @@ public:
     void setMaxForce(f32 force);
     void setStiffness(f32 stiffness);
     void setDamping(f32 damping);
-    // The usual spring parametrisation on top of raw stiffness: frequency in
-    // hertz and a damping ratio, scaled by the body's mass so the feel does
-    // not change with what is being dragged.
+    // Frequency (Hz) and damping ratio, scaled by the body's mass so the feel does not change with what is dragged.
     void tuneSpring(f32 frequencyHz, f32 dampingRatio);
 
 private:

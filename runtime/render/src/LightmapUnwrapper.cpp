@@ -73,10 +73,7 @@ bool LightmapUnwrapper::unwrap(const MeshData& input, MeshData& output,
     if (settings.progress)
         xatlas::SetProgressCallback(atlas, xatlasProgress, &progress);
 
-    // The whole mesh goes in as ONE xatlas mesh, submeshes and all. Feeding
-    // it one mesh per submesh stops charts ever crossing a submesh boundary,
-    // which packs far more loose pieces and spills the atlas over several
-    // pages for geometry that fits in one.
+    // The whole mesh goes in as ONE xatlas mesh so charts can cross submesh boundaries (fewer pieces, one page).
     xatlas::MeshDecl decl;
     decl.vertexCount = static_cast<u32>(input.positions.size());
     decl.vertexPositionData = input.positions.data();
@@ -131,9 +128,7 @@ bool LightmapUnwrapper::unwrap(const MeshData& input, MeshData& output,
 
     const xatlas::Mesh& result = atlas->meshes[0];
 
-    // Every consumer of this binds one lightmap texture. Refusing here beats
-    // handing back a mesh whose later pages sample a texture that was never
-    // written, which shows up as whole sections of the model going black.
+    // Consumers bind one lightmap texture; refuse multi-page results rather than sample unwritten pages.
     if (atlas->atlasCount != 1)
     {
         Log::error("LightmapUnwrapper: atlas needs %u pages - lower texelsPerUnit or raise "
@@ -143,12 +138,7 @@ bool LightmapUnwrapper::unwrap(const MeshData& input, MeshData& output,
         return false;
     }
 
-    // xatlas renumbers and duplicates vertices but keeps the triangles in the
-    // order they were given, so index j still belongs to triangle j and every
-    // submesh's indexOffset/indexCount stays valid untouched. That only holds
-    // while the counts match; if a future xatlas drops degenerate triangles
-    // the submesh table would silently point at the wrong geometry, so it is
-    // checked rather than assumed.
+    // xatlas keeps triangle order, so submesh indexOffset/indexCount stay valid only while counts match; checked, not assumed.
     if (result.indexCount != input.indices.size())
     {
         Log::error("LightmapUnwrapper: xatlas returned %u indices for %zu given - the submesh "

@@ -93,9 +93,7 @@ bool NavMeshSurface::build()
         return false;
     }
 
-    // Recast works in one space, and the level is drawn through its owner's
-    // transform - baking the vertices through it here is what keeps the
-    // surface under the geometry instead of at the origin.
+    // Recast works in one space; bake through the owner's transform so the surface lands under the geometry.
     const Math::mat4 transform = object->globalTransform();
     for (Math::vec3& position : meshData.positions)
         position = Math::vec3(transform * Math::vec4(position, 1.0f));

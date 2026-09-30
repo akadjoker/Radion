@@ -425,8 +425,7 @@ std::string resolveTexture(FileSystem& files, const std::string& bspFilename,
             return found;
     }
 
-    // Keep the shader/texture name even when it cannot be resolved yet.
-    // AssetManager may have more search paths mounted by upload time.
+    // Keep the name even if unresolved; more search paths may be mounted by upload time.
     return texture;
 }
 
@@ -460,7 +459,7 @@ bool writeLightmapTGA(FileSystem& files, const std::string& filename,
     if (!tga.data())
         return false;
     std::memset(tga.data(), 0, tga.size());
-    tga[2] = 2; // uncompressed true-colour
+    tga[2] = 2;
     tga[12] = static_cast<u8>(kLightmapWidth & 0xFFu);
     tga[13] = static_cast<u8>((kLightmapWidth >> 8) & 0xFFu);
     tga[14] = static_cast<u8>(kLightmapHeight & 0xFFu);
@@ -885,8 +884,7 @@ bool BSPImporter::importMap(const std::string& filename, ByteArray& data, FileSy
     {
         const usize offset = vertexLump.offset + i * kVertexSize;
         SourceVertex& vertex = vertices[i];
-        // Quake 3 is Z-up. Swapping Y/Z matches the reference loader's Y-up
-        // conversion and its established winding convention.
+        // Quake 3 is Z-up; swap Y/Z for Y-up, matching the reference loader's winding.
         vertex.position = Math::vec3(readF32(bytes, offset + 0), readF32(bytes, offset + 8),
                                     readF32(bytes, offset + 4));
         vertex.uv = Math::vec2(readF32(bytes, offset + 12), readF32(bytes, offset + 16));

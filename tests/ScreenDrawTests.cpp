@@ -73,10 +73,7 @@ void testLayerOrderIsStable()
     ScreenDraw& queue = ScreenDraws();
     queue.clear();
 
-    // Submission order: id 0 (layer 1), id 1 (layer 0), id 2 (layer 1),
-    // id 3 (layer 0). A stable sort by ascending layer must produce
-    // [1, 3, 0, 2] - the layer-0 pair and the layer-1 pair each keeping
-    // their own submission order.
+    // A stable sort by ascending layer of ids 0 (L1), 1 (L0), 2 (L1), 3 (L0) must give [1, 3, 0, 2].
     queue.rect(0.0f, 0.0f, 0.0f, 0.0f, Color::White, true, 1);
     queue.rect(0.0f, 0.0f, 0.0f, 1.0f, Color::White, true, 0);
     queue.rect(0.0f, 0.0f, 0.0f, 2.0f, Color::White, true, 1);
@@ -106,8 +103,7 @@ void testTextIsCopiedNotAliased()
     char source[16];
     std::strcpy(source, "hello");
     queue.text(1.0f, 2.0f, 14.0f, Color::White, source, 3);
-    // The queue must have copied the string already - stomping the source
-    // buffer right after submitting must not change what comes back out.
+    // The queue must copy the string: stomping the source afterwards changes nothing.
     std::memset(source, 'X', sizeof(source));
 
     const std::vector<ScreenDrawCommand>& commands = queue.commands();
@@ -137,8 +133,7 @@ void testClearKeepsCapacity()
 
     queue.clear();
     CHECK(queue.empty());
-    // clear() must keep the vector's storage - reallocating every frame is
-    // exactly what a per-frame command queue cannot afford.
+    // clear() must keep the vector's storage (per-frame queue).
     CHECK(queue.commands().capacity() == grownCapacity);
 }
 
@@ -161,8 +156,6 @@ void testFadeCoversWholeScreen()
         CHECK(hd.x == 0.0f && hd.y == 0.0f);
         CHECK(hd.width == 1920.0f && hd.height == 1080.0f);
 
-        // Not baked at submission time - the same command resolves to
-        // whatever resolution it is asked about.
         const FloatRect sd = ScreenDraw::resolvedRect(command, 640.0f, 480.0f);
         CHECK(sd.width == 640.0f && sd.height == 480.0f);
     }

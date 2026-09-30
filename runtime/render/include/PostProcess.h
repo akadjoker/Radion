@@ -29,8 +29,7 @@ struct PostLayer
     bool enabled = true;
 };
 
-// Ordered image-effect stack. Scene-dependent work such as SSAO and shadows
-// remains a render technique; this class only transforms the completed image.
+// Ordered image-effect stack; scene-dependent work (SSAO, shadows) stays a render technique, this only transforms the completed image.
 class PostProcessStack
 {
 public:
@@ -49,17 +48,11 @@ public:
     TextureHandle computeSSAO(const Math::mat4& projection);
     void resolve(const Rect& destination, u32 windowWidth, u32 windowHeight);
 
-    // Same chain as resolve(), but the final tone-map/gamma draw lands in an
-    // internal LDR texture instead of the backbuffer, and that texture is
-    // returned. For an embedded viewport (the editor) - the handle is
-    // borrowed, owned here, and stays valid until the next resize or
-    // shutdown(). Never sceneColor(): that is HDR linear and is not what
-    // reaches the window.
+    // Same chain as resolve(), but the final tone-map/gamma draw lands in an internal LDR texture (borrowed; valid until resize or shutdown()). For embedded viewports.
+    // Never sceneColor(): that is HDR linear.
     TextureHandle resolveToTexture(u32 outputIndex = 0, bool applyPostProcess = true);
 
-    // The depth the prepass wrote this frame, same texture SSAO reads. What
-    // the tiled light cull needs and has no other way to reach, since the
-    // scene's offscreen target is otherwise private to this class.
+    // This frame's prepass depth (same texture SSAO reads); the tiled light cull needs it.
     TextureHandle sceneDepth() const
     {
         return mScene.depth;
@@ -69,10 +62,7 @@ public:
         return mAO[0].color;
     }
 
-    // The HDR colour Forward just wrote. VolumetricPass composites into this
-    // directly, before the tone-mapped chain below ever sees it - light in
-    // the air has to go through the same exposure curve as everything else,
-    // not be added on top of an already-graded image.
+    // The HDR colour Forward just wrote; VolumetricPass composites into it before tone mapping so light in the air goes through the same exposure curve.
     TextureHandle sceneColor() const
     {
         return mScene.color;
@@ -94,11 +84,7 @@ public:
         return mScene.height;
     }
 
-    // The stack's own fullscreen-triangle draw, public so a technique that
-    // wants the exact same separable blur bloom uses (modes 4/5) is not left
-    // copying it. Mode numbers and what `options` means for each are only
-    // defined in PostProcess.cpp's fragment source - see the comments there
-    // before passing a new one.
+    // Fullscreen-triangle draw, public so techniques can reuse the bloom blur (modes 4/5). Mode numbers and `options` are defined only in PostProcess.cpp's fragment source.
     void draw(TextureHandle source, TextureHandle secondary, TargetHandle destination,
              const Viewport& viewport, u32 mode, const Math::vec4& options);
 
@@ -116,24 +102,16 @@ public:
     f32 ssaoIntensity = 1.0f;
     u32 ssaoSamples = 16;
     f32 ssaoDepthSigma = 80.0f;
-    // The blur is what makes SSAO usable: the raw pass takes a handful of
-    // random samples per pixel and is pure noise without it. Off is for
-    // seeing that, not for shipping.
+    // The raw pass is pure noise without the blur; off is for seeing that.
     bool ssaoBlur = true;
     bool ssaoDebug = false;
-    // HDR temporal resolve happens before Bloom/ToneMap.  It is intentionally
-    // independent from the generic effect list: a history buffer has ordering
-    // and lifetime requirements that a stateless post layer does not have.
+    // HDR temporal resolve runs before Bloom/ToneMap; separate from the effect list because a history buffer has ordering and lifetime needs a stateless layer lacks.
     bool taaEnabled = false;
     f32 taaFeedback = 0.95f;
     f32 taaMotionFeedback = 0.85f;
-    // How many standard deviations of the 3x3 neighbourhood the history is
-    // allowed to sit outside. Lower rejects more history: less ghosting, more
-    // of the jitter left unresolved.
+    // Standard deviations of the 3x3 neighbourhood the history may sit outside; lower = less ghosting, more unresolved jitter.
     f32 taaClipWidth = 4.0f;
-    // Unsharp amount applied to the resolved luma. Temporal accumulation is
-    // softer than the raw image by construction; zero disables the correction
-    // and anything past ~0.5 starts to ring on high-contrast edges.
+    // Unsharp amount on resolved luma (accumulation is softer); zero disables, past ~0.5 rings on high-contrast edges.
     f32 taaSharpness = 0.0f;
     bool enabled = false;
 
@@ -146,18 +124,14 @@ private:
     bool resize(u32 width, u32 height);
     bool ensureTAAPipeline();
     TextureHandle resolveTAA(TextureHandle source);
-    // The effect chain both resolve paths share, up to but not including the
-    // final presentation draw. Returns the texture holding the result and,
-    // through `displayEncoded`, whether a tone-map layer already gamma-encoded
-    // it - the final draw needs to know which of its two modes to use.
+    // Effect chain both resolve paths share, up to the final presentation draw. `displayEncoded` reports whether a tone-map layer already gamma-encoded the result.
     TextureHandle runLayers(bool& displayEncoded);
 
     OffscreenTarget mScene;
     OffscreenTarget mPing[2];
     OffscreenTarget mBloom[2];
     OffscreenTarget mAO[2];
-    // Only ever created by resolveToTexture() - a build that never renders
-    // to a texture (every demo) pays nothing for this.
+    // Only created by resolveToTexture(); builds that never render to a texture pay nothing.
     OffscreenTarget mResolved[2];
     OffscreenTarget mTAAHistory[3][2];
     PipelineHandle mPipeline;

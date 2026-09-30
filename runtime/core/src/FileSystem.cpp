@@ -54,8 +54,7 @@ void FileSystem::removeSearchPath(const std::string& path)
 {
     mSearchPaths.erase(std::remove(mSearchPaths.begin(), mSearchPaths.end(), path),
                        mSearchPaths.end());
-    // Anything resolved through the path just dropped now points at a place
-    // this filesystem no longer looks.
+    // Cached resolutions through the dropped path are stale.
     mResolvedOnDisk.clear();
 }
 
@@ -262,8 +261,7 @@ bool FileSystem::writeBinary(const std::string& path, const ByteArray& data) con
 
 bool FileSystem::writeText(const std::string& path, const std::string& text) const
 {
-    // Non-owning view over the string's own bytes - writeBinaryOnDisk only
-    // reads from it, never frees or reallocates it.
+    // Non-owning view; writeBinaryOnDisk only reads it.
     ByteArray view(const_cast<uint8*>(reinterpret_cast<const uint8*>(text.data())), text.size(),
                    false);
     return writeBinaryOnDisk(path, view);
@@ -366,8 +364,6 @@ std::string FileSystem::prefPath(const std::string& organization, const std::str
                   application.c_str());
         return {};
     }
-    // SDL already creates the directory tree; nothing left to do but copy
-    // the string out of SDL's own allocator.
     std::string result(path);
     SDL_free(path);
     return result;

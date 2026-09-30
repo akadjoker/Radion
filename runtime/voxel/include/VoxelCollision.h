@@ -18,17 +18,12 @@ struct VoxelMoveResult
     bool wall = false;
 };
 
-// Collision against the grid itself rather than against a mesh of it. A voxel
-// world changes every time somebody breaks a block, and any triangle
-// structure would have to be rebuilt for it; the blocks are already the
-// answer, and an axis-aligned box against unit cubes is exact.
+// Collision against the grid, not a mesh: the world changes whenever a block breaks, and a box against unit cubes is exact.
 class VoxelCollision
 {
 public:
-    // Resolves one axis at a time, vertical first: a box crossing the seam
-    // between two blocks of a flat floor would otherwise catch on the edge of
-    // the second one. Displacement is split so no substep crosses a whole
-    // block, which is what keeps a fast fall from passing through the ground.
+    // One axis at a time, vertical first (else a box crosses a floor seam and catches the edge); displacement is split
+    // so no substep crosses a whole block, which stops fast falls passing through the ground.
     static VoxelMoveResult moveBox(const VoxelWorld& world, const BlockRegistry& blocks,
                                    const Math::vec3& position, const Math::vec3& halfExtents,
                                    const Math::vec3& displacement);

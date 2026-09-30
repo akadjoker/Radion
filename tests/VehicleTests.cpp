@@ -87,10 +87,10 @@ struct CarFixture
         const f32 radius = 0.4f;
 
         const Math::vec3 corners[4] = {
-            Math::vec3(-0.9f, -0.4f, 1.7f),  // front left
-            Math::vec3(0.9f, -0.4f, 1.7f),   // front right
-            Math::vec3(-0.9f, -0.4f, -1.7f), // rear left
-            Math::vec3(0.9f, -0.4f, -1.7f)   // rear right
+            Math::vec3(-0.9f, -0.4f, 1.7f),
+            Math::vec3(0.9f, -0.4f, 1.7f),
+            Math::vec3(-0.9f, -0.4f, -1.7f),
+            Math::vec3(0.9f, -0.4f, -1.7f)
         };
         const bool isFront[4] = {true, true, false, false};
 
@@ -163,9 +163,7 @@ void testBrakeSlowsTheCarDown()
         fixture.vehicle->setEngineForce(0.0f, i);
         fixture.vehicle->setBrake(4000.0f, i);
     }
-    // Four seconds: the chassis pitches on its suspension as it sheds speed,
-    // so the linear speed at the centre of mass does not fall monotonically
-    // - it needs the full transient to settle before this checks it is slow.
+    // The chassis pitches as it sheds speed, so COM speed is not monotonic; it needs the full transient.
     for (u32 i = 0; i < 480; ++i)
         fixture.world.stepPhysics(1.0f / 120.0f);
 
@@ -187,9 +185,7 @@ void testSteeringTurnsTheCar()
     fixture.vehicle->setSteering(0.35f, 0);
     fixture.vehicle->setSteering(0.35f, 1);
 
-    // Only far enough to see the turn build up - by three seconds at this
-    // speed and lock the car has come most of the way round a circle and
-    // its z coordinate would have come back down through zero again.
+    // Stop early: by three seconds the car is most of the way round the circle and z comes back through zero.
     for (u32 i = 0; i < 180; ++i)
     {
         fixture.world.stepPhysics(1.0f / 120.0f);
@@ -217,22 +213,15 @@ void testFreeFallWithoutGroundStaysFinite()
 
     for (u32 i = 0; i < fixture.vehicle->wheelCount(); ++i)
         CHECK(!fixture.vehicle->wheel(i).inContact);
-    // Free fall under gravity: the chassis has to have dropped.
     CHECK(fixture.chassis.position().y < 0.0f);
 }
 
-// A wheel whose axle lies along the surface normal has no lateral direction:
-// projecting the axle onto the contact plane cancels it, and normalising
-// zero is NaN, which leaves through the side impulse into the chassis. A car
-// on its side against a wall, or a wheel flat against a steep ramp, gets
-// there in ordinary play.
+// A wheel axle along the surface normal has no lateral direction: normalising zero gives NaN into the chassis.
 void testWheelSquareToTheSurfaceStaysFinite()
 {
     CarFixture fixture(true);
     fixture.buildVehicle();
 
-    // Lay the car on its side: the wheels' axles now point at the ground,
-    // straight along the floor's normal.
     fixture.chassis.setOrientation(
         Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 0.0f, 1.0f)));
     fixture.chassis.setPosition(Math::vec3(0.0f, 0.5f, 0.0f));
@@ -256,9 +245,7 @@ void testWheelSquareToTheSurfaceStaysFinite()
     }
 }
 
-// A wheel configured with its suspension direction along its own axle has no
-// forward at all - bad setup, but it must cost that wheel a default rather
-// than filling its transform with NaN.
+// Suspension direction along the axle gives no forward: the wheel must get a default, not NaN.
 void testDegenerateWheelAxesStayFinite()
 {
     CarFixture fixture(true);
@@ -280,8 +267,6 @@ void testDegenerateWheelAxesStayFinite()
     for (int column = 0; column < 4; ++column)
         CHECK(finiteVec(Math::vec3(transform[column])));
 }
-
-// ------------------------------------------------------------- motorcycle
 
 struct BikeStep
 {
@@ -342,9 +327,7 @@ struct BikeFixture
                          true);
         vehicle->addWheel(Math::vec3(0.0f, -0.25f, -0.75f), direction, axle, 0.3f, 0.3f, tuning,
                          false);
-        // A car keeps this low to fight rollover; a bike IS the rollover -
-        // the lateral forces' roll moment is the dynamics the lean spring
-        // balances against, so it must act at the real contact height.
+        // A bike IS the rollover: the lateral forces' roll moment must act at the real contact height.
         vehicle->wheel(0).rollInfluence = 1.0f;
         vehicle->wheel(1).rollInfluence = 1.0f;
 
@@ -395,8 +378,7 @@ void testMotorcycleLeansIntoATurn()
                                std::abs(fixture.controller->currentLeanAngle()));
     }
 
-    // Turning demands lean; upright through a turn means the controller is
-    // not steering the roll at all. And it must never exceed its own cap.
+    // Turning demands lean; upright means the roll is not steered. It must never exceed its cap.
     CHECK(deepestLean > 0.05f);
     CHECK(deepestLean < fixture.controller->currentLeanAngle() + 1.0f);
     const Math::vec3 up = fixture.chassis.directionToWorld(Math::vec3(0.0f, 1.0f, 0.0f));

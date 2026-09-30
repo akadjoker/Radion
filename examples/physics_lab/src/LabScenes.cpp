@@ -24,9 +24,6 @@
 namespace Radion::Lab
 {
 
-// The joints live in Physics::; the components this demo puts on objects do
-// not, so both names are in play here and the shorter one wins for the ones
-// used most.
 using Physics::DistanceJoint;
 using Physics::HingeJoint;
 using Physics::PistonJoint;
@@ -38,9 +35,6 @@ using Physics::WheelJoint;
 namespace
 {
 
-// Every body in here is a primitive, and the visual is built to match the
-// collider rather than loaded - so anything that looks wrong is the physics
-// and not an asset.
 GameObject* makeBox(Scene& scene, const char* name, const Math::vec3& position,
                     const Math::vec3& halfExtents, f32 mass)
 {
@@ -110,13 +104,10 @@ void addGroundAndSky(Scene& scene, const Math::vec3& cameraPosition, const Math:
     scene.setSunLight(sun);
 }
 
-// ------------------------------------------------------------ joint gallery
-
 void buildJointGallery(Scene& scene)
 {
     addGroundAndSky(scene, Math::vec3(0.0f, 8.0f, 22.0f), Math::vec3(0.0f, 3.0f, 0.0f));
 
-    // A door on a hinge, with stops: swings, and cannot pass its frame.
     GameObject* frame = makeBox(scene, "DoorFrame", Math::vec3(-12.0f, 3.0f, 0.0f),
                                 Math::vec3(0.15f, 1.5f, 0.15f), 0.0f);
     GameObject* door = makeBox(scene, "Door", Math::vec3(-11.0f, 3.0f, 0.0f),
@@ -126,7 +117,6 @@ void buildJointGallery(Scene& scene)
     hinge->setAuthoredAxis(Math::vec3(0.0f, 1.0f, 0.0f));
     hinge->setLimits(0.0f, Math::radians(110.0f));
 
-    // A lift on a slider, held at a floor by a servo.
     GameObject* shaft = makeBox(scene, "LiftShaft", Math::vec3(-7.0f, 0.2f, 0.0f),
                                 Math::vec3(0.2f, 0.2f, 0.2f), 0.0f);
     GameObject* platform = makeBox(scene, "LiftPlatform", Math::vec3(-7.0f, 0.6f, 0.0f),
@@ -136,10 +126,8 @@ void buildJointGallery(Scene& scene)
     lift->setAuthoredAxis(Math::vec3(0.0f, 1.0f, 0.0f));
     lift->setLimits(0.0f, 6.0f);
     lift->setServo(4.0f, 40000.0f, 1.2f);
-    // Something to carry, so the servo has real work to do.
     makeBox(scene, "LiftCargo", Math::vec3(-7.0f, 1.2f, 0.0f), Math::vec3(0.4f, 0.4f, 0.4f), 40.0f);
 
-    // A pendulum on a ball joint: free in every direction.
     GameObject* pivot = makeBox(scene, "PendulumPivot", Math::vec3(-2.5f, 6.0f, 0.0f),
                                 Math::vec3(0.15f), 0.0f);
     GameObject* bob =
@@ -147,7 +135,6 @@ void buildJointGallery(Scene& scene)
     PointJoint* ball = bob->addComponent<PointJoint>();
     ball->setConnectedBody(pivot);
 
-    // A crane cable: a distance joint holding a load that swings.
     GameObject* boom =
         makeBox(scene, "CraneBoom", Math::vec3(2.5f, 6.5f, 0.0f), Math::vec3(0.2f), 0.0f);
     GameObject* load = makeBox(scene, "CraneLoad", Math::vec3(2.5f, 3.0f, 0.0f),
@@ -156,7 +143,6 @@ void buildJointGallery(Scene& scene)
     cable->setConnectedBody(boom);
     cable->setAuthoredDistance(3.0f, 3.5f);
 
-    // A piston: slides and spins on the same axis.
     GameObject* rail = makeBox(scene, "PistonRail", Math::vec3(7.0f, 3.0f, 0.0f),
                                Math::vec3(0.2f), 0.0f);
     GameObject* rod = makeBox(scene, "PistonRod", Math::vec3(7.0f, 3.0f, 0.0f),
@@ -167,7 +153,6 @@ void buildJointGallery(Scene& scene)
     piston->setLinearLimits(-1.5f, 1.5f);
     piston->setLinearMotor(1.5f, 4000.0f);
 
-    // A universal joint: two axes, like a hip.
     GameObject* yoke =
         makeBox(scene, "UniversalYoke", Math::vec3(11.0f, 4.0f, 0.0f), Math::vec3(0.2f), 0.0f);
     GameObject* shaftBody = makeBox(scene, "UniversalShaft", Math::vec3(11.0f, 3.0f, 0.0f),
@@ -176,13 +161,10 @@ void buildJointGallery(Scene& scene)
     universal->setConnectedBody(yoke);
     universal->setAuthoredAxis(Math::vec3(1.0f, 0.0f, 0.0f));
 
-    // A stack, to watch contacts settle and sleep.
     for (u32 i = 0; i < 6; ++i)
         makeBox(scene, "StackBox", Math::vec3(15.0f, 0.35f + static_cast<f32>(i) * 0.72f, 0.0f),
                 Math::vec3(0.35f), 8.0f);
 }
-
-// ---------------------------------------------------------------- robot arm
 
 void buildRobotArm(Scene& scene)
 {
@@ -191,7 +173,6 @@ void buildRobotArm(Scene& scene)
     GameObject* base = makeBox(scene, "ArmBase", Math::vec3(0.0f, 0.3f, 0.0f),
                                Math::vec3(0.6f, 0.3f, 0.6f), 0.0f);
 
-    // Axis 1: the whole arm turns about vertical.
     GameObject* column = makeBox(scene, "ArmColumn", Math::vec3(0.0f, 1.0f, 0.0f),
                                  Math::vec3(0.25f, 0.5f, 0.25f), 30.0f);
     HingeJoint* axis1 = column->addComponent<HingeJoint>();
@@ -199,7 +180,6 @@ void buildRobotArm(Scene& scene)
     axis1->setAuthoredAxis(Math::vec3(0.0f, 1.0f, 0.0f));
     axis1->setServo(0.0f, 6000.0f, 1.2f);
 
-    // Axis 2: the shoulder.
     GameObject* upperArm = makeBox(scene, "ArmUpper", Math::vec3(0.0f, 2.0f, 0.0f),
                                    Math::vec3(0.18f, 0.7f, 0.18f), 18.0f);
     HingeJoint* axis2 = upperArm->addComponent<HingeJoint>();
@@ -208,7 +188,6 @@ void buildRobotArm(Scene& scene)
     axis2->setLimits(Math::radians(-60.0f), Math::radians(90.0f));
     axis2->setServo(0.0f, 6000.0f, 1.5f);
 
-    // Axis 3: the elbow.
     GameObject* foreArm = makeBox(scene, "ArmFore", Math::vec3(0.0f, 3.2f, 0.0f),
                                   Math::vec3(0.15f, 0.6f, 0.15f), 10.0f);
     HingeJoint* axis3 = foreArm->addComponent<HingeJoint>();
@@ -217,7 +196,6 @@ void buildRobotArm(Scene& scene)
     axis3->setLimits(0.0f, Math::radians(150.0f));
     axis3->setServo(0.0f, 4000.0f, 1.5f);
 
-    // Two fingers on sliders: the gripper.
     for (u32 side = 0; side < 2; ++side)
     {
         const f32 sign = side == 0 ? -1.0f : 1.0f;
@@ -231,11 +209,8 @@ void buildRobotArm(Scene& scene)
         slide->setServo(0.2f, 400.0f, 0.4f);
     }
 
-    // Something to reach for.
     makeBox(scene, "WorkPiece", Math::vec3(1.4f, 0.2f, 0.0f), Math::vec3(0.12f, 0.12f, 0.12f), 1.5f);
 }
-
-// ------------------------------------------------------------------ vehicle
 
 void buildVehicle(Scene& scene)
 {
@@ -256,9 +231,7 @@ void buildVehicle(Scene& scene)
         joint->setConnectedBody(chassis);
         joint->setAuthoredSuspensionAxis(Math::vec3(0.0f, -1.0f, 0.0f));
         joint->setAuthoredSpinAxis(Math::vec3(1.0f, 0.0f, 0.0f));
-        // 300 kg a corner settling 20 cm is about 15 kN/m; damping a tenth
-        // of that. Stable at any stiffness now that the spring is solved in
-        // the constraint rather than pushed in as a force.
+        // 300 kg a corner settling 20 cm is ~15 kN/m; damping a tenth of that.
         joint->setSuspension(0.45f, 15000.0f, 1500.0f);
         if (isFront[i])
         {
@@ -270,7 +243,6 @@ void buildVehicle(Scene& scene)
         joint->setSpinMotor(0.0f, 0.0f);
     }
 
-    // A ramp and a few obstacles, so the suspension has something to do.
     GameObject* ramp = makeBox(scene, "Ramp", Math::vec3(0.0f, 0.35f, -14.0f),
                                Math::vec3(4.0f, 0.2f, 3.0f), 0.0f);
     ramp->setRotation(Math::angleAxis(Math::radians(-12.0f), Math::vec3(1.0f, 0.0f, 0.0f)));
@@ -280,14 +252,10 @@ void buildVehicle(Scene& scene)
                 Math::vec3(0.6f, 0.15f, 0.6f), 0.0f);
 }
 
-// -------------------------------------------------------------- agent crowd
-
 void buildAgentCrowd(Scene& scene)
 {
     addGroundAndSky(scene, Math::vec3(0.0f, 26.0f, 26.0f), Math::vec3(0.0f, 0.0f, 0.0f));
 
-    // Pillars to walk around, each one an Obstacle the avoidance reads from
-    // the scene - no group assembled by hand.
     const Math::vec3 pillars[5] = {Math::vec3(0.0f, 1.5f, 0.0f), Math::vec3(6.0f, 1.5f, -4.0f),
                                   Math::vec3(-6.0f, 1.5f, -4.0f), Math::vec3(4.0f, 1.5f, 6.0f),
                                   Math::vec3(-4.0f, 1.5f, 6.0f)};
@@ -301,7 +269,6 @@ void buildAgentCrowd(Scene& scene)
         obstacle->setSphere(1.5f);
     }
 
-    // The goal every agent walks toward.
     GameObject* goal = scene.createGameObject("Goal");
     goal->setPosition(Math::vec3(0.0f, 0.5f, -16.0f));
     if (MeshRenderer* renderer = goal->addComponent<MeshRenderer>())
@@ -330,8 +297,6 @@ void buildAgentCrowd(Scene& scene)
         agent->setPosition(object->position());
         agent->setGoal(Math::vec3(0.0f, 0.4f, -16.0f));
         agent->setGoalRadius(1.5f);
-        // Separation keeps them out of each other; obstacle avoidance reads
-        // the scene's own obstacle list.
         agent->addBehavior<AI::SeparationBehavior>(1.6f, 0.2f, 1.0f);
         agent->addBehavior<AI::SeekBehavior>(Math::vec3(0.0f, 0.4f, -16.0f));
         agent->addBehavior<AI::ObstacleAvoidanceBehavior>(2.5f);
@@ -371,8 +336,6 @@ void updateScene(Scene& scene, LabScene which, f32 elapsed)
     {
     case LabScene::RobotArm:
     {
-        // Walks the three axes through a slow cycle and works the gripper, so
-        // the servos are always doing something to watch.
         GameObject* column = scene.findGameObject("ArmColumn");
         GameObject* upper = scene.findGameObject("ArmUpper");
         GameObject* fore = scene.findGameObject("ArmFore");
@@ -397,8 +360,6 @@ void updateScene(Scene& scene, LabScene which, f32 elapsed)
     }
     case LabScene::Vehicle:
     {
-        // Gentle throttle with the wheel weaving, which is what makes the
-        // suspension and the steering servo visible.
         const f32 steer = std::sin(elapsed * 0.4f) * Math::radians(22.0f);
         const char* front[2] = {"WheelFL", "WheelFR"};
         for (const char* name : front)
@@ -414,8 +375,6 @@ void updateScene(Scene& scene, LabScene which, f32 elapsed)
     }
     case LabScene::JointGallery:
     {
-        // The lift rides between two floors, so the slider servo is doing
-        // work rather than just holding.
         if (GameObject* platform = scene.findGameObject("LiftPlatform"))
             if (SliderJoint* lift = platform->getComponent<SliderJoint>())
                 lift->setServo(3.0f + std::sin(elapsed * 0.35f) * 2.5f, 40000.0f, 1.2f);

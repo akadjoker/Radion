@@ -6,9 +6,6 @@
 namespace Radion
 {
 
-// A countdown that disposes its own GameObject once its lifetime elapses -
-// a bullet impact effect or an explosion light attaches this to clean
-// itself up without any outside script watching it.
 class SelfDestroy final : public Component
 {
 public:

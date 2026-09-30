@@ -19,9 +19,7 @@ f64 milliseconds(std::chrono::steady_clock::time_point begin,
     return std::chrono::duration<f64, std::milli>(end - begin).count();
 }
 
-// Objects with no components at all: what one Scene::update() costs before a
-// single line of game logic runs. The scene is flat, so nothing here pays for
-// a deep hierarchy either - this is the floor.
+// No components: Scene::update() cost before any game logic; a flat scene, so this is the floor.
 void benchIdleUpdate(u32 count, u32 frames)
 {
     Scene scene;
@@ -39,8 +37,6 @@ void benchIdleUpdate(u32 count, u32 frames)
                 perFrame, perFrame * 1000.0 / (static_cast<f64>(count) / 1000.0));
 }
 
-// The same scene with one moving object, to separate what the update costs
-// because something changed from what it costs regardless.
 void benchOneMoverUpdate(u32 count, u32 frames)
 {
     Scene scene;
@@ -61,8 +57,7 @@ void benchOneMoverUpdate(u32 count, u32 frames)
                 milliseconds(begin, end) / static_cast<f64>(frames));
 }
 
-// Spheres on a wide grid, spaced far enough apart that almost no pair ever
-// touches. Whatever this costs is pair bookkeeping, not contact solving.
+// Widely spaced spheres: almost no pair touches, so the cost is pair bookkeeping.
 void benchCollisionStep(u32 count, u32 frames)
 {
     Scene scene;

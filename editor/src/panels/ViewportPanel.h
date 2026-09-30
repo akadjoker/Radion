@@ -15,8 +15,7 @@ public:
 
     void onImGui() override;
  
-    // submeshIndex >= 0 frames just that submesh's world box instead of the
-    // whole mesh's - the Inspector's per-submesh focus icon.
+    // submeshIndex >= 0 frames just that submesh's world box.
     void focusOnObject(const GameObject& object, s32 submeshIndex = -1);
 
 private:
@@ -42,8 +41,7 @@ private:
     bool mPointerNavigationActive = false;
     // Rubber-band selection: dragging on empty space with the Select tool.
     bool mRectSelecting = false;
-    // The same drag with Ctrl held as it starts: gathers the selected
-    // object's own submeshes instead. Never both at once.
+    // Same drag with Ctrl held at start gathers the object's submeshes instead; never both.
     bool mSubmeshRectSelecting = false;
     Math::vec2 mRectStart = Math::vec2(0.0f);
     Math::vec2 mImageMin = Math::vec2(0.0f);
@@ -64,25 +62,15 @@ private:
     bool mTerrainStrokeUndo = false;
 
     void drawTransformGizmo(const Math::vec2& imageMin, const Math::vec2& imageSize);
-    // Selects every object whose origin projects inside the screen-space
-    // rectangle. Additive when `add` (Shift held), otherwise replaces.
+    // Selects every object whose origin projects inside the screen rectangle; additive when `add` (Shift).
     void selectInRect(const Math::vec2& min, const Math::vec2& max, bool add);
-    // Same rectangle, but over one object's own submeshes: the drag is
-    // unprojected into a frustum and every submesh whose box meets it is
-    // gathered. `subtract` removes those from the selection instead of
-    // adding them - the way back from a rectangle that caught too much,
-    // without starting the whole selection again.
+    // Same rectangle over one object's submeshes (drag unprojected into a frustum); `subtract` removes from the selection.
     void selectSubmeshesInRect(GameObject& object, const Math::vec2& min, const Math::vec2& max,
                                bool subtract);
-    // Undo has to be recorded once, on the press that starts a drag - not
-    // every frame Manipulate() reports a change, or every frame of a single
-    // drag becomes its own undo step.
+    // Record undo once on the press that starts a drag, not every frame Manipulate() reports a change.
     bool mGizmoDragging = false;
 
-    // AnimationPanel's pose-editing counterpart to drawTransformGizmo() -
-    // retargets the same ImGuizmo onto a bone (rotate, FK) or an IK chain's
-    // target (translate) instead of the selected object's own transform,
-    // driven by EditorApplication::animationPoseTarget().
+    // Pose-editing counterpart to drawTransformGizmo(): retargets ImGuizmo onto a bone or IK target per EditorApplication::animationPoseTarget().
     void drawBonePoseGizmo(const Math::vec2& imageMin, const Math::vec2& imageSize);
 };
 

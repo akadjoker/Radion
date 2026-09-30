@@ -1,6 +1,3 @@
-// SquadEntity.cpp - the random-waypoint helper (all that is left here once
-// SquadEntity/SquadLeaderEntity/SquadMemberEntity moved into Radion::Agent).
-
 #include "PCH.h"
 
 #include "SquadEntity.h"

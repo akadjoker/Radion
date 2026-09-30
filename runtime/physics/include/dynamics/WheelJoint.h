@@ -8,22 +8,15 @@
 namespace Radion::Physics
 {
 
- 
 class WheelJoint final : public Joint
 {
 public:
-    // `worldSuspensionAxis` points from the chassis mount towards the ground
-    // (the strut's travel direction); `worldSpinAxis` is the wheel's own
-    // rolling axis. They do not need to start perpendicular - only linearly
-    // independent - the perpendicularity constraint pulls the spin axis
-    // square to the suspension axis as soon as the joint starts solving.
+    // `worldSuspensionAxis` points chassis mount to ground (strut travel); `worldSpinAxis` is the rolling axis. They need only be linearly independent:
+    // the perpendicularity constraint squares the spin axis to the suspension once solving starts.
     WheelJoint(RigidBody& chassis, RigidBody& wheel, const Math::vec3& worldAnchor,
               const Math::vec3& worldSuspensionAxis, const Math::vec3& worldSpinAxis);
 
-    // Empty, for the component path: the editor adds one of these to an
-    // object and rebuild() wires it to the connected body, the same way
-    // HingeJoint does. The two axes come from setAuthoredSuspensionAxis()
-    // and setAuthoredSpinAxis() instead of from the constructor.
+    // Empty, for the component path: rebuild() wires it (as HingeJoint); axes come from setAuthoredSuspensionAxis()/setAuthoredSpinAxis().
     WheelJoint();
 
     void configure(RigidBody& chassis, RigidBody& wheel, const Math::vec3& worldAnchor,
@@ -61,10 +54,7 @@ public:
     {
         return mSuspensionDamping;
     }
-    // Steer to an angle instead of at a speed - what a steering wheel or an
-    // autopilot actually commands. Same shape as HingeJoint::setServo():
-    // holds the target, and every step turns the remaining error into the
-    // motor's speed, capped by the rack's rated speed.
+    // Steer to an angle instead of a speed; as HingeJoint::setServo(): holds the target, each step turns the error into motor speed capped by the rack's rated speed.
     void setSteeringServo(f32 targetAngle, f32 maxTorque, f32 maxAngularVelocity = 0.0f);
     void disableSteeringServo();
     f32 steeringServoTargetAngle() const
@@ -113,16 +103,9 @@ public:
     }
     Math::vec3 axisWorld() const override;
 
-    // Spring-damper along the suspension axis. `restLength` is the anchor
-    // separation (in the suspension direction) where the spring applies no
-    // force; `stiffness` and `damping` are the usual F = -k*x - c*v terms,
-    // in force per metre and force per metre-per-second.
-    //
-    // Solved as a soft constraint row on the suspension axis (SoftSpring),
-    // not as a force pushed in from outside. A real car's springs are stiff -
-    // a 1500 kg car sitting 20 cm into its travel needs about 75 kN/m - and
-    // an explicitly integrated spring that stiff gains energy every step
-    // until it explodes. This one does not, at any stiffness.
+    // Spring-damper along the suspension axis. `restLength` is the anchor separation where the spring applies no force; F = -k*x - c*v.
+    // Solved as a soft constraint row (SoftSpring), not an external force: real car springs are stiff (~75 kN/m for 1500 kg sitting 20 cm in)
+    // and an explicit spring that stiff explodes.
     void setSuspension(f32 restLength, f32 stiffness, f32 damping)
     {
         mSuspensionRestLength = restLength;

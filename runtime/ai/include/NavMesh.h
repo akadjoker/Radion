@@ -1,13 +1,7 @@
 #ifndef RADION_AI_NAVMESH_H
 #define RADION_AI_NAVMESH_H
 
-// NavMesh.h - walkable surface generated from level geometry, and shortest
-// paths across it.
-//
-// Unlike WaypointNetwork, nothing here is authored by hand: the walkable
-// floor is derived from the level's own triangles, so a path can never cut
-// through a wall or hang in mid-air the way a hand-placed graph linked by
-// line of sight can.
+// Derived from the level's triangles, so a path never cuts through a wall.
 
 #include "Types.h"
 
@@ -18,16 +12,14 @@
 namespace Radion::AI
 {
 
-// Voxelisation and agent metrics the surface is built for. An agent taller
-// or wider than these will not fit through everything the mesh claims is
-// walkable, so they describe the agent the mesh is FOR, not any agent.
+// Agent metrics the mesh is built for; larger agents will not fit everywhere it claims walkable.
 struct NavMeshConfig
 {
     f32 cellSize = 0.30f;
     f32 cellHeight = 0.20f;
     f32 agentHeight = 2.00f;
     f32 agentRadius = 0.60f;
-    f32 agentMaxClimb = 0.90f; // step/stair height the agent can walk up
+    f32 agentMaxClimb = 0.90f;
     f32 agentMaxSlope = 45.0f; // degrees
     s32 regionMinSize = 8;
     s32 regionMergeSize = 20;
@@ -47,65 +39,36 @@ public:
     NavMesh(const NavMesh&) = delete;
     NavMesh& operator=(const NavMesh&) = delete;
 
-    // World-space triangles, the same arrays a mesh already holds. Replaces
-    // whatever was built before. False leaves the previous mesh released and
-    // valid() false.
-    //
-    // groundSeed, if given, prunes the surface down to whatever a walking
-    // agent can actually reach from that point - polygon-adjacency BFS, not
-    // a height/slope heuristic, so a flat roof with no stairs down to it
-    // comes out excluded (both from queries and from debugTriangles())
-    // exactly like the recast slope test alone cannot tell apart from real
-    // ground. Omit it (or pass a point off the mesh) to keep every
-    // walkable-slope surface, roofs included, the way build() always did.
+    // Replaces any prior mesh. groundSeed prunes to what is reachable by polygon-adjacency BFS from that point
+    // (excludes unreachable roofs); omit to keep every walkable-slope surface.
     bool build(const f32* vertices, s32 vertexCount, const s32* indices, s32 triangleCount,
                const NavMeshConfig& config, const Math::vec3* groundSeed = nullptr);
     void release();
     bool valid() const;
 
-    // Corner points from start to end, including both. False when either end
-    // is off the mesh (beyond `searchExtents`) or no route exists. A partial
-    // route - the goal unreachable but progress possible - still returns true
-    // and ends at the closest reachable point.
+    // False when either end is off the mesh (beyond searchExtents) or no route exists; a partial route
+    // still returns true, ending at the closest reachable point.
     bool findPath(const Math::vec3& start, const Math::vec3& end, std::vector<Math::vec3>& outPath,
                   const Math::vec3& searchExtents = Math::vec3(2.0f, 4.0f, 2.0f)) const;
 
-    // Closest point actually on the walkable surface, for snapping a spawn
-    // or a click onto it. False when nothing is within `searchExtents`.
     bool nearestPoint(const Math::vec3& point, Math::vec3& out,
                       const Math::vec3& searchExtents = Math::vec3(2.0f, 4.0f, 2.0f)) const;
 
-    // Slides `from` towards `to` across the walkable surface and returns
-    // where it ends up, which is `to` only when the whole segment stays on
-    // the mesh - otherwise the move is clipped against the surface boundary
-    // and slides along it. This is what makes crossing a wall impossible
-    // rather than merely unlikely: a route only suggests a direction, and
-    // steering that cuts a corner, or avoidance pushing an agent sideways,
-    // leaves the floor on its own. `out.y` is placed on the surface.
-    //
-    // `from` is expected to already be on the mesh - it is the agent's last
-    // constrained position, not an arbitrary point. False when it is not,
-    // leaving `out` untouched.
+    // Slides `from` toward `to`, clipped at the surface boundary; `from` must already be on the mesh
+    // (false otherwise, `out` untouched). out.y is placed on the surface.
     bool moveAlongSurface(const Math::vec3& from, const Math::vec3& to, Math::vec3& out,
                           const Math::vec3& searchExtents = Math::vec3(2.0f, 4.0f, 2.0f)) const;
 
-    // Triangles of the walkable surface itself, world space, for drawing it.
     // Rebuilt only by build(), so a caller may keep the reference.
     const std::vector<Math::vec3>& debugTriangles() const;
 
-    // Persists the built surface itself - the Detour tile's raw bytes, not
-    // the Recast recipe that produced them - so loading skips the whole
-    // voxelise/rasterise/contour/poly-mesh pipeline build() runs. False (and
-    // nothing written) when the mesh is not built yet.
+    // Persists the built Detour tile bytes, not the Recast recipe, so loading skips the build pipeline.
     bool save(const std::string& filename) const;
-    // Replaces whatever was built before, straight from those bytes -
-    // false, and the previous mesh released, if the file is missing or does
-    // not parse as one this format wrote.
+    // False, and the previous mesh released, if the file is missing or invalid.
     bool load(const std::string& filename);
 
 private:
-    // dtNavMesh/dtNavMeshQuery, kept out of this header so Recast's own
-    // includes stay inside NavMesh.cpp.
+    // Kept out of this header so Recast includes stay inside NavMesh.cpp.
     void* mNavMesh = nullptr;
     void* mNavQuery = nullptr;
     std::vector<Math::vec3> mDebugTriangles;

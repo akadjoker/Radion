@@ -1,8 +1,5 @@
 #include "PCH.h"
 
-/** ****************************************************************************
-  ZipArchive implementation - thin wrapper around miniz's mz_zip_reader API.
-**************************************************************************** */
 #include "Log.h"
 #include "ZipArchive.h"
 

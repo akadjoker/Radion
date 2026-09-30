@@ -85,8 +85,7 @@ void HingeJoint::configure(RigidBody& a, RigidBody& b, const Math::vec3& worldAn
     mBodyB = &b;
     mLocalAnchorA = a.pointToLocal(worldAnchor);
     mLocalAnchorB = b.pointToLocal(worldAnchor);
-    // One guarded normalise up front: everything below is derived from it,
-    // so a degenerate axis caught here cannot reach any of the four frames.
+    // One guarded normalise up front: a degenerate axis caught here cannot reach any of the four frames.
     const Math::vec3 axis = detail::normalizedAxisOr(worldHingeAxis, Math::vec3(0.0f, 1.0f, 0.0f));
     mLocalHingeAxisA = Math::normalize(a.directionToLocal(axis));
     mLocalHingeAxisB = Math::normalize(b.directionToLocal(axis));
@@ -176,8 +175,7 @@ void HingeJoint::setMotor(f32 targetAngularVelocity, f32 maxTorque)
 {
     if (!std::isfinite(targetAngularVelocity) || !std::isfinite(maxTorque))
         return;
-    // Same reason as setServo(): a new speed on a sleeping joint is an order
-    // nobody is stepping.
+    // A new speed on a sleeping joint would go unstepped; wake it (see setServo()).
     if (targetAngularVelocity != mMotorTargetVelocity || !mMotorEnabled)
         wakeBodies();
     mMotorTargetVelocity = targetAngularVelocity;
@@ -212,10 +210,7 @@ void HingeJoint::setServo(f32 targetAngle, f32 maxTorque, f32 maxAngularVelocity
     if (!std::isfinite(targetAngle) || !std::isfinite(maxTorque) ||
         !std::isfinite(maxAngularVelocity))
         return;
-    // A new target has to wake the joint: a body that has settled is asleep
-    // and the solver skips it, so the order would land on a joint nobody is
-    // stepping. Only on a change - a controller holding a target calls this
-    // every frame, and waking on every call means never sleeping again.
+    // A new target must wake the joint (a settled body is asleep and skipped), but only on change: a controller holding a target calls this every frame.
     if (targetAngle != mServoTargetAngle || !mServoEnabled)
         wakeBodies();
     mServoTargetAngle = targetAngle;
@@ -370,23 +365,15 @@ void HingeJoint::setup(f32 duration)
     calculateHingeRotationProperties();
     calculateAxisAndAngle();
     calculateLimitProperties(duration);
-    // The servo is the velocity motor fed a speed recomputed from the angle
-    // error every step - the speed that would close the whole error in one
-    // step, which mMotorMaxImpulse below is what actually rations out. Same
-    // as btHingeConstraint::setMotorTarget(), except the target is held here
-    // instead of being handed in again every frame by the caller.
+    // Servo = velocity motor fed a speed recomputed each step from the angle error (closes it in one step; mMotorMaxImpulse rations it).
+    // Like btHingeConstraint::setMotorTarget(), but the target is held here.
     if (mServoEnabled && duration > 0.0f)
     {
         f32 target = mServoTargetAngle;
         if (mHasLimits)
             target = Math::clamp(target, mLimitsMin, mLimitsMax);
         const f32 error = target - currentAngle();
-        // A servo still short of its target has work to do, and a sleeping
-        // body is skipped by the solver - so it would sit there forever with
-        // the order accepted and nothing moving. Waking on the error rather
-        // than on the command also covers the target being set before the
-        // joint was built, when there were no bodies to wake yet. Once it
-        // arrives the error falls under this and the body sleeps again.
+        // Wake on the error, not the command: a sleeping servo short of its target would never move; also covers a target set before the bodies existed.
         if (std::abs(error) > 0.001f)
             wakeBodies();
         f32 velocity = error / duration;

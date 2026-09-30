@@ -2,16 +2,8 @@
 
 #include "AssetManager.h"
 
-// Port of proctree.js (Paul Brunt, 2012, BSD 3-clause). Four passes over one
-// binary tree of branches: splitBranch() grows it, createForks() puts the
-// vertex rings at every fork, createTwigs() adds the leaf cards at the tips,
-// buildFaces() joins the rings and walks the bark uv along the branch.
-//
-// Two details of the original are kept because they are what the parameter
-// values mean - changing either reshapes every tree built with the same
-// numbers. The random source is |cos(a + a*a)| rather than a PRNG, and the
-// split basis crosses the direction with a permutation of its own components
-// instead of an orthonormal basis, which is where the irregularity comes from.
+// Based on proctree.js (Paul Brunt, 2012, BSD 3-clause): splitBranch() grows a binary tree of branches, createForks() puts vertex rings at forks, createTwigs() adds leaf cards at tips, buildFaces() joins rings and walks the bark uv.
+// Kept from the original because they define what parameter values mean: the random source is |cos(a + a*a)| (not a PRNG), and the split basis crosses the direction with a permutation of its own components.
 
 namespace Radion
 {
@@ -28,8 +20,7 @@ Math::vec3 rotateAxisAngle(const Math::vec3& vec, const Math::vec3& axis, f32 an
            axis * (Math::dot(axis, vec) * (1.0f - cosine));
 }
 
-// Scales only the component of `vector` that lies along `direction`; a scale of
-// zero leaves the perpendicular part alone and drops the rest.
+// Scales only the component of `vector` along `direction`; scale 0 drops it and keeps the perpendicular part.
 Math::vec3 scaleInDirection(const Math::vec3& vector, const Math::vec3& direction, f32 scale)
 {
     const f32 magnitude = Math::dot(vector, direction);
@@ -42,15 +33,13 @@ Math::vec3 normalizeSafe(const Math::vec3& v)
     return length > 1e-20f ? v / length : Math::vec3(0.0f);
 }
 
-// Positive modulo. Ring indices step backwards past zero, and a negative index
-// here would read outside the ring.
+// Positive modulo; ring indices step backwards past zero and a negative index would read outside the ring.
 s32 wrap(s32 value, s32 count)
 {
     const s32 remainder = value % count;
     return remainder < 0 ? remainder + count : remainder;
 }
 
-// The generator, not a PRNG - see the file header.
 f32 treeRandom(f64 a)
 {
     return static_cast<f32>(std::fabs(std::cos(a + a * a)));
@@ -81,7 +70,6 @@ public:
     {
     }
 
-    // Fills `out` with the bark in submesh 0 and the twig cards in submesh 1.
     void build(MeshData& out, const AssetManager& assets)
     {
         Branch* root = addBranch(Math::vec3(0.0f, mParams.trunkLength, 0.0f), nullptr);
@@ -121,8 +109,7 @@ public:
 
         out.submeshes = {bark, twigs};
 
-        // Bark needs the tangents for its normal map; the twig cards are flat
-        // and get theirs from the same pass for free.
+        // Bark needs tangents for its normal map; twig cards get theirs from the same pass.
         assets.recalculateTangents(out);
         assets.computeBounds(out);
         assets.computeSubMeshBounds(out);
@@ -131,8 +118,7 @@ public:
 private:
     const TreeParams& mParams;
 
-    // deque: the algorithm holds parent and child pointers while it grows, and
-    // a vector would invalidate them on every push.
+    // deque: the algorithm holds parent/child pointers while growing; a vector would invalidate them.
     std::deque<Branch> mBranches;
 
     std::vector<Math::vec3> mPositions;
@@ -161,15 +147,12 @@ private:
         indices.push_back(c);
     }
 
-    // Reflects `vec` about `norm`, scaled by branchFactor: how the second child
-    // is pushed away from the first.
+    // Reflects `vec` about `norm`, scaled by branchFactor, pushing the second child away from the first.
     Math::vec3 mirrorBranch(const Math::vec3& vec, const Math::vec3& norm) const
     {
         const Math::vec3 projected = Math::cross(norm, Math::cross(vec, norm));
         return vec - projected * (mParams.branchFactor * Math::dot(projected, vec));
     }
-
-    // ---------------------------------------------------------- branch tree
 
     void splitBranch(Branch* branch, s32 level, s32 steps, s32 l1, s32 l2)
     {
@@ -203,8 +186,7 @@ private:
         if (r > 0.5f)
             std::swap(first, second);
 
-        // While the trunk is still climbing its side branches spiral around it
-        // instead of all leaving from the same side.
+        // While the trunk climbs, side branches spiral around it instead of leaving from one side.
         if (steps > 0)
         {
             const f32 angle = static_cast<f32>(steps) / static_cast<f32>(mParams.trunkSteps) *
@@ -248,13 +230,9 @@ private:
         splitBranch(child1, level - 1, 0, l1, l2 + 1);
     }
 
-    // ---------------------------------------------------------- fork rings
-
     void createForks(Branch* branch, f32 radius)
     {
-        // Stored before the clamp on purpose: buildFaces() scales the bark uv
-        // by the stored value, so clamping first would move the texture on
-        // every short branch.
+        // Stored before the clamp on purpose: buildFaces() scales bark uv by the stored value, so clamping first would shift the texture on short branches.
         branch->radius = radius;
         if (radius > branch->length)
             radius = branch->length;
@@ -301,8 +279,7 @@ private:
         if (branch->child0->trunk || branch->trunk)
             scale = 1.0f / mParams.taperRate;
 
-        // linch0 and linch1 belong to all three rings at once. That sharing is
-        // what stitches the fork into one surface.
+        // linch0 and linch1 belong to all three rings at once; the sharing stitches the fork into one surface.
         const u32 linch0 = static_cast<u32>(mPositions.size());
         branch->ring0.push_back(linch0);
         branch->ring2.push_back(linch0);
@@ -354,8 +331,6 @@ private:
         createForks(branch->child1, childRadius);
     }
 
-    // ---------------------------------------------------------- twig cards
-
     void createTwigs(Branch* branch)
     {
         if (branch->child0)
@@ -383,9 +358,7 @@ private:
             branch->head + tangent * scale - binormal * length,
         };
 
-        // Two coplanar quads with opposite winding. Not waste: back-face
-        // culling keeps exactly one of them whichever side the camera is on,
-        // so a leaf reads as double-sided without turning culling off.
+        // Two coplanar quads with opposite winding: back-face culling keeps exactly one, so a leaf reads double-sided without disabling culling.
         const u32 base = static_cast<u32>(mTwigPositions.size());
         for (u32 pass = 0; pass < 2; ++pass)
             for (u32 i = 0; i < 4; ++i)
@@ -409,8 +382,6 @@ private:
                 mTwigUVs.push_back(uvs[i]);
     }
 
-    // ---------------------------------------------------------- faces and uv
-
     void buildFaces(Branch* branch)
     {
         const s32 segments = static_cast<s32>(mParams.segments);
@@ -419,8 +390,7 @@ private:
         {
             mUVs.assign(mPositions.size(), Math::vec2(0.0f));
 
-            // Which segment of the root ring lines up with segment 0 of the
-            // first fork. Without it the bark texture twists at the base.
+            // Segment of the root ring lining up with segment 0 of the first fork; without it the bark texture twists at the base.
             const Math::vec3 tangent = normalizeSafe(Math::cross(branch->child0->head - branch->head,
                                                                branch->child1->head - branch->head));
             const Math::vec3 reference(-1.0f, 0.0f, 0.0f);
@@ -455,8 +425,7 @@ private:
             const u32 offset0 = matchSegment(branch, branch->ring1, branch->child0);
             const u32 offset1 = matchSegment(branch, branch->ring2, branch->child1);
 
-            // Bark uv density follows the branch's own radius, so a thin twig
-            // does not get the trunk's texel size stretched over it.
+            // Bark uv density follows the branch radius so thin twigs do not get the trunk's texel size.
             const f32 uvScale = mParams.maxRadius / branch->radius;
 
             for (s32 i = 0; i < segments; ++i)
@@ -474,14 +443,11 @@ private:
         if (!branch->child0 || !branch->child1)
             return;
 
-        // Tips: a triangle fan closing each child ring onto its tip vertex.
         closeTip(branch->child0, branch->ring1, 1.5f);
         closeTip(branch->child1, branch->ring2, 0.5f);
     }
 
-    // Finds the rotation that best aligns the child's ring with the parent's,
-    // by killing the component along the child's own direction and comparing
-    // what is left - what points sideways.
+    // Finds the rotation best aligning the child ring with the parent's by comparing what is left after removing the component along the child's direction.
     u32 matchSegment(const Branch* branch, const std::vector<u32>& ring, const Branch* child) const
     {
         const s32 segments = static_cast<s32>(mParams.segments);
@@ -505,8 +471,6 @@ private:
         return static_cast<u32>(best);
     }
 
-    // One segment of the quad strip joining a child's ring0 to the parent ring
-    // it grows out of, and the uv that walks along with it.
     void stitchChild(Branch* child, const std::vector<u32>& ring, s32 offset, s32 i, f32 uvScale,
                      bool flipWinding)
     {
@@ -556,8 +520,6 @@ private:
         }
     }
 
-    // Smooth normals: the bark is one continuous surface, so every vertex
-    // averages the faces around it.
     void averageNormals()
     {
         mNormals.assign(mPositions.size(), Math::vec3(0.0f));
@@ -582,8 +544,6 @@ private:
     }
 };
 
-// ------------------------------------------------------------------ presets
- 
 TreeParams addonDefaults()
 {
     TreeParams params;
@@ -751,8 +711,7 @@ TreeParams AssetManager::randomTreeParams(u32& state)
 
     params.branchFactor = randomRange(state, 2.0f, 3.5f);
 
-    // clumpMin has to stay under clumpMax, or the clump goes negative and the
-    // branches point backwards.
+    // clumpMin must stay under clumpMax, or the clump goes negative and branches point backwards.
     params.clumpMax = randomRange(state, 0.55f, 0.95f);
     params.clumpMin = randomRange(state, 0.2f, params.clumpMax - 0.1f);
 
@@ -778,8 +737,7 @@ void AssetManager::buildTree(MeshData& out, const TreeParams& params) const
     out.clear();
 
     TreeParams sane = params;
-    // createForks() walks segments/2 and assumes it divides exactly; an odd
-    // count leaves holes in the mesh.
+    // createForks() walks segments/2 and needs it to divide exactly; an odd count leaves holes.
     sane.segments = sane.segments < 4 ? 4 : (sane.segments & ~1u);
     sane.levels = sane.levels < 1 ? 1 : sane.levels;
 
@@ -792,9 +750,7 @@ MeshHandle AssetManager::createTree(const TreeParams& params)
     MeshData data;
     buildTree(data, params);
 
-    // Bark is plain opaque geometry. The twig cards are alpha-tested and lit
-    // from both sides - the cards are flat, so a back-facing one would
-    // otherwise go black.
+    // Twig cards are alpha-tested and lit from both sides (flat, so a back-facing card would go black).
     Material bark;
     bark.cull = CullMode::Back;
 

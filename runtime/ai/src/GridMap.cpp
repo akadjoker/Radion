@@ -1,5 +1,3 @@
-// GridMap.cpp - implementation of the cost grid.
-
 #include "PCH.h"
 
 #include "GridMap.h"

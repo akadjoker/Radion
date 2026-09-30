@@ -26,11 +26,7 @@ public:
     int themeIndex = 0;
     int dockLayoutVersion = 0;
 
-    // The Viewport's own free-fly camera, restored on launch instead of
-    // dropping back to the hardcoded starting pose every time - a large
-    // scene otherwise means re-navigating to wherever the work actually is
-    // after every single reopen. ViewportPanel owns the live values; this is
-    // only where the last-known pose is kept between sessions.
+    // Viewport camera pose restored on launch; ViewportPanel owns the live values.
     Math::vec3 cameraPosition = Math::vec3(0.0f, 2.5f, 9.5f);
     Math::vec3 cameraOrbitTarget = Math::vec3(0.0f);
     f32 cameraOrbitDistance = 10.0f;
@@ -38,9 +34,6 @@ public:
     f32 cameraOrbitPitch = -0.25f;
     bool cameraPerspective = true;
 
-    // Editor Viewport camera navigation, edited from the "View > Camera
-    // Settings..." popup. Unlike the pose fields above, these are owned here
-    // (the popup edits them) and only consumed by ViewportPanel.
     f32 cameraMoveSpeed = 0.1f;    // WASD base fly speed while looking
     f32 cameraFastSpeed = 0.3f;    // Shift-boost fly speed while looking
     f32 cameraMinView = 0.1f;      // orbit/zoom-in limit
@@ -64,8 +57,7 @@ public:
     bool showPhysicsJoints = false;
     bool showAIObstacles = false;
 
-    // Editor Viewport quality only. These never alter the scene or the Game
-    // view; they remove expensive preview passes while authoring.
+    // Viewport-only; never alters the scene or the Game view.
     bool previewShadows = true;
     bool previewSSAO = false;
     bool previewVolumetrics = false;

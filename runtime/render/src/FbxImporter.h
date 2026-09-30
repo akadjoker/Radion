@@ -9,10 +9,7 @@ namespace Radion
 class Skeleton;
 class AnimationClip;
 
-// FBX mesh importer built on top of ofbx (runtime/render/src/ofbx.h).
-// Follows the same shape as B3DImporter/GltfImporter: geometry is decoded into
-// a MeshData by FbxImporter::import(), skeleton and animation clips are loaded
-// through the two free functions below.
+// FBX mesh importer built on ofbx; skeleton and animation load through the free functions below.
 class FbxImporter final : public MeshImporter
 {
 public:
@@ -24,10 +21,7 @@ public:
 };
 
 bool loadFbxSkeleton(const std::string& filename, FileSystem& files, Skeleton& skeleton);
-// If keepRootMotion is false, the functional root bone's horizontal position is
-// pinned to the bind pose and only vertical motion relative to the first frame is
-// kept. This converts a locomotion animation into an in-place animation, which
-// is what most game loops expect.
+// keepRootMotion false: pin the root's horizontal position to bind pose for an in-place animation.
 bool loadFbxAnimation(const std::string& filename, FileSystem& files, const Skeleton& skeleton,
                       AnimationClip& clip, bool keepRootMotion = true);
 

@@ -28,11 +28,7 @@ public:
     bool save(const std::string& path) const;
     void unload();
 
-    // Set once by Engine, right after Renderer/Lighting/PostProcessStack
-    // exist - what save()/load() pass through to SceneSerializer so a scene
-    // file also carries shadow/post-process settings instead of just the
-    // object graph. Any argument left null is simply not read/written for
-    // that section; nothing here requires all three.
+    // Set once by Engine; a null argument is simply not read/written for that scene section.
     void bindRenderSettings(CascadeShadowSettings* shadows, ShadowAtlasSettings* shadowAtlas,
                             PostProcessStack* postProcess, LensFlarePass* lensFlare = nullptr,
                             EnvironmentProbe* environmentProbe = nullptr,
@@ -40,12 +36,7 @@ public:
                             SkySettings* sky = nullptr, RenderResolution* resolution = nullptr,
                             ParticleRenderQueue* particles = nullptr);
 
-    // The same bundle save()/load() build for themselves, handed out so a
-    // caller with its own Scene/SceneSerializer (a standalone demo, not
-    // going through this manager's own load()/save()) can still pass it to
-    // SceneSerializer::load()/save() and have the scene file's post-process/
-    // shadow/sky settings actually take effect instead of being silently
-    // read and discarded.
+    // The bundle save()/load() use, for callers with their own SceneSerializer.
     SceneRenderSettings renderSettings() const;
 
     Scene* active()

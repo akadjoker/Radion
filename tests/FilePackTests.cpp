@@ -35,8 +35,7 @@ std::vector<u8> textBytes(const std::string& text)
     return std::vector<u8>(text.begin(), text.end());
 }
 
-// Compressible on purpose: an entry that deflates and one that does not take
-// different paths through both the writer and the reader.
+// Compressible on purpose: deflated and stored entries take different paths.
 std::vector<u8> repeatingBytes(usize size)
 {
     std::vector<u8> out(size);
@@ -61,10 +60,7 @@ bool sameBytes(const ByteArray& got, const std::vector<u8>& expected)
     return expected.empty() || std::memcmp(got.data(), expected.data(), expected.size()) == 0;
 }
 
-// ------------------------------------------------------------------ ChaCha20
-
-// RFC 8439 section 2.4.2: the one published vector this implementation has to
-// reproduce byte for byte, or nothing written with it can be read back.
+// RFC 8439 section 2.4.2 vector; must reproduce byte for byte.
 void testChaChaMatchesRfc8439()
 {
     u8 key[ChaCha20::KeySize];
@@ -94,11 +90,7 @@ void testChaChaMatchesRfc8439()
     CHECK(std::memcmp(data.data(), plainText, length) == 0);
 }
 
-// The vector above only reaches into the second block; this pins down how the
-// counter gets there. Running one buffer straight through has to equal running
-// it in block-sized pieces with the counter set by hand - if process() failed
-// to advance, or advanced by anything other than one block, the two diverge
-// from byte 64 on while still round-tripping perfectly against itself.
+// Pins the counter advance: one buffer vs block-sized pieces must match from byte 64 on.
 void testCounterAdvancesOneBlockAtATime()
 {
     u8 key[ChaCha20::KeySize];
@@ -132,7 +124,6 @@ void testCounterAdvancesOneBlockAtATime()
     }
 
     CHECK(std::memcmp(whole.data(), pieces.data(), length) == 0);
-    // And the keystream is not simply repeating every block.
     CHECK(std::memcmp(whole.data(), whole.data() + ChaCha20::BlockSize, ChaCha20::BlockSize) != 0);
 }
 
@@ -145,8 +136,7 @@ void testDeriveKeyDependsOnSaltAndPassphrase()
         saltA[i] = static_cast<u8>(i);
         saltB[i] = static_cast<u8>(i);
     }
-    // Only the last byte differs, and it is one of the four the nonce cannot
-    // carry - the round-by-round fold is what has to make it count.
+    // Only the last byte differs, one the nonce cannot carry.
     saltB[ChaCha20::SaltSize - 1] ^= 0x01;
 
     u8 first[ChaCha20::KeySize];
@@ -164,8 +154,6 @@ void testDeriveKeyDependsOnSaltAndPassphrase()
     CHECK(std::memcmp(first, other, ChaCha20::KeySize) != 0);
 }
 
-// ------------------------------------------------------------------ FilePack
-
 void writeTestPack(const std::string& key)
 {
     FilePackWriter writer;
@@ -180,7 +168,6 @@ void writeTestPack(const std::string& key)
     CHECK(writer.addData("noise.bin", incompressible.data(), incompressible.size()));
     CHECK(writer.addData("empty.txt", nullptr, 0));
 
-    // A name added twice could never be read back, so the writer refuses it.
     CHECK(!writer.addData("lit.frag", shader.data(), shader.size()));
 
     CHECK(writer.entryCount() == 4);
@@ -208,8 +195,7 @@ void testRoundTrip(const std::string& key)
     CHECK(pack.readBinary("empty.txt").size() == 0);
     CHECK(pack.readBinary("missing.frag").size() == 0);
 
-    // Reading out of order, and twice, has to give the same bytes: one file
-    // cursor is shared and every read seeks it.
+    // Out-of-order and repeated reads share one seeking file cursor.
     CHECK(sameBytes(pack.readBinary("noise.bin"), randomBytes(4096, 1234)));
     CHECK(sameBytes(pack.readBinary("lit.frag"),
                     textBytes("#version 330 core\nvoid main() {}\n")));
@@ -229,8 +215,7 @@ void testCompressionActuallyRuns()
             CHECK(pack.entrySizeRaw(i) == 64 * 1024);
             CHECK(pack.entrySizeStored(i) < pack.entrySizeRaw(i) / 4);
         }
-        // Random bytes do not deflate; the writer must store them raw rather
-        // than pay deflate's overhead for a larger result.
+        // Random bytes must be stored raw, not inflated by deflate.
         if (pack.entryName(i) == "noise.bin")
             CHECK(pack.entrySizeStored(i) == pack.entrySizeRaw(i));
     }
@@ -251,7 +236,6 @@ void testWrongKeyIsRejected()
     CHECK(right.open(kPackPath, kKey));
 }
 
-// The point of the key is that the bytes on disk do not read as themselves.
 void testEncryptedPackHidesItsContents()
 {
     writeTestPack(kKey);
@@ -271,7 +255,6 @@ void testEncryptedPackHidesItsContents()
     const std::string haystack(reinterpret_cast<const char*>(bytes.data()), bytes.size());
     CHECK(haystack.find("lit.frag") == std::string::npos);
     CHECK(haystack.find("#version 330") == std::string::npos);
-    // Only the header stays readable, and it must, to find the directory.
     CHECK(haystack.compare(0, 4, "RPAK") == 0);
 }
 
@@ -283,7 +266,6 @@ void testCorruptEntryIsCaught()
     CHECK(file != nullptr);
     if (!file)
         return;
-    // Straight past the header, into the first entry's stored bytes.
     std::fseek(file, static_cast<long>(FilePack::HeaderSize), SEEK_SET);
     const u8 garbage = 0x00;
     std::fwrite(&garbage, 1, 1, file);
@@ -292,7 +274,6 @@ void testCorruptEntryIsCaught()
     FilePack pack;
     CHECK(pack.open(kPackPath, std::string()));
     CHECK(pack.readBinary("lit.frag").size() == 0);
-    // Every other entry still reads: one bad entry is not a bad pack.
     CHECK(sameBytes(pack.readBinary("noise.bin"), randomBytes(4096, 1234)));
 }
 
@@ -311,8 +292,6 @@ void testNotAPack()
     CHECK(!pack.open("no_such_file_at_all.rpak", std::string()));
 }
 
-// What the engine actually does with a pack: mount it and ask FileSystem for
-// a bare name, the same call every shader and texture load already makes.
 void testMountedThroughFileSystem()
 {
     writeTestPack(kKey);
@@ -326,15 +305,12 @@ void testMountedThroughFileSystem()
     CHECK(files.readText("lit.frag") == "#version 330 core\nvoid main() {}\n");
     CHECK(sameBytes(files.readBinary("lensflare/flare_0_halo.png"), repeatingBytes(64 * 1024)));
 
-    // A name in no archive still falls through to the search paths.
     CHECK(!files.exists("still_not_here.frag"));
 
     files.unmountAll();
     CHECK(!files.exists("lit.frag"));
 }
 
-// A pack beats a loose file of the same name - the decision that lets a
-// shipped build ignore whatever someone leaves in the folder next to it.
 void testPackWinsOverDisk()
 {
     const char* looseName = "filepack_tests_loose.txt";
@@ -375,8 +351,6 @@ std::vector<u8> readWholeFile(const char* path)
     return bytes;
 }
 
-// The embedded case: the same pack, read straight out of a byte array with no
-// file behind it at all.
 void testOpenFromMemory()
 {
     writeTestPack(kKey);
@@ -400,9 +374,7 @@ void testOpenFromMemory()
     CHECK(!truncated.openFromMemory(nullptr, 0, kKey));
 }
 
-// The whole point of the embedded pack being a fallback rather than an
-// override: a file on disk still beats it, so editing a shader in the assets
-// folder keeps working on a build that carries its own copy.
+// A disk file beats the embedded fallback.
 void testDiskWinsOverFallback()
 {
     const char* looseName = "filepack_tests_fallback.txt";
@@ -418,7 +390,6 @@ void testDiskWinsOverFallback()
     files.addSearchPath(".");
     CHECK(files.mountFallbackPack(bytes.data(), bytes.size(), std::string()));
 
-    // Nothing on disk yet, so the fallback answers.
     CHECK(files.readText(looseName) == "from fallback");
     CHECK(files.exists(looseName));
 
@@ -427,11 +398,9 @@ void testDiskWinsOverFallback()
     CHECK(files.writeBinary(looseName, onDisk));
     CHECK(files.readText(looseName) == "from disk");
 
-    // A name the disk does not have still comes from the fallback.
     CHECK(files.readText("only_in_fallback.txt") == "from fallback");
     CHECK(!files.exists("in_neither.txt"));
 
-    // And a mounted pack outranks both, the other direction entirely.
     FilePackWriter override;
     const std::vector<u8> fromPack = textBytes("from pack");
     CHECK(override.addData(looseName, fromPack.data(), fromPack.size()));

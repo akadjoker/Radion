@@ -44,10 +44,7 @@ static zen::Value makeVec3(zen::VM* vm, const Math::vec3& v)
     return instance;
 }
 
-// Every component handle and wrapper class registered here declares zero
-// fields, and new_instance() leaves the field array null for those, so an
-// is_instance() check alone is not enough to read x/y/z off a value: a script
-// passing self.node where a Vec3 belongs would dereference null.
+// Component handles declare zero fields and new_instance() leaves the field array null, so is_instance() alone is not enough: a script passing self.node as a Vec3 would dereference null.
 static bool isVec3Instance(zen::Value value)
 {
     return zen::is_instance(value) && zen::as_instance(value)->num_fields >= 3;
@@ -63,9 +60,7 @@ static Math::vec3 readVec3(zen::Value instance)
                      static_cast<f32>(zen::to_number(inst->fields[2])));
 }
 
-// CharacterController::move() returns its four fields by value rather than
-// through the component's own getters (those only change in onUpdate()), so
-// the whole result has to cross into script as one instance.
+// Returned by value (the component's getters only update in onUpdate()), so the whole result crosses into script as one instance.
 static zen::Value makeMoveResult(zen::VM* vm, const CharacterController::MoveResult& result)
 {
     zen::ObjClass* klass = findClass(vm, "MoveResult");
@@ -80,15 +75,8 @@ static zen::Value makeMoveResult(zen::VM* vm, const CharacterController::MoveRes
     return instance;
 }
 
-// A GameObject id, resolved against a Scene fresh on every call rather than
-// cached as a pointer - id 0 is the reserved sentinel for the scene root
-// (GameObject::id() never returns 0 for a real object; Scene.h:73), and any
-// other id that Scene::findGameObject() no longer knows is an object that has
-// been destroyed. Shared by every GameObject handle's self-resolution below
-// and by readGameObject(), so a destroyed object simply stops resolving
-// everywhere at once, the instant Scene::forgetIdBranch() drops its id -
-// before the delete that follows it (Scene.cpp:1884-1885) - with no separate
-// invalidation step required.
+// Resolved against a Scene on every call, never cached as a pointer: id 0 is the root sentinel, and an id Scene::findGameObject() no longer knows is destroyed.
+// Scene::forgetIdBranch() drops the id before the delete, so every handle stops resolving at once.
 static GameObject* resolveGameObjectById(Scene* scene, u64 id)
 {
     if (!scene)
@@ -96,12 +84,7 @@ static GameObject* resolveGameObjectById(Scene* scene, u64 id)
     return id == 0 ? &scene->root() : scene->findGameObject(id);
 }
 
-// A GameObject handle carries the Scene it belongs to (as native_data) and
-// the object's own id (its one field) rather than a raw GameObject* - see
-// resolveGameObjectById() above for why. `scene` is passed in explicitly
-// (not read off `object`) so a handle can still be built for the scene root,
-// whose own GameObject::scene() is set but which callers may not always have
-// resolved through an existing object first.
+// Handle = Scene (native_data) + the object's id (its one field), not a raw pointer. `scene` is explicit so a handle can be built for the root.
 static zen::Value makeGameObjectValue(zen::VM* vm, Scene* scene, GameObject* object)
 {
     zen::ObjClass* klass = findClass(vm, "GameObject");
@@ -114,19 +97,10 @@ static zen::Value makeGameObjectValue(zen::VM* vm, Scene* scene, GameObject* obj
     return instance;
 }
 
-// Recorded once, when sceneScriptBindingsInit() defines "GameObject" - what
-// readGameObject() below compares an argument's class against. Every
-// component handle (Camera, ...) also carries a native_data pointer, so
-// is_instance() alone cannot tell a GameObject handle from one of those; the
-// class identity check is what makes readGameObject() safe to call on any
-// argument a script hands in.
+// Class identity check: component handles also carry native_data, so is_instance() alone cannot tell a GameObject handle apart.
 static zen::ObjClass* gGameObjectClass = nullptr;
 
-// The inverse of makeGameObjectValue(): nullptr unless `value` is an
-// instance of exactly the GameObject class (see gGameObjectClass above), or
-// its id no longer resolves in its own Scene - a handle to an object that
-// has since been destroyed reads as absent here, not as whatever now
-// occupies its old address.
+// Null unless `value` is exactly a GameObject handle whose id still resolves; a destroyed object reads as absent.
 static GameObject* readGameObject(zen::Value value)
 {
     if (!zen::is_instance(value) || zen::as_instance(value)->klass != gGameObjectClass)
@@ -136,14 +110,7 @@ static GameObject* readGameObject(zen::Value value)
     return resolveGameObjectById(scene, (u64)zen::to_integer(inst->fields[0]));
 }
 
-// AnimationLayer handles never keep an AnimationLayer* directly: Animator::layer()
-// resizes mLayers on demand (Animation.cpp:90-95), so a pointer taken before a
-// later get_layer() call could dangle once the vector reallocates. Nor do they
-// keep the owning Animator* - the Animator itself can be removed out from
-// under the handle - so the handle instead carries the Scene (as native_data),
-// the owning GameObject's id and the layer index, the same by-id resolution as
-// a GameObject handle, built fresh here instead of through
-// ScriptCache::instanceFor().
+// Handles keep no AnimationLayer* (Animator::layer() may reallocate mLayers) and no Animator* (may be removed): they carry the Scene, the owner's id and the layer index.
 static zen::Value makeAnimationLayerHandle(zen::VM* vm, GameObject* object, u32 index)
 {
     zen::ObjClass* klass = findClass(vm, "AnimationLayer");
@@ -157,12 +124,7 @@ static zen::Value makeAnimationLayerHandle(zen::VM* vm, GameObject* object, u32 
     return instance;
 }
 
-// Native methods called through a script dot-call ("self.set_position(...)")
-// follow the ClassBuilder convention: self sits one slot before the args
-// array the VM hands the native function, i.e. args[-1]. Resolves by id every
-// call (see resolveGameObjectById) and returns nullptr once the object no
-// longer exists - every go*() native below has to treat that as the normal
-// "empty" case, never a reason to crash.
+// Dot-called natives have self at args[-1]. Resolves by id each call; null once the object is gone, which every go*() native must treat as normal.
 static GameObject* selfGameObject(zen::Value* args)
 {
     zen::ObjInstance* inst = zen::as_instance(args[-1]);
@@ -175,10 +137,7 @@ static Scene* selfScene(zen::Value* args)
     return static_cast<Scene*>(zen::as_instance(args[-1])->native_data);
 }
 
-// Component classes (Camera, Light, ...) are handed to instances through
-// ScriptCache::instanceFor() rather than makeGameObjectValue()'s bare "new
-// wrapper every call" - see registerComponentClasses() - so their self is a
-// zen_instance_data<T> cast, matching componentFromSelf in the reference.
+// Component classes go through ScriptCache::instanceFor(), so self is a zen_instance_data<T> cast (as componentFromSelf in the reference).
 static Component* selfComponent(zen::Value* args)
 {
     return zen::zen_instance_data<Component>(args[-1]);
@@ -209,7 +168,6 @@ static Physics::RigidBody* selfRigidBody(zen::Value* args)
     return zen::zen_instance_data<Physics::RigidBody>(args[-1]);
 }
 
-// What a script sees when it asks a joint what it is.
 static const char* jointKindScriptName(Physics::JointKind kind)
 {
     switch (kind)
@@ -232,13 +190,7 @@ static Animator* selfAnimator(zen::Value* args)
     return zen::zen_instance_data<Animator>(args[-1]);
 }
 
-// Resolves an AnimationLayer handle's owning GameObject by id, then asks it
-// for its current Animator - not the Animator the handle was originally built
-// from, since that one may since have been removed. Used both by
-// selfAnimationLayer() below and by the two mask natives, which need the
-// Animator itself (for its skeleton) rather than a specific layer - the same
-// selfAnimator(args) trick the reference this is ported from used no longer
-// applies once an AnimationLayer's native_data is a Scene*, not an Animator*.
+// Finds the owner's current Animator (the original may have been removed); used by selfAnimationLayer() and the mask natives, which need the skeleton.
 static Animator* animatorForLayerHandle(zen::Value* args)
 {
     zen::ObjInstance* inst = zen::as_instance(args[-1]);
@@ -247,10 +199,7 @@ static Animator* animatorForLayerHandle(zen::Value* args)
     return object ? object->getComponent<Animator>() : nullptr;
 }
 
-// Resolves an AnimationLayer handle's index (its second field) against
-// whatever Animator its owning GameObject currently has, at the moment of the
-// call - see makeAnimationLayerHandle for why neither the Animator nor the
-// AnimationLayer itself is ever cached on the handle.
+// Resolves the layer index against the owner's current Animator at call time; nothing is cached on the handle.
 static AnimationLayer* selfAnimationLayer(zen::Value* args)
 {
     Animator* animator = animatorForLayerHandle(args);
@@ -283,9 +232,7 @@ static int vec3Length(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// Operator overloads (__add__/__sub__/__mul__) are dispatched through
-// VM::invoke_operator(), not OP_INVOKE - there self sits at args[0] and the
-// other operand at args[1], not the args[-1] convention above.
+// Operator overloads go through VM::invoke_operator(): self is args[0], the other operand args[1] (not args[-1]).
 static int vec3Add(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)nargs;
@@ -474,9 +421,7 @@ static int goGetChildCount(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// childCount() is checked here, before child() ever runs, rather than
-// relying on GameObject::child()'s own bounds check - keeps the C++ side
-// from ever being asked to index past mChildren from a script-picked value.
+// childCount() is checked before child() so a script-picked index never reaches mChildren out of range.
 static int goGetChild(zen::VM* vm, zen::Value* args, int nargs)
 {
     GameObject* object = selfGameObject(args);
@@ -507,12 +452,7 @@ static int goFindChild(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// dispose() only raises a flag (GameObject::dispose()) - the object is still
-// fully alive right after this call returns. Scene::update() sweeps every
-// disposed object into its destroy queue at the end of the frame
-// (Scene.cpp:522-529), and only the flushChanges() that follows actually
-// deletes it - which is why disposed() can come back true on an object a
-// script can still otherwise reach.
+// dispose() only raises a flag; Scene::update() queues disposed objects at frame end and flushChanges() deletes them, so disposed() can be true on a reachable object.
 static int goDispose(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -558,9 +498,7 @@ static int goGetGlobalRotation(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// Same Euler-degrees-to-quaternion conversion as GameObject::setRotationDegrees()
-// (GameObject.cpp:457-465), applied to the global rotation instead of the
-// local one.
+// Same Euler-degrees conversion as GameObject::setRotationDegrees(), on the global rotation.
 static int goSetGlobalRotation(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -570,8 +508,7 @@ static int goSetGlobalRotation(zen::VM* vm, zen::Value* args, int nargs)
     return 0;
 }
 
-// Always TransformSpace::Local, GameObject::translate()'s own default -
-// scripts have no way to ask for Parent or World space here.
+// Always TransformSpace::Local (translate()'s default).
 static int goTranslate(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -647,15 +584,7 @@ static int goIsActiveInHierarchy(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// The Zen compiler lowers node.get_component<Camera>() to node.get_component(Camera),
-// One row per component a script can reach, shared by get/add/remove/has -
-// which were four hand-written chains of strcmp that had to be kept in step
-// by hand. Adding a component is now one row, and forgetting one of the four
-// is no longer possible.
-//
-// `add` is null where a script cannot construct one: Light is only the
-// script-facing base of four concrete C++ types, none of which has a class
-// of its own to build, so add_component(Light) would have nothing to make.
+// One row per component a script can reach, shared by get/add/remove/has. `add` is null where a script cannot construct one (Light is only the base of four concrete types).
 struct ScriptComponentBinding
 {
     const char* name;
@@ -683,8 +612,7 @@ const ScriptComponentBinding kScriptComponents[] = {
      &scriptRemoveComponent<Camera>},
     {"Light", ComponentType::Light, &scriptGetComponent<Light>, nullptr,
      &scriptRemoveComponent<Light>},
-    // The concrete light a scene actually holds, under the base class's name
-    // - get_component(DirectionalLight) and get_component(Light) both answer.
+    // The concrete light under the base class's name: get_component(DirectionalLight) and get_component(Light) both answer.
     {"DirectionalLight", ComponentType::Light, &scriptGetComponent<Light>, nullptr,
      &scriptRemoveComponent<Light>},
     {"MeshRenderer", ComponentType::MeshRenderer, &scriptGetComponent<MeshRenderer>,
@@ -696,9 +624,7 @@ const ScriptComponentBinding kScriptComponents[] = {
      &scriptAddComponent<Animator>, &scriptRemoveComponent<Animator>},
     {"RigidBody", ComponentType::RigidBody, &scriptGetComponent<Physics::RigidBody>,
      &scriptAddComponent<Physics::RigidBody>, &scriptRemoveComponent<Physics::RigidBody>},
-    // Get-only: a joint needs an axis and a connected body to mean anything,
-    // and the concrete kind decides which. A script drives one that the
-    // editor or the scene file set up.
+    // Get-only: a joint needs an axis and a connected body, which the editor or scene file sets up.
     {"Joint", ComponentType::Joint, &scriptGetComponent<Physics::Joint>, nullptr,
      &scriptRemoveComponent<Physics::Joint>},
 };
@@ -713,9 +639,7 @@ const ScriptComponentBinding* findScriptComponent(const char* name)
     return nullptr;
 }
 
-// The class name a script passed as the argument to get_component and
-// friends, or "" - the compiler lowers node.get_component<Camera>() to
-// node.get_component(Camera), so the argument is the host class itself.
+// The Zen compiler lowers node.get_component<Camera>() to node.get_component(Camera), so the argument is the host class, not a string.
 const char* requestedClassName(zen::Value* args, int nargs)
 {
     if (nargs < 1 || !zen::is_class(args[0]))
@@ -724,8 +648,6 @@ const char* requestedClassName(zen::Value* args, int nargs)
     return requested->name ? requested->name->chars : "";
 }
 
-// so the first native argument is the requested host class, not a string -
-// matching natNodeGetComponent in the reference exactly.
 static int goGetComponent(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -747,12 +669,7 @@ static int goGetComponent(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// Same class dispatch as goGetComponent(), over the four component classes
-// that can actually be constructed from script. Light is left out on
-// purpose: Light is only the script-facing base class for four concrete C++
-// types (DirectionalLight/PointLight/SpotLight/RectangleLight), none of
-// which has a script class of its own to instantiate - add_component(Light)
-// would have nothing to build.
+// Same dispatch as goGetComponent() over the classes constructible from script; Light is left out (nothing concrete to build).
 static int goAddComponent(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -817,10 +734,7 @@ static int sceneFind(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// create(name, parent) - parent is optional; without it (or with anything
-// that is not a real GameObject handle) createGameObject() gets nullptr,
-// which puts the new object under the scene root exactly as it already did
-// before this second argument existed.
+// parent is optional; anything that is not a real GameObject handle gives nullptr (scene root).
 static int sceneCreate(zen::VM* vm, zen::Value* args, int nargs)
 {
     Scene* scene = selfScene(args);
@@ -837,9 +751,7 @@ static int sceneCreate(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// destroy() is queued exactly like GameObject.dispose() - see goDispose()
-// above and Scene::update()/flushChanges() (Scene.cpp:522-534) - the object
-// only actually goes away at the end of the frame this is called in.
+// Queued like GameObject.dispose(): the object goes away at the end of the frame.
 static int sceneDestroy(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -849,9 +761,7 @@ static int sceneDestroy(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// Unlike destroy(), reparent() is immediate: Scene::reparent() (Scene.cpp:375-388)
-// moves the object into its new parent's children right here, not through the
-// pending queues flushChanges() drains at the end of the frame.
+// Unlike destroy(), immediate (Scene::reparent()).
 static int sceneReparent(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -870,10 +780,7 @@ static int sceneGetRoot(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// AnimationLayer.play(clip, mode, blend_time) - mode and blend_time are
-// optional, defaulting the same way Animator::play()/AnimationLayer::play()
-// do in C++ (PlayMode::Loop, 0.2s), the same optional-tail pattern vec3Init
-// uses above for Vec3(x, y, z).
+// mode and blend_time are optional (PlayMode::Loop, 0.2s), as in C++.
 static int animationLayerPlay(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -1023,18 +930,7 @@ static int animationLayerIsFinished(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// Events the last update() crossed. Two calls rather than a list, so a
-// script that fires nothing this frame - which is nearly every frame - pays
-// one integer compare and allocates nothing:
-//
-//     for i in range(layer.event_count()):
-//         if layer.event(i) == "footstep":
-//             play_step_sound()
-// ---------------------------------------------------------------- RigidBody
-//
-// What a script needs to push a body around and to ask what it is doing:
-// forces and impulses in, velocities and mass out. A script had none of this
-// before, so anything physical had to be written in C++.
+// Two calls rather than a list: a script with no events this frame pays one integer compare and allocates nothing.
 
 static int rigidBodyGetVelocity(zen::VM* vm, zen::Value* args, int nargs)
 {
@@ -1082,8 +978,7 @@ static int rigidBodyGetMass(zen::VM* vm, zen::Value* args, int nargs)
 static int rigidBodySetMass(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
-    // Rejected inside setMass() when it is not positive and finite, with a
-    // message - the script does not get to silently break the body.
+    // setMass() rejects non-positive or non-finite values with a message.
     if (Physics::RigidBody* body = selfRigidBody(args))
         if (nargs >= 1)
             body->setMass((f32)zen::to_number(args[0]));
@@ -1171,11 +1066,7 @@ static int rigidBodySetSphere(zen::VM* vm, zen::Value* args, int nargs)
     return 0;
 }
 
-// -------------------------------------------------------------------- Joint
-//
-// One script class for every joint kind, dispatching on kind() inside. A
-// class per kind would mean nine, and a script commanding a robot wants the
-// same two calls whichever joint is under it: a target and a motor.
+// One script class for every joint kind, dispatching on kind().
 
 static Physics::Joint* selfJoint(zen::Value* args)
 {
@@ -1191,8 +1082,7 @@ static int jointGetKind(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// The joint's own coordinate: an angle in radians for the rotating kinds, a
-// distance along the axis for the sliding ones.
+// Radians for rotating kinds, distance along the axis for sliding ones.
 static int jointGetPosition(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -1220,9 +1110,7 @@ static int jointGetPosition(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// Hold a target: an angle for a hinge, a position for a slider, a steering
-// angle for a wheel. maxSpeed of 0 leaves the actuator uncapped, which is
-// only stable when the torque budget is tight - see HingeJoint::setServo().
+// maxSpeed of 0 leaves the actuator uncapped, only stable with a tight torque budget (see HingeJoint::setServo()).
 static int jointSetServo(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -1249,8 +1137,7 @@ static int jointSetServo(zen::VM* vm, zen::Value* args, int nargs)
     return 0;
 }
 
-// Drive at a speed rather than to a target - a wheel, a conveyor, a turret
-// that spins.
+// Drive at a speed rather than to a target.
 static int jointSetMotor(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -1268,8 +1155,7 @@ static int jointSetMotor(zen::VM* vm, zen::Value* args, int nargs)
         static_cast<Physics::SliderJoint*>(joint)->setMotor(speed, effort);
         break;
     case Physics::JointKind::Wheel:
-        // The drive motor, not the steering one: a script telling a wheel a
-        // speed means the throttle.
+        // The drive motor, not the steering one.
         static_cast<Physics::WheelJoint*>(joint)->setSpinMotor(speed, effort);
         break;
     default:
@@ -1354,8 +1240,7 @@ static int animationLayerSeek(zen::VM* vm, zen::Value* args, int nargs)
     return 0;
 }
 
-// The skeleton a mask needs comes from the handle's own Animator, not from
-// an argument - a no-op (rather than a crash) when the Animator has none.
+// The skeleton comes from the handle's own Animator; no-op when it has none.
 static int animationLayerMaskAll(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -1383,16 +1268,7 @@ static int animationLayerMaskFromBone(zen::VM* vm, zen::Value* args, int nargs)
 
 static void sceneScriptBindingsInit(zen::VM* vm)
 {
-    // Match the script-side shape used by Kinetix2D without importing its
-    // 2D API: Radion scripts derive from ScriptComponent and receive their
-    // 3D GameObject through self.node. Concrete Radion component handles
-    // (Camera, Light, ...) derive from Component in
-    // registerComponentClasses(), each with its native_data pointing at the
-    // owning C++ component - the is_active/set_active pair below is theirs
-    // for free.
-    // PlayMode crosses into script as a plain int global, the same style as
-    // a KEY_* constant - there is no PlayMode handle class, only the numbers
-    // Animator::play()/AnimationLayer::play() already accept.
+    // PlayMode crosses into script as a plain int global like a KEY_* constant; Component classes get is_active/set_active for free.
     const struct
     {
         const char* name;
@@ -1428,8 +1304,7 @@ static void sceneScriptBindingsInit(zen::VM* vm)
         .persistent(false)
         .end();
 
-    // Built only from C++ (makeMoveResult) as the return value of
-    // CharacterController.move() - a script never constructs one directly.
+    // Built only from C++ (makeMoveResult); scripts never construct one.
     vm->def_class("MoveResult")
         .field("collided")
         .field("grounded")
@@ -1439,10 +1314,7 @@ static void sceneScriptBindingsInit(zen::VM* vm)
         .persistent(false)
         .end();
 
-    // Not a Component - an Animator layer slot, addressed by the owning
-    // GameObject's id and an index rather than by its own identity (see
-    // makeAnimationLayerHandle/selfAnimationLayer). native_data is set to the
-    // Scene, exactly like a GameObject handle, not to an Animator*.
+    // Not a Component: a layer slot addressed by owner id and index; native_data is the Scene, as for GameObject handles.
     vm->def_class("AnimationLayer")
         .field("object_id")
         .field("index")
@@ -1469,18 +1341,8 @@ static void sceneScriptBindingsInit(zen::VM* vm)
         .persistent(false)
         .end();
 
-    // The GameObject/Scene wrappers carry nothing but a raw pointer and
-    // define no native destructor, so they stay ordinary GC objects: a script
-    // calling scene.find() on every frame drops one wrapper per frame and the
-    // collector takes them. A persistent class would arena-allocate each one,
-    // keep it out of the GC list and never free it.
-    //
-    // "id" is the one field: a GameObject handle resolves the object fresh
-    // from its Scene (native_data) on every call (selfGameObject/
-    // resolveGameObjectById above) rather than keeping a raw GameObject*, so
-    // an object destroyed after the handle was made simply stops resolving -
-    // it never leaves the handle pointing at freed memory or, worse, at
-    // whatever a later allocation reuses that address for.
+    // GameObject/Scene wrappers hold only a raw pointer and have no native destructor, so they stay ordinary GC objects (a persistent class would never free them).
+    // "id" is the one field: the handle resolves the object from its Scene on every call, so it never points at freed memory.
     gGameObjectClass = vm->def_class("GameObject")
         .field("id")
         .method("get_name", goGetName, 0)
@@ -1760,16 +1622,10 @@ static int meshRendererHasMesh(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// Shared tail of every set_* below. A desc with the same recipe resolves to
-// the mesh already uploaded for it, so a script handing the same box to a
-// hundred objects uploads one. The material comes from upload(), which fills
-// a lit default in when the recipe carries none - without one the submesh
-// would reach emitSubmesh() with no pipeline and be dropped in silence.
+// Same desc resolves to the already-uploaded mesh. upload() supplies a lit default material, else emitSubmesh() would drop the submesh silently.
 bool assignMesh(MeshRenderer* renderer, const MeshDesc& desc)
 {
-    // createMesh() uploads, so it needs a device. A script can reach here
-    // without one - a headless test, a scene torn down after the GPU is gone -
-    // and getSingleton() treats that as a caller bug rather than answering.
+    // createMesh() needs a device; getSingleton() treats its absence as a caller bug, and scripts can get here without one (headless test).
     if (!renderer || !GPU::tryGet())
         return false;
     const MeshHandle mesh = Assets().createMesh(desc);
@@ -2081,9 +1937,7 @@ static int characterControllerGetVelocity(zen::VM* vm, zen::Value* args, int nar
     return 1;
 }
 
-// move()'s result is not readable back through is_grounded()/get_velocity()/
-// get_ground_normal() - those only update in onUpdate() - so the whole
-// MoveResult has to be handed back here instead.
+// move()'s result is not readable through is_grounded()/get_velocity() (they update in onUpdate()), so the whole MoveResult is returned.
 static int characterControllerMove(zen::VM* vm, zen::Value* args, int nargs)
 {
     CharacterController* controller = selfCharacterController(args);
@@ -2106,8 +1960,7 @@ static int animatorIsBound(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// mode and blend_time are optional, the same defaults Animator::play() gives
-// them in C++ (PlayMode::Loop, 0.2s).
+// mode and blend_time are optional (PlayMode::Loop, 0.2s).
 static int animatorPlay(zen::VM* vm, zen::Value* args, int nargs)
 {
     (void)vm;
@@ -2131,9 +1984,7 @@ static int animatorGetLayerCount(zen::VM* vm, zen::Value* args, int nargs)
     return 1;
 }
 
-// Calling animator->layer(index) here is what grows mLayers when index is
-// past the current count - the handle handed back only ever stores the
-// index, never the resulting reference (see selfAnimationLayer).
+// animator->layer(index) grows mLayers; the handle stores only the index.
 static int animatorGetLayer(zen::VM* vm, zen::Value* args, int nargs)
 {
     Animator* animator = selfAnimator(args);
@@ -2305,9 +2156,7 @@ void SceneScriptBindings::registerComponentClasses(ScriptCache& cache)
     characterController.persistent(true).constructable(false);
     cache.setComponentClass(ComponentType::CharacterController, characterController.end());
 
-    // IK only exposes counting/clearing here: addIKChain()/ikChain() hand
-    // back an IKChain& a caller mutates in place (moving a foot target every
-    // frame), which needs its own script-facing class - not yet ported.
+    // IK exposes counting/clearing only: IKChain& needs its own script class (not ported).
     auto animator = vm.def_class("Animator");
     animator.parent("Component");
     animator.method("is_bound", animatorIsBound, 0);
@@ -2371,12 +2220,7 @@ const zen::NativeLib& SceneScriptBindings::library()
     return kSceneScriptLib;
 }
 
-// Mirrors OP_SETFIELD's instance branch in vm_dispatch.cpp: search this
-// instance's own fields first, then the class's known field names, and
-// grow both the class's field_names and this instance's fields array by one
-// the first time a name is seen. There is no public "set a script instance
-// field from C++" call in the VM, so this is the smallest faithful copy of
-// what the bytecode itself does for "self.owner = ...".
+// Mirrors OP_SETFIELD's instance branch in vm_dispatch.cpp; the VM has no public call to set an instance field from C++.
 static void setInstanceFieldUnpaused(zen::VM* vm, zen::Value instance, const char* name,
                                      zen::Value value)
 {
@@ -2404,13 +2248,7 @@ static void setInstanceFieldUnpaused(zen::VM* vm, zen::Value instance, const cha
     }
     if (classIndex < 0)
     {
-        // num_fields is bumped only once field_names has actually been grown
-        // to match and the new slot holds a real pointer: the GC's own class
-        // marking walks field_names[0, num_fields) (memory.cpp's OBJ_CLASS
-        // case), and zen_realloc() may call gc_collect() before it resizes
-        // anything (memory.cpp's threshold check runs first) - bumping the
-        // count first left a window where that walk read one slot past the
-        // still-old, smaller array.
+        // num_fields is bumped only after field_names has grown: the GC walks field_names[0, num_fields) and zen_realloc() may collect first.
         classIndex = klass->num_fields;
         klass->field_names = (zen::ObjString**)zen::zen_realloc(
             &vm->get_gc(), klass->field_names, sizeof(zen::ObjString*) * classIndex,
@@ -2430,16 +2268,7 @@ static void setInstanceFieldUnpaused(zen::VM* vm, zen::Value instance, const cha
     inst->num_fields = newCount;
 }
 
-// The GC stays off for the whole of the above. Two things in there are
-// unreachable from any root while it runs: the interned key returned by
-// make_string(), until it is stored into field_names, and `value` itself,
-// until it is stored into the instance. Both zen_realloc() calls can collect
-// before they resize (memory.cpp checks the threshold first), and a
-// collection there frees the unmarked key - gc_rebuild_intern_table() keeps
-// only marked strings - leaving the class holding a dangling field name that
-// no later lookup matches, which surfaces as "self.node is nil" long
-// afterwards, on whichever script happens to be compiled next.
-// new_instance() pauses across its own field allocation for the same reason.
+// The GC stays off above: the interned key and `value` are unreachable until stored, and a collection would free the key (surfacing later as "self.node is nil").
 static void setInstanceField(zen::VM* vm, zen::Value instance, const char* name, zen::Value value)
 {
     zen::gc_pause(&vm->get_gc());
@@ -2456,10 +2285,7 @@ void SceneScriptBindings::bindOwner(zen::VM& vm, zen::Value instance, GameObject
     if (!sceneClass)
         return;
 
-    // `node` is the public behaviour API, matching Kinetix2D. `owner` is
-    // retained as an alias for existing Radion scripts, and both fields point
-    // at the same lightweight wrapper rather than allocating two every
-    // script instance.
+    // `node` is the public API (as Kinetix2D); `owner` is an alias for old scripts, both pointing at one wrapper.
     const zen::Value nodeValue = makeGameObjectValue(&vm, owner->scene(), owner);
     setInstanceField(&vm, instance, "node", nodeValue);
     setInstanceField(&vm, instance, "owner", nodeValue);

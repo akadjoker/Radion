@@ -6,12 +6,8 @@
 namespace Radion
 {
 
-// Draws the ScreenDraw queue on top of whatever is already in the current
-// target - no clear, no depth test/write, no cull, alpha blended. Not a
-// RenderTechnique: those all run inside Renderer::execute(), before
-// tonemapping and TAA, so a menu drawn there would pick up bloom, tonemap
-// and TAA blur meant for the 3D scene. This runs after
-// PostProcessStack::resolve() instead - see Engine.cpp.
+// Draws the ScreenDraw queue over the current target: no clear, depth or cull, alpha blended.
+// Not a RenderTechnique: those run before tonemapping and TAA, which would bloom/blur a menu. Runs after PostProcessStack::resolve() (see Engine.cpp).
 class ScreenDrawPass
 {
 public:
@@ -21,10 +17,7 @@ public:
     ScreenDrawPass(const ScreenDrawPass&) = delete;
     ScreenDrawPass& operator=(const ScreenDrawPass&) = delete;
 
-    // drawableWidth/drawableHeight are the full drawable in pixels, not the
-    // present rect - fade() has to cover a letterboxed game's black bars
-    // too, not just the rendered area inside them. No-op (and the internal
-    // BatchRenderer is never touched) when the queue is empty.
+    // drawableWidth/Height are the full drawable, not the present rect, so fade() covers letterbox bars. No-op when the queue is empty.
     void execute(u32 drawableWidth, u32 drawableHeight);
     void shutdown();
 

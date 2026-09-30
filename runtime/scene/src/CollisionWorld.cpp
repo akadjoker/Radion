@@ -319,7 +319,7 @@ bool sweepAgainstCollider(const Math::vec3& sv, const Math::vec3& dv, f32 radius
 
 } // namespace
 
-// Sphere vs Mesh only - TriangleOctree has no box/capsule sweep to reuse.
+// Sphere vs Mesh only: TriangleOctree has no box/capsule sweep.
 void CollisionWorld::collideMeshPair(Collider& mesh, Collider& other)
 {
     if (other.shape() != ColliderShape::Sphere || !mesh.mesh() || !other.owner())
@@ -484,9 +484,7 @@ CollisionWorld::MoveResult CollisionWorld::moveSphere(const Math::vec3& from, co
 
     const f32 epsilon = mMoveConfig.epsilon;
     const f32 zeroEpsilon = mMoveConfig.zeroEpsilon;
-    // A slid velocity that ends exactly on a previous plane (a corner, a tangent) measures
-    // as +0 or as -1 ulp depending on how the last division rounded; both mean "on the
-    // free side", so the side test allows that much.
+    // A slid velocity ending on a previous plane measures as +0 or -1 ulp depending on rounding; the side test allows that much.
     const f32 sideTolerance = epsilon * 0.1f;
     const std::vector<Collider*>& colliders = mScene->colliders();
 

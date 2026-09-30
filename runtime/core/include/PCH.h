@@ -1,8 +1,7 @@
 #ifndef RADION_PCH_H
 #define RADION_PCH_H
 
-// Common C++ headers used throughout the desktop engine. Public headers must
-// remain self-contained and include their own direct dependencies.
+// Public headers must stay self-contained.
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -15,9 +14,7 @@
 #include <utility>
 #include <vector>
 
-// Expensive, stable, and used nearly everywhere. GL and SDL stay out: only
-// gpu/backends/gl and core need them, and putting them here would spread them
-// across the whole engine.
+// GL and SDL stay out: only gpu/backends/gl and core need them.
 #include "Math.h"
 
 #include "Log.h"

@@ -7,11 +7,7 @@ namespace Radion
 
 namespace
 {
-// U spans the bolt's WIDTH, V its LENGTH (tail at V=1, head at V=0) - most
-// spark/beam sprites (Particles/spark1.png included) are tall and narrow,
-// drawn bright at the top fading to nothing at the bottom, so the image's
-// own long axis is V, not U. Mapping length to U instead runs the sprite
-// sideways across the bolt's width rather than along its length.
+// U spans the bolt's width, V its length (tail V=1, head V=0): spark sprites are tall and narrow, so the image's long axis is V.
 void buildBeamQuad(const Math::vec3& tail, const Math::vec3& head, const Math::vec3& perp,
                    Color colorTail, Color colorHead, TrailVertex* out)
 {
@@ -134,9 +130,7 @@ void Beam::onLateUpdate(f32 deltaTime)
 
     const f32 t = mElapsed / mTravelTime;
     const Math::vec3 head = mStart + axis * t;
-    // The tail trails mSegmentLength behind the head, but never past start -
-    // a bolt that has only travelled half its own segment length yet is
-    // shorter than usual, not spawning part of itself behind where it began.
+    // The tail trails mSegmentLength behind the head but never past start, so an early bolt is shorter.
     const f32 travelled = totalLength * t;
     const f32 tailDistance = Math::min(mSegmentLength, travelled);
     const Math::vec3 tail = head - dir * tailDistance;

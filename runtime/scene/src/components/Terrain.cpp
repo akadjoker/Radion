@@ -54,8 +54,7 @@ private:
         TerrainIndices state;
 
         constexpr s32 width = static_cast<s32>(Terrain::ChunkWidth);
-        // log2(64) + 1 = 7: one LOD per halving of the interior's
-        // resolution, down to the coarsest step that still fits inside it.
+        // log2(64) + 1 = 7: one LOD per halving of the interior, down to the coarsest step that fits.
         const s32 maxLod = static_cast<s32>(std::log2(width - 3)) + 1;
 
         std::vector<u32> indices;
@@ -193,9 +192,7 @@ private:
                 static_cast<u32>(indices.size()) - state.lods[static_cast<usize>(lod)].indexOffset;
         }
 
-        // Front-face convention only, same as Landscape's: swap the last two
-        // indices of every triangle once, here, rather than flip GL's winding
-        // state around every draw that uses this buffer.
+        // Front-face convention only (as Landscape): swap the last two indices once instead of flipping GL winding state per draw.
         for (usize i = 0; i + 2 < indices.size(); i += 3)
             std::swap(indices[i + 1], indices[i + 2]);
 
@@ -227,8 +224,7 @@ Terrain::Terrain() : Component(Type)
     // macro tiles/strength, splat strength, rock triplanar world scale
     mMaterial.params.custom1 = Math::vec4(1.0f, 0.32f, 1.0f, 0.12f);
     mMaterial.cull = CullMode::Back;
-    // The real forward pipeline, not the flat unlit path: terrain takes
-    // shadows and local lights the same way everything else does.
+    // The real forward pipeline, not flat unlit: terrain takes shadows and local lights.
     mMaterial.flags |= MaterialLit | MaterialTerrain | MaterialReceiveShadow;
 
     mTreeGeneration.spacing = 9.0f;
@@ -403,8 +399,7 @@ void Terrain::setReceiveShadows(bool enabled)
         mMaterial.flags |= MaterialReceiveShadow;
     else
         mMaterial.flags &= ~MaterialReceiveShadow;
-    // The flag is in the pipeline key, so the next resolvePipeline() picks the
-    // other variant up. Dropping the handle is what makes it re-resolve.
+    // The flag is in the pipeline key; dropping the handle makes it re-resolve.
     mMaterial.pipeline = PipelineHandle();
 }
 
@@ -433,9 +428,7 @@ void Terrain::setSurfaceMode(SurfaceMode mode)
     if (mode == mSurfaceMode)
         return;
 
-    // The outgoing mode's live custom0 goes back to its own copy first: a
-    // panel editing mMaterial.params directly is the normal case, so the
-    // register is the truth here, not what was saved on the last switch.
+    // The outgoing mode's live custom0 goes back to its own copy first: a panel editing mMaterial.params directly is normal, so the register is the truth.
     if (mSurfaceMode == SurfaceMode::Layers)
         mLayerParams = mMaterial.params.custom0;
     else
@@ -453,8 +446,7 @@ void Terrain::setSurfaceMode(SurfaceMode mode)
         mMaterial.flags &= ~MaterialTerrainClassic;
     }
     mMaterial.paramsDirty = true;
-    // A different define, so a different program: drop the cached pipeline
-    // and let the next draw resolve the variant this mode compiles to.
+    // A different define means a different program: drop the pipeline so the next draw resolves the variant.
     mMaterial.pipeline = PipelineHandle();
 }
 
@@ -544,9 +536,7 @@ bool Terrain::loadVegetationMask(const char* filename)
         for (s32 x = 0; x < source.width; ++x)
         {
             const Color color = source.get_pixel_color(static_cast<u32>(x), static_cast<u32>(y));
-            // An ordinary RGB mask remains useful for R/G/B without
-            // accidentally turning every pixel into a tree through the
-            // implicit opaque alpha that image loaders normally add.
+            // An RGB mask stays useful for R/G/B without the loader's implicit opaque alpha turning every pixel into a tree.
             rgba->set_pixel(static_cast<u32>(x), static_cast<u32>(y), color.r(), color.g(),
                             color.b(), sourceHasAlpha ? color.a() : 0);
         }
@@ -646,8 +636,7 @@ bool Terrain::paintVegetation(const Math::vec3& worldCenter, f32 radius,
 
 f32 Terrain::vegetationDensity(f32 localX, f32 localZ, VegetationChannel channel) const
 {
-    // No mask means the legacy whole-terrain scatter, so existing scenes do
-    // not silently lose vegetation when loaded by the newer component.
+    // No mask means the legacy whole-terrain scatter, so existing scenes keep their vegetation.
     if (!hasVegetationMask() || !valid())
         return 1.0f;
     const f32 sizeX = static_cast<f32>(mWidth - 1) * mCellSize;
@@ -729,8 +718,7 @@ void Terrain::uploadSurfaceSplat(bool recreate)
     slot.source = TextureSource::Static;
     mMaterial.params.custom1.z = 1.0f;
     mMaterial.paramsDirty = true;
-    // Adding SlotColorMap changes HAS_COLORMAP and therefore the pipeline;
-    // ordinary brush uploads keep using the already-correct variant.
+    // Adding SlotColorMap changes HAS_COLORMAP and so the pipeline; brush uploads keep the current variant.
     if (createTexture)
         mMaterial.pipeline = PipelineHandle();
 }
@@ -950,9 +938,7 @@ f32 Terrain::heightAt(f32 localX, f32 localZ) const
     const f32 h01 = mHeights[vertexIndex(x0, z0 + 1)];
     const f32 h11 = mHeights[vertexIndex(x0 + 1, z0 + 1)];
 
-    // The shared index buffer splits a cell along top-left -> bottom-right.
-    // Query the same two planes the renderer draws rather than a bilinear
-    // surface which can visibly float above or below a road/brush cursor.
+    // The shared index buffer splits a cell top-left to bottom-right; query the same two planes the renderer draws, not a bilinear surface.
     if (tx + tz <= 1.0f)
         return h00 + (h10 - h00) * tx + (h01 - h00) * tz;
     return h11 + (h01 - h11) * (1.0f - tx) + (h10 - h11) * (1.0f - tz);
@@ -1360,10 +1346,7 @@ void Terrain::rebuildChunksTouching(u32 minX, u32 minZ, u32 maxX, u32 maxZ)
     if (mChunkCountX == 0)
         return;
 
-    // A chunk's own border normals read one vertex PAST its own range (see
-    // buildChunk()), so an edit at a chunk's edge also has to rebuild the
-    // chunk on the other side of that edge - the "-1"/"+1" here, not just
-    // the chunk the edited vertices themselves fall in.
+    // Border normals read one vertex past the chunk's range (see buildChunk()), so an edge edit also rebuilds the chunk across it ("-1"/"+1").
     auto chunkIndexFor = [](s32 globalIndex, u32 chunkCount) {
         const s32 c = static_cast<s32>(
             std::floor(static_cast<f32>(globalIndex) / static_cast<f32>(ChunkSpan)));
@@ -1378,8 +1361,7 @@ void Terrain::rebuildChunksTouching(u32 minX, u32 minZ, u32 maxX, u32 maxZ)
         for (u32 cx = chunkMinX; cx <= chunkMaxX; ++cx)
             buildChunk(cx, cz);
 
-    // Loose on purpose: only grows, matching what raycast()'s early-out
-    // needs (a bound that never excludes real geometry, not a tight one).
+    // Loose on purpose: only grows; raycast()'s early-out needs a bound that never excludes real geometry.
     for (u32 z = minZ; z <= maxZ; ++z)
         for (u32 x = minX; x <= maxX; ++x)
         {
@@ -1408,12 +1390,7 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
                                0.0f,
                                (static_cast<f32>(originZ) + chunkHalfWidth) * mCellSize - halfZ);
 
-    // Height grid WITH PADDING: 68x68 instead of 67x67, one step further than
-    // the chunk's own vertices in every direction. A padded sample at an
-    // internal chunk boundary reads the true neighbour's own height (this is
-    // one master array, not a per-chunk copy), so two neighbouring chunks
-    // always compute the identical normal at the edge they share - crack-free
-    // shading, not just crack-free geometry.
+    // Padded 68x68: a padded sample at a chunk boundary reads the true neighbour's height (one master array), so neighbours compute the identical edge normal: crack-free shading too.
     constexpr u32 paddedWidth = ChunkWidth + 1;
     std::vector<f32> padded(static_cast<usize>(paddedWidth) * paddedWidth);
     for (u32 lz = 0; lz < paddedWidth; ++lz)
@@ -1491,8 +1468,7 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
     for (const Math::vec3& p : positions)
         chunkBounds.expand(p);
 
-    // Sculpting never changes a chunk's vertex count or layout. Reuse its
-    // buffers instead of destroying/adopting a Mesh for every brush sample.
+    // Sculpting never changes vertex count or layout; reuse the buffers instead of a Mesh per brush sample.
     if (Mesh* existing = Assets().getMesh(chunk.mesh))
     {
         gpu.updateBuffer(existing->positionBuffer, 0, positions.size() * sizeof(Math::vec3),
@@ -1508,9 +1484,7 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
     BufferDesc positionDesc;
     positionDesc.size = positions.size() * sizeof(Math::vec3);
     positionDesc.usage = BufferVertex;
-    // Sculpting updates this buffer in-place in buildChunk(). Static buffers
-    // reject updateBuffer() on the backends, leaving the rendered ground at
-    // the old height while Road already conforms to the new CPU heightmap.
+    // Updated in place in buildChunk(); static buffers reject updateBuffer(), leaving the ground at the old height while Road conforms to the new heightmap.
     positionDesc.residency = Residency::Dynamic;
     positionDesc.stride = sizeof(Math::vec3);
     positionDesc.data = positions.data();
@@ -1520,8 +1494,7 @@ bool Terrain::buildChunk(u32 chunkX, u32 chunkZ)
     BufferDesc attribDesc;
     attribDesc.size = attribs.size() * sizeof(MeshAttribs);
     attribDesc.usage = BufferVertex;
-    // Normals, height/slope colour weights and bounds change with the same
-    // brush edit, so this stream must be writable as well.
+    // Normals, colour weights and bounds change with the same edit, so this stream must be writable too.
     attribDesc.residency = Residency::Dynamic;
     attribDesc.stride = sizeof(MeshAttribs);
     attribDesc.data = attribs.data();
@@ -1603,9 +1576,7 @@ u32 Terrain::pickLod(const Chunk& chunk, const Math::vec3& cameraPosition,
         static_cast<s32>(std::floor(std::log2(Math::max(1.0f, ratio)))), 0,
         Math::max(0, maxLod));
 
-    // Fifteen percent hysteresis around each power-of-two boundary. Without
-    // it, a camera hovering at exactly one boundary swaps thousands of
-    // triangles back and forth on tiny movements and the ground shimmers.
+    // Fifteen percent hysteresis around each power-of-two boundary, or a hovering camera swaps thousands of triangles and the ground shimmers.
     s32 lod = Math::clamp(static_cast<s32>(chunk.lastLod), 0, Math::max(0, maxLod));
     if (target > lod)
     {
@@ -1683,16 +1654,14 @@ void Terrain::submitShadow(RenderList& list, const Math::mat4& transform)
 
     for (Chunk& chunk : mChunks)
     {
-        // Only chunks with slope enter the shadow view: flat ground cannot
-        // shadow itself, and most of a terrain is flat ground.
+        // Only sloped chunks enter the shadow view; flat ground cannot shadow itself.
         if (!chunk.castShadow)
             continue;
         Mesh* mesh = assets.getMesh(chunk.mesh);
         if (!mesh || mesh->submeshes.empty())
             continue;
 
-        // One LOD coarser than the scene view uses: the shadow map has no
-        // resolution to show the difference, and this halves the triangles.
+        // One LOD coarser than the scene view: the shadow map cannot show the difference, halves the triangles.
         const u32 lod = static_cast<u32>(
             Math::clamp(static_cast<s32>(chunk.lastLod) + 1, 0, maxLod));
         const TerrainLod& range = indices.lods[lod];

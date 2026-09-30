@@ -36,8 +36,7 @@ public:
     // Takes ownership. Importers are tried in registration order.
     void addImporter(MeshImporter* importer);
 
-    // Reads through FileSystem into ByteArray, then delegates decoding. Output
-    // is only replaced after a successful import.
+    // Reads via FileSystem, then delegates decoding; output is replaced only on success.
     bool load(const std::string& filename, MeshData& mesh);
 
     // Imports bytes already in memory. virtualName supplies the extension and

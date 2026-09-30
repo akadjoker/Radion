@@ -1,7 +1,3 @@
-// MeshSelectionTests.cpp - the selection queries a modelling tool drives its
-// selection with: grow, shrink, linked, by submesh. Nothing here touches the
-// GPU, and none of them change the mesh.
-
 #include "PCH.h"
 
 #include "AssetManager.h"
@@ -74,7 +70,6 @@ MeshData makeStrip()
     return mesh;
 }
 
-// Two strips that share no vertex - what "select linked" exists to tell apart.
 MeshData makeTwoIslands()
 {
     MeshData mesh = makeStrip();
@@ -101,9 +96,7 @@ MeshData makeTwoIslands()
     return mesh;
 }
 
-// Grow has to widen by exactly one ring. Reading and writing the same set
-// would let a vertex added early in the sweep seed the next triangle in the
-// same pass, and the selection would run away across the mesh in one press.
+// Grow widens by exactly one ring: reading and writing one set would let the selection run away in one pass.
 void testGrowWidensByOneRing()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -112,15 +105,12 @@ void testGrowWidensByOneRing()
     std::vector<u32> grown;
     assets.growVertexSelection(mesh, {0}, grown);
 
-    // Vertex 0 belongs to triangles (0,4,5) and (0,5,1): its neighbours are
-    // 1, 4 and 5 and nothing else.
     CHECK(ascendingAndUnique(grown));
     CHECK(grown.size() == 4);
     CHECK(contains(grown, 0) && contains(grown, 1) && contains(grown, 4) && contains(grown, 5));
     CHECK(!contains(grown, 2));
     CHECK(!contains(grown, 6));
 
-    // A second ring reaches 2 and 6, and still not 3 or 7.
     std::vector<u32> again;
     assets.growVertexSelection(mesh, grown, again);
     CHECK(contains(again, 2) && contains(again, 6));
@@ -132,8 +122,6 @@ void testShrinkPeelsTheBorder()
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeStrip();
 
-    // Everything selected: only vertices with no unselected neighbour survive,
-    // which on a fully selected mesh is everything.
     std::vector<u32> all;
     for (u32 v = 0; v < 8; ++v)
         all.push_back(v);
@@ -141,8 +129,6 @@ void testShrinkPeelsTheBorder()
     assets.shrinkVertexSelection(mesh, all, shrunk);
     CHECK(shrunk.size() == 8);
 
-    // Grow one vertex then shrink: the ring that was added is on the border,
-    // so it comes off and the original is left.
     std::vector<u32> grown;
     assets.growVertexSelection(mesh, {0}, grown);
     assets.shrinkVertexSelection(mesh, grown, shrunk);
@@ -161,14 +147,10 @@ void testGrowFaces()
 
     CHECK(ascendingAndUnique(grown));
     CHECK(contains(grown, 0));
-    // Face 0 is (0,4,5); face 1 is (0,5,1) and shares two of them.
     CHECK(contains(grown, 1));
-    // Face 5 is (2,7,3) - no vertex in common with face 0.
     CHECK(!contains(grown, 5));
 }
 
-// The whole point: one vertex of a piece brings the piece, and nothing from
-// the piece next to it.
 void testLinkedStopsAtTheIsland()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -182,13 +164,11 @@ void testLinkedStopsAtTheIsland()
     CHECK(contains(linked, 7));
     CHECK(!contains(linked, 8));
 
-    // Seeded from the far island instead.
     assets.selectLinkedVertices(mesh, {8}, linked);
     CHECK(linked.size() == 8);
     CHECK(contains(linked, 15));
     CHECK(!contains(linked, 0));
 
-    // A seed in each brings both.
     assets.selectLinkedVertices(mesh, {0, 8}, linked);
     CHECK(linked.size() == 16);
 }
@@ -226,14 +206,10 @@ void testSubmeshFaces()
     CHECK(faces.size() == 6);
     CHECK(faces.front() == 6 && faces.back() == 11);
 
-    // Past the end answers with nothing rather than reading a submesh that
-    // is not there.
     assets.submeshFaces(mesh, 9, faces);
     CHECK(faces.empty());
 }
 
-// A selection kept from a previous, larger mesh must not reach past the end
-// of the current one.
 void testStaleIndicesAreIgnored()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -273,7 +249,6 @@ void testEmptyInputs()
     CHECK(out.empty());
 }
 
-// These answer questions; they must not edit what they are asked about.
 void testQueriesLeaveTheMeshAlone()
 {
     AssetManager& assets = AssetManager::getSingleton();

@@ -10,10 +10,8 @@
 namespace Radion
 {
 
-// Normalized (u0, v0, width, height) of one glyph's cell in the embedded
-// 8x8 font atlas (BatchRenderer::fontTexture()), ASCII 32..127. Space and
-// out-of-range codes return a zero-area rect - callers skip drawing on
-// width == 0 rather than sampling a garbage cell.
+// Normalized (u0, v0, w, h) of a glyph cell in the 8x8 font atlas, ASCII 32..127.
+// Space and out-of-range codes return a zero-area rect; callers skip on width == 0.
 Math::vec4 fontGlyphUVRect(unsigned char code);
 
 class BatchRenderer
@@ -62,7 +60,6 @@ public:
     bool resize(int width, int height);
     void getWindowSize(int& width, int& height) const;
 
-    // Transform stack
     void pushMatrix();
     void popMatrix();
     void loadIdentity();
@@ -70,7 +67,6 @@ public:
     void rotate(float angleDeg, float axisX, float axisY, float axisZ);
     void scale(float x, float y, float z = 1.0f);
 
-    // State
     void setColor(unsigned char r, unsigned char g, unsigned char b, unsigned char a = 255);
     void setColor(float r, float g, float b, float a = 1.0f);
     void setTexture(TextureHandle texture);
@@ -106,13 +102,11 @@ public:
         return mClipRect;
     }
 
-    // Immediate mode
     void begin(int mode);
     void end();
     void vertex2(float x, float y);
     void vertex3(float x, float y, float z);
 
-    // Primitives
     void drawLine(float x0, float y0, float x1, float y1);
     void drawThickLine(float x0, float y0, float x1, float y1, float thickness);
     void drawTriangle(float x1, float y1, float x2, float y2, float x3, float y3);
@@ -127,7 +121,6 @@ public:
                      bool fill = true);
     void drawPolyline(const float* xyPairs, int pointCount);
 
-    // 3D debug primitives
     void drawLine3D(float x0, float y0, float z0, float x1, float y1, float z1);
     void drawTriangle3D(const Math::vec3& a, const Math::vec3& b, const Math::vec3& c);
     void drawTriangle3D(const Math::vec3& a, const Math::vec2& uvA, const Math::vec3& b,
@@ -136,7 +129,6 @@ public:
                         const Math::vec2& uvB, u32 colorB, const Math::vec3& c, const Math::vec2& uvC,
                         u32 colorC);
 
-    // Wireframe
     void drawWireBox(float minX, float minY, float minZ, float maxX, float maxY, float maxZ);
     void drawWireSphere(float cx, float cy, float cz, float radius, int segments = 24);
     void drawWireCylinder(float cx, float cy, float cz, float radius, float height,
@@ -144,7 +136,6 @@ public:
     void drawWireCapsule(float cx, float cy, float cz, float radius, float height,
                          int segments = 24);
 
-    // Solid
     void drawSolidBox(float minX, float minY, float minZ, float maxX, float maxY, float maxZ);
     void drawSolidSphere(float cx, float cy, float cz, float radius, int rings = 12,
                          int segments = 24);
@@ -156,36 +147,28 @@ public:
     void drawAxis(float x, float y, float z, float size = 1.0f);
     void drawWireGrid(float y, int slices, float spacing, bool axes = true);
 
-    // Textured draw
     void drawTexture(TextureHandle texture, float dstX, float dstY, float dstW, float dstH,
                      float srcX = 0.0f, float srcY = 0.0f, float srcW = 0.0f, float srcH = 0.0f,
                      float pivotX = 0.0f, float pivotY = 0.0f, float rotationDeg = 0.0f);
 
-    // Batch control
     void drawRenderBatch();
     void update();
     void flip();
 
-    // Text rendering (embedded 8x8 font)
     void drawText(float x, float y, float size, const char* text);
     float textWidth(float size, const char* text) const;
-    // The embedded font's atlas texture, valid once init() has run. Anything
-    // that draws the same 8x8 font outside this batch's own drawText() (a
-    // world-space text component, say) samples this atlas with
-    // fontGlyphUVRect() rather than baking its own copy.
+    // Atlas of the embedded font, valid after init(); sample it with fontGlyphUVRect().
     TextureHandle fontTexture() const
     {
         return mFontTexture;
     }
 
-    // Projection
     void setProjection(const Math::mat4& matrix);
     const Math::mat4& getProjection() const
     {
         return mProjection;
     }
 
-    // Stats
     void resetStats();
     void printStats() const;
     const Stats& getStats() const
@@ -193,7 +176,6 @@ public:
         return mStats;
     }
 
-    // Color utilities
     static unsigned int packColor(unsigned char r, unsigned char g, unsigned char b,
                                   unsigned char a);
     static void unpackColor(unsigned int packed, unsigned char& r, unsigned char& g,
@@ -229,9 +211,7 @@ private:
     void setupTexture();
     void setupFontTexture();
 
-    // One PSO per combination of primitive and render state actually used.
-    // Built on demand, so a program that only draws wire boxes ends up with a
-    // single pipeline instead of the full matrix of them.
+    // One PSO per primitive/render-state combination actually used, built on demand.
     PipelineHandle pipelineFor(const DrawCall& call);
     void submitVertex(float x, float y, float z);
     void submitVertex(float x, float y, float z, float u, float v);

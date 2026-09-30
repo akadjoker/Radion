@@ -14,10 +14,7 @@ struct NativeLib;
 namespace Radion
 {
 
-// A tagged value used to pass arguments to, and read return values and
-// globals from, a Zen script. Keeps every zen:: type out of ScriptVM's
-// public API - callers outside runtime/script never need vendor/zen headers
-// just to call a script function or read/write a global.
+// A tagged value for script arguments/returns/globals; keeps zen:: types out of the public API.
 struct ScriptValue
 {
     enum class Kind : u8
@@ -38,12 +35,8 @@ struct ScriptValue
     static ScriptValue fromString(const std::string& value);
 };
 
-// Thin wrapper around a zen::VM instance: owns it, opens the simple builtin
-// modules and the "radion" native module, and runs script text or files.
-// The calls below never log - they hand back success/failure plus the error
-// text. What the VM prints on its own (a script's print, and the stack trace
-// behind a runtime error) is routed into Radion's Log, so it reaches the
-// editor console instead of a stderr nobody is reading.
+// Thin wrapper around a zen::VM. Calls never log: they return success plus error text. VM output (print, stack traces)
+// is routed into Radion's Log so it reaches the editor console.
 class ScriptVM
 {
 public:
@@ -53,19 +46,13 @@ public:
     ScriptVM(const ScriptVM&) = delete;
     ScriptVM& operator=(const ScriptVM&) = delete;
 
-    // Compiles and runs a source string. Returns true on success. On
-    // failure, outError holds the compile or runtime error message and the
-    // function returns false without printing anything.
+    // Compiles and runs a source string; on failure outError holds the message and nothing is printed.
     bool runString(const char* source, const char* moduleName, std::string& outError);
 
-    // Reads a file and runs it the same way as runString(). outError holds
-    // the reason on failure, including "file not found" style errors.
+    // Reads and runs a file like runString(); outError holds the reason on failure.
     bool runFile(const char* path, std::string& outError);
 
-    // Lets code outside runtime/script (scene bindings, e.g.) add native
-    // classes/functions to this VM without runtime/script depending on them.
-    // The lib's init_fn, if any, runs immediately - no "import" required
-    // from the script for whatever it registers.
+    // Lets outside code (scene bindings) add native classes/functions; the lib's init_fn runs immediately, no import needed.
     bool registerModule(const zen::NativeLib& lib);
 
     // True if a top-level function with this name exists and is callable.
@@ -86,9 +73,7 @@ public:
     bool getGlobal(const char* name, f64& outValue) const;
     bool getGlobal(const char* name, std::string& outValue) const;
 
-    // Direct access to the underlying VM, for bindings code that needs more
-    // than call()/setGlobal() offer - defining native classes, building
-    // instances by hand (runtime/scene's SceneScriptBindings, e.g.).
+    // Direct VM access for bindings (native classes, hand-built instances).
     zen::VM* vm() const;
 
 private:

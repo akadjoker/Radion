@@ -19,11 +19,7 @@ public:
     bool hasSelection() const;
     u64 selectedId() const;
 
-    // Multi-selection, for operations that act on a set rather than on one
-    // object - deleting a batch of markers, say. The primary selection
-    // (selectedId()) is always the last one added and stays what the
-    // inspector and the gizmo drive, so nothing single-object had to learn
-    // about sets.
+    // Primary selection (selectedId()) is the last one added; it drives the inspector and gizmo.
     void toggle(u64 objectId);
     bool isSelected(u64 objectId) const;
     const std::vector<u64>& selectedIds() const;

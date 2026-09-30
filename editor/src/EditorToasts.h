@@ -17,13 +17,7 @@ enum class ToastKind : u8
     Error
 };
 
-// Short-lived corner notifications for work the user started and would
-// otherwise only learn about from the console: a file written, a bake
-// finished, an import that fell back to something.
-//
-// Not a replacement for the log. Everything shown here is logged too - a
-// toast is gone in seconds and cannot be scrolled back to, so it never
-// carries the only copy of anything.
+// Corner notifications; everything shown is also logged, since a toast is gone in seconds.
 class EditorToasts
 {
 public:

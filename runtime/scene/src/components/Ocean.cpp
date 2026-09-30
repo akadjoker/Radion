@@ -15,11 +15,7 @@ namespace
 {
 constexpr f32 kGravity = 9.81f;
 
-// Math::normalize() on a zero (or NaN/infinite) vector is undefined - not the
-// harmless zero a caller might assume. A single bad wave direction propagates
-// through heightAt()/normalAt() into position, normal, clip-space and depth
-// for the whole surface. Falls back to (1,0) rather than the caller's
-// previous direction: this is a pure function, with nothing to remember.
+// Math::normalize() on a zero/NaN/infinite vector is undefined, and one bad direction corrupts the whole surface. Falls back to (1,0): pure function, nothing to remember.
 Math::vec2 safeDirection(const Math::vec2& direction)
 {
     const f32 lengthSq = Math::dot(direction, direction);
@@ -28,7 +24,7 @@ Math::vec2 safeDirection(const Math::vec2& direction)
     return direction * (1.0f / std::sqrt(lengthSq));
 }
 
-// Must match kPhaseOffset in ocean.vert exactly - see the comment there.
+// Must match kPhaseOffset in ocean.vert exactly.
 const Math::vec2 kPhaseOffset[kOceanMaxWaves] = {
     {0.0f, 0.0f}, {311.7f, 172.3f}, {-198.4f, 402.1f},
     {87.6f, -266.9f}, {-355.2f, -114.8f}, {224.1f, 333.6f},
@@ -37,8 +33,7 @@ const Math::vec2 kPhaseOffset[kOceanMaxWaves] = {
 
 Ocean::Ocean() : Component(Type)
 {
-    // Wavelengths coprime on purpose: multiples of one another realign
-    // periodically and the repeat becomes visible on the surface.
+    // Wavelengths coprime on purpose: multiples realign periodically and the repeat shows.
     mWaves[0] = {Math::vec2(1.00f, 0.15f), 61.0f, 1.35f};
     mWaves[1] = {Math::vec2(0.70f, -0.70f), 37.0f, 0.75f};
     mWaves[2] = {Math::vec2(-0.35f, 0.94f), 23.0f, 0.40f};
@@ -49,9 +44,7 @@ Ocean::Ocean() : Component(Type)
 
 void Ocean::onDestroy()
 {
-    // The component owns the mesh build() created - invalidating the handle
-    // without destroying it left the buffers, materials and pool entry alive
-    // in AssetManager until engine shutdown, one leak per Ocean removed.
+    // The component owns the mesh build() created; invalidating the handle without destroying it leaked buffers until shutdown.
     if (mMesh.valid())
         Assets().destroyMesh(mMesh);
     mMesh = MeshHandle();
@@ -62,15 +55,8 @@ bool Ocean::build(f32 size, u32 segments)
     if (size <= 0.0f || segments == 0)
         return false;
 
-    // A single flat grid, no LOD: the vertex shader displaces every vertex
-    // by the full Gerstner sum regardless of distance, so segments is a
-    // direct multiplier on vertex shader cost. (segments+1)^2 vertices,
-    // 2*segments^2 triangles.
-    //
-    // Built into a temporary first: mMesh must keep pointing at a valid mesh
-    // (or stay MeshHandle()) for as long as this component might still be
-    // drawn, and only the old one - never the new, still-being-built one -
-    // is safe to drop on a rebuild.
+    // Single flat grid, no LOD: segments directly multiplies vertex shader cost ((segments+1)^2 vertices, 2*segments^2 triangles).
+    // Built into a temporary first: mMesh must stay valid while drawn, and only the old mesh is safe to drop.
     const MeshHandle mesh = Assets().createPlane(size, size, segments, segments, 1.0f);
     if (!mesh.valid())
         return false;
@@ -381,8 +367,7 @@ void Ocean::setDebugMode(s32 mode)
 
 s32 Ocean::debugMode() const { return mDebugMode; }
 
-// Same sum ocean.vert runs, in world x/z - see the header comment on why
-// `time` is a parameter rather than a clock this object keeps itself.
+// Same sum as ocean.vert, world x/z; `time` is a parameter (see the header).
 f32 Ocean::heightAt(f32 x, f32 z, f32 time) const
 {
     const f32 t = time * mTimeScale;
@@ -404,8 +389,7 @@ f32 Ocean::heightAt(f32 x, f32 z, f32 time) const
     return y;
 }
 
-// Same tangent/binormal accumulation as the vertex shader, evaluated at one
-// point instead of a whole grid.
+// Same tangent/binormal accumulation as the vertex shader, at one point.
 Math::vec3 Ocean::normalAt(f32 x, f32 z, f32 time) const
 {
     const f32 t = time * mTimeScale;
@@ -442,17 +426,11 @@ void Ocean::submit(const Math::mat4& transform)
 
     OceanDrawCommand command;
     command.mesh = mMesh;
-    // The level rides in the transform rather than in the shader: it is the
-    // one place both sides can agree on it. heightAt() adds it on the CPU, the
-    // vertex shader gets it through uModel, and the reflection reads the plane
-    // straight off model[3].y - three readers, one number.
+    // The level rides in the transform: heightAt() adds it on the CPU, the vertex shader gets it via uModel, reflection reads model[3].y - three readers, one number.
     command.model = Math::translate(transform, Math::vec3(0.0f, mLevel, 0.0f));
     command.quality = mQuality;
 
-    // Only the waves the grid can actually carry. The displacement happens per
-    // vertex, so a wave shorter than two quads has no samples to be drawn with
-    // and turns into a lattice beating against the mesh - the fine detail it
-    // was meant to add is the normal map's job, not the geometry's.
+    // Only waves the grid can carry: a wave shorter than two quads has no samples and beats as a lattice (fine detail is the normal map's job).
     const f32 shortest = 2.0f * mSpacing;
     u32 count = 0;
     for (u32 i = 0; i < mWaveCount && i < kOceanMaxWaves; ++i)
@@ -466,24 +444,10 @@ void Ocean::submit(const Math::mat4& transform)
     command.waveCount = count;
     if (count == 0)
         return;
-    // The scale has to reach BOTH axes or it is not a trochoid any more. Q is
-    // derived as steepness/(k*A*n), so scaling the amplitude alone leaves the
-    // horizontal push Q*A = steepness/(k*n) untouched: the crests stop
-    // pinching and the sum degenerates into plain sines - round crests, round
-    // troughs, the jelly Gerstner exists to avoid. Scaling the steepness by
-    // the same factor cancels out of Q and carries through to Q*A, so the
-    // particle keeps tracing a circle and only its radius changes.
-    //
-    // Clamped at 1, and that number is not arbitrary: each wave contributes
-    // Q*k*A to the sum and Q is derived as steepness/(k*A*n), so every term is
-    // steepness/n and the n of them add back up to steepness exactly. At 1 the
-    // crest is a cusp - the sharpest a real wave gets before it breaks. Past
-    // it the trochoid folds through itself and the surface turns into spikes,
-    // which is what scaling straight through this clamp produced.
-    //
-    // So the scale keeps raising the height above that point, but the crests
-    // stop sharpening: taller waves at the same wavelength is exactly the
-    // thing real water answers by breaking.
+    // The scale must reach both axes or it stops being a trochoid: Q = steepness/(k*A*n), so scaling amplitude alone leaves Q*A untouched and the sum degenerates into sines.
+    // Scaling steepness by the same factor carries through to Q*A, so the particle still traces a circle with a different radius.
+    // Clamped at 1: each term is steepness/n and the n terms add to steepness exactly; at 1 the crest is a cusp, past it the trochoid folds into spikes.
+    // Above that, scale still raises height but crests stop sharpening, as real water breaks.
     command.steepness = Math::min(mSteepness * mWaveScale, 1.0f);
     command.timeScale = mTimeScale;
 

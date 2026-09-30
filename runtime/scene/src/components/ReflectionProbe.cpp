@@ -28,14 +28,7 @@ void ReflectionProbe::syncToOwner()
     if (!object)
         return;
     mProbe.position = object->globalPosition();
-    // No automatic excludeObjectId: a probe is its own placeable object now
-    // (Hierarchy > Create > Special Nodes > Reflection Probe), not
-    // necessarily riding on the reflective mesh it serves, so there is no
-    // single "self" this could safely guess at - a probe sitting inside a
-    // room has nothing of its own to exclude. What keeps a mirror out of a
-    // capture that would show its own back is MeshRenderer::
-    // visibleInReflections on THAT object, checked once for every probe
-    // (Scene::buildShadowList), not something this component owns.
+    // No automatic excludeObjectId: a probe is its own placeable object, with no single "self" to guess. A mirror stays out of a capture via MeshRenderer::visibleInReflections on that object (checked in Scene::buildShadowList).
 }
 
 EnvironmentProbe& ReflectionProbe::probe()

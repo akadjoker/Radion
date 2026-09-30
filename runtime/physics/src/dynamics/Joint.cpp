@@ -10,11 +10,7 @@ namespace Radion::Physics
 
 Joint::~Joint()
 {
-    // Component-mode joints already left mJoints through onDestroy() by the
-    // time their destructor runs (GameObject::removeComponent() calls
-    // detached() before delete). This is what a loose joint - Scene::addJoint()
-    // called directly, no GameObject at all: Ragdoll's own parts, every joint
-    // test - relies on instead.
+    // Component-mode joints already left mJoints via onDestroy(); this covers loose joints (Scene::addJoint() directly: Ragdoll parts, tests).
     if (mJointScene)
         mJointScene->removeJoint(this);
 }
@@ -40,10 +36,8 @@ void Joint::moveJointStateFrom(Joint& other)
     other.mConnectedBody = nullptr;
     other.mBuilt = false;
 
-    // The scene stores joints by address, so a registered one cannot follow
-    // a move: its entry would still name the old object. The source leaves
-    // the scene and the destination arrives unregistered, to be added by
-    // whoever now owns it - same rule as RigidBody::moveFrom().
+    // The scene stores joints by address, so a registered one cannot follow a move: the source leaves the scene and the destination arrives
+    // unregistered (as RigidBody::moveFrom()).
     if (other.mJointScene)
         other.mJointScene->removeJoint(&other);
 }

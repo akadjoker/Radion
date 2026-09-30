@@ -12,8 +12,7 @@ namespace Radion
 template <typename K, typename V, typename Hash = std::hash<K>>
 using HashMap = std::unordered_map<K, V, Hash>;
 
-// A borrowed reference to something a pool owns. Generation 0 never belongs to
-// a live slot, so a default-built handle is always invalid.
+// Generation 0 never belongs to a live slot, so a default handle is invalid.
 template <typename Tag> struct Handle
 {
     u32 index = 0;
@@ -40,16 +39,13 @@ template <typename Tag> struct Handle
     }
 };
 
-// Packs a handle into one integer so it can key a HashMap - a Handle itself
-// has no std::hash, and index alone would collide across generations.
+// HashMap key; index alone would collide across generations.
 template <typename Tag> u64 packHandle(Handle<Tag> handle)
 {
     return (static_cast<u64>(handle.index) << 32) | static_cast<u64>(handle.generation);
 }
 
-// Slots are recycled but generations are not: a handle kept past destruction
-// finds a live slot with a different generation and is rejected instead of
-// silently addressing whatever took its place.
+// Generations are not recycled, so a stale handle is rejected.
 template <typename T, typename H> class Pool
 {
 public:
@@ -94,8 +90,7 @@ public:
         return const_cast<Pool*>(this)->get(handle);
     }
 
-    // Copies the value out before freeing so the caller can still release what
-    // it owned, and refuses stale handles.
+    // Copies the value out before freeing; refuses stale handles.
     bool remove(H handle, T& out)
     {
         T* value = get(handle);
@@ -113,7 +108,6 @@ public:
         return true;
     }
 
-    // Walks every live slot, for shutdown and for stats.
     template <typename Fn> void forEach(Fn function)
     {
         for (usize i = 0; i < mSlots.size(); ++i)

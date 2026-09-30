@@ -45,23 +45,10 @@ public:
     f32 motorMaxTorque() const;
     bool motorEnabled() const;
 
-    // Hold an angle instead of a speed: what a servo is, and what a robot
-    // joint is commanded with. Drives the motor above - every step, setup()
-    // turns the remaining error into the speed that would close it in one
-    // step, and maxTorque is what stops that from being instantaneous. A
-    // target outside the joint's limits is clamped into them.
-    //
-    // Once set, it is held: the target stays until changed, so a caller
-    // (or a command arriving over a socket) names an angle and stops
-    // thinking about it.
-    // maxAngularVelocity is the servo's rated speed, and leaving it at 0
-    // (unlimited) is only safe when the torque budget is tight. Uncapped,
-    // the commanded speed is the whole error divided by one step - a
-    // proportional gain of 1/dt, with no damping under it - so a joint given
-    // torque to spare overshoots, comes back, and oscillates without ever
-    // settling: measured at +-27 degrees on a three-link chain in
-    // testServoChainSagUnderLoad(). Real actuators have a rated speed and
-    // that is what keeps this stable, not a tuning constant.
+    // Hold an angle instead of a speed. Each step setup() turns the remaining error into the speed that would close it in one step,
+    // and maxTorque stops that being instantaneous. The target is clamped to the limits and held until changed.
+    // maxAngularVelocity is the servo's rated speed; 0 (unlimited) is only safe with a tight torque budget: uncapped, speed = error/dt is a
+    // proportional gain of 1/dt with no damping, so it oscillates (+-27 degrees on a three-link chain in testServoChainSagUnderLoad()).
     void setServo(f32 targetAngle, f32 maxTorque, f32 maxAngularVelocity = 0.0f);
     void disableServo();
     f32 servoTargetAngle() const;
@@ -82,10 +69,7 @@ private:
     void applyVelocityImpulse(const Math::vec3& impulse);
     void applyAngularVelocityImpulse(const Math::vec3& impulse);
 
-    // Null until rebuild() resolves them. Uninitialised, the component path -
-    // where a joint exists from the moment it is added and is only wired up
-    // later - had two garbage pointers that anything asking the joint about
-    // its bodies would follow.
+    // Null until rebuild() resolves them; uninitialised, the component path (joint exists before being wired up) had two garbage pointers.
     RigidBody* mBodyA = nullptr;
     RigidBody* mBodyB = nullptr;
     Math::vec3 mLocalAnchorA;

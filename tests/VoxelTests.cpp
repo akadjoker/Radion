@@ -30,9 +30,7 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// The mesher packs a voxel vertex into MeshData::colors and voxel.vert unpacks
-// it. These mirror that layout: a test that reads the fields any other way
-// would stop noticing the day the two sides disagree.
+// Mirrors the vertex packing in MeshData::colors that voxel.vert unpacks.
 struct PackedVertex
 {
     u32 face = 0;
@@ -188,9 +186,7 @@ void testAtlasUvs()
     const VoxelMeshData mesh =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry, settings);
 
-    // The tile travels as a column and a row, not as a UV: voxel.vert turns
-    // them into the atlas origin with the material's own tile size, so the
-    // atlas may be resized without remeshing the world.
+    // The tile travels as column and row; voxel.vert derives the atlas origin so the atlas can be resized without remeshing.
     CHECK(mesh.mesh.colors.size() == 24);
     for (u32 packed : mesh.mesh.colors)
     {
@@ -254,16 +250,14 @@ void testSideFacesStandUpright()
     const BlockId id = registry.registerBlock(block);
 
     VoxelWorld world;
-    // A column two blocks tall, so the greedy sweep merges a quad whose two
-    // extents differ and a swapped texture basis cannot hide behind a square.
+    // Two blocks tall: merged quad extents differ, so a swapped texture basis cannot hide behind a square.
     world.setBlock({0, 0, 0}, id);
     world.setBlock({0, 1, 0}, id);
 
     const VoxelMeshData mesh =
         VoxelMesher::buildChunk(world, *world.findChunk({0, 0, 0}), registry);
 
-    // Texture v follows world Y on every side face, whichever axis the sweep
-    // walked: a grass side or a log must never lie on its side.
+    // Texture v follows world Y on every side face, whichever axis the sweep walked.
     usize sideVertices = 0;
     bool upright = true;
     for (usize index = 0; index < mesh.mesh.positions.size(); ++index)
@@ -360,7 +354,6 @@ void testTerrainGeneration()
     const VoxelChunk& chunkA = *worldA.findChunk({0, 0, 0});
     const VoxelChunk& chunkB = *worldB.findChunk({0, 0, 0});
 
-    // Same seed reproduces the same chunk, block for block.
     bool identical = true;
     for (s32 z = 0; z < VoxelChunk::Size && identical; ++z)
         for (s32 y = 0; y < VoxelChunk::Size && identical; ++y)
@@ -368,7 +361,6 @@ void testTerrainGeneration()
                 identical = chunkA.block({x, y, z}) == chunkB.block({x, y, z});
     CHECK(identical);
 
-    // A different seed differs somewhere.
     VoxelWorld worldC;
     VoxelTerrain terrainC(registry, 54321);
     terrainC.generate(worldC, {0, 0, 0});
@@ -380,7 +372,6 @@ void testTerrainGeneration()
                 differs = chunkA.block({x, y, z}) != chunkC.block({x, y, z});
     CHECK(differs);
 
-    // Bedrock floor and a solid surface column exist regardless of seed.
     CHECK(chunkA.block({0, 0, 0}) == registry.findId("bedrock"));
     const BlockId grass = registry.findId("grass");
     const BlockId sand = registry.findId("sand");
@@ -638,7 +629,6 @@ BlockRegistry makeCollisionRegistry()
     return registry;
 }
 
-// A slab of stone across y = 0, so the surface a box lands on sits at y = 1.
 void fillFloor(VoxelWorld& world, BlockId stone)
 {
     for (s32 z = -4; z <= 4; ++z)
@@ -659,7 +649,6 @@ void testCollisionFallsOntoFloor()
         VoxelCollision::moveBox(world, registry, start, half, Math::vec3(0.0f, -6.0f, 0.0f));
 
     CHECK(result.grounded);
-    // Feet rest on the top of the block at y = 1, never inside it.
     CHECK(result.position.y - half.y >= 1.0f);
     CHECK(result.position.y - half.y < 1.01f);
     CHECK(!VoxelCollision::overlaps(world, registry, result.position, half));
@@ -712,8 +701,7 @@ void testFastFallDoesNotTunnel()
     VoxelWorld world;
     fillFloor(world, stone);
 
-    // Forty blocks in one call: without substepping the box would be past the
-    // floor before anything tested it.
+    // Forty blocks in one call: without substepping the box passes the floor untested.
     const Math::vec3 half(0.3f, 0.9f, 0.3f);
     const VoxelMoveResult result = VoxelCollision::moveBox(
         world, registry, Math::vec3(0.5f, 40.0f, 0.5f), half, Math::vec3(0.0f, -60.0f, 0.0f));

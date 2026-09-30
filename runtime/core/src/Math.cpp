@@ -74,8 +74,6 @@ AABB transformAABB(const AABB& box, const Math::mat4& matrix)
     return result;
 }
 
-// ------------------------------------------------------------------- sphere
-
 bool Sphere::contains(const Math::vec3& point) const
 {
     const Math::vec3 delta = point - center;
@@ -110,8 +108,6 @@ Sphere sphereOfAABB(const AABB& box)
     return sphere;
 }
 
-// -------------------------------------------------------------------- plane
-
 float Plane::distance(const Math::vec3& point) const
 {
     return Math::dot(normal, point) + d;
@@ -127,8 +123,6 @@ void Plane::normalize()
     normal *= inverse;
     d *= inverse;
 }
-
-// ---------------------------------------------------------------------- ray
 
 Math::vec3 Ray::at(float t) const
 {
@@ -257,8 +251,6 @@ Ray rayFromScreen(float screenX, float screenY, float viewportWidth, float viewp
     ray.direction = Math::normalize(Math::vec3(farPoint - nearPoint));
     return ray;
 }
-
-// ------------------------------------------------------------------ frustum
 
 Frustum::Frustum()
 {

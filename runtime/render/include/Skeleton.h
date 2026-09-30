@@ -46,60 +46,44 @@ private:
     std::vector<u16> mOrder;
 };
 
-// ------------------------------------------------------------ inverse kinematics
-
-// Per-axis rotation limits for one link of an IK chain, in radians. Only the
-// axes that matter are non-zero: a knee has min = max = 0 on two of the three,
-// which is what makes it bend on one axis only.
+// Per-axis rotation limits (radians) for one IK link; a knee has min = max = 0 on two axes so it bends on one.
 struct IKConstraint
 {
     bool enabled = false;
     Math::vec3 minimum = Math::vec3(0.0f);
     Math::vec3 maximum = Math::vec3(0.0f);
 
-    // The reference's own numbers, kept verbatim - see IKSolver's comment for
-    // why the bone-to-preset mapping is the caller's job here and not a table
-    // inside the solver.
+    // The reference's own numbers, verbatim; the bone-to-preset mapping is the caller's job (see IKSolver).
     static IKConstraint thigh();
     static IKConstraint knee();
 
-    // For skeletons whose knee bends the other way: the reference swaps min
-    // with max rather than negating anything.
+    // For skeletons whose knee bends the other way: swaps min with max.
     IKConstraint inverted() const;
 };
 
-// One CCD chain. The tip bone is what gets pulled towards the target; the
-// solver walks up `length` parents from it, rotating each to close the gap.
+// One CCD chain: the tip bone is pulled toward the target by rotating up to `length` parents.
 struct IKChain
 {
-    // The traversal stack is a fixed 32 links, no allocation - the same bound
-    // the reference uses. A chain longer than this is clamped, not grown.
+    // Fixed 32-link traversal stack, no allocation; longer chains are clamped.
     static constexpr u32 MaxLinks = 32;
 
     s32 tipBone = -1;
 
-    // WORLD space. The solver converts it into the pose's own space once,
-    // through the owning transform - a foot-placement raycast gives a world
-    // hit, so taking world here is what avoids every caller doing that
-    // conversion by hand.
+    // WORLD space; the solver converts it into pose space once, so callers (e.g. foot-placement raycasts) need not.
     Math::vec3 target = Math::vec3(0.0f);
 
     u32 length = 2;         // how many parents up from the tip
     u32 iterations = 10;    // CCD passes
     bool enabled = true;
 
-    // Index 0 constrains the tip's own parent, 1 its grandparent, and so on -
-    // the same order the solver walks. Left disabled, that link takes the
-    // plain shortest rotation instead.
+    // Index 0 constrains the tip's parent, 1 its grandparent, etc.; a disabled link takes the plain shortest rotation.
     IKConstraint constraints[MaxLinks];
 };
 
 class IKSolver
 {
 public:
-    // Rewrites localPose and globalPose in place. globalPose must already be
-    // what Skeleton::evaluate() produced for localPose, and stays consistent
-    // with it on the way out.
+    // Rewrites localPose and globalPose in place; globalPose must already match Skeleton::evaluate() of localPose.
     static void solve(const Skeleton& skeleton, const IKChain& chain,
                       const Math::mat4& ownerTransform, std::vector<LocalPose>& localPose,
                       std::vector<Math::mat4>& globalPose);
@@ -114,8 +98,7 @@ struct BoneTrack
     std::vector<Math::vec3> scales;
 };
 
-// One named moment in a clip. Time is in seconds from the clip's start, the
-// same scale AnimationClip::duration() uses.
+// One named moment in a clip; time in seconds from the clip start (as AnimationClip::duration()).
 struct AnimationEvent
 {
     f32 time = 0.0f;
@@ -133,21 +116,12 @@ public:
     const std::vector<BoneTrack>& tracks() const;
     void sample(f32 time, std::vector<LocalPose>& pose) const;
 
-    // Authoring: writes one bone's pose at `time` into its track, creating
-    // the track if this is the bone's first key, overwriting an existing key
-    // at (nearly) the same time rather than adding a duplicate. Keeps every
-    // track's times sorted ascending, which sample()'s upper_bound search
-    // assumes. Extends duration() to cover `time` if it did not already.
+    // Authoring: writes one bone's pose at `time`, creating the track if needed and overwriting a key at (nearly) the same time. Keeps track times sorted (sample()'s upper_bound needs it) and extends duration() to cover `time`.
     void setKeyframe(s32 bone, f32 time, const LocalPose& pose);
     // No-op if `bone` has no track or no key within epsilon of `time`.
     void removeKeyframe(s32 bone, f32 time);
 
-    // A named moment inside the clip: the frame a footstep lands, a weapon
-    // fires, a hit connects. It belongs to the clip and not to whoever plays
-    // it - "attack" hits at 0.4s whichever character is playing it.
-    //
-    // Kept sorted by time, which is what lets a layer fire everything the
-    // frame crossed with one walk instead of a search per event.
+    // A named moment in the clip (footstep, weapon fire); belongs to the clip, not the player. Kept sorted by time so a layer fires all crossed events in one walk.
     void addEvent(f32 time, const std::string& name);
     void removeEvent(const std::string& name);
     void clearEvents();
@@ -178,20 +152,12 @@ public:
     const AnimationSet* get(AnimationSetHandle handle) const;
     void clear();
 
-    // Radion's own skeleton + clip files (RadionSkeletonIO, the .rskel/.ranim
-    // counterpart to .rmesh) -> AnimationSetHandle, cached by the exact
-    // (skeleton, clips) pair so binding the same character to several
-    // Animators (Sinbad on four GameObjects, e.g.) loads and decodes the
-    // files once. What a saved scene's Animator component uses to restore
-    // its animation set by name instead of a handle that means nothing next
-    // run - the same role AssetManager::loadMesh() plays for meshes.
+    // Loads Radion's .rskel/.ranim files into an AnimationSetHandle, cached by the exact (skeleton, clips) pair so repeated bindings decode once. Lets a saved scene restore an animation set by name.
     // Returns an invalid handle if the skeleton or any clip fails to load.
     AnimationSetHandle loadFromFiles(const std::string& skeletonFile,
                                      const std::vector<std::string>& animationFiles);
 
-    // The files loadFromFiles() cached `handle` under, or empty/none for a
-    // handle created through create() directly (no files behind it) or an
-    // invalid/stale one.
+    // The files loadFromFiles() cached `handle` under; empty for create()-made, invalid or stale handles.
     const std::string& skeletonSourceFile(AnimationSetHandle handle) const;
     const std::vector<std::string>& animationSourceFiles(AnimationSetHandle handle) const;
 
@@ -225,24 +191,12 @@ public:
     void crossFade(const std::string& clip, f32 duration = 0.2f);
     void playOneShot(const std::string& clip, const std::string& returnTo, f32 blendTime = 0.2f);
     void stop();
-    // Freezes time() (and any crossfade in progress) exactly where it stands
-    // - unlike stop(), the clip stays selected (current() keeps its name,
-    // wrappedTime() keeps reading the held frame), which is what a scrub bar
-    // wants: seek() always works regardless, but without this the very next
-    // update() just keeps advancing past wherever a drag left it.
+    // Freezes time() (and any crossfade) where it stands; unlike stop() the clip stays selected. For scrub bars: without it update() advances past where a drag left it.
     void setPaused(bool paused);
     bool paused() const;
 
-    // The clip's events that this frame's advance crossed, in the order they
-    // occur. Polled after Animator::update() rather than delivered through a
-    // callback, the same shape as Agent::firedThisFrame(): a callback from
-    // inside the animation update would be running user code with the pose
-    // half-built, and would have to cross the script VM once per event.
-    //
-    // Cleared and refilled every update(), so a frame that fires nothing
-    // leaves this empty. A loop that wraps fires the tail of the clip and
-    // then the head; a frame long enough to skip past several fires all of
-    // them, in order, rather than only the last.
+    // Events crossed by this frame's advance, in order. Polled after Animator::update() rather than a callback, which would run user code with the pose half-built.
+    // Cleared each update(). A loop wrap fires the clip tail then head; a long frame fires every skipped event, in order.
     const std::vector<const AnimationEvent*>& firedEvents() const;
     void setSpeed(f32 speed);
     void setMask(const std::vector<f32>& weights);
@@ -251,17 +205,11 @@ public:
 
     bool isPlaying(const std::string& clip) const;
     const std::string& current() const;
-    // Raw elapsed seconds since play()/crossFade() - never wraps, keeps
-    // climbing for as long as a Loop clip keeps looping. Right for
-    // Animator::update()'s own blend-timing math; wrong for anything asking
-    // "how far into the clip AM I RIGHT NOW" - use wrappedTime() for that.
+    // Raw elapsed seconds since play()/crossFade(); never wraps. For blend timing; use wrappedTime() for the position in the clip.
     f32 time() const;
     f32 duration() const;
     f32 normalizedTime() const;
-    // time(), folded back into [0, duration) the same way Once/Loop/PingPong
-    // sample the clip - what a UI scrub bar or "time remaining" readout
-    // wants, since time() alone reads as nonsense once a looping clip has
-    // gone around more than once (16s into a clip that lasts 2s, e.g.).
+    // time() folded into [0, duration) the way Once/Loop/PingPong sample the clip; for scrub bars and time-remaining readouts.
     f32 wrappedTime() const;
     bool finished() const;
     void seek(f32 time);
@@ -282,13 +230,11 @@ private:
     PlayMode mPreviousMode = PlayMode::Loop;
     std::vector<f32> mMask;
     bool mPaused = false;
-    // Points into the clip's own event list, which outlives the frame: the
-    // AnimationSet holding it is what the Animator is bound to.
+    // Points into the clip's event list, which outlives the frame (the bound AnimationSet owns it).
     std::vector<const AnimationEvent*> mFiredEvents;
 };
 
-// Radion's own skeleton/animation file format - the counterpart to
-// RadionMeshImporter, which owns mesh geometry the same way.
+// Radion's skeleton/animation file format; counterpart to RadionMeshImporter.
 class RadionSkeletonIO
 {
 public:

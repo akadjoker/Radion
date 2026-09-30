@@ -7,13 +7,10 @@
 namespace Radion
 {
 
-// The scene copy the water sampled for refraction this frame, published for
-// a debug view the way OceanRender publishes its own.
+// The scene copy water sampled for refraction this frame, published for a debug view.
 constexpr const char* kWaterRefractionDebugTargetName = "water.debug.scene_copy";
 
-// What the surface needs from the frame and no other block carries: near/far
-// to linearize the refraction depth it samples, time to scroll its noise.
-// Bound at BindingWater.
+// Per-frame water state no other block carries: near/far to linearize refraction depth, time to scroll noise. Bound at BindingWater.
 struct WaterBlock
 {
     Math::vec4 timeNearFar; // x = time, y = near, z = far, w unused
@@ -38,9 +35,7 @@ private:
     BufferHandle mEnvironmentBuffer;
     BufferHandle mInstanceBuffer; // one mat4 - a water plane is one instance
 
-    // Always bound when reflection/refraction are not available this frame,
-    // so the shader never inherits whatever the previous pass left in units
-    // 1/2 - see finding 4 in docs/review.md.
+    // Bound when reflection/refraction are unavailable, so the shader never inherits what the previous pass left in units 1/2 (docs/review.md finding 4).
     TextureHandle mFallbackBlack;
 };
 

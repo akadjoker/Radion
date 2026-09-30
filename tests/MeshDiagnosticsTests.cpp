@@ -1,8 +1,3 @@
-// MeshDiagnosticsTests.cpp - analyzeMesh(): what a mesh is made of and what
-// is wrong with it. A diagnostic that reports a fault where there is none, or
-// misses one, is worse than no diagnostic, so each fault gets a mesh built to
-// carry exactly it. Nothing here touches the GPU.
-
 #include "PCH.h"
 
 #include "AssetManager.h"
@@ -28,9 +23,6 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// A closed tetrahedron: four vertices, four faces, every edge shared by
-// exactly two triangles. The clean baseline every fault below is measured
-// against.
 MeshData makeTetrahedron()
 {
     MeshData mesh;
@@ -70,7 +62,6 @@ void testCleanMeshReportsNothing()
     CHECK(!d.trianglesTruncated);
     CHECK(!d.submeshRangesInvalid);
 
-    // Closed: every one of its six edges is shared by two faces.
     CHECK(d.boundaryEdges == 0);
 
     CHECK(d.hasNormals && d.hasUvs);
@@ -78,8 +69,7 @@ void testCleanMeshReportsNothing()
     CHECK(d.memoryBytes == mesh.memoryBytes());
 }
 
-// An open surface has boundary edges and that is not a fault - reporting it
-// as one would cry wolf on every flat plane in existence.
+// Boundary edges of an open surface are not a fault.
 void testOpenSurfaceHasBoundaryEdges()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -101,7 +91,6 @@ void testDegenerateTriangles()
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeTetrahedron();
 
-    // A repeated corner.
     mesh.indices.push_back(0);
     mesh.indices.push_back(1);
     mesh.indices.push_back(1);
@@ -110,8 +99,7 @@ void testDegenerateTriangles()
     assets.analyzeMesh(mesh, d);
     CHECK(d.degenerateTriangles == 1);
 
-    // Three distinct vertices on one line: no repeated index, no area. This
-    // is the one an index-only check misses.
+    // Collinear vertices: no repeated index, no area; an index-only check misses it.
     MeshData sliver;
     sliver.positions = {Math::vec3(0.0f), Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(2.0f, 0.0f, 0.0f)};
     sliver.indices = {0, 1, 2};
@@ -142,7 +130,6 @@ void testNonManifoldEdge()
 {
     AssetManager& assets = AssetManager::getSingleton();
 
-    // Three triangles hinged on the same edge 0-1.
     MeshData mesh;
     mesh.positions = {
         Math::vec3(0.0f, 0.0f, 0.0f), Math::vec3(1.0f, 0.0f, 0.0f), Math::vec3(0.0f, 1.0f, 0.0f),
@@ -167,7 +154,6 @@ void testOutOfRangeIndices()
     AssetManager::Diagnostics d;
     assets.analyzeMesh(mesh, d);
     CHECK(d.outOfRangeIndices == 1);
-    // The bad triangle is skipped rather than counted as degenerate too.
     CHECK(d.degenerateTriangles == 0);
 }
 
@@ -176,8 +162,6 @@ void testDuplicatePositions()
     AssetManager& assets = AssetManager::getSingleton();
     MeshData mesh = makeTetrahedron();
 
-    // Two more vertices on top of vertex 0, both referenced so they are not
-    // orphans as well.
     mesh.positions.push_back(mesh.positions[0]);
     mesh.positions.push_back(mesh.positions[0]);
     mesh.normals.resize(mesh.positions.size(), Math::vec3(0.0f, 1.0f, 0.0f));
@@ -188,7 +172,6 @@ void testDuplicatePositions()
 
     AssetManager::Diagnostics d;
     assets.analyzeMesh(mesh, d);
-    // Three vertices share one point: two of them are the duplicates.
     CHECK(d.exactDuplicatePositions == 2);
     CHECK(d.orphanVertices == 0);
 }
@@ -204,7 +187,6 @@ void testStreamMismatch()
     CHECK(d.streamsMismatched);
     CHECK(d.hasNormals);
 
-    // A stream that is simply absent is not a mismatch.
     MeshData clean = makeTetrahedron();
     clean.normals.clear();
     assets.analyzeMesh(clean, d);
@@ -234,8 +216,7 @@ void testTruncatedAndBadSubmeshes()
     CHECK(d.submeshRangesInvalid);
 }
 
-// Every field has to be written on each call, or a second analysis inherits
-// the first one's faults and the panel keeps showing a problem that is fixed.
+// Every field is written each call, or a second analysis inherits the first one's faults.
 void testResultDoesNotCarryOver()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -270,7 +251,6 @@ void testEmptyMesh()
     CHECK(!d.streamsMismatched);
 }
 
-// It diagnoses; it must not repair, reorder, or otherwise touch the mesh.
 void testAnalysisLeavesTheMeshAlone()
 {
     AssetManager& assets = AssetManager::getSingleton();

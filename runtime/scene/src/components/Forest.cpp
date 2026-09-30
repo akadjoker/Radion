@@ -22,10 +22,7 @@ void Forest::onDestroy()
     for (Species& species : mSpecies)
     {
         Assets().destroyMesh(species.mesh);
-        // MaterialManager::sync() gives a species that casts shadows its own
-        // paramsBuffer UBO for the override materials below. Only the mesh
-        // used to be freed here - the buffer stayed allocated on the GPU
-        // until device shutdown, one leak per Forest removed.
+        // MaterialManager::sync() gives shadow-casting species their own paramsBuffer UBO; free it or it leaks until device shutdown.
         for (Material& material : species.materials)
             materials.release(material);
     }
@@ -47,10 +44,7 @@ bool Forest::buildSpecies(Species& species, const TreeParams& params, f32 height
     if (data.positions.empty() || data.submeshes.size() != 2)
         return false;
 
-    // The generator's height comes out of trunkLength, climbRate and the
-    // levels together, so it is whatever those happen to give. Scaling the
-    // mesh once here is what lets an instance's own scale mean variation
-    // rather than correction.
+    // Scaled once so an instance's own scale means variation, not correction.
     const f32 grown = data.bounds.max.y - data.bounds.min.y;
     if (grown > 0.0001f && height > 0.0f)
     {
@@ -100,10 +94,7 @@ bool Forest::buildSpecies(Species& species, const TreeParams& params, f32 height
     const u32 twig = species.twigTexture < mTwigAlbedoPaths.size() ? species.twigTexture : 0;
     if (twig < mTwigAlbedoPaths.size())
     {
-        // Four mip levels, not the whole chain. A leaf card's texture is mostly
-        // transparent, and the box filter has no idea: past a few levels it has
-        // averaged the pale colour sitting in those transparent texels into the
-        // leaf itself, which is the white halo around every leaf at distance.
+        // Four mip levels only: the box filter averages pale transparent texels into the leaf, the white halo at distance.
         species.materials[1].textures[SlotAlbedo].file = mTwigAlbedoPaths[twig];
         species.materials[1].textures[SlotAlbedo].source = TextureSource::Static;
         species.materials[1].textures[SlotAlbedo].texture = assets.loadTexture(
@@ -114,13 +105,7 @@ bool Forest::buildSpecies(Species& species, const TreeParams& params, f32 height
         for (Material& material : species.materials)
             material.flags &= ~MaterialCastShadow;
 
-    // submitPackets() (below) resolves each species' pipeline lazily, just
-    // before the frame actually draws it - a planted tree in the scene hits
-    // that path and looks fine. MeshPreview::render() does not: it skips any
-    // submesh whose material has no pipeline yet (see its own guard), and
-    // nothing else ever resolves one before the editor's preview reads it
-    // straight off `species.materials`. Resolved here too so the preview has
-    // one the first time it draws, not just the trees that get instanced.
+    // submitPackets() resolves pipelines lazily, but MeshPreview::render() skips submeshes with none; resolve here so the editor preview has one.
     if (const Mesh* built = Assets().getMesh(mesh))
     {
         MaterialManager& materialManager = MaterialManager::getSingleton();
@@ -401,8 +386,7 @@ u32 Forest::paint(const Math::vec3& centre, f32 radius, u32 count)
     u32 planted = 0;
     for (u32 i = 0; i < count; ++i)
     {
-        // Square root of the random radius, or every tree crowds the centre:
-        // area grows with r², so a uniform r does not give a uniform scatter.
+        // Square root of the random radius: area grows with r^2, so uniform r crowds the centre.
         const f32 angle = random() * 2.0f * Math::pi<f32>();
         const f32 distance = std::sqrt(random()) * radius;
         const Math::vec3 position = centre + Math::vec3(std::cos(angle) * distance, 0.0f,
@@ -511,11 +495,7 @@ void Forest::submit(RenderList& list, const Math::mat4& transform, const Math::v
     if (mSpecies.empty() || mInstances.empty())
         return;
 
-    // A shadow view takes the generic path; the camera view takes the tree
-    // pass. The split is here because only the camera view needs what the tree
-    // pipeline adds - the wind, and the leaves' own lighting. A shadow view
-    // needs depth and nothing else, and the depth pass already knows how to
-    // draw a mesh with a model matrix.
+    // Shadow views take the generic depth path; only the camera view needs the tree pass (wind, leaf lighting).
     if ((list.filter() & MaterialCastShadow) != 0)
     {
         submitShadow(list, transform, cameraPosition);
@@ -537,14 +517,8 @@ void Forest::submitCamera(const Math::mat4& transform, const Math::vec3& cameraP
         if (!mesh)
             continue;
 
-        // Instances are baked to world here, because tree.vert adds the
-        // instance position straight to the vertex and never sees a model
-        // matrix - the same trade Grass::rebuildWorld() makes.
-        //
-        // Split in two at the swap distance, with the band counted on BOTH
-        // sides: a tree inside the band goes in both lists, draws as geometry,
-        // and has the impostor fade in over it. That overlap is the crossfade -
-        // without it the swap is a pop.
+        // Instances are baked to world (tree.vert never sees a model matrix, as Grass::rebuildWorld()).
+        // Split at the swap distance with the band counted on both sides: a tree in the band is in both lists, which is the crossfade (else a pop).
         species.batch.clear();
         species.impostorBatch.clear();
         const f32 meshLimit = mImpostorsEnabled ? mSwapDistance + mSwapBand : mDrawDistance;
@@ -594,8 +568,7 @@ void Forest::submitCamera(const Math::mat4& transform, const Math::vec3& cameraP
         command.swapDistance = mSwapDistance;
         command.swapBand = mSwapBand;
         command.impostorWidth = mImpostorWidth;
-        // Keyed by the species' slot, and the revision bumps on every rebuild -
-        // the mesh changed, so the photographs of it have to change too.
+        // Keyed by species slot; the revision bumps on rebuild so the photographs change.
         command.impostorKey = s;
         command.impostorRevision = species.impostorRevision;
         TreeDraws().submit(command);
@@ -612,8 +585,7 @@ void Forest::submitShadow(RenderList& list, const Math::mat4& transform,
     MaterialManager& materials = MaterialManager::getSingleton();
     const f32 cutoff = mDrawDistance * mDrawDistance;
 
-    // Outer loop over species: same mesh, same materials, so their packets go
-    // in together and the sort has nothing to untangle.
+    // Outer loop over species: same mesh and materials, so packets go in together and the sort has less to do.
     for (u32 s = 0; s < mSpecies.size(); ++s)
     {
         Species& species = mSpecies[s];
@@ -640,8 +612,7 @@ void Forest::submitShadow(RenderList& list, const Math::mat4& transform,
             model = Math::rotate(model, instance.yaw, Math::vec3(0.0f, 1.0f, 0.0f));
             model = Math::scale(model, Math::vec3(instance.scale));
 
-            // The list runs the frustum test itself, per submesh, so a tree
-            // that is behind the camera costs one box transform and no packet.
+            // The list runs the frustum test per submesh.
             list.submit(species.mesh, *mesh, model, species.materials, 2);
         }
     }

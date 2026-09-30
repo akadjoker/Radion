@@ -34,8 +34,7 @@ private:
     SDL_mutex* mHandle = nullptr;
 };
 
-// Locks on construction and unlocks however the scope is left - including
-// through an early return, which is where a hand-written unlock gets missed.
+// Unlocks however the scope is left, including early return.
 class ScopedLock
 {
 public:
@@ -55,10 +54,7 @@ private:
     Mutex& mMutex;
 };
 
-// Sleeping until there is something to do, instead of spinning. The mutex
-// must be held on entry to wait() and is held again on return, which is what
-// makes checking the condition and going to sleep one atomic step - the gap
-// between them is where a wakeup gets lost.
+// The mutex must be held on entry to wait() and is held again on return, making check-and-sleep atomic.
 class ConditionVariable
 {
 public:
@@ -87,9 +83,7 @@ public:
     Thread(const Thread&) = delete;
     Thread& operator=(const Thread&) = delete;
 
-    // `name` shows up in a debugger and in a profiler, so it is required
-    // rather than optional - an unnamed thread in a stack of eight is a
-    // thread nobody can tell apart.
+    // `name` shows in debuggers and profilers, so it is required.
     bool start(Entry entry, void* userData, const char* name);
     // Blocks until the entry function returns. Safe to call on a thread that
     // was never started, and safe to call twice.
@@ -107,20 +101,9 @@ private:
     void* mUserData = nullptr;
 };
 
-// A fixed set of workers pulling from one queue. Deliberately not a general
-// job system: no dependencies, no priorities, no work stealing. What it does
-// is take work off the main thread and say when it is done, which is what the
-// two things that wanted it actually needed.
-// A batch of jobs that can be waited on by itself. Held by whoever launched
-// the batch; enqueue() raises the count and a worker lowers it as each job
-// finishes, so wait() on one of these blocks for that batch alone rather than
-// for everything the pool happens to be doing.
-//
-// This is the shape the reference uses (wi::jobsystem::context - an atomic
-// counter and nothing else) rather than a typed future. A future would have
-// to outlive the job that fills it, and with no smart pointers in this engine
-// that is a lifetime rule waiting to be forgotten. A counter owns nothing:
-// the result lives wherever the caller already keeps it.
+// A fixed set of workers pulling from one queue; deliberately not a job system (no dependencies, priorities or stealing).
+// A batch of jobs that can be waited on alone: enqueue() raises the count, a worker lowers it per job.
+// An atomic counter (like wi::jobsystem::context) rather than a future: it owns nothing, so no lifetime rule to forget.
 struct JobGroup
 {
     u32 pending = 0;
@@ -137,12 +120,8 @@ public:
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
 
-    // Zero workers means "one per core, minus the one calling this" - the
-    // main thread is doing work too, and oversubscribing costs more in
-    // contention than it buys.
+    // Zero workers = one per core minus the caller.
     bool start(u32 workerCount = 0);
-    // Finishes what is queued, then stops the workers. The destructor does
-    // this too.
     void stop();
 
     bool running() const;
@@ -152,17 +131,12 @@ public:
     }
 
     void enqueue(Job job, void* userData);
-    // Same, but counted against `group` so it can be waited on alone. The
-    // group must outlive the job - it is where the worker reports back.
+    // Counted against `group`; the group must outlive the job.
     void enqueue(JobGroup& group, Job job, void* userData);
-    // Blocks until the queue is empty AND no worker is still inside a job.
-    // Both halves matter: an empty queue with a worker mid-job is not done.
+    // Blocks until the queue is empty AND no worker is mid-job.
     void wait();
-    // Blocks until this batch alone is finished. Returns immediately for a
-    // group that was never used or has already completed.
     void wait(JobGroup& group);
     bool finished(const JobGroup& group) const;
-    // Jobs queued or running right now.
     u32 pending() const;
 
     static u32 hardwareThreads();
@@ -197,14 +171,9 @@ private:
     bool mStopping = false;
 };
 
-// The engine's own pool, started on first use. One per process, the same
-// shape the reference uses (wi::jobsystem is global too) and the same shape
-// as Assets() and DebugDraw() here: work that wants a thread should not have
-// to be handed one, and a pool per subsystem would oversubscribe the machine
-// several times over.
+// The engine's global pool, started on first use; one per process so subsystems don't oversubscribe the machine.
 ThreadPool& Jobs();
-// Stops the global pool if it is running, without starting it just to stop
-// it. Call before SDL shuts down because workers are SDL threads.
+// Stops the global pool without starting it. Call before SDL shuts down (workers are SDL threads).
 void shutdownJobs();
 
 } // namespace Radion

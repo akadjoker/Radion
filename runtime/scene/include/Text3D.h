@@ -3,7 +3,7 @@
 
 #include "Color.h"
 #include "Component.h"
-#include "TrailRender.h" // BillboardMode, MeshGlyph
+#include "TrailRender.h"
 
 #include <string>
 #include <vector>
@@ -18,9 +18,7 @@ enum class TextAlign : u8
     Right
 };
 
-// A string of the engine's embedded 8x8 font rendered as world-space quads,
-// one per glyph, camera-facing the same way Billboard is. Floats over a
-// GameObject the way a name tag or a damage number would.
+// Embedded 8x8 font as world-space camera-facing quads, one per glyph.
 class Text3D final : public Component
 {
 public:
@@ -28,9 +26,9 @@ public:
 
     void setText(const std::string& text);
     const std::string& text() const;
-    void setCharacterSize(f32 size); // world-space height of one glyph
+    void setCharacterSize(f32 size);
     f32 characterSize() const;
-    void setSpacing(f32 spacing); // multiplies the horizontal advance, 1.0 = glyphs touch
+    void setSpacing(f32 spacing);
     f32 spacing() const;
     void setColor(Color color);
     Color color() const;
@@ -58,8 +56,7 @@ private:
     TextAlign mAlign = TextAlign::Left;
     bool mAdditive = false;
     bool mDepthTest = true;
-    // The glyph layout depends on the text and its metrics alone, never on
-    // the transform or the camera, so it survives untouched across frames.
+    // Layout depends on text and metrics alone, never on transform or camera.
     bool mGlyphsDirty = true;
     std::vector<MeshGlyph> mGlyphs;
     std::vector<f32> mLineWidths;

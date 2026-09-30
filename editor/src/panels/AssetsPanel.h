@@ -15,24 +15,9 @@
 namespace Radion
 {
 
-// Drag payload for a non-directory entry: the data is the file's path
-// relative to whichever registered search path (project Assets/, engine
-// Assets/, or an extra search path) actually contains it - see
-// AssetsPanel::assetRelativePath() (not null-terminated in the payload
-// buffer - construct a std::string from the pointer + size). Whoever accepts
-// it (InspectorPanel's texture slots, for now) decides what extensions make
-// sense for the drop target it landed on.
+// Drag payload for a file: its path relative to the registered search path containing it (assetRelativePath()); not null-terminated, build a std::string from pointer + size.
 constexpr const char* kAssetFileDragPayload = "RADION_ASSET_FILE";
 
-// Docked at the bottom of the layout. Browses the whole filesystem, not just
-// the project's own assets - double-click a folder to enter it, ".." to go
-// up past the project root and back again. Files are draggable onto
-// Inspector drop targets (texture slots) when they resolve to a path under a
-// registered search path; outside one, the entry is still browsable, just
-// not usable as an asset. Grid view shows an image file's own texture scaled
-// to the cell instead of just its icon - no separate thumbnail cache/
-// pipeline (PLANO_EDITOR.md leaves that out of the first delivery), just the
-// loaded texture AssetManager already caches by path.
 class AssetsPanel final : public EditorPanel
 {
 public:
@@ -47,36 +32,19 @@ private:
         List,
         Details
     };
-    // Absolute, not relative to any single root - the browser walks anywhere
-    // on disk, the same as ImGuiFileDialog's own "Up" button. Asset-consuming
-    // actions (drag, Import/Load, Generate...) still need a path relative to
-    // a registered search path, so those resolve it on demand through
-    // assetRelativePath() rather than the browser tracking one itself.
+    // Absolute, not relative to a root: the browser walks anywhere on disk; asset actions resolve through assetRelativePath().
     std::filesystem::path mCurrentDirectory;
     std::string mLastBrowserRoot; // detects a project switch so the browser resets to its root
     ViewMode mViewMode = ViewMode::Grid;
     f32 mThumbnailSize = 96.0f; // Grid view cell/icon size, the "Zoom" slider
 
-    // Directory enumeration is an I/O operation, not UI state. Keep the
-    // sorted result until navigation, an explicit Refresh, or an operation
-    // performed by this panel changes files on disk.
+    // Directory listing is cached until navigation, Refresh, or a file change by this panel.
     std::vector<FileSystem::DirEntry> mEntries;
     std::filesystem::path mCachedDirectory;
     bool mEntriesDirty = true;
     void refreshEntries(const std::filesystem::path& directory);
 
-    // Left-hand folder tree, Blender file-browser style: subdirectories only,
-    // each node lists its own children on demand so opening it is the only
-    // I/O it costs - closed branches never touch disk. Rooted at a handful of
-    // bookmarks (project Assets, engine Assets, extra search paths, and the
-    // filesystem itself as an escape hatch) instead of one fixed project
-    // root, so a bookmark click or the ".." breadcrumb can reach anywhere.
-    // mTreeWidth is the draggable splitter's position against the grid/
-    // list/table.
-    // mTreeCache keeps each expanded node's subdirectory listing (and the
-    // has-children peek behind its arrow) so an open branch costs its I/O
-    // once, not every frame - refreshEntries() drops the whole cache
-    // whenever anything marks mEntriesDirty.
+    // Folder tree rooted at bookmarks; children are listed on demand. mTreeCache keeps expanded nodes' listings, dropped by refreshEntries() when mEntriesDirty is set.
     struct TreeDirectory
     {
         std::vector<std::string> names;
@@ -87,13 +55,7 @@ private:
     void drawBookmark(const char* label, const std::filesystem::path& root);
     void drawDirectoryTree(const std::filesystem::path& directory);
 
-    // assetRelativePath() below is stat-heavy (std::filesystem::is_directory
-    // and ::relative against every registered root) - fine once, ruinous
-    // called fresh for every visible row every frame on a FUSE-backed drive,
-    // where each stat is a userspace round trip instead of a kernel call.
-    // Every caller only ever asks about mCurrentDirectory/entry.name, so the
-    // answer is stable for as long as the directory listing is; cached here
-    // and dropped by refreshEntries() alongside mTreeCache.
+    // assetRelativePath() is stat-heavy (slow on FUSE drives); cache per directory listing, dropped by refreshEntries() with mTreeCache.
     struct RelativePathResult
     {
         bool resolved = false;
@@ -101,42 +63,22 @@ private:
     };
     HashMap<std::string, RelativePathResult> mRelativePathCache;
 
-    // Lazily filled as image entries are drawn in Grid view - one GPU upload
-    // per path for the panel's lifetime rather than every frame. Keyed by the
-    // same asset-root-relative path AssetManager::loadTexture() caches by.
+    // Filled lazily as Grid view draws images; keyed by the asset-root-relative path AssetManager::loadTexture() caches by.
     HashMap<std::string, TextureHandle> mThumbnailCache;
     TextureHandle thumbnailFor(const std::string& relativePath);
 
-    // Every asset-consuming action (thumbnails, drag-drop, Import/Load,
-    // Generate..., Delete) needs a path relative to one of the registered
-    // search paths - that is the only address AssetManager/FileSystem
-    // understand. Tries the project's Assets/, the engine's own Assets/, and
-    // each extra search path in turn; empty when the browser is looking at a
-    // folder outside all of them (still fine to browse, just not to use).
+    // Path relative to a registered search path (project Assets/, engine Assets/, extras), the only address AssetManager/FileSystem understand; empty outside all of them.
     bool assetRelativePath(const std::filesystem::path& absolute, std::string& outRelative);
 
-    // Browser history, same shape as a web browser's back/forward: every
-    // directory actually visited (double-click, breadcrumb segment, ".." or
-    // the arrows themselves) lands at mHistoryPosition, and going back never
-    // drops what was ahead until a *new* place is visited from there - only
-    // then does the forward branch get truncated away.
+    // Back/forward history like a web browser: visiting a new place from mid-history truncates the forward branch.
     std::vector<std::filesystem::path> mHistory;
     usize mHistoryPosition = 0;
     void navigateTo(const std::filesystem::path& directory);
 
-    // Where a click in the grid asked to go, applied after the grid is done
-    // drawing. Navigating in the middle of the loop would leave the rest of
-    // that frame pairing mEntries - still the folder being left - with a
-    // mCurrentDirectory that is already the folder being entered, and every
-    // path built from the two is a file that does not exist.
+    // Navigation requested by a grid click is applied after the grid finishes; navigating mid-loop would pair mEntries with the wrong mCurrentDirectory.
     std::filesystem::path mPendingNavigation;
 
-    // "Import" queues here instead of creating the GameObject right away -
-    // drawImportPopup() asks for a starting transform first, since a mesh
-    // export can land many orders of magnitude off the scene's own scale (a
-    // whole building at 1 unit = 1cm is common), face the wrong way, or both
-    // - and finding that out only after the object already exists means
-    // redoing the import instead of just typing different numbers.
+    // "Import" queues here; the popup asks for a starting transform first since exports can be far off the scene's scale or orientation.
     bool mImportPending = false;
     std::string mImportPath; // relative to whichever root assetRelativePath() matched
     std::string mImportName; // file name, no extension - the popup title
@@ -149,25 +91,15 @@ private:
     void drawImportPopup();
     std::string importOutputBase();
 
-    // Double-click or right-click > Instantiate on a .rprefab. Unlike mesh
-    // Import there is no popup asking for a starting transform - a prefab is
-    // already in this engine's own coordinate space, saved by this same
-    // editor, so the only thing that needs deciding is where in this scene it
-    // lands, and that is the 3D cursor - the same spot every other freshly
-    // created object appears at.
+    // Instantiate on a .rprefab: no transform popup; it lands at the 3D cursor.
     void instantiatePrefab(const std::string& relativePath);
 
-    // Right-click > Delete. Queued the same way Import is, because deleting
-    // a file cannot be undone by the editor's own undo stack - the popup is
-    // the only thing standing between a stray click and a lost asset, and it
-    // names the sidecars that would go with it.
+    // Queued like Import: file deletion is not covered by undo, so the popup is the only safeguard.
     bool mDeletePending = false;
     std::string mDeletePath; // relative to whichever root assetRelativePath() matched
     void drawDeletePopup();
 
-    // Creation belongs to the folder under the cursor, not necessarily the
-    // directory currently open in the content view: right-clicking a folder
-    // can create directly inside it without navigating away first.
+    // Creation targets the folder under the cursor, not necessarily the open directory.
     std::filesystem::path mCreateTargetDirectory;
     char mNewFolderName[128] = "New Folder";
     char mNewScriptName[128] = "NewScript";
@@ -178,12 +110,7 @@ private:
     void drawCreateFolderPopup();
     void drawCreateScriptPopup();
 
-    // Right-click an image asset > Generate Normal Map.../Generate
-    // Heightmap... - Pixmap::generate_normal_map()/generate_heightmap()
-    // read the clicked file, the dialog only asks where the result goes.
-    // One dialog shared by both, told apart on completion by mGenerateKind,
-    // same "single ImGuiFileDialog, disambiguated by an enum" shape Mesh
-    // Tools' own Save dialog already uses for its four kinds.
+    // One file dialog shared by Normal Map/Heightmap generation, told apart by mGenerateKind.
     enum class GenerateKind
     {
         None,

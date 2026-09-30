@@ -33,7 +33,7 @@ using namespace Radion::Voxel;
 
 namespace
 {
-constexpr int kChunkRadius = 6; // chunks kept meshed around the camera, per axis
+constexpr int kChunkRadius = 6;
 constexpr u32 kSeed = 1337;
 constexpr s32 kWorldMinY = 0;
 constexpr s32 kWorldMaxY = 95;
@@ -58,8 +58,7 @@ void addSearchPathIfPresent(FileSystem& files, const std::filesystem::path& path
 
 int main(int argc, char** argv)
 {
-    // Release builds start Passive, which drops info: this demo reports what
-    // each toggle did, and those lines are the measurement.
+    // Release builds start Passive, which drops info; those lines are the measurement.
     Log::setMode(LogMode::Verbose);
 
     FileSystem& files = FileSystem::getSingleton();
@@ -75,8 +74,6 @@ int main(int argc, char** argv)
     config.height = 720;
     if (!engine.initialize(config))
         return 1;
-    // The engine's own profiler panel carries FPS, frame and GPU times, draw
-    // calls and the per-scope table the voxel streaming reports into.
     engine.setBuiltinPanelsVisible(true);
     engine.setImGuiVisible(true);
 
@@ -88,7 +85,6 @@ int main(int argc, char** argv)
     }
     scene->setRunningInEditor(false);
 
-    // Camera: free fly starting above and in front of the generated terrain.
     GameObject* cameraObject = scene->createGameObject("Camera");
     Camera* camera = cameraObject->addComponent<Camera>();
     camera->setPerspective(60.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
@@ -110,8 +106,6 @@ int main(int argc, char** argv)
     VoxelWorldComponent* voxelWorld = voxelObject->addComponent<VoxelWorldComponent>();
     voxelWorld->setOriginObjectId(cameraObject->id());
     voxelWorld->setSeed(kSeed);
-    // radion_voxel_demo [chunk radius] - so a run at a given view distance
-    // needs no key presses to get there.
     const s32 radius = argc > 1 ? std::max(1, std::min(48, std::atoi(argv[1]))) : kChunkRadius;
     voxelWorld->setChunkRadius(radius);
     voxelWorld->setMinWorldY(kWorldMinY);
@@ -140,8 +134,7 @@ int main(int argc, char** argv)
     f32 reportTimer = 0.0f;
     bool vsync = true;
 
-    // Walking body: half a metre wide, 1.8 tall, eyes near the top. The
-    // camera is the eye, so the body centre sits below it.
+    // Body is 0.6 wide, 1.8 tall; the camera is the eye, so the centre sits below it.
     const Math::vec3 bodyHalfExtents(0.3f, 0.9f, 0.3f);
     constexpr f32 kEyeHeight = 0.7f;
     constexpr f32 kGravity = -26.0f;
@@ -154,8 +147,6 @@ int main(int argc, char** argv)
     {
         const f32 deltaTime = std::min(engine.getWindow().getDeltaTime(), 0.1f);
 
-        // A line a second, so a session leaves its own record of what each
-        // toggle cost instead of a number read off the screen.
         reportTimer += deltaTime;
         if (reportTimer >= 1.0f)
         {
@@ -257,8 +248,7 @@ int main(int argc, char** argv)
         }
         if (Input::isKeyPressed(KEY_F4))
         {
-            // With vsync on, FPS reports the monitor and not the frame's cost:
-            // any measurement of an optimisation has to run without it.
+            // Vsync off so FPS reflects frame cost, not the monitor.
             vsync = !vsync;
             engine.getWindow().setVSync(vsync);
             Log::info("Voxel demo: vsync %s", vsync ? "on" : "off");
@@ -282,8 +272,7 @@ int main(int argc, char** argv)
             }
         }
 
-        // Emitted before the render, which is where the frame's debug list is
-        // cleared.
+        // Before render(), which clears the frame's debug list.
         const FloatRect viewport(0.0f, 0.0f, static_cast<f32>(engine.getWindow().getWidth()),
                                  static_cast<f32>(engine.getWindow().getHeight()));
         const Ray ray = camera->rayFromMouse(static_cast<f32>(Input::getMouseX()),

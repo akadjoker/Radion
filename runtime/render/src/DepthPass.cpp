@@ -64,10 +64,7 @@ bool DepthPass::ensureInstanceCapacity(u32 count)
     desc.residency = Residency::Stream;
     desc.stride = sizeof(GPUInstance);
     desc.debugName = "depth.instances";
-    // The new buffer first, both handle and capacity committed together only
-    // once it exists: this used to overwrite mInstanceCapacity and destroy
-    // the old buffer before knowing createBuffer() would succeed, so a
-    // failure left the count check above believing a capacity nothing backed.
+    // Commit handle and capacity only once the new buffer exists.
     GPU& gpu = GPU::getSingleton();
     BufferHandle next = gpu.createBuffer(desc);
     if (!next.valid())
@@ -128,10 +125,7 @@ bool DepthPass::ensureIndirectCapacity(u32 count)
     return true;
 }
 
-// The prepass has to cull exactly as the colour pass will. Claiming depth for
-// a face the forward pass then discards leaves that pixel with no one to write
-// its colour: the sky fails the depth test against geometry that was never
-// drawn, and whatever the target held stays on screen.
+// Prepass must cull exactly as the colour pass does, else depth is claimed for faces the forward pass discards.
 PipelineHandle DepthPass::pipelineFor(const VertexLayout& layout, bool skinned, bool alphaTest,
                                       CullMode cull, bool pancake)
 {
@@ -176,10 +170,7 @@ PipelineHandle DepthPass::pipelineFor(const VertexLayout& layout, bool skinned, 
     return pipeline;
 }
 
-// Same shape as pipelineFor(), a separate cache because it compiles a
-// different pair of shaders (depth_point.vert/frag) and depth.func matters
-// less here: gl_FragDepth is written by hand, so LEQUAL versus LESS only
-// differs on an exact tie, which a single undeduplicated draw never hits.
+// Separate cache from pipelineFor(): compiles depth_point.vert/frag.
 PipelineHandle DepthPass::pointPipelineFor(const VertexLayout& layout, bool skinned, bool alphaTest,
                                            CullMode cull)
 {
@@ -238,10 +229,7 @@ bool DepthPass::collectInstances(const FrameContext& frame, RenderCategory categ
             mPalettes.insert(mPalettes.end(), source.palette->begin(), source.palette->end());
         else if (source.material && (source.material->flags & MaterialSkinned))
         {
-            // See ForwardPass::drawCategory()'s identical fallback - the
-            // shadow pass compiles the same MATERIAL_SKINNED variant for a
-            // skinned mesh and needs the same identity palette when there is
-            // no Animator yet to pose it.
+            // Same identity-palette fallback as ForwardPass::drawCategory().
             const std::vector<Math::mat4>& identity = RenderList::identityPalette();
             mPalettes.insert(mPalettes.end(), identity.begin(), identity.end());
         }
@@ -303,11 +291,7 @@ void DepthPass::drawCategory(const FrameContext& frame, RenderCategory category,
     AssetManager& assets = Assets();
     const bool alphaCategory = category == RenderCategory::AlphaTest;
 
-    // Opaque shadow/depth draws need no per-material texture binding. Gather
-    // every submesh that shares one mesh and depth pipeline into a single
-    // glMultiDrawElementsIndirect call. A large scene otherwise pays one GL
-    // submission per visible piece, per cascade, despite all of them using
-    // the same position buffer and shader.
+    // Batch submeshes sharing a mesh and depth pipeline into one glMultiDrawElementsIndirect.
     if (!alphaCategory)
     {
         mGroupCount = 0;
@@ -322,11 +306,7 @@ void DepthPass::drawCategory(const FrameContext& frame, RenderCategory category,
             const CullMode cull = forceTwoSided
                                       ? (cullFront ? CullMode::Front : CullMode::None)
                                       : shadowCullMode(instance.material, cullFront);
-            // depthLayout, not colorLayout: depth.vert reads position and
-            // nothing else, and the layout is what drives vertex fetch, so
-            // the full one costs 48 bytes a vertex of normals/tangents/UVs
-            // no stage ever looks at. Skinned still needs colorLayout - the
-            // joints and weights live in its third stream.
+            // depthLayout: depth.vert reads position only. Skinned needs colorLayout (joints/weights in third stream).
             const PipelineHandle pipeline =
                 pipelineFor(mesh->isSkinned() ? mesh->colorLayout : mesh->depthLayout,
                             mesh->isSkinned(), false, cull, pancake);
@@ -406,8 +386,7 @@ void DepthPass::drawCategory(const FrameContext& frame, RenderCategory category,
             if (pipeline.valid())
             {
                 gpu.setPipeline(pipeline);
-                // setPipeline just reapplied this pipeline's own (bias-free)
-                // raster state, so the override always has to come after it.
+                // Must come after setPipeline, which reapplies bias-free raster state.
                 if (biasSlope != 0.0f || biasConstant != 0.0f)
                     gpu.setDepthBias(biasSlope, biasConstant);
                 if (alphaTest && instance.material)
@@ -454,10 +433,7 @@ void DepthPass::executeBiased(const FrameContext& frame, f32 biasSlope, f32 bias
 
 void DepthPass::executeShadow(const FrameContext& frame)
 {
-    // No hardware depth bias and no reversed culling: a directional shadow is
-    // biased entirely in the shader, through BIAS_FUNC's shadow_bias and
-    // shadow_normal_bias (scene_forward_clustered.glsl:2346-2350), which is
-    // why depth_bias_enable is never switched on anywhere in the reference.
+    // Shadow bias is done entirely in the shader (BIAS_FUNC), so no hardware depth bias or reversed culling.
     {
         GPUProfileScope scope("Shadow opaque");
         drawCategory(frame, RenderCategory::Opaque, 0.0f, 0.0f, false, true, true);

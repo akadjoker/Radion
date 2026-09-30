@@ -112,8 +112,6 @@ void testCaveGeneration()
     CHECK(mesh.indices.size() == static_cast<usize>(stats.triangles) * 3);
     for (u32 index : mesh.indices) CHECK(index < mesh.positions.size());
 
-    // The subtraction must be empty at the cave centre while the terrain
-    // remains solid at a point away from the carved region.
     CHECK(terrainWithCave.sampleDensity(Math::vec3(1.25f, 0.0f, 0.0f)) < 0.0f);
     CHECK(terrainWithCave.sampleDensity(Math::vec3(-2.5f, 0.0f, 0.0f)) > 0.0f);
 }

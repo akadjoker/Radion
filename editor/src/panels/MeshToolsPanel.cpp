@@ -27,10 +27,7 @@ MeshToolsPanel::MeshToolsPanel(EditorApplication& app) : EditorPanel("Mesh Tools
 
 namespace
 {
-// Every Save dialog here starts wherever the last one (in any of this
-// panel's own kinds - mesh/materials/skeleton/animation) left off, not back
-// at RADION_ASSET_DIR every time - a project with its own asset layout means
-// re-navigating the same subfolder on every single save otherwise.
+// Save dialogs start where the last one (any kind in this panel) left off.
 std::string saveStartDirectory(EditorApplication& app)
 {
     const std::string& last = app.settings().lastSaveDirectory;
@@ -52,11 +49,7 @@ void MeshToolsPanel::onImGui()
     MeshData* data = app().importedMeshData(renderer->mesh());
     if (!data)
     {
-        // Not cached from an Import/Load this exact session - but if the
-        // mesh has a real file behind it (this session's own import, or one
-        // loaded fresh off a saved scene), there is no reason these tools
-        // can't work on it too: decode it once now and cache it the same
-        // way, rather than only ever working right after Import.
+        // No cached Import/Load: decode the mesh's backing file once and cache it the same way.
         const MeshDesc& desc = assets.meshDesc(renderer->mesh());
         if (desc.source == MeshSource::File)
         {
@@ -196,9 +189,7 @@ void MeshToolsPanel::onImGui()
     ImGui::SameLine();
     if (ImGui::Button("Generate Tangents"))
     {
-        // Needs the mesh's own UVs - a tangent has no meaning without them,
-        // so this only makes sense after Generate Planar UV on a mesh that
-        // had none.
+        // Needs the mesh's own UVs; a tangent is meaningless without them.
         assets.recalculateTangents(*data);
         app().applyMeshEdit(renderer->mesh());
     }
@@ -261,11 +252,6 @@ void MeshToolsPanel::onImGui()
     }
     if (ImGui::Button("Flip Triangles"))
     {
-        // Turns front faces to back and back to front - a room built to be
-        // seen from inside reads as inside-out from outside (or the other
-        // way round) until this runs, and it is common enough for just one
-        // submesh/material to be the one that came in backwards that the
-        // whole-mesh case alone was not enough.
         if (windingTarget == 0)
             assets.flipWinding(*data);
         else
@@ -290,16 +276,11 @@ void MeshToolsPanel::onImGui()
     ImGui::SameLine();
     if (ImGui::Button("Join Submeshes"))
     {
-        // TEMP diagnostic: which slot each submesh points at, before and
-        // after - tells apart "these already share a slot and still did not
-        // merge" from "they never shared a slot to begin with".
         for (usize i = 0; i < data->submeshes.size(); ++i)
             Log::info("MeshToolsPanel: before join, submesh #%zu -> material slot %u", i,
                       data->submeshes[i].materialSlot);
         Log::info("MeshToolsPanel: %zu materials total", data->materials.size());
 
-        // Undoes a Split (or an import that came in over-fragmented) - one
-        // draw call per material slot instead of one per spatial chunk.
         assets.mergeSubmeshes(*data, false);
         app().applyMeshEdit(renderer->mesh());
 
@@ -310,10 +291,7 @@ void MeshToolsPanel::onImGui()
     ImGui::SameLine();
     if (ImGui::Button("Compact Materials"))
     {
-        // The renderer's own overrides are indexed by material slot too, so
-        // they have to travel through the same remap - left alone, slot 5's
-        // override lands on whatever material ends up at 5 afterwards, which
-        // reads as the compaction having eaten materials still in use.
+        // Renderer overrides are indexed by material slot too; remap them or slot N's override lands on the wrong material.
         std::vector<Material> previousOverrides(
             renderer->materialOverrides(),
             renderer->materialOverrides() + renderer->materialOverrideCount());
@@ -378,16 +356,7 @@ void MeshToolsPanel::onImGui()
                           "same height the Inspector shows for its position.");
     if (ImGui::Button("Remove Submeshes Above"))
     {
-        // The submesh's LOWEST point decides: a piece is kept when any part
-        // of it still reaches below the line. Judging by centre or by the
-        // top instead would throw away a wall that rises past the line
-        // while standing on the very floor being kept.
-        //
-        // Two passes, cheap then exact: the bounding box is only used to
-        // skip pieces obviously below the line, and anything it says is
-        // above is confirmed against the real vertices. A rotated or
-        // diagonal piece has box corners well below any vertex it actually
-        // owns, which alone would keep roofs that should have gone.
+        // The submesh's LOWEST point decides; the box is a cheap pre-pass and candidates are confirmed against real vertices (rotated pieces have box corners below their vertices).
         const Math::mat4 transform = object->globalTransform();
         std::vector<u32> doomed;
         for (u32 i = 0; i < static_cast<u32>(data->submeshes.size()); ++i)
@@ -427,8 +396,7 @@ void MeshToolsPanel::onImGui()
         else
         {
             app().recordMeshUndo(renderer->mesh());
-            // Highest index first - each erase shifts everything after it
-            // down by one, which a forward loop would then read wrong.
+            // Highest index first: each erase shifts later indices.
             for (usize i = doomed.size(); i-- > 0;)
                 assets.removeSubmesh(*data, doomed[i]);
             renderer->setHiddenSubmeshes({});
@@ -607,9 +575,7 @@ void MeshToolsPanel::onImGui()
                           "format sinbad.material already is. Save it next to the mesh file and "
                           "the next import of it picks it up automatically.");
 
-    // Skeleton/clips: only for an object whose Animator is actually bound -
-    // nothing here to write out for a static mesh, or one whose Animator
-    // failed to bind.
+    // Skeleton/clips: only for an object with a bound Animator.
     if (Animator* animator = object->getComponent<Animator>())
     {
         if (animator->bound())

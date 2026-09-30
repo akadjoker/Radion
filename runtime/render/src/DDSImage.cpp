@@ -35,10 +35,7 @@ u32 blockBytesFor(Format format)
     }
 }
 
-// A DDS whose FourCC is "DX10" carries a second, 20-byte header naming a
-// DXGI format - which is how anything newer than DXT5 is written at all, BC7
-// included. The sRGB variants map onto the linear ones: DDS has no colour
-// space of its own to report, and the caller picks per texture slot.
+// sRGB DX10 variants map to linear; the caller picks per slot.
 Format formatForDxgi(u32 dxgi)
 {
     switch (dxgi)
@@ -60,12 +57,7 @@ Format formatForDxgi(u32 dxgi)
     }
 }
 
-// u64 throughout, not u32: `width + 3` and `blocksWide * blocksHigh *
-// blockBytes` all overflow a u32 for a width/height near its top end, and a
-// wrapped-around, falsely small level size is what let the caller's bounds
-// check below pass on a mip that does not actually fit the file - a mismatch
-// downstream code trusts when it reads mWidth/mHeight-sized data out of a
-// buffer this only proved large enough for the wrapped size.
+// u64: width+3 and blocksWide*blocksHigh*blockBytes overflow u32 near its top end.
 u64 mipLevelSize(Format format, u32 width, u32 height)
 {
     if (format == Format::RGBA8)
@@ -93,9 +85,6 @@ bool DDSImage::loadFromMemory(const u8* bytes, usize size)
     if (!bytes || size < 128)
         return false;
 
-    // Non-owning cursor over the caller's buffer, just to walk the fixed
-    // 128-byte header - the compressed payload is copied separately once the
-    // mip chain is known to be well-formed.
     ByteArray header(const_cast<u8*>(bytes), size);
     if (header.readU32() != kMagic)
         return false;
@@ -103,20 +92,18 @@ bool DDSImage::loadFromMemory(const u8* bytes, usize size)
     header.seek(12, ByteArray::SeekBegin); // dwHeight sits after dwSize+dwFlags
     const u32 height = header.readU32();
     const u32 width = header.readU32();
-    header.readU32(); // dwPitchOrLinearSize
-    header.readU32(); // dwDepth
+    header.readU32();
+    header.readU32();
     const u32 mipMapCountField = header.readU32();
 
     header.seek(76, ByteArray::SeekBegin); // ddspf, past dwReserved1[11]
-    header.readU32();                     // ddspf.dwSize
+    header.readU32();
     const u32 pfFlags = header.readU32();
     const u32 pfFourCC = header.readU32();
 
     if (!(pfFlags & kFlagFourCC))
     {
-        // Support the common uncompressed DDS variants as RGBA8. The GPU
-        // upload path only needs one canonical byte layout; masks are used so
-        // both RGB888 and RGBA8888 files are handled safely.
+        // Uncompressed variants expand to RGBA8 via masks.
         const u32 bits = header.readU32();
         const u32 rMask = header.readU32();
         const u32 gMask = header.readU32();
@@ -151,10 +138,7 @@ bool DDSImage::loadFromMemory(const u8* bytes, usize size)
         u32 mipHeight = height;
         for (u32 mip = 0; mip < levels; ++mip)
         {
-            // These DDS files use tightly packed RGB rows (the common
-            // writer emits no 4-byte row padding for the mip chain). Do not
-            // assume the legacy DWORD-aligned pitch here: at 2x2/1x1 mips it
-            // would read past the file by a few bytes.
+            // Tightly packed RGB rows, not DWORD-aligned: the legacy pitch reads past the file at 2x2/1x1 mips.
             const u64 sourceRow = (static_cast<u64>(mipWidth) * bits + 7u) / 8u;
             const u64 sourceSize = sourceRow * mipHeight;
             const u64 outputSize = static_cast<u64>(mipWidth) * mipHeight * 4u;
@@ -210,7 +194,7 @@ bool DDSImage::loadFromMemory(const u8* bytes, usize size)
         header.seek(128, ByteArray::SeekBegin);
         const u32 dxgiFormat = header.readU32();
         const u32 resourceDimension = header.readU32();
-        header.readU32(); // miscFlag
+        header.readU32();
         const u32 arraySize = header.readU32();
         if (resourceDimension != 3 || arraySize > 1)
         {
@@ -238,13 +222,7 @@ bool DDSImage::loadFromMemory(const u8* bytes, usize size)
         return false;
     }
 
-    // A mip chain cannot have more levels than it takes to shrink the larger
-    // dimension down to 1 - 1 + floor(log2(max(width, height))). Trusting
-    // dwMipMapCount outright let a corrupt or hostile file claim an
-    // arbitrarily long chain; each extra level is still bounds-checked
-    // against `size` below, so this is not itself a memory-safety fix, but
-    // an unbounded loop over a 32-bit count is still a lot of wasted, and
-    // pointless, work to make a caller pay for on a four-byte lie.
+    // Mip count is capped at 1 + floor(log2(max(width, height))).
     u32 maxLevels = 1;
     for (u32 dimension = width > height ? width : height; dimension > 1; dimension >>= 1)
         ++maxLevels;
@@ -275,11 +253,7 @@ bool DDSImage::loadFromMemory(const u8* bytes, usize size)
         mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
     }
 
-    // Own the compressed payload beyond this call - the caller's buffer may
-    // be freed as soon as loadFromMemory() returns. ByteArray's sized
-    // constructor now leaves size/capacity at 0 (data() null) when the
-    // allocation itself fails, rather than claiming `size` bytes it never
-    // got - memcpy() into that would have been a null-pointer write.
+    // Own the payload: the caller's buffer may be freed after return.
     mData = ByteArray(size);
     if (!mData.data())
     {

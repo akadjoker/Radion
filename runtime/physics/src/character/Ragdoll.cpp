@@ -8,17 +8,14 @@
 #include <cstring>
 #include "Math.h"
 
-
 namespace Radion::Physics
 {
 
 namespace
 {
 
-// Tail match on a bone name, case-insensitive, only across a name-part
-// boundary (":"/"_" or the start of the string) - what makes an armature
-// prefix like "mixamorig:" (or none at all) not matter, without also
-// letting "LeftArm" match inside some other bone's "...LeftArmTwist".
+// Case-insensitive tail match only across a name-part boundary (':' / '_' / start), so armature prefixes do not matter
+// and "LeftArm" does not match "...LeftArmTwist".
 bool boneNameEndsWith(const std::string& name, const char* suffix)
 {
     const usize suffixLength = std::strlen(suffix);
@@ -51,10 +48,7 @@ s32 findBoneAnyOf(const Skeleton& skeleton, std::initializer_list<const char*> s
     return -1;
 }
 
-// Same composition Skeleton::evaluate() uses to turn a LocalPose into a
-// matrix - duplicated here rather than shared because it is three lines and
-// Skeleton keeps it private (IKSolver does the same thing for the same
-// reason).
+// Same composition as Skeleton::evaluate(), duplicated because Skeleton keeps it private.
 Math::mat4 composeLocal(const Radion::LocalPose& pose)
 {
     return Math::translate(Math::mat4(1.0f), pose.position) * Math::mat4_cast(pose.rotation) *
@@ -73,11 +67,7 @@ Math::quat rotationBetween(const Math::vec3& from, const Math::vec3& to)
     return Math::normalize(Math::quat(scale * 0.5f, axis / scale));
 }
 
-// Ten parts, ten bits - starting well above any low bit a scene's own
-// default CollisionFilter{1, ...} or the reference demo's own ragdoll
-// (group 2) already use, so a ragdoll never collides with itself by
-// construction and never has to know what layer numbers the rest of a
-// scene happens to be using.
+// Bits start well above the low bits scene/demo filters use, so a ragdoll never collides with itself or depends on the scene's layers.
 constexpr u32 kFirstPartBit = 8;
 
 bool isLowerLimb(RagdollPart part)
@@ -272,8 +262,7 @@ void Ragdoll::activate(Radion::Scene& scene, const std::vector<Math::mat4>& glob
         body.setFilter(mFilter); // fixed up below, once every part's shape/pose is known
         scene.addBody(body);
 
-        // Fixed for the body's whole simulated life: where the animated
-        // bone sat relative to the body frame we just chose for it.
+        // Fixed for the simulated life: where the animated bone sat relative to the body frame.
         p.attachmentLocal = Math::inverse(body.transform()) * worldMatrix(p.boneIndex);
 
         Math::mat4 chain(1.0f);
@@ -282,15 +271,8 @@ void Ragdoll::activate(Radion::Scene& scene, const std::vector<Math::mat4>& glob
         p.parentChainLocal = chain;
     }
 
-    // Self-collision, the way Jolt's RagdollSettings::Stabilize() does it
-    // (Jolt/Physics/Ragdoll/Ragdoll.cpp): a jointed pair never collides with
-    // itself - the capsules meet exactly at the joint by construction, so
-    // that contact is never anything but a false positive fighting the
-    // joint every step - and neither does any OTHER pair that already
-    // overlaps in the pose the ragdoll spawns into (Jolt tests the actual
-    // shapes; an AABB test is enough here, this only ever runs on ten
-    // parts). Everything else - left arm vs right arm, an arm swung across
-    // the torso later, ends up in the same island - keeps colliding.
+    // Self-collision as in Jolt's RagdollSettings::Stabilize(): jointed pairs never collide (capsules meet at the joint, so contact is a false
+    // positive fighting it) and neither does any pair already overlapping at spawn (AABB test is enough for ten parts).
     std::array<u32, static_cast<usize>(RagdollPart::Count)> excludeBit{};
     for (usize i = 0; i < mParts.size(); ++i)
         if (mParts[i].parentPart != RagdollPart::Count)

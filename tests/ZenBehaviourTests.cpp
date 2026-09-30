@@ -1,7 +1,3 @@
-// ZenBehaviourTests.cpp - exercises Radion::ZenBehaviour end to end: a Zen
-// behaviour class attached to a GameObject through the Scene/GameObject API,
-// run for a few frames, and checked for the exact effect it should have had.
-
 #include "PCH.h"
 
 #include "Animation.h"
@@ -44,9 +40,6 @@ void check(bool condition, const char* expression, int line)
 
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
-// The exact use case the ZenBehaviour component exists for: a script class
-// that spins its own object on every on_update(self, dt), only once Play
-// (i.e. runningInEditor(false)) is active.
 void testScriptRotatesObjectOnPlay()
 {
     Scene scene;
@@ -77,10 +70,7 @@ void testScriptRotatesObjectOnPlay()
     CHECK(object->rotation() != startRotation);
 }
 
-// The shipped 3D sample uses the current script contract: it inherits from
-// ScriptComponent, has no __init__, and receives self.node before on_start.
-// Loading the real file guards both the VM-facing base class and the example
-// users copy into their projects.
+// The shipped 3D sample: ScriptComponent base, no __init__, self.node before on_start.
 void testMoveScriptUsesScriptComponentContract()
 {
     const std::filesystem::path path =
@@ -113,8 +103,6 @@ void testMoveScriptUsesScriptComponentContract()
     CHECK(object->rotation() != startRotation);
 }
 
-// Same script, but the scene never leaves editor mode: on_update() must
-// never reach the script, so the object never moves.
 void testScriptDoesNotRunInEditorMode()
 {
     Scene scene;
@@ -136,8 +124,6 @@ void testScriptDoesNotRunInEditorMode()
     CHECK(!behaviour->hasError());
 }
 
-// A behaviour class only has to define the hooks it needs - on_update() is
-// simply never called when the class does not define it.
 void testClassWithOnlyOneHookLoadsFine()
 {
     Scene scene;
@@ -158,9 +144,6 @@ void testClassWithOnlyOneHookLoadsFine()
     CHECK(object->name() == "Started");
 }
 
-// A script that defines no class with on_start/on_update/on_destroy has no
-// way to be identified as a behaviour, and loading it must fail loudly
-// instead of silently doing nothing.
 void testScriptWithNoBehaviourClassFailsToLoad()
 {
     Scene scene;
@@ -172,9 +155,6 @@ void testScriptWithNoBehaviourClassFailsToLoad()
     CHECK(!behaviour->lastError().empty());
 }
 
-// A runtime error inside on_update() must not bring the frame down - it is
-// captured, the behaviour stops calling into the script, and lastError()
-// carries the message for the editor to show.
 void testScriptErrorIsCapturedNotThrown()
 {
     Scene scene;
@@ -192,15 +172,10 @@ void testScriptErrorIsCapturedNotThrown()
     CHECK(behaviour->hasError());
     CHECK(!behaviour->lastError().empty());
 
-    // A second frame on a failed behaviour must stay a no-op, not crash.
     scene.update(1.0f / 60.0f);
     CHECK(behaviour->hasError());
 }
 
-// GameObject's transform binding (position/scale/rotation getters and
-// setters) and the Vec3 class (constructor, x/y/z fields, __add__, __mul__)
-// - verified from C++ against the real GameObject transform, not just "it
-// compiled".
 void testGameObjectTransformAndVec3Arithmetic()
 {
     Scene scene;
@@ -231,8 +206,6 @@ void testGameObjectTransformAndVec3Arithmetic()
     CHECK(std::abs(rotationDegrees.y - 6.0f) < 0.01f);
 }
 
-// The "scene" field: find() locating another object by name and create()
-// adding a new one, both checked against the real Scene/GameObject state.
 void testSceneFindAndCreateBindings()
 {
     Scene scene;
@@ -264,12 +237,7 @@ void testSceneFindAndCreateBindings()
         CHECK(spawned->position() == Math::vec3(4.0f, 5.0f, 6.0f));
 }
 
-// A full collection between every frame, with a script that allocates on
-// each one. Two things must survive it: the field NAMES of the native Vec3
-// class (they are interned strings the class alone holds, compared by
-// pointer on every "p.x"), and the GameObject/Scene wrappers the script
-// keeps churning out - collecting a wrapper must not touch the real object
-// it points at.
+// Collecting between frames must not free the native Vec3 field names (interned, compared by pointer) or touch real objects through wrappers.
 void testCollectionBetweenFramesKeepsBindingsAlive()
 {
     Scene scene;
@@ -302,10 +270,7 @@ void testCollectionBetweenFramesKeepsBindingsAlive()
     CHECK(anchor->name() == "Anchor");
 }
 
-// The scenario the whole ScriptCache design exists for: many objects (here,
-// three) sharing one script. The body must compile exactly once, and each
-// object still ends up with its own state (a different self.speed, picked
-// from its own self.owner.get_name() in on_start), not one shared globally.
+// Many objects share one script: one compile, yet each keeps its own state.
 void testSharedScriptCompilesOnceAndKeepsPerInstanceState()
 {
     Scene scene;
@@ -357,10 +322,7 @@ void testSharedScriptCompilesOnceAndKeepsPerInstanceState()
     CHECK(std::abs(yawC - 90.0f * dt * frames) < 0.05f);
 }
 
-// Script-heavy scenes should touch the components that exist, not every
-// possible component slot on every object. This also leaves no stale roots
-// behind when a whole burst of scripted objects goes away: ScriptCache keeps
-// its GC roots in a vector for marking, but removal is indexed/swap-pop.
+// ScriptCache removal is indexed swap-pop; a burst of scripted objects leaves no stale GC roots.
 void testManyScriptedObjectsUseIndependentRootsAndReleaseThem()
 {
     ScriptCache& cache = ScriptCache::getSingleton();
@@ -404,8 +366,6 @@ static void writeReloadScript(const std::filesystem::path& path, f32 speed)
     out << "        self.owner.yaw(" << speed << " * dt)\n";
 }
 
-// reload() on ANY one component sharing a script path must apply to every
-// other component sharing that same path, not just the caller's own.
 void testReloadPropagatesToAllSharingComponents()
 {
     const std::filesystem::path path =
@@ -430,8 +390,6 @@ void testReloadPropagatesToAllSharingComponents()
     CHECK(std::abs(yawFirstBefore - 30.0f * dt) < 0.01f);
     CHECK(std::abs(yawSecondBefore - 30.0f * dt) < 0.01f);
 
-    // Only "first" calls reload(), but the recompiled script must apply to
-    // "second" too on its very next frame - they share one cache entry.
     writeReloadScript(path, 300.0f);
     CHECK(behaviourFirst->reload());
 
@@ -446,11 +404,7 @@ void testReloadPropagatesToAllSharingComponents()
     std::filesystem::remove(path, removeError);
 }
 
-// A ZenBehaviour is the one thing on the shared Script slot with a fixed
-// shape to write (a script path), so it does go through the serializer -
-// and it has to: the editor's Play snapshot is a scene document, and
-// without this Stop would restore every scripted object stripped of its
-// script.
+// The editor's Play snapshot is a scene document; without serialization Stop restores scripted objects without their script.
 void testZenBehaviourSurvivesSerializerRoundTrip()
 {
     const std::filesystem::path path =
@@ -461,8 +415,7 @@ void testZenBehaviourSurvivesSerializerRoundTrip()
     GameObject* object = scene.createGameObject("Scripted");
     ZenBehaviour* behaviour = object->addComponent<ZenBehaviour>();
     CHECK(behaviour->loadFile(path.string()));
-    // Editor mode for the flush: the add is queued until an update, and the
-    // script must not have turned the object before it is serialized.
+    // Editor mode for the flush: the script must not turn the object before it is serialized.
     scene.setRunningInEditor(true);
     scene.update(1.0f / 60.0f);
 
@@ -483,8 +436,6 @@ void testZenBehaviourSurvivesSerializerRoundTrip()
         CHECK(reBehaviour->scriptPath() == path.string());
         CHECK(!reBehaviour->hasError());
 
-        // The restored component is a live behaviour, not just a stored
-        // path: it still turns its own object on the next frame.
         reloaded.setRunningInEditor(false);
         const f32 dt = 1.0f / 60.0f;
         reloaded.update(dt);
@@ -496,9 +447,7 @@ void testZenBehaviourSurvivesSerializerRoundTrip()
     std::filesystem::remove(path, removeError);
 }
 
-// A script file that is gone (or no longer compiles) must not sink the whole
-// scene: the load succeeds, the component and its path come back, and the
-// error is there for the inspector to show.
+// A missing or non-compiling script must not sink the scene load: component and path come back, with the error for the inspector.
 void testMissingScriptFileLoadsAsWarningNotError()
 {
     Scene scene;
@@ -527,9 +476,6 @@ void testMissingScriptFileLoadsAsWarningNotError()
     }
 }
 
-// The property scanner, over the shapes it has to get right: literals of
-// each kind, a top-level constant referenced by name, a private name, a
-// value it cannot read, and a second method whose locals are not properties.
 void testDeclaredPropertyScan()
 {
     Scene scene;
@@ -586,15 +532,11 @@ void testDeclaredPropertyScan()
         CHECK(enabled->flag);
     }
 
-    // Private, unreadable, and another method's local are all left out.
     CHECK(behaviour->declaredProperty("_hidden") == nullptr);
     CHECK(behaviour->declaredProperty("computed") == nullptr);
     CHECK(behaviour->declaredProperty("step") == nullptr);
 }
 
-// The path that needs no constructor and no text parsing: a field declared
-// in the class body is recorded by the compiler, so the name, the value and
-// the type come off the compiled class exactly as written.
 void testClassBodyPropertiesComeFromTheCompiledClass()
 {
     Scene scene;
@@ -639,13 +581,10 @@ void testClassBodyPropertiesComeFromTheCompiledClass()
     if (offset)
         CHECK(std::abs(offset->number + 2.5) < 1e-9);
 
-    // Private, valueless, and a field only ever written inside a method are
-    // all out: working state is not something the inspector drives.
     CHECK(behaviour->declaredProperty("_hidden") == nullptr);
     CHECK(behaviour->declaredProperty("nothing") == nullptr);
     CHECK(behaviour->declaredProperty("scratch") == nullptr);
 
-    // And they are real: no constructor ran, yet the object turns at 90.
     behaviour->setNumberOverride("speed", 180.0, false);
     scene.setRunningInEditor(false);
     const f32 dt = 1.0f / 60.0f;
@@ -653,14 +592,11 @@ void testClassBodyPropertiesComeFromTheCompiledClass()
     CHECK(!behaviour->hasError());
     CHECK(std::abs(Math::degrees(Math::eulerAngles(object->rotation())).y - 180.0f * dt) < 0.01f);
 
-    // The bindings' own fields are added to the class when an instance is
-    // bound; they must never turn into properties.
+    // The bindings' own fields are added on bind and must never become properties.
     CHECK(behaviour->declaredProperty("owner") == nullptr);
     CHECK(behaviour->declaredProperty("scene") == nullptr);
 }
 
-// A class body declaration and a constructor in the same script: both show
-// up, and the class body wins for a name they both mention.
 void testClassBodyAndInitPropertiesCoexist()
 {
     Scene scene;
@@ -689,13 +625,10 @@ void testClassBodyAndInitPropertiesCoexist()
     CHECK(fromInit && fromInit->kind == ScriptProperty::Kind::String &&
           fromInit->text == "ctor");
 
-    // Declared in both: the class body's value is the one listed.
     const ScriptProperty* shared = behaviour->declaredProperty("shared");
     CHECK(shared && shared->number == 1.0);
 }
 
-// __init__ has to actually run - the declared defaults only exist because
-// it does - and an override has to land on top of what it wrote.
 void testInitRunsAndOverrideWinsOverIt()
 {
     Scene scene;
@@ -725,15 +658,12 @@ void testInitRunsAndOverrideWinsOverIt()
     CHECK(!plainBehaviour->hasError());
     CHECK(!tunedBehaviour->hasError());
 
-    // The plain one runs the script's own default, the tuned one three
-    // times that - one script, one compile, two different objects.
     const f32 plainYaw = Math::degrees(Math::eulerAngles(plain->rotation())).y;
     const f32 tunedYaw = Math::degrees(Math::eulerAngles(tuned->rotation())).y;
     CHECK(std::abs(plainYaw - 60.0f * dt) < 0.01f);
     CHECK(std::abs(tunedYaw - 180.0f * dt) < 0.01f);
 }
 
-// Dropping an override puts the script's own default back, live.
 void testClearOverrideRestoresTheDeclaredDefault()
 {
     Scene scene;
@@ -767,8 +697,7 @@ void testClearOverrideRestoresTheDeclaredDefault()
 // Overrides go through the scene file; the defaults deliberately do not.
 void testOverridesSurviveSerializerRoundTrip()
 {
-    // From a file, not a source string: the scene stores the script's path,
-    // so a behaviour built with loadSource() has nothing to write there.
+    // From a file: the scene stores the script's path, which loadSource() lacks.
     const std::filesystem::path path =
         std::filesystem::temp_directory_path() / "radion_zen_behaviour_properties.py";
     {
@@ -817,8 +746,7 @@ void testOverridesSurviveSerializerRoundTrip()
     if (speed)
         CHECK(std::abs(speed->number - 45.0) < 1e-9);
 
-    // The int stays an int: a script testing "self.lives == 7" would break
-    // against a 7.0 restored from the file.
+    // The int stays an int: "self.lives == 7" would break against a restored 7.0.
     const ScriptProperty* lives = reBehaviour->findOverride("lives");
     CHECK(lives && lives->kind == ScriptProperty::Kind::Number && lives->integer);
     if (lives)
@@ -830,8 +758,6 @@ void testOverridesSurviveSerializerRoundTrip()
     const ScriptProperty* enabled = reBehaviour->findOverride("enabled");
     CHECK(enabled && enabled->kind == ScriptProperty::Kind::Bool && enabled->flag);
 
-    // And they are live, not just stored: the restored object turns at the
-    // overridden speed, not the script's 1.0.
     reloaded.setRunningInEditor(false);
     const f32 dt = 1.0f / 60.0f;
     reloaded.update(dt);
@@ -842,11 +768,7 @@ void testOverridesSurviveSerializerRoundTrip()
     std::filesystem::remove(path, removeError);
 }
 
-// on_collision(self, other) - CollisionWorld::step() (wired into
-// Scene::update()) calls it once per contact, with "other" bound as the
-// GameObject wrapper of the collider on the far side. Proven by having the
-// script copy the other object's own name onto self.owner, then reading it
-// back from C++.
+// on_collision(self, other): called once per contact from CollisionWorld::step(), with the far collider's GameObject as other.
 void testOnCollisionSeesOtherObjectName()
 {
     Scene scene;
@@ -876,12 +798,7 @@ void testOnCollisionSeesOtherObjectName()
     CHECK(watcher->name() == "Bumper");
 }
 
-// callCollision() carries the began flag through to on_collision(self,
-// other, began). The older 1-argument on_collision(self, other) form (the
-// script just above, driven through CollisionWorld) keeps working
-// unchanged when called the same way, since zen does not check argument
-// count on a native-invoked call - proof that adding `began` here could
-// not have broken it.
+// callCollision() carries `began`; the 1-argument on_collision form still works since zen does not check native-call arity.
 void testCallCollisionPassesBeganFlag()
 {
     Scene scene;
@@ -909,9 +826,6 @@ void testCallCollisionPassesBeganFlag()
     CHECK(watcher->name() == "Ended");
 }
 
-// Component::is_active()/set_active() (SceneScriptBindings.cpp), read and
-// written through a Light handle - verified against the real Light
-// afterwards, not just the absence of a script error.
 void testComponentBaseIsActive()
 {
     Scene scene;
@@ -937,9 +851,7 @@ void testComponentBaseIsActive()
         CHECK(!light->active());
 }
 
-// node.get_component(Class) receives the class itself, not a string
-// (SceneScriptBindings.cpp:goGetComponent). A class with a matching component
-// resolves to a handle; a class with none resolves to nil.
+// get_component(Class) takes the class itself: a matching component resolves to a handle, none to nil.
 void testGetComponentByClass()
 {
     Scene scene;
@@ -968,8 +880,6 @@ void testGetComponentByClass()
     CHECK(bare->name() == "NoCamera");
 }
 
-// A script can reach the physics now: read a velocity, push a body, ask its
-// mass. None of this existed - anything physical had to be C++.
 void testScriptDrivesRigidBody()
 {
     Scene scene;
@@ -1001,23 +911,17 @@ void testScriptDrivesRigidBody()
     scene.update(1.0f / 60.0f);
 
     CHECK(!behaviour->hasError());
-    // The last assignment wins, so reaching it means every step before it ran.
     CHECK(object->name() == "Dynamic");
-    // Close to 3, not exactly: the script sets the velocity during the
-    // update, and the same update then integrates a step of damping over it.
+    // Close to 3, not exactly: the same update integrates a step of damping over the script's velocity.
     CHECK(std::abs(body->velocity().x - 3.0f) < 0.05f);
 }
 
-// A script commanding a servo: the same two calls whichever joint kind is
-// under it, which is what a robot's controller wants.
 void testScriptCommandsAJointServo()
 {
     Scene scene;
     GameObject* base = scene.createGameObject("Base");
     Physics::RigidBody* baseBody = base->addComponent<Physics::RigidBody>();
-    // Small enough not to touch the arm a metre away: two half-metre boxes
-    // exactly a metre apart rest against each other, and the contact holds
-    // the joint still however hard the motor pushes.
+    // Small enough not to touch the arm a metre away: boxes exactly a metre apart hold the joint still by contact.
     baseBody->setBox(Math::vec3(0.2f));
     baseBody->setBodyType(Physics::BodyType::Static);
 
@@ -1051,18 +955,12 @@ void testScriptCommandsAJointServo()
     CHECK(hinge->servoEnabled());
     CHECK(std::abs(hinge->servoTargetAngle() - 0.5f) < 1e-4f);
 
-    // And the arm actually goes there - the script's order drove real
-    // physics, not just a stored field.
     for (u32 i = 0; i < 400; ++i)
         scene.update(1.0f / 120.0f);
     CHECK(std::abs(hinge->currentAngle() - 0.5f) < 0.05f);
 }
 
-// Two fetches of the same component must hand back the exact same script
-// instance - the guarantee ScriptCache::instanceFor() exists for. Zen
-// instances compare by identity (values_deep_equal falls through to reference
-// equality for anything that is not a string/array/map), so "==" here is a
-// genuine same-object check, not a field comparison.
+// Two fetches must return the same script instance (ScriptCache::instanceFor()); Zen instances compare by identity, so == is a real same-object check.
 void testComponentHandleIsCached()
 {
     Scene scene;
@@ -1086,12 +984,7 @@ void testComponentHandleIsCached()
     CHECK(object->name() == "SameInstance");
 }
 
-// Handles are cached by the component's address and their class is
-// persistent, so nothing ever collects them: without Scene::componentRemoved()
-// dropping the entry, the next component allocated at that address would
-// inherit the handle and a script reaching through it would touch freed
-// memory. Fetch a handle, destroy the object that owned it, and the cache
-// must have let go.
+// Handles are cached by component address in a persistent class: without Scene::componentRemoved() dropping the entry, a new component at that address inherits a stale handle.
 void testHandleForgottenWhenOwnerDies()
 {
     Scene scene;
@@ -1119,11 +1012,7 @@ void testHandleForgottenWhenOwnerDies()
     CHECK(!ScriptCache::getSingleton().hasCachedInstance(light));
 }
 
-// A component handle stored on a script field must keep working across a
-// frame boundary and a full collection in between - the Light class is
-// persistent (ClassBuilder::persistent(true)), so the GC never frees the
-// wrapper, but the script instance holding the field must still survive and
-// still hand back a usable handle.
+// A stored component handle must survive a frame and a full collection; the Light class is persistent, but the script instance must survive too.
 void testHandleSurvivesBetweenFrames()
 {
     Scene scene;
@@ -1151,10 +1040,6 @@ void testHandleSurvivesBetweenFrames()
         CHECK(!light->active());
 }
 
-// MeshRenderer's is_active/set_active bindings are Component's, but
-// set_visible_in_reflections() is its own (SceneScriptBindings.cpp) -
-// verified against the real MeshRenderer, not just the absence of a script
-// error.
 void testMeshRendererVisibleInReflections()
 {
     Scene scene;
@@ -1179,10 +1064,6 @@ void testMeshRendererVisibleInReflections()
         CHECK(renderer->visibleInReflections() == false);
 }
 
-// set_submesh_visible()/is_submesh_visible() round-tripped through the
-// script itself - hide submesh 2, read it back, and mark the object's name
-// on success so both the script's own view and the real MeshRenderer state
-// are checked.
 void testMeshRendererSubmeshVisibility()
 {
     Scene scene;
@@ -1210,10 +1091,7 @@ void testMeshRendererSubmeshVisibility()
         CHECK(renderer->submeshVisible(2) == false);
 }
 
-// A count reaches the script as an integer, not a float. Indexing an array
-// is the one place the VM refuses a float outright ("array index must be
-// integer", vm_dispatch.cpp), so a count returned as val_float fails here
-// and passes every comparison test - int and float compare numerically.
+// A count must reach the script as an integer: array indexing refuses a float, while int and float compare equal.
 void testMeshRendererCountsAreIntegers()
 {
     Scene scene;
@@ -1238,9 +1116,7 @@ void testMeshRendererCountsAreIntegers()
     CHECK(object->name() == "one");
 }
 
-// get_submesh_count() is what closes MeshRenderer's submesh API: without it
-// a script could hide submesh 7 on a 3-submesh mesh and is_submesh_visible(7)
-// would still answer True. No mesh assigned here means zero submeshes.
+// Without get_submesh_count() a script could hide submesh 7 of 3; no mesh means zero submeshes.
 void testMeshRendererSubmeshCount()
 {
     Scene scene;
@@ -1266,14 +1142,7 @@ void testMeshRendererSubmeshCount()
         CHECK(renderer->submeshCount() == 0);
 }
 
-// Every set_* shape in one script: an unbound name or a wrong arity raises in
-// the VM, so reaching the last line at all is what proves the eight are
-// registered. It deliberately does not assert that a mesh arrived - createMesh
-// uploads, and no test binary here holds a GL context, so has_mesh() would
-// read the environment rather than the binding. That half is covered by
-// running examples/tutorials tutorial 05, which draws what it spawns.
-// set_mesh_file() on a missing file is the one outcome that is the same with
-// or without a context: False, and no script error.
+// Every set_* shape in one script: an unbound name or wrong arity raises in the VM, so reaching the last line proves all eight registered. has_mesh() is not asserted (createMesh uploads; no GL context here). set_mesh_file() on a missing file is False with no error either way.
 void testMeshRendererSetsPrimitiveMesh()
 {
     Scene scene;
@@ -1304,11 +1173,7 @@ void testMeshRendererSetsPrimitiveMesh()
     CHECK(object->name() == "Bound");
 }
 
-// The class argument can also be written as a generic: the compiler places
-// generic values before the explicit arguments (generic_argument_list,
-// compiler_expressions.cpp), so get_component<Light>() reaches the same
-// native with the same args[0] as get_component(Light). Nothing in the
-// bindings distinguishes them, and this is what holds that true.
+// get_component<Light>() reaches the same native with the same args[0] as get_component(Light): generic values come before explicit arguments.
 void testGenericSpellingReachesTheSameNative()
 {
     Scene scene;
@@ -1333,8 +1198,6 @@ void testGenericSpellingReachesTheSameNative()
     CHECK(object->name() == "Same");
 }
 
-// A handful of plain setters, ending in set_max_iterations() - the one that
-// crosses as an integer - confirmed against the real component.
 void testCharacterControllerTuning()
 {
     Scene scene;
@@ -1365,10 +1228,7 @@ void testCharacterControllerTuning()
     }
 }
 
-// move() returns a MoveResult rather than updating the getters - with no
-// octree attached (CharacterController.cpp:228-233) it just translates the
-// owner directly, so both the script's own read of the result and the
-// GameObject's actual position are checked.
+// With no octree attached move() translates the owner directly (CharacterController.cpp:228-233); check the result and the actual position.
 void testCharacterControllerMoveReturnsResult()
 {
     Scene scene;
@@ -1394,8 +1254,6 @@ void testCharacterControllerMoveReturnsResult()
     CHECK(std::abs(object->position().x - 1.0f) < 0.0001f);
 }
 
-// set_move_input()/get_move_input() round-tripped through the script itself,
-// then confirmed against moveInput() on the real component.
 void testCharacterControllerMoveInputRoundTrip()
 {
     Scene scene;
@@ -1427,11 +1285,7 @@ void testCharacterControllerMoveInputRoundTrip()
     }
 }
 
-// Every handle class registered by the bindings declares zero fields, and
-// new_instance() leaves the field array null for those (memory.cpp), so
-// reading x/y/z off a handle passed where a Vec3 belongs dereferences null
-// and takes the process down. The call is refused instead, and the transform
-// the script meant to write is left alone.
+// Handle classes declare zero fields, so reading x/y/z off a handle passed as a Vec3 would dereference null: the call is refused and the transform left alone.
 void testVec3ArgumentTypeIsChecked()
 {
     Scene scene;
@@ -1458,8 +1312,7 @@ void testVec3ArgumentTypeIsChecked()
     CHECK(object->position() == Math::vec3(5.0f, 6.0f, 7.0f));
 }
 
-// Same fixture as SceneTests.cpp's testAnimatedPlayers (SceneTests.cpp:266-295):
-// a two-bone skeleton and one two-second "Move" clip translating bone 0 along X.
+// Same fixture as SceneTests.cpp's testAnimatedPlayers: two-bone skeleton, one two-second "Move" clip translating bone 0 along X.
 AnimationSetHandle makeMoveAnimationSet()
 {
     Skeleton skeleton;
@@ -1482,9 +1335,6 @@ AnimationSetHandle makeMoveAnimationSet()
     return Animations().create(skeleton, clips);
 }
 
-// a.play(clip) with no mode/blend_time - Animator::play()'s own defaults
-// (PlayMode::Loop, 0.2s) - followed by a.get_layer(0), checked against the
-// real layer's isPlaying()/duration().
 void testAnimatorPlaysClipFromScript()
 {
     const AnimationSetHandle animationSet = makeMoveAnimationSet();
@@ -1518,9 +1368,7 @@ void testAnimatorPlaysClipFromScript()
     Animations().destroy(animationSet);
 }
 
-// PLAY_LOOP/PLAY_ONCE/PLAY_PINGPONG are plain int globals matching
-// static_cast<int>(PlayMode::Loop|Once|PingPong) - observed here through
-// finished(), which only ever reports true for PlayMode::Once.
+// PLAY_LOOP/ONCE/PINGPONG match PlayMode; observed through finished(), true only for Once.
 void testAnimatorPlayModeConstants()
 {
     const AnimationSetHandle animationSet = makeMoveAnimationSet();
@@ -1546,9 +1394,7 @@ void testAnimatorPlayModeConstants()
     CHECK(animator != nullptr);
     if (animator)
     {
-        // Past the end of a 2s clip: Once must report finished, which needs
-        // both mCurrent resolved (Animation update already ran this frame)
-        // and mMode read back exactly as PlayMode::Once from PLAY_ONCE.
+        // Past the end of a 2s clip Once must report finished: needs mCurrent resolved and mMode read back as Once.
         animator->layer(0).seek(10.0f);
         CHECK(animator->layer(0).finished());
     }
@@ -1556,10 +1402,7 @@ void testAnimatorPlayModeConstants()
     Animations().destroy(animationSet);
 }
 
-// The invariant behind decision (3): Animator::layer() resizes mLayers
-// (Animation.cpp:90-95), so a handle taken for layer 0 must still resolve to
-// the right layer after a later get_layer() call reallocates the vector -
-// caching the AnimationLayer* itself would read freed memory here.
+// Animator::layer() resizes mLayers, so a layer-0 handle must resolve correctly after a later get_layer() reallocates; caching AnimationLayer* would read freed memory.
 void testAnimationLayerHandleSurvivesLayerGrowth()
 {
     const AnimationSetHandle animationSet = makeMoveAnimationSet();
@@ -1594,12 +1437,7 @@ void testAnimationLayerHandleSurvivesLayerGrowth()
     Animations().destroy(animationSet);
 }
 
-// seek()/get_wrapped_time()/get_normalized_time()/is_finished() against a
-// known 2s clip. The clip is started from C++ and the scene ticked once with
-// dt=0 first, so mCurrent is already resolved (Animator::update() only fills
-// it in after play() - Animation.cpp:126-127) before the script's own seek()
-// runs; the second update also uses dt=0 so nothing advances mTime past the
-// exact value the script and the C++ assertions below both check.
+// Known 2s clip started from C++; both updates use dt=0 so mCurrent is resolved (Animator::update() fills it only after play()) and mTime stays at the seeked value.
 void testAnimationLayerTimeAndSeek()
 {
     const AnimationSetHandle animationSet = makeMoveAnimationSet();
@@ -1646,11 +1484,6 @@ void testAnimationLayerTimeAndSeek()
     Animations().destroy(animationSet);
 }
 
-// GameObject's hierarchy binding: get_child_count()/get_child(i)/find_child()/
-// get_parent()/get_root(), against a parent with two children created from
-// C++ - checked from the script itself (the actual values never leave Zen
-// until the whole walk agrees), then confirmed from C++ through the real
-// GameObject::parent() pointers.
 void testGameObjectHierarchyFromScript()
 {
     Scene scene;
@@ -1699,19 +1532,7 @@ void testGameObjectHierarchyFromScript()
     CHECK(childB->parent() == parent);
 }
 
-// GameObject::dispose() only raises a flag (GameObject.cpp:123-127) - the
-// object is not deleted on the spot. Scene::update() is what turns the flag
-// into an actual removal: its own end-of-frame sweep queues every disposed
-// object for destruction (Scene.cpp:522-529), and the flushChanges() right
-// after is what finally deletes it (Scene.cpp:534).
-//
-// The disposing script here runs inside that very same scene.update() call
-// (its own Component-update phase, which runs before the sweep), so the
-// sweep+flush that follow still belong to that one call - confirmed by
-// having the script itself read is_disposed() and re-find the object through
-// the scene the instant after calling dispose(), before Scene::update()'s
-// sweep has had a chance to run. The C++ side then confirms the object is
-// actually gone once that one scene.update() call has returned.
+// dispose() only raises a flag; Scene::update()'s end-of-frame sweep queues it and flushChanges() deletes it, inside the same update() call after the script's component-update phase. The script reads is_disposed() and re-finds the object right after dispose(); C++ confirms it is gone once update() returns.
 void testGameObjectDisposeIsDeferred()
 {
     Scene scene;
@@ -1735,21 +1556,11 @@ void testGameObjectDisposeIsDeferred()
     scene.update(1.0f / 60.0f);
 
     CHECK(!behaviour->hasError());
-    // dispose() only raised the flag - the script that called it could still
-    // read it back true and still find the object through the scene.
     CHECK(controller->name() == "FlagSeenBeforeSweep");
-    // By the time this one scene.update() call has returned, its own sweep
-    // and the flushChanges() that follows (Scene.cpp:522-534) have already
-    // destroyed Target.
     CHECK(scene.findGameObject("Target") == nullptr);
     (void)target;
 }
 
-// add_component(Camera) hands back a usable handle (a method is called on it
-// and the value read straight back), has_component(Camera) tracks it, and
-// remove_component(Camera) takes it off - each step confirmed from C++
-// through GameObject::getComponent<Camera>() on the real object, one frame
-// at a time so the live Camera can still be inspected before it is removed.
 void testGameObjectAddAndRemoveComponent()
 {
     Scene scene;
@@ -1785,9 +1596,6 @@ void testGameObjectAddAndRemoveComponent()
     CHECK(object->getComponent<Camera>() == nullptr);
 }
 
-// get_position() (local) and get_global_position() (world) on a child whose
-// parent is itself offset - both read from the script, both checked against
-// the real GameObject transform from C++.
 void testGameObjectGlobalTransform()
 {
     Scene scene;
@@ -1815,13 +1623,7 @@ void testGameObjectGlobalTransform()
     CHECK(child->globalPosition() == Math::vec3(11.0f, 2.0f, 3.0f));
 }
 
-// scene.create(name, parent) - the child is born under the right parent,
-// checked from C++ once it has left the pending-add queue. scene.reparent()
-// is then exercised once the child is actually registered (reparent()
-// requires an existing parent - Scene.cpp:375-388 - so it cannot run in the
-// very frame create() queued the object in), and its effect is checked
-// straight from C++ right after the one scene.update() call that ran it -
-// no extra update needed, since reparent() moves the object immediately.
+// reparent() requires an existing parent (Scene.cpp:375-388), so it cannot run in the frame create() queued the object; it moves the object immediately, so no extra update.
 void testSceneCreateWithParentAndReparent()
 {
     Scene scene;
@@ -1863,10 +1665,7 @@ void testSceneCreateWithParentAndReparent()
         CHECK(child->parent() == parentB);
 }
 
-// readGameObject() (SceneScriptBindings.cpp) has to check the argument's
-// class, not merely that it carries a native_data pointer - a Camera handle
-// has one too. Passing one to scene.destroy() must be refused (false), and
-// the object it actually belongs to must be left completely alone.
+// readGameObject() must check the argument's class, not just a native_data pointer (a Camera handle has one): scene.destroy() refuses it and leaves the real object alone.
 void testReadGameObjectRejectsOtherHandles()
 {
     Scene scene;
@@ -1894,10 +1693,6 @@ void testReadGameObjectRejectsOtherHandles()
     CHECK(object->getComponent<Camera>() == camera);
 }
 
-// callEvent() dispatches to on_event(self, event, value) - the general
-// named-event hook beside the fixed on_start/on_update/on_destroy/
-// on_collision ones. Both the event name and the value reach the script,
-// and the default value (no second argument) is 0.0.
 void testCallEventInvokesOnEventHook()
 {
     Scene scene;
@@ -1911,9 +1706,7 @@ void testCallEventInvokesOnEventHook()
         "        self.owner.yaw(value)\n";
     CHECK(behaviour->loadSource(script));
 
-    // createGameObject() only queues the object (Scene::add()) - owner()
-    // and object->scene() do not resolve until a flush, so one no-op update
-    // has to run before a direct call like callEvent() can reach the script.
+    // createGameObject() only queues the object: owner() does not resolve until a flush, so one no-op update must run before a direct callEvent().
     scene.setRunningInEditor(false);
     scene.update(0.0f);
     CHECK(behaviour->callEvent("Jump", 45.0));
@@ -1929,8 +1722,6 @@ void testCallEventInvokesOnEventHook()
     CHECK(std::abs(yawAfterIdle - yawAfterJump) < 0.01f);
 }
 
-// A class that never defines on_event has no slot to call into - callEvent()
-// is then a harmless no-op that reports it did nothing, with no error.
 void testCallEventReturnsFalseWithoutOnEventHook()
 {
     Scene scene;
@@ -1949,9 +1740,6 @@ void testCallEventReturnsFalseWithoutOnEventHook()
     CHECK(!behaviour->hasError());
 }
 
-// callFunction() reaches any method the class defines, by name, the same way
-// a direct script call would - and hasFunction() answers from the compiled
-// class's own vtable, no instance and no call involved.
 void testCallFunctionInvokesNamedMethodAndHasFunctionSeesIt()
 {
     Scene scene;
@@ -1978,8 +1766,6 @@ void testCallFunctionInvokesNamedMethodAndHasFunctionSeesIt()
     CHECK(std::abs(yaw - 30.0f) < 0.01f);
 }
 
-// Calling a name the script never defined is a captured runtime error, the
-// same way a bad on_update() is - not a crash, not a silent no-op.
 void testCallFunctionFailsForUnknownName()
 {
     Scene scene;
@@ -1999,12 +1785,7 @@ void testCallFunctionFailsForUnknownName()
     CHECK(!behaviour->lastError().empty());
 }
 
-// reloadIfChanged() notices a real on-disk edit and recompiles through the
-// same ScriptCache path reload() does - the mtime is forced forward here
-// past whatever resolution the filesystem happens to have, since the point
-// under test is the comparison itself, not a race against the OS clock.
-// sourceTimestamp() reads the shared ScriptCache entry directly, so it moves
-// for every component sharing the path, not only the one that called reload.
+// The mtime is forced forward past the filesystem's resolution: the comparison is under test, not a race with the OS clock. sourceTimestamp() reads the shared ScriptCache entry, so it moves for every component sharing the path.
 void testReloadIfChangedDetectsDiskEditAndSourceTimestampTracksIt()
 {
     const std::filesystem::path path =
@@ -2019,7 +1800,6 @@ void testReloadIfChangedDetectsDiskEditAndSourceTimestampTracksIt()
     const s64 firstStamp = behaviour->sourceTimestamp();
     CHECK(firstStamp != 0);
 
-    // Unchanged on disk: nothing to pick up.
     CHECK(!behaviour->reloadIfChanged());
     CHECK(behaviour->sourceTimestamp() == firstStamp);
 
@@ -2040,8 +1820,6 @@ void testReloadIfChangedDetectsDiskEditAndSourceTimestampTracksIt()
     std::filesystem::remove(path, removeError);
 }
 
-// A behaviour loaded from a source string has no file to watch:
-// sourceTimestamp() stays 0 and reloadIfChanged() is always a no-op for it.
 void testReloadIfChangedFalseWithoutFile()
 {
     Scene scene;
@@ -2053,8 +1831,6 @@ void testReloadIfChangedFalseWithoutFile()
     CHECK(!behaviour->reloadIfChanged());
 }
 
-// ScriptVM::call()/setGlobal() directly - the generic C++ <-> script call
-// path, independent of ZenBehaviour's own class-based dispatch.
 void testCallAndGlobalRoundTrip()
 {
     ScriptVM vm;
@@ -2075,15 +1851,7 @@ void testCallAndGlobalRoundTrip()
     CHECK(result.numberValue == 42.0);
 }
 
-// A GameObject handle resolves the object by id on every call
-// (SceneScriptBindings.cpp's selfGameObject/resolveGameObjectById), and
-// Scene::flushChanges() drops the destroyed object's id (forgetIdBranch)
-// before the delete that follows it (Scene.cpp:1884-1885) - so a handle held
-// across the destruction simply stops resolving instead of reading freed
-// memory. The script keeps its own field pointed at the dead object and
-// exercises a getter, a setter and a second getter on it in the frame right
-// after; none of them may error, and the getter has to answer the same
-// "empty" value goGetName()/goGetChildCount() already give for that case.
+// A GameObject handle resolves by id on every call, and flushChanges() drops the id before the delete, so a handle held across destruction stops resolving instead of reading freed memory; getters must give the same "empty" value as goGetName()/goGetChildCount().
 void testGameObjectHandleSurvivesOwnerDestruction()
 {
     Scene scene;
@@ -2106,25 +1874,19 @@ void testGameObjectHandleSurvivesOwnerDestruction()
     CHECK(behaviour->loadSource(script));
 
     scene.setRunningInEditor(false);
-    scene.update(1.0f / 60.0f); // on_start binds self.target while it is still alive.
+    scene.update(1.0f / 60.0f);
     CHECK(!behaviour->hasError());
 
     scene.destroy(target);
-    scene.update(1.0f / 60.0f); // Target still resolves during this frame's on_update; the
-                                // flushChanges() at the end of this same call deletes it.
+    scene.update(1.0f / 60.0f);
     CHECK(!behaviour->hasError());
 
-    scene.update(1.0f / 60.0f); // self.target no longer resolves.
+    scene.update(1.0f / 60.0f);
     CHECK(!behaviour->hasError());
     CHECK(holder->name() == "Survived");
 }
 
-// Same shape as above, over a Light handle: a component handle's native_data
-// is a raw Camera/Light/.../pointer, and Scene::componentRemoved() now clears
-// it (ScriptCache::forgetInstance()) before the cache forgets it. The class is
-// persistent (never collected), so the handle itself survives; it just stops
-// pointing at anything. get_intensity() has to answer 0, matching every other
-// component getter's already-null-safe default.
+// Same over a Light handle: Scene::componentRemoved() clears the native pointer via ScriptCache::forgetInstance(); the persistent class survives, so get_intensity() must answer 0 (null-safe default).
 void testComponentHandleSurvivesComponentRemoval()
 {
     Scene scene;
@@ -2156,11 +1918,7 @@ void testComponentHandleSurvivesComponentRemoval()
     CHECK(object->getComponent<Light>() == nullptr);
 }
 
-// Same again, over an AnimationLayer handle: it resolves its owning GameObject
-// by id and then asks it for whatever Animator it currently has
-// (animatorForLayerHandle), rather than keeping the original Animator*
-// (SceneScriptBindings.cpp) - so removing the Animator makes the handle stop
-// resolving the same way losing the GameObject or the Light does above.
+// Same over an AnimationLayer handle: it resolves the owner by id and its current Animator (animatorForLayerHandle), so removing the Animator stops it resolving.
 void testAnimationLayerHandleSurvivesAnimatorRemoval()
 {
     const AnimationSetHandle animationSet = makeMoveAnimationSet();
@@ -2198,12 +1956,7 @@ void testAnimationLayerHandleSurvivesAnimatorRemoval()
     Animations().destroy(animationSet);
 }
 
-// The point a raw-pointer handle could never make: a GameObject handle
-// resolves by id, and Scene never reuses an id (Scene::stampId() only ever
-// draws a new one from mNextId - Scene.cpp:300-318). Destroying the held
-// object and creating a fresh one - which the allocator is free to place at
-// the exact address the old one occupied - must still leave the old handle
-// resolving to nothing, never quietly retargeted onto the new object.
+// A handle resolves by id and Scene never reuses an id (Scene::stampId() draws from mNextId): a fresh object at the old address must not be retargeted.
 void testGameObjectHandleFollowsIdNotPointer()
 {
     Scene scene;
@@ -2230,7 +1983,7 @@ void testGameObjectHandleFollowsIdNotPointer()
     CHECK(!behaviour->hasError());
 
     scene.destroy(target);
-    scene.update(1.0f / 60.0f); // Target is actually freed by the end of this call.
+    scene.update(1.0f / 60.0f);
 
     GameObject* freshObject = scene.createGameObject("NewOne");
     CHECK(freshObject != nullptr);

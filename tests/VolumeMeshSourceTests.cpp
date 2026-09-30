@@ -1,9 +1,3 @@
-// VolumeMeshSourceTests.cpp - a loaded mesh as a density field, which is what
-// lets the CSG in VolumeCSG.h combine modelled geometry instead of only
-// spheres and boxes. The magnitudes are checked against the analytic sources
-// already in the engine rather than against numbers written out by hand.
-// Nothing here touches the GPU.
-
 #include "PCH.h"
 
 #include "AssetManager.h"
@@ -52,7 +46,6 @@ void testBuildRejectsNothing()
     MeshData empty;
     CHECK(!source.build(empty));
     CHECK(!source.valid());
-    // A source with nothing in it still has to answer, and answer "outside".
     CHECK(source.sampleDensity(Math::vec3(0.0f)) < 0.0f);
 
     MeshData box = buildBox(Math::vec3(2.0f));
@@ -61,9 +54,7 @@ void testBuildRejectsNothing()
     CHECK(source.triangleCount() == box.indices.size() / 3);
 }
 
-// The whole thing measured against BoxSource, which computes the same field
-// in closed form. If the mesh version agrees with it across a grid then both
-// the distance and the sign are right, and neither number came from me.
+// Reference: BoxSource computes the same field in closed form; agreement across a grid proves distance and sign.
 void testMatchesTheAnalyticBox()
 {
     MeshData box = buildBox(Math::vec3(2.0f, 2.0f, 2.0f));
@@ -87,9 +78,7 @@ void testMatchesTheAnalyticBox()
                 const f32 fromMesh = mesh.sampleDensity(p);
                 const f32 fromAnalytic = analytic.sampleDensity(p);
 
-                // Points sitting all but exactly on the surface are where the
-                // two disagree for reasons that are not bugs, so the sign is
-                // only compared away from it.
+                // Near the surface the sign legitimately differs; compare it only away from it.
                 if (Math::abs(fromAnalytic) > 0.05f)
                 {
                     if ((fromMesh > 0.0f) != (fromAnalytic > 0.0f))
@@ -101,14 +90,10 @@ void testMatchesTheAnalyticBox()
 
     CHECK(compared > 1000);
     CHECK(signMismatches == 0);
-    // The box's own distance field is exact, and so is the distance to its
-    // triangles: they should agree to well under a voxel.
     CHECK(worst < 0.01f);
 }
 
-// A sphere's triangles only approximate it, so the two fields differ by the
-// sagitta of the facets. Comparing anyway catches a sign that is inverted or
-// a distance that is wrong by more than tessellation explains.
+// Facets approximate a sphere (sagitta); comparing still catches an inverted sign or too large an error.
 void testAgreesWithTheAnalyticSphere()
 {
     MeshData sphere = buildSphere(1.0f, 48, 96);
@@ -139,8 +124,7 @@ void testAgreesWithTheAnalyticSphere()
     CHECK(worst < 0.05f);
 }
 
-// Positive inside is the convention every other Source follows; getting it
-// backwards would turn every Difference into an Intersection.
+// Positive inside is the convention of every Source; backwards turns Difference into Intersection.
 void testSignConvention()
 {
     MeshData box = buildBox(Math::vec3(2.0f));
@@ -153,18 +137,15 @@ void testSignConvention()
     CHECK(mesh.sampleDensity(Math::vec3(5.0f, 0.0f, 0.0f)) < 0.0f);
     CHECK(Math::abs(mesh.sampleDensity(Math::vec3(5.0f, 0.0f, 0.0f)) + 4.0f) < 0.01f);
 
-    // Just inside and just outside one face.
     CHECK(mesh.sampleDensity(Math::vec3(0.98f, 0.0f, 0.0f)) > 0.0f);
     CHECK(mesh.sampleDensity(Math::vec3(1.02f, 0.0f, 0.0f)) < 0.0f);
 
-    // Off a corner, where the nearest feature is a vertex rather than a face.
     const f32 corner = mesh.sampleDensity(Math::vec3(2.0f, 2.0f, 2.0f));
     CHECK(corner < 0.0f);
     CHECK(Math::abs(Math::abs(corner) - Math::length(Math::vec3(1.0f))) < 0.01f);
 }
 
-// A mesh that is not centred on the origin: an implementation that quietly
-// assumes it is passes everything above and fails here.
+// Off-origin mesh: an implementation assuming it is centred fails here.
 void testOffCentreMesh()
 {
     MeshData box = buildBox(Math::vec3(2.0f));
@@ -178,9 +159,6 @@ void testOffCentreMesh()
     CHECK(Math::abs(mesh.sampleDensity(Math::vec3(10.0f, -5.0f, 3.0f)) - 1.0f) < 0.01f);
 }
 
-// What this was built for: the combinators that already existed, driven by a
-// mesh on one side. A hole through a solid is the case that fails if the sign
-// is wrong anywhere.
 void testDifferenceAgainstAMesh()
 {
     MeshData box = buildBox(Math::vec3(2.0f));
@@ -190,27 +168,21 @@ void testDifferenceAgainstAMesh()
     const Volume::SphereSource drill(Math::vec3(0.0f), 0.5f);
     const Volume::DifferenceSource drilled(solid, drill);
 
-    // The middle is gone, the shell around it is not.
     CHECK(drilled.sampleDensity(Math::vec3(0.0f)) < 0.0f);
     CHECK(drilled.sampleDensity(Math::vec3(0.8f, 0.0f, 0.0f)) > 0.0f);
-    // Still outside the box entirely.
     CHECK(drilled.sampleDensity(Math::vec3(3.0f, 0.0f, 0.0f)) < 0.0f);
 
     const Volume::IntersectionSource common(solid, drill);
     CHECK(common.sampleDensity(Math::vec3(0.0f)) > 0.0f);
     CHECK(common.sampleDensity(Math::vec3(0.8f, 0.0f, 0.0f)) < 0.0f);
 
-    // Named, not a temporary: BinarySource keeps references to its operands,
-    // so one built in the argument list is dead before it is ever sampled.
+    // Named: BinarySource keeps references to its operands.
     const Volume::SphereSource beside(Math::vec3(2.0f, 0.0f, 0.0f), 0.5f);
     const Volume::UnionSource both(solid, beside);
     CHECK(both.sampleDensity(Math::vec3(0.0f)) > 0.0f);
     CHECK(both.sampleDensity(Math::vec3(2.0f, 0.0f, 0.0f)) > 0.0f);
 }
 
-// End to end: mesh in, density field, marching cubes, mesh out. The result
-// only has to be a closed solid of roughly the right size - the voxel grid
-// decides the rest.
 void testMeshesBackOut()
 {
     MeshData box = buildBox(Math::vec3(2.0f));
@@ -231,7 +203,6 @@ void testMeshesBackOut()
     CHECK(out.indices.size() >= 3);
     CHECK(stats.triangles > 0);
 
-    // Within a voxel of the box it came from on every axis.
     const Math::vec3 size = out.bounds.max - out.bounds.min;
     CHECK(Math::abs(size.x - 2.0f) < 0.4f);
     CHECK(Math::abs(size.y - 2.0f) < 0.4f);

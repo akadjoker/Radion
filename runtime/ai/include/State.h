@@ -1,12 +1,7 @@
 #ifndef RADION_AI_STATE_H
 #define RADION_AI_STATE_H
 
-// State.h - a single state of the Radion AI state machine.
-//
-// A state carries a scalar value (drives ComparitorTransition), a name, a set
-// of per-frame actions, enter actions and exit actions, plus outgoing
-// transitions. The State OWNS its actions and transitions and frees them on
-// destruction.
+// The State OWNS its actions and transitions.
 
 #include <string>
 #include <vector>
@@ -29,7 +24,6 @@ public:
     }
     virtual ~State();
 
-    // Scalar value the transitions can test against.
     float value() const
     {
         return mValue;
@@ -47,7 +41,6 @@ public:
         mInitialValue = value;
     }
 
-    // Lifecycle. reset() restores the value and re-enters the state.
     void reset();
     void enter();
     void iterate();
@@ -62,8 +55,7 @@ public:
         mName = name;
     }
 
-    // Ownership: the State takes ownership of actions and transitions passed
-    // here and deletes them in its destructor.
+    // Takes ownership of the actions and transitions passed here.
     void addAction(Action* action)
     {
         mActions.push_back(action);

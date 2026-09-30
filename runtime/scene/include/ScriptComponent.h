@@ -6,34 +6,17 @@
 namespace Radion
 {
 
-// Base class for behaviour written in C++ and attached to a GameObject: the
-// game's own rules live in a subclass of this, not in the demo's main loop.
-// Subclasses override whichever of Component's onStart/onUpdate/onLateUpdate/
-// onEnable/onDisable/onDestroy hooks they need and reach their object through
-// owner().
-//
-// One per GameObject. Every subclass registers under the same
-// ComponentType::Script slot, so addComponent<T>() on an object that already
-// carries any script returns null. A behaviour that needs several independent
-// pieces splits them across child objects.
-//
-// For the same reason getComponent<T>() is unsafe here - it casts on the slot
-// alone and would hand back a pointer to whatever script is attached, as the
-// wrong type. Keep the pointer addComponent() returned.
+// One per GameObject: every subclass registers under ComponentType::Script, so addComponent<T>() on an object with any script returns null.
+// getComponent<T>() is unsafe for the same reason (casts on the slot alone); keep the pointer addComponent() returned.
 class ScriptComponent : public Component
 {
 public:
     static constexpr ComponentType Type = ComponentType::Script;
 
-    // Which per-frame hooks the subclass wants called. Asking for an event
-    // it does not override only costs an empty call; not asking for one it
-    // does override means the override never runs.
+    // Not requesting an event the subclass overrides means the override never runs.
     explicit ScriptComponent(u8 events = ComponentEventUpdate);
 
-    // Runtime discriminator for the shared Script slot, mirroring how
-    // Light.h tells its four light kinds apart: several ScriptComponent
-    // subclasses can occupy it, and this is what ComponentMatch<ZenBehaviour>
-    // uses to find the Zen-driven one among them, without RTTI.
+    // Runtime discriminator for the shared Script slot (like Light.h), without RTTI.
     virtual bool isZenBehaviour() const;
 };
 

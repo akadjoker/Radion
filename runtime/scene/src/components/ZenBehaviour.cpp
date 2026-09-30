@@ -23,9 +23,7 @@ static std::string currentErrorMessage(zen::VM& vm)
     return (fiber && fiber->error) ? fiber->error->chars : "zen: runtime error";
 }
 
-// User parameters the method in that vtable slot declares, self excluded.
-// Negative is variadic; 0 for anything that is not a closure, so a caller
-// that cannot tell passes nothing rather than too much.
+// Declared user parameters in that vtable slot, self excluded. Negative is variadic; 0 for anything not a closure.
 static int methodArity(zen::Value classValue, int slot)
 {
     if (slot < 0 || !zen::is_class(classValue))
@@ -51,9 +49,7 @@ ZenBehaviour::~ZenBehaviour()
 
 void ZenBehaviour::releaseInstance()
 {
-    // At process exit the ScriptCache singleton may already be gone: it owns
-    // the VM, so the instance this was holding died with it and there is
-    // nothing left to unprotect.
+    // At exit the ScriptCache (which owns the VM) may be gone, so there is nothing left to unprotect.
     if (zen::is_instance(mInstance) && ScriptCache::alive())
         ScriptCache::getSingleton().unprotectInstance(mInstance);
     mInstance = zen::val_nil();
@@ -112,9 +108,7 @@ bool ZenBehaviour::reload()
     }
     mFailed = false;
     mLastError.clear();
-    // The cache entry's version just bumped - the next ensureInstance()
-    // (this component's or any sibling's sharing the same path) notices the
-    // mismatch and re-instantiates on its own.
+    // The entry's version just bumped; the next ensureInstance() (any component on the path) re-instantiates.
     return true;
 }
 
@@ -123,10 +117,7 @@ bool ZenBehaviour::reloadIfChanged()
     if (!mFromFile || mScriptPath.empty())
         return false;
 
-    // The component keeps the authored path (e.g. "Scripts/foo.zen"); the
-    // cache compiled it from FileSystem's resolved real path, so the disk
-    // check has to go through the same resolution or an edit made to the
-    // real file could go unnoticed here.
+    // The cache compiled from FileSystem's resolved path, so the disk check must resolve too or edits go unnoticed.
     const std::string resolved = FileSystem::getSingleton().resolve(mScriptPath);
     if (resolved.empty())
         return false;
@@ -333,9 +324,7 @@ void ZenBehaviour::clearOverride(const std::string& name)
     if (!removed)
         return;
 
-    // Putting the declared default back is enough for a property the script
-    // still declares. For one it no longer does, the field may not even
-    // exist any more, so the instance is dropped and rebuilt from __init__.
+    // Restoring the declared default suffices for a still-declared property; otherwise the field may not exist, so drop the instance and rebuild from __init__.
     if (const ScriptProperty* declared = declaredProperty(name))
         writeProperty(*declared);
     else
@@ -427,12 +416,7 @@ bool ZenBehaviour::ensureInstance()
     mInstance = vm.make_instance(zen::as_class(mEntry->classValue));
     ScriptCache::getSingleton().protectInstance(mInstance);
 
-    // make_instance() deliberately does not run __init__, so it is invoked
-    // here through its own vtable slot. Binding the owner first is the one
-    // departure from how the script is otherwise driven: the owner is a
-    // field on the instance, not an argument, so "self.owner" has to already
-    // be there for __init__ to be able to use it. Then the component's own
-    // overrides go on top of the defaults __init__ just wrote.
+    // make_instance() does not run __init__, so it is invoked via its vtable slot. Owner is bound first (a field, not an argument) so "self.owner" exists for __init__; overrides then go on top of the defaults.
     SceneScriptBindings::bindOwner(vm, mInstance, object);
     if (mEntry->initSlot >= 0)
     {
@@ -502,10 +486,7 @@ bool ZenBehaviour::callCollision(GameObject* other, bool began)
     zen::VM& vm = ScriptCache::getSingleton().vm();
     zen::Value args[2] = {other ? SceneScriptBindings::wrapGameObject(vm, other) : zen::val_nil(),
                           zen::val_bool(began)};
-    // A script written as on_collision(self, other) gets one argument. Handing
-    // it two would write the second past the frame the closure declares:
-    // VM::invoke fills the registers before it sets stack_top, and that slot
-    // is the next frame's base.
+    // An on_collision(self, other) script gets one argument; passing two would write past the closure's frame (VM::invoke fills registers before stack_top).
     const int arity = methodArity(mEntry->classValue, mEntry->onCollisionSlot);
     vm.invoke(mInstance, mEntry->onCollisionSlot, args, arity >= 2 || arity < 0 ? 2 : 1);
     if (vm.had_error())

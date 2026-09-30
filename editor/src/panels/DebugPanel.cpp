@@ -141,12 +141,7 @@ void DebugPanel::drawSurfaceProbeReadout()
     }
 }
 
-// Turns "why is nothing being culled" into a number. Each submesh's box is
-// measured against the whole model's box by diagonal length rather than by
-// volume - a floor slab spanning the building is flat, so its volume is near
-// zero while it is still entirely un-cullable, and only the diagonal catches
-// that. Anything near 1.0 covers the model and will intersect every frustum
-// the model itself does.
+// Submesh box vs whole-model box by diagonal, not volume: a flat floor slab has ~zero volume but is still un-cullable.
 void DebugPanel::drawSubmeshBoundsReadout()
 {
     GameObject* selected = app().selection().resolve(app().scene());
@@ -293,11 +288,7 @@ void DebugPanel::onImGui()
     }
     else
     {
-        // Renderer::executeReflection() publishes this each frame it runs a
-        // mirror/water pass, under the same name lit.frag's uMirrorReflectionTex
-        // resolves - viewing it raw here (before the shader's own UV/bump lookup)
-        // tells apart a hole in the captured render from a mapping bug in the
-        // sampling.
+        // Published by Renderer::executeReflection(); raw view tells a capture hole from a sampling bug.
         texture = AssetManager::getSingleton().resolveRenderTarget(hashName(kReflectionTargetName));
     }
 
@@ -466,11 +457,7 @@ void DebugPanel::drawProbePreviews()
     }
 }
 
-// Every cascade laid out in one row instead of one at a time behind a
-// slider - comparing texel density between the near and far cascade (the
-// whole reason to look at this view at all) needs both on screen together,
-// not a flip back and forth trying to remember what the other one looked
-// like.
+// All cascades in one row so near/far texel density can be compared at once.
 void DebugPanel::drawCascadePreviews()
 {
     Engine& engine = app().engine();

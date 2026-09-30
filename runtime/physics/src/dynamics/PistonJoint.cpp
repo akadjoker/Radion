@@ -85,7 +85,6 @@ void PistonJoint::configure(RigidBody& a, RigidBody& b, const Math::vec3& worldA
     mBodyB = &b;
     mLocalAnchorA = a.pointToLocal(worldAnchor);
     mLocalAnchorB = b.pointToLocal(worldAnchor);
-    // Guarded once here; the four frames below all derive from it.
     const Math::vec3 axis = detail::normalizedAxisOr(worldAxis, Math::vec3(1.0f, 0.0f, 0.0f));
     mLocalAxisA = Math::normalize(a.directionToLocal(axis));
     mLocalAxisB = Math::normalize(b.directionToLocal(axis));

@@ -245,13 +245,7 @@ CascadeShadowSettings CascadeShadowSettings::sizedForScene(f32 sceneRadius)
     const f32 radius = Math::max(sceneRadius, 1.0f);
 
     settings.distance = Math::clamp(radius * 2.0f, settings.distance, 500.0f);
-    // Count and resolution stay at the struct's own defaults (4, 1024): both
-    // are a straight cost multiplier on the shadow pass - one more cascade is
-    // another whole pass over the caster list, double the resolution is four
-    // times the fill rate - and scaling them off the scene automatically was
-    // the fps hit the "Auto" button caused the first time this shipped. Going
-    // higher resolution is a choice to make from the panel, priced against
-    // the frame budget, not a default handed out for free.
+    // Count and resolution stay at defaults (4, 1024): both multiply shadow-pass cost, and auto-scaling caused the fps hit of the "Auto" button. Higher is a panel choice.
     return settings;
 }
 
@@ -294,11 +288,7 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const Math::vec
         camera.aspect <= 0.0f || camera.fieldOfView <= 0.0f)
         return false;
 
-    // A directional light has three shadow modes and no others: ORTHOGONAL,
-    // PARALLEL_2_SPLITS and PARALLEL_4_SPLITS (renderer_scene_cull.cpp:2167-
-    // 2177). Three splits is not one of them: the atlas would leave a
-    // quadrant undrawn, and distances[splits] = max_distance would overwrite
-    // the third offset, silently dropping it. A requested 3 becomes 2.
+    // Directional lights have only ORTHOGONAL, 2-split and 4-split modes (renderer_scene_cull.cpp:2167-2177); 3 splits would leave a quadrant undrawn and overwrite the third offset, so 3 becomes 2.
     const u32 requested = Math::clamp(settings.count, 1u, MaxShadowCascades);
     output.count = requested == 3u ? 2u : requested;
     const u32 splits = output.count;
@@ -367,11 +357,7 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const Math::vec
 
         const DirectionalShadowRegion region =
             directionalShadowRegion(atlasResolution, splits, cascade);
-        // MAX(width, height) of the split's rect, not its height
-        // (light_storage.cpp:2813-2833). With two splits the rect is the full
-        // width by half the height, and taking the height there halves the
-        // snap grid and doubles shadow_texel_size - which is what feeds the
-        // normal bias.
+        // MAX(width, height) of the split's rect, not height (light_storage.cpp:2813-2833): with two splits height halves the snap grid and doubles shadow_texel_size, feeding the normal bias.
         const f32 textureSize =
             static_cast<f32>(Math::max(Math::max(region.width, region.height), 1u));
 
@@ -395,10 +381,7 @@ bool CascadeShadowCalculator::update(const ShadowCamera& camera, const Math::vec
             softShadowExpand = tanAngle * zRange;
         }
 
-        // Unconditional, as in renderer_scene_cull.cpp:2316-2321: "this trick
-        // here is what stabilizes the shadow (make potential jaggies to not
-        // move) at the cost of some wasted resolution". There is no switch to
-        // turn it off.
+        // Unconditional, as in renderer_scene_cull.cpp:2316-2321: stabilizes the shadow at the cost of some resolution; no off switch.
         const f32 unit = (radius + softShadowExpand) * 4.0f / textureSize;
         const f32 xMaxCam = snapped(Math::dot(xVec, center) + radius + softShadowExpand, unit);
         const f32 xMinCam = snapped(Math::dot(xVec, center) - radius - softShadowExpand, unit);

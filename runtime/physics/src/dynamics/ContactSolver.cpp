@@ -10,10 +10,8 @@ namespace Radion::Physics
 
 namespace
 {
-// How much velocity a unit impulse along `direction` at these two points
-// actually produces - the linear part plus what the two inertia tensors let
-// the resulting torque do. Dividing by it is what turns a wanted velocity
-// change into the impulse that delivers it.
+// Velocity produced by a unit impulse along `direction` at these points (linear plus inertia-tensor torque part);
+// dividing by it converts a wanted velocity change into an impulse.
 f32 effectiveMass(const RigidBody& a, const RigidBody& b, const Math::vec3& armA,
                   const Math::vec3& armB, const Math::vec3& direction)
 {
@@ -31,15 +29,9 @@ Math::vec3 relativeVelocity(const RigidBody& a, const RigidBody& b, const Math::
            (a.velocity() + Math::cross(a.angularVelocity(), armA));
 }
 
-// The normal points from A to B, so B takes the impulse and A takes its
-// opposite.
-//
-// Deliberately NOT RigidBody::applyImpulseAtPoint: that wakes the body, and
-// the solver touches every resting contact every single step. Going through
-// it meant a settled stack was woken eight times a step forever, its sleep
-// counter reset before it could ever cross the threshold - so nothing slept
-// and the whole tower kept creeping. Waking belongs to the moment a contact
-// is NEW, which Scene does from its pair cache.
+// The normal points A to B, so B takes the impulse and A its opposite.
+// NOT RigidBody::applyImpulseAtPoint: it wakes the body, and the solver touches every resting contact each step, so a settled stack
+// never slept. Waking belongs to a NEW contact (Scene's pair cache).
 void applyOne(RigidBody& body, const Math::vec3& impulse, const Math::vec3& point)
 {
     if (!body.isDynamic())
@@ -68,9 +60,7 @@ void ContactSolver::warmStart(Contact* contacts, u32 count)
         for (u32 i = 0; i < manifold.count; ++i)
         {
             ContactPoint& point = manifold.points[i];
-            // Last step's answer, applied before this step's first iteration.
-            // Without it every step starts from zero and a tall stack sinks
-            // by however much the iterations could not recover.
+            // Last step's answer applied before the first iteration; otherwise a tall stack sinks by what the iterations cannot recover.
             const Math::vec3 impulse = manifold.normal * point.normalImpulse +
                                       manifold.tangent[0] * point.tangentImpulse[0] +
                                       manifold.tangent[1] * point.tangentImpulse[1];
@@ -123,10 +113,7 @@ void ContactSolver::solveVelocity(Contact* contacts, u32 count)
             const Math::vec3& armA = cache[i].armA;
             const Math::vec3& armB = cache[i].armB;
 
-            // Friction first, and against the normal impulse the last
-            // iteration settled on: the friction cone needs a normal force to
-            // be a fraction of, and using this iteration's would let the two
-            // chase each other.
+            // Friction first, against the normal impulse the last iteration settled on; using this iteration's would let the two chase each other.
             const f32 maxFriction = contact.friction * point.normalImpulse;
             for (u32 t = 0; t < 2; ++t)
             {
@@ -147,14 +134,10 @@ void ContactSolver::solveVelocity(Contact* contacts, u32 count)
                 continue;
             const f32 separation =
                 Math::dot(relativeVelocity(a, b, armA, armB), manifold.normal);
-            // The bias is the separation speed a bounce should end at. Zero
-            // for a resting contact, so this is the plain "stop approaching".
+            // Bias is the separation speed a bounce should end at; zero for a resting contact.
             const f32 wanted = -(separation - point.velocityBias) / mass;
 
-            // Clamping the ACCUMULATED impulse and not each increment is what
-            // lets this converge: a later contact may need to take back part
-            // of what an earlier iteration gave, and only a running total can
-            // be reduced without going negative overall.
+            // Clamp the ACCUMULATED impulse, not each increment: a later contact may need to take back part of an earlier iteration's.
             const f32 previous = point.normalImpulse;
             const f32 total = Math::max(previous + wanted, 0.0f);
             point.normalImpulse = total;
@@ -176,9 +159,7 @@ void ContactSolver::solvePosition(Contact* contacts, u32 count)
         for (u32 i = 0; i < manifold.count; ++i)
         {
             ContactPoint& point = manifold.points[i];
-            // Overlap up to the slop is left alone. Chasing exactly zero is
-            // what makes two resting bodies make and lose contact every
-            // frame, and the buzz that comes with it.
+            // Overlap up to the slop is left alone: chasing exactly zero makes resting bodies make and lose contact every frame.
             const f32 excess = point.penetration - mSettings.slop;
             if (excess <= 0.0f)
                 continue;
@@ -191,9 +172,7 @@ void ContactSolver::solvePosition(Contact* contacts, u32 count)
             const Math::vec3 impulse =
                 manifold.normal * (excess * mSettings.baumgarte / mass);
 
-            // Moved directly rather than through a bias impulse: a bias adds
-            // velocity the bodies keep afterwards, which is how a resting
-            // stack slowly gains energy and starts to drift.
+            // Moved directly, not via a bias impulse: a bias adds velocity the bodies keep, so a resting stack gains energy and drifts.
             a.applyPositionImpulseAtPoint(-impulse, point.position);
             b.applyPositionImpulseAtPoint(impulse, point.position);
             point.penetration -= excess * mSettings.baumgarte;
@@ -207,14 +186,8 @@ void ContactSolver::solve(Contact* contacts, u32 count, Joint* const* joints, u3
     if (duration <= 0.0f || !std::isfinite(duration))
         return;
 
-    // Tangents are rebuilt from the normal here rather than trusted from the
-    // narrowphase: a manifold can be carried over from the previous step for
-    // its impulses, and its normal may have turned since.
-    //
-    // Waking is deliberately not done here. A contact exists every step a
-    // stack is resting, so waking on one would mean nothing ever sleeps -
-    // it belongs to whoever notices a contact is NEW, which is the same
-    // per-pair bookkeeping that warm starting and enter/stay/exit need.
+    // Tangents rebuilt from the normal: a carried-over manifold's normal may have turned.
+    // Waking is not done here: a resting stack has a contact every step, so nothing would sleep; Scene wakes on a NEW contact.
     for (u32 c = 0; c < count; ++c)
     {
         Contact& contact = contacts[c];
@@ -223,11 +196,7 @@ void ContactSolver::solve(Contact* contacts, u32 count, Joint* const* joints, u3
         ContactManifold& manifold = contact.manifold;
         manifold.buildTangents();
 
-        // Restitution has to be decided HERE, from the approach speed before
-        // a single impulse has been applied. Measured after the velocity
-        // iterations there is nothing left to be a fraction of - they have
-        // already driven the approach to zero - and the bounce silently
-        // vanishes.
+        // Restitution is decided HERE from the pre-impulse approach speed; after the velocity iterations the approach is zero and the bounce vanishes.
         for (u32 i = 0; i < manifold.count; ++i)
         {
             ContactPoint& point = manifold.points[i];
@@ -238,8 +207,7 @@ void ContactSolver::solve(Contact* contacts, u32 count, Joint* const* joints, u3
             const Math::vec3 armB = point.position - contact.b->position();
             const f32 approach =
                 Math::dot(relativeVelocity(*contact.a, *contact.b, armA, armB), manifold.normal);
-            // Below the threshold it is a resting contact, not an impact.
-            // Bouncing those is what keeps a settled stack alive forever.
+            // Below the threshold it is a resting contact; bouncing those keeps a settled stack alive forever.
             if (approach < -mSettings.restitutionThreshold)
                 point.velocityBias = -contact.restitution * approach;
         }

@@ -20,9 +20,7 @@ namespace
 
 using Json = nlohmann::json;
 
-// Reads `key` into `value` when the file has it, leaves it alone when it does
-// not. Every field goes through one of these, which is what makes a file
-// written by an older build still load.
+// Leaves `value` alone when the file lacks `key`, so older files still load.
 template <typename T>
 void read(const Json& node, const char* key, T& value)
 {
@@ -233,9 +231,7 @@ Json writeSky(const SkySettings& sky)
 
 bool EngineSettings::load(Engine& engine, const std::string& filename)
 {
-    // Registered even when the file is missing or malformed: a first run has
-    // nothing to load yet, but still gets its window position/size saved on
-    // the way out, see Engine::shutdown().
+    // Registered even if the file is missing/malformed so a first run still saves on shutdown.
     engine.setSettingsFile(filename);
 
     const std::string text = FileSystem::getSingleton().readText(filename);
@@ -264,10 +260,7 @@ bool EngineSettings::load(Engine& engine, const std::string& filename)
         read(*node, "y", y);
         read(*node, "width", width);
         read(*node, "height", height);
-        // Restore the monitor from the saved top-left position before
-        // applying the size. A window created on monitor 0 can otherwise be
-        // clamped to that monitor's work area even when the saved layout
-        // belongs to a larger secondary display.
+        // Restore the monitor from the saved position before sizing; else the window clamps to monitor 0's work area.
         const int displayCount = SDL_GetNumVideoDisplays();
         for (int display = 0; display < displayCount; ++display)
         {
@@ -281,10 +274,7 @@ bool EngineSettings::load(Engine& engine, const std::string& filename)
                 break;
             }
         }
-        // Move first, then resize. If the saved layout belongs to a larger
-        // monitor, resizing while the newly-created window is still on the
-        // default monitor makes the window manager clamp it permanently to
-        // that monitor's work area.
+        // Move first, then resize: resizing on the default monitor makes the WM clamp it permanently.
         window.setPosition(x, y);
         window.setSize(width, height);
     }
@@ -325,9 +315,7 @@ bool EngineSettings::load(Engine& engine, const std::string& filename)
     if (const auto node = root.find("sky"); node != root.end())
     {
         readSky(*node, engine.sky());
-        // Not part of readSky(): restoring the texture needs Engine, not just
-        // SkySettings, and has to run after the plain fields above so a mode
-        // saved as Cubemap does not get clobbered back to Gradient by them.
+        // Not in readSky(): needs Engine, and must run after the plain fields so a saved Cubemap mode isn't reset.
         std::string cubemapName;
         read(*node, "cubemapName", cubemapName);
         if (!cubemapName.empty())
@@ -340,8 +328,7 @@ bool EngineSettings::load(Engine& engine, const std::string& filename)
 
 bool EngineSettings::save(const Engine& engine, const std::string& filename)
 {
-    // const_cast because everything this reaches only offers non-const
-    // accessors; nothing here writes through them.
+    // const_cast: only non-const accessors exist; nothing writes through them.
     Engine& mutableEngine = const_cast<Engine&>(engine);
 
     Json root;

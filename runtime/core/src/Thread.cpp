@@ -9,8 +9,6 @@
 namespace Radion
 {
 
-// ------------------------------------------------------------------- mutex
-
 Mutex::Mutex()
 {
     mHandle = SDL_CreateMutex();
@@ -35,8 +33,6 @@ void Mutex::unlock()
     if (mHandle)
         SDL_UnlockMutex(mHandle);
 }
-
-// --------------------------------------------------------------- condition
 
 ConditionVariable::ConditionVariable()
 {
@@ -68,8 +64,6 @@ void ConditionVariable::signalAll()
     if (mHandle)
         SDL_CondBroadcast(mHandle);
 }
-
-// ------------------------------------------------------------------ thread
 
 Thread::Thread()
 {
@@ -115,8 +109,6 @@ void Thread::join()
     mUserData = nullptr;
 }
 
-// -------------------------------------------------------------------- pool
-
 ThreadPool::ThreadPool()
 {
 }
@@ -138,9 +130,7 @@ bool ThreadPool::start(u32 workerCount)
         return false;
     if (workerCount == 0)
     {
-        // One per core less the caller's own. The main thread is doing work
-        // too, and a worker per core on top of it spends more on contention
-        // than it wins.
+        // One per core minus the caller; oversubscribing costs more in contention than it wins.
         const u32 cores = hardwareThreads();
         workerCount = cores > 1 ? cores - 1 : 1;
     }
@@ -161,8 +151,7 @@ bool ThreadPool::start(u32 workerCount)
         SDL_snprintf(name, sizeof(name), "radion.pool.%u", i);
         if (!mWorkers[i].start(&ThreadPool::workerMain, this, name))
         {
-            // Whatever did start still has to be shut down, or the ones
-            // running keep the process alive with nobody left to stop them.
+            // Shut down whatever did start, or running workers keep the process alive.
             mWorkerCount = i;
             stop();
             return false;
@@ -180,8 +169,7 @@ void ThreadPool::stop()
         ScopedLock lock(mMutex);
         mStopping = true;
     }
-    // Broadcast, not signal: every worker is asleep on the same condition and
-    // all of them have to be woken to see the flag.
+    // Broadcast, not signal: every worker sleeps on this condition and must see the flag.
     mWork.signalAll();
     for (u32 i = 0; i < mWorkerCount; ++i)
         mWorkers[i].join();
@@ -209,8 +197,7 @@ void ThreadPool::enqueueInternal(JobGroup* group, Job job, void* userData)
         return;
     if (mWorkerCount == 0)
     {
-        // Nowhere to put it, so run it here rather than dropping it. A pool
-        // that was never started must not silently swallow work.
+        // Nowhere to queue it: run it here rather than drop it.
         job(userData);
         return;
     }
@@ -221,9 +208,7 @@ void ThreadPool::enqueueInternal(JobGroup* group, Job job, void* userData)
         full = mQueued == kQueueCapacity;
         if (!full)
         {
-            // Counted before the job can possibly run, so a wait() that lands
-            // between the enqueue and the worker picking it up still sees it
-            // as outstanding.
+            // Counted before the job can run, so a wait() between enqueue and pickup sees it.
             if (group)
                 ++group->pending;
             mQueue[mTail] = {job, userData, group};
@@ -233,12 +218,8 @@ void ThreadPool::enqueueInternal(JobGroup* group, Job job, void* userData)
     }
     if (full)
     {
-        // Run it here rather than resizing the ring under the workers, and
-        // rather than losing it. It shows up as a stall on the calling
-        // thread, which is the honest symptom of a queue that is too small.
-        // Deliberately outside the lock - calling arbitrary work while
-        // holding the pool's own mutex is how a job that enqueues another
-        // job deadlocks the pool.
+        // Run it here rather than resize the ring or lose it; shows as a stall on the caller.
+        // Outside the lock: running arbitrary work under the pool mutex deadlocks jobs that enqueue jobs.
         job(userData);
         return;
     }
@@ -254,16 +235,13 @@ void ThreadPool::runWorker()
             ScopedLock lock(mMutex);
             while (mQueued == 0 && !mStopping)
                 mWork.wait(mMutex);
-            // Stopping only after the queue is drained, so stop() finishes
-            // what was asked for rather than throwing it away.
+            // Stop only after the queue drains, so stop() finishes what was asked.
             if (mQueued == 0 && mStopping)
                 return;
             entry = mQueue[mHead];
             mHead = (mHead + 1) % kQueueCapacity;
             --mQueued;
-            // Counted as active BEFORE the lock is dropped: between taking
-            // the job and running it the queue is empty, and a wait() that
-            // only looked at the queue would call that done.
+            // Counted active BEFORE the lock drops: between taking and running the job the queue is empty, and wait() would call that done.
             ++mActive;
         }
 
@@ -274,9 +252,7 @@ void ThreadPool::runWorker()
             --mActive;
             if (entry.group && entry.group->pending > 0)
                 --entry.group->pending;
-            // One condition for both waits: a group finishing and the pool
-            // going idle are both "something a waiter might be waiting for",
-            // and every waiter re-checks its own predicate on waking.
+            // One condition for both waits; each waiter re-checks its own predicate.
             if (mQueued == 0 && mActive == 0)
                 mIdle.signalAll();
             else if (entry.group)

@@ -25,9 +25,7 @@ void AnimationPanel::onImGui()
     GameObject* object = app().selection().resolve(app().scene());
     Animator* animator = object ? object->getComponent<Animator>() : nullptr;
 
-    // Selection moved off whatever this panel had in pose-edit mode - drop
-    // it back to normal playback rather than leaving it frozen off-screen
-    // with no UI left pointed at it.
+    // Selection left the pose-edit target: restore normal playback rather than leave it frozen.
     if (mEditingAnimator && mEditingAnimator != animator)
     {
         mEditingAnimator->setPoseEditMode(false);
@@ -58,15 +56,9 @@ void AnimationPanel::drawPlayback(Animator& animator)
     if (!set)
         return;
 
-    // Pick-a-clip first, transport controls (Pause/Loop/Scrub) for whatever
-    // ends up playing second, right below each other rather than Loop
-    // sitting above the list it has no effect on until something is
-    // actually playing.
     AnimationLayer* layer = animator.layerCount() > 0 ? &animator.layer(0) : nullptr;
 
-    // Animator::update() re-samples bind pose every frame before layering
-    // clips on top, so stopping every layer (and dropping pose-edit if it
-    // was on) IS the bind pose - no separate "reset" path needed.
+    // Animator::update() re-samples bind pose each frame, so stopping every layer and dropping pose-edit IS the bind pose.
     bool anyPlaying = animator.poseEditMode();
     for (u32 i = 0; i < animator.layerCount() && !anyPlaying; ++i)
         anyPlaying = !animator.layer(i).current().empty();
@@ -92,9 +84,6 @@ void AnimationPanel::drawPlayback(Animator& animator)
     for (const AnimationClip& clip : set->clips)
     {
         ImGui::PushID(&clip);
-        // Play/Stop, one button - the same toggle any media player uses,
-        // rather than a separate always-there Play per row plus one lone
-        // Stop below that only ever talks about layer 0's clip.
         const bool isThisClip = layer && layer->current() == clip.name();
         if (ImGui::Button(isThisClip ? ICON_MDI_STOP : ICON_MDI_PLAY))
         {
@@ -126,21 +115,14 @@ void AnimationPanel::drawPlayback(Animator& animator)
                           "restarting - applies next time you click Play, not to what is "
                           "already playing.");
 
-    // wrappedTime(), not time() - time() is the raw elapsed seconds
-    // Animator::update() blends against, and keeps climbing for as long as a
-    // Loop clip keeps looping (16s into a clip that lasts 2s, e.g.) instead
-    // of resetting each pass, which reads as broken here and puts the scrub
-    // slider below permanently pinned past its own max.
+    // wrappedTime(), not time(): time() keeps climbing while a Loop clip loops and would pin the slider past its max.
     float time = layer->wrappedTime();
     ImGui::Text("%s  %.2f / %.2fs", layer->current().c_str(), static_cast<double>(time),
                static_cast<double>(layer->duration()));
     if (ImGui::SliderFloat("Scrub", &time, 0.0f, Math::max(layer->duration(), 0.001f)))
     {
         layer->seek(time);
-        // Dragging without Pause on would just have the next frame march
-        // straight past the dragged position - scrubbing implies "hold this
-        // frame still while I look at it", so turn Pause on for them rather
-        // than make them find the checkbox first.
+        // Scrubbing implies holding the frame still, so turn Pause on.
         layer->setPaused(true);
     }
 
@@ -161,10 +143,6 @@ void AnimationPanel::drawPlayback(Animator& animator)
     }
 }
 
-// The one always-visible control here, same job as Lumix's own "Preview"
-// checkbox on its Animable property grid (animation_plugins.cpp) - primary
-// action up front, everything it unlocks tucked behind CollapsingHeaders
-// below rather than flowing loose in one long column.
 void AnimationPanel::drawPoseEditor(Animator& animator)
 {
     const Skeleton* skeleton = animator.skeleton();
@@ -192,10 +170,6 @@ void AnimationPanel::drawPoseEditor(Animator& animator)
     if (ImGui::CollapsingHeader("Bones && IK Chains", ImGuiTreeNodeFlags_DefaultOpen))
         drawBonesAndChains(animator, *skeleton, target);
 
-    // Closed by default - authoring a new clip is the rarer, more deliberate
-    // action of the two (posing/scrubbing is what most sessions here are
-    // for), same reasoning Lumix's own Transformation dump collapses by
-    // default under its Preview/Time pair.
     if (ImGui::CollapsingHeader("Author Clip"))
         drawClipAuthoring(animator, *skeleton, target);
 }

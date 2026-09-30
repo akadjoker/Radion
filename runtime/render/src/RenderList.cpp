@@ -22,18 +22,10 @@ u16 quantizeDepth(f32 distance)
     return static_cast<u16>(bits >> 16);
 }
 
-// Both keys pack packet.mesh into fewer than its native 32 bits, so both
-// have to mask it the same way - an unmasked mesh index high enough to reach
-// into a neighbouring field corrupts whatever sits above it, silently and
-// only for whichever handles happen to be large enough to hit it.
+// Both keys pack packet.mesh into fewer than 32 bits, so both must mask it identically or it corrupts the field above.
 constexpr u64 kMeshKeyMask = 0xFFFFu;
 
-// Built at compare time rather than stored, which is what keeps RenderPacket
-// at 16 bytes. Pipeline leads (still the biggest state change), then the
-// base texture - the actual thing that was rebinding a texture every draw
-// on a big merged mesh, where every packet shares one `mesh` - then mesh,
-// then front-to-back distance for early-Z within whatever is left to break
-// ties.
+// Built at compare time to keep RenderPacket at 16 bytes. Order: pipeline, base texture, mesh, then front-to-back distance for early-Z.
 u64 opaqueKey(const RenderPacket& packet)
 {
     return (static_cast<u64>(packet.sortBits & 0xFFFFu) << 48) |
@@ -71,16 +63,9 @@ void RenderList::clear()
     mLights.clear();
     mSunIndex = -1;
     mStats = RenderListStats();
-    // A reused list (a shadow view rebuilt every cascade or every atlas tile)
-    // must not carry the previous pass's sphere into one that never set its
-    // own - that would silently reject casters a directional cascade should
-    // have kept.
+    // A reused list must not carry the previous pass's cull sphere into one that never set its own.
     mCullSphere = Sphere();
-    // Same reasoning for the flag filter: a list last used for a shadow view
-    // (MaterialCastShadow) that gets reused for an ordinary camera view
-    // without an explicit setFilter(0) would silently drop every material
-    // that does not cast a shadow. Every builder that wants a filter sets one
-    // itself; clear() must not let the previous use's filter survive it.
+    // Same for the flag filter: a stale shadow-view filter would drop non-casting materials.
     mFilter = 0;
 }
 
@@ -136,7 +121,6 @@ u32 RenderList::submit(MeshHandle handle, const Mesh& mesh, const Math::mat4& mo
             continue;
         const AABB bounds = transformAABB(mesh.submeshes[i].bounds, model);
 
-        // With one submesh its box is the mesh's, already tested above.
         if (manySubmeshes && (!mFrustum.intersects(bounds) ||
                               (mCullSphere.radius > 0.0f && !mCullSphere.intersects(bounds))))
         {
@@ -162,10 +146,7 @@ u32 RenderList::submitSubmesh(MeshHandle handle, const Mesh& mesh, u32 submeshIn
     if (submeshIndex >= mesh.submeshes.size() || !mesh.submeshes[submeshIndex].visible)
         return 0;
 
-    // Counted here as well as in submit(), or the panel's "submitted" reads
-    // as almost nothing the moment the BVH is on: everything static comes in
-    // through this entry point, and only what the BVH did not already reject
-    // ever reaches it.
+    // Counted here as well as in submit(): with the BVH on, static geometry enters only through this entry point.
     ++mStats.submitted;
 
     const AABB bounds = transformAABB(mesh.submeshes[submeshIndex].bounds, model);

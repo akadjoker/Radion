@@ -1,14 +1,7 @@
 #ifndef RADION_AI_BEHAVIORFACTORY_H
 #define RADION_AI_BEHAVIORFACTORY_H
 
-// BehaviorFactory.h - the registry of concrete Behavior subclasses: an enum
-// naming each one, and a factory that creates/names/looks them up by that
-// name. What lets the editor and the serializer add/list/save a behavior by
-// type instead of a caller writing `new SeparationBehavior(...)` in code.
-//
-// SteerBehavior (Steering.h) is not registered here: it wraps a
-// std::function supplied from C++ and has no by-name meaning for an editor
-// combo or a save file.
+// SteerBehavior is not registered: it wraps a std::function with no by-name meaning.
 
 #include "Types.h"
 
@@ -39,16 +32,12 @@ enum class BehaviorType : u8
 class BehaviorFactory
 {
 public:
-    // A heap-allocated, default-configured instance of `type`, ready for
-    // Agent::addBehavior() - or null for BehaviorType::Count.
+    // Null for BehaviorType::Count.
     static Behavior* create(BehaviorType type);
 
-    // Bare enumerator spelling ("Separation"), for the editor combo and the
-    // serializer's "type" field.
     static const char* name(BehaviorType type);
 
-    // Reverse of name(): true and `out` set on a match, false (and `out`
-    // untouched) otherwise.
+    // On a match true and `out` set; otherwise false, `out` untouched.
     static bool fromName(const char* name, BehaviorType& out);
 };
 

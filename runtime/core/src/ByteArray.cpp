@@ -18,10 +18,7 @@ ByteArray::ByteArray(usize size)
     : mData(size ? static_cast<uint8*>(std::malloc(size)) : nullptr), mSize(0), mCapacity(0),
       mOwns(true), mPos(0)
 {
-    // size/capacity only agree with the constructor's argument once the
-    // allocation actually succeeded - claiming `size` bytes of a null
-    // mData used to make every subsequent read/write believe there was a
-    // buffer to touch.
+    // Size/capacity are set only once the allocation succeeded.
     if (size && !mData)
         Log::error("ByteArray: out of memory allocating %zu bytes", size);
     else
@@ -84,11 +81,7 @@ bool ByteArray::ensureCapacity(usize neededTotal)
         return false;
     }
 
-    // Doubling until >= neededTotal, but checked: neededTotal itself may
-    // already be within a factor of two of SIZE_MAX (an attacker-controlled
-    // chunk size, a corrupted length prefix), and `*= 2` past that either
-    // wraps to a small number - silently under-allocating - or never
-    // reaches neededTotal at all, looping forever.
+    // Checked doubling: neededTotal near SIZE_MAX (corrupt length) would make `*= 2` wrap or loop forever.
     usize newCapacity = mCapacity == 0 ? 64 : mCapacity;
     while (newCapacity < neededTotal)
     {
@@ -211,7 +204,7 @@ std::string ByteArray::readString()
     while (mPos < mSize && mData[mPos] != '\n')
         s.push_back((char)mData[mPos++]);
     if (mPos < mSize)
-        ++mPos; // consume the newline
+        ++mPos;
     return s;
 }
 
@@ -275,8 +268,7 @@ bool ByteArray::writeString(const std::string& s)
 
 bool ByteArray::writeLine(const std::string& s)
 {
-    // Both must succeed, or a caller checking the result cannot tell a line
-    // that got its text but not its terminator from one that got neither.
+    // Both writes must succeed, or the caller cannot tell a partial line from none.
     const bool wroteText = writeString(s);
     return writeU8((uint8)'\n') && wroteText;
 }
@@ -286,9 +278,7 @@ bool ByteArray::writeBytes(const void* src, usize n)
     if (n == 0)
         return true;
 
-    // Checked, not `mPos + n`: mPos and n both ultimately come from calls a
-    // caller controls the size of (a string, a chunk being re-serialised),
-    // and their sum can wrap before ever reaching ensureCapacity().
+    // Checked, not `mPos + n`: the sum can wrap before reaching ensureCapacity().
     if (mPos > static_cast<usize>(-1) - n)
     {
         Log::error("ByteArray: write of %zu bytes at offset %zu overflows", n, mPos);
@@ -296,7 +286,7 @@ bool ByteArray::writeBytes(const void* src, usize n)
     }
     const usize neededTotal = mPos + n;
     if (!ensureCapacity(neededTotal))
-        return false; // ensureCapacity already logged why
+        return false;
 
     memcpy(mData + mPos, src, n);
     mPos = neededTotal;

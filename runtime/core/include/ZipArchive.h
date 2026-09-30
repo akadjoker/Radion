@@ -20,8 +20,7 @@ public:
     ZipArchive(const ZipArchive&) = delete;
     ZipArchive& operator=(const ZipArchive&) = delete;
 
-    // Parses the central directory of a zip file already loaded into memory.
-    // Takes ownership of the raw zip bytes (kept around for on-demand reads).
+    // Takes ownership of the zip bytes (kept for on-demand reads).
     bool openFromMemory(ByteArray&& zipData);
 
     bool exists(const std::string& name) const override;

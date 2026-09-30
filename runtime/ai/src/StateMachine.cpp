@@ -1,5 +1,3 @@
-// StateMachine.cpp - implementation of the Radion AI state machine.
-
 #include "PCH.h"
 
 #include "StateMachine.h"
@@ -23,12 +21,8 @@ StateMachine::~StateMachine()
 
 void StateMachine::iterate()
 {
-    // Every call below is a user callback, and a callback can reach back in
-    // here: setCurrentState(), removeState() - which deletes the State and
-    // every transition pointing at it - or anything that destroys the object
-    // the callbacks captured. So the state is pinned before each one and
-    // rechecked after: if it moved, this tick is over, because the list this
-    // loop is walking belongs to a state that may no longer exist.
+    // Every call below is a user callback that can reach back in (setCurrentState, removeState, destroying captured objects):
+    // pin the state before each and recheck after; if it moved, this tick is over.
     State* state = mCurrentState;
     if (!state)
         return;
@@ -37,9 +31,7 @@ void StateMachine::iterate()
     if (mCurrentState != state)
         return;
 
-    // By index, with size() re-read every turn: a callback may have erased
-    // transitions out of this very vector (removeState() does exactly that
-    // to any transition aimed at the state it removes).
+    // By index with size() re-read each turn: a callback may erase transitions from this vector (removeState()).
     std::vector<Transition*>& transitions = state->transitions();
     for (usize i = 0; i < transitions.size(); ++i)
     {
@@ -53,12 +45,11 @@ void StateMachine::iterate()
             continue;
         }
 
-        // Read the target before exit() runs: exit() can remove states, and
-        // removeState() deletes the transitions that name them.
+        // Read the target before exit(): exit() can remove states and their transitions.
         State* target = transition->targetPtr();
         state->exit();
         if (mCurrentState != state)
-            return; // exit() already moved the machine somewhere else
+            return;
         if (!target)
             return;
         mCurrentState = target;
@@ -88,13 +79,8 @@ void StateMachine::removeState(State* state)
     if (mCurrentState == state)
         mCurrentState = nullptr;
 
-    // A transition living in any other state can still point at `state`
-    // through targetPtr()/sourcePtr() - that pointer would dangle the moment
-    // `state` is deleted below. iterate() could then install it as
-    // mCurrentState on the next tick, and toDot() dereferences it
-    // unconditionally: both are a confirmed use-after-free without this.
-    // `state`'s own outgoing transitions do not need pruning here - they die
-    // with it, owned by its destructor.
+    // Transitions in other states may point at `state` via targetPtr()/sourcePtr(); prune them before the delete, or
+    // iterate()/toDot() hit a use-after-free. `state`'s own transitions die with it.
     for (State* other : mStates)
     {
         if (other == state)
@@ -127,8 +113,6 @@ State* StateMachine::findState(const std::string& name) const
 
 void StateMachine::reset()
 {
-    // Mirrors the reference cStateMachine::Reset(): jump to the first state
-    // registered and re-enter it.
     if (!mStates.empty())
         mCurrentState = mStates.front();
     if (mCurrentState)

@@ -9,11 +9,7 @@
 namespace Radion
 {
 
-// One full transform keyframe on a path, at an explicit time rather than an
-// index - legs do not have to be equal length. Ordered by `time` as they
-// are added. Rotation and scale default to identity/one, so a track that
-// only ever calls addKeyframe(time, position) still behaves exactly like a
-// position-only path.
+// Explicit time, so legs need not be equal length.
 struct PathKeyframe
 {
     f32 time = 0.0f;
@@ -22,9 +18,6 @@ struct PathKeyframe
     Math::vec3 scale = Math::vec3(1.0f);
 };
 
-// What evaluate() hands back: a full transform, not just a point, so a
-// PathAnimator can turn a camera to face along its own flight the same way
-// it flies it.
 struct PathPose
 {
     Math::vec3 position = Math::vec3(0.0f);
@@ -32,11 +25,7 @@ struct PathPose
     Math::vec3 scale = Math::vec3(1.0f);
 };
 
-// A named set of keyframes, built once and bound to as many PathAnimator
-// components as need to fly the same route - shared the way an AnimationClip
-// is. Always a closed loop: the track wraps from the last keyframe back to
-// the first, so a caller that wants a true loop (first and last keyframe at
-// the same pose, the way a patrol closes) adds that last point itself.
+// Always a closed loop: wraps last to first; add a matching last point for a true loop.
 class PathTrack
 {
 public:
@@ -47,22 +36,16 @@ public:
     bool empty() const;
     usize keyframeCount() const;
 
-    // The last keyframe's time - where the loop wraps back to the first.
     f32 duration() const;
 
-    // Position on a Catmull-Rom through the closed loop, rotation slerped
-    // and scale lerped between the two bracketing keyframes - at `time`,
-    // wrapped into [0, duration()). Two keyframes just oscillates between
-    // them; one holds still; none returns identity.
+    // Catmull-Rom position, slerped rotation, lerped scale; time wrapped into [0, duration()).
+    // One keyframe holds still; none returns identity.
     PathPose evaluate(f32 time) const;
 
 private:
     std::vector<PathKeyframe> mKeyframes;
 };
 
-// Plays a PathTrack onto its owner's transform, the way Animator plays a
-// clip onto a skeleton - a light, a camera, anything a GameObject carries
-// can be flown along a route without one-off spline code at every call site.
 class PathAnimator final : public Component
 {
 public:

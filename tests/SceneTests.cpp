@@ -161,8 +161,6 @@ bool near(const Math::mat4& a, const Math::mat4& b, f32 epsilon = 0.0001f)
     return true;
 }
 
-// Three bones stacked along +Y: root at the origin, then one unit up, then
-// one more - a straight two-link chain whose tip starts at (0,2,0).
 void buildIKTestSkeleton(Skeleton& skeleton)
 {
     const Math::mat4 step = Math::translate(Math::mat4(1.0f), Math::vec3(0.0f, 1.0f, 0.0f));
@@ -183,12 +181,9 @@ void testInverseKinematics()
     skeleton.bindPose(localPose);
     skeleton.evaluate(localPose, globalPose, palette);
 
-    // The starting pose is what the chain reaching assumes: tip two units up.
     CHECK(near(Math::vec3(globalPose[2][3]), Math::vec3(0.0f, 2.0f, 0.0f)));
 
-    // A target the chain can physically reach: same distance from the root as
-    // the chain is long, just in another direction. Unconstrained CCD should
-    // fold onto it.
+    // A reachable target: same distance from the root as the chain length, in another direction.
     IKChain chain;
     chain.tipBone = 2;
     chain.length = 2;
@@ -198,35 +193,28 @@ void testInverseKinematics()
 
     const Math::vec3 tip = Math::vec3(globalPose[2][3]);
     CHECK(std::isfinite(tip.x) && std::isfinite(tip.y) && std::isfinite(tip.z));
-    // Loose on purpose: CCD converges towards the target, it does not land on
-    // it exactly in a finite number of passes.
+    // Loose on purpose: CCD converges toward the target, not exactly in finite passes.
     CHECK(Math::distance(tip, chain.target) < 0.05f);
 
-    // The solver has to hand back a localPose and a globalPose that still
-    // agree with each other - the palette is rebuilt from localPose, so a
-    // globalPose that drifted from it would skin against a pose nothing else
-    // ever sees.
+    // localPose and globalPose must agree: the palette is rebuilt from localPose.
     std::vector<Math::mat4> reEvaluated;
     std::vector<Math::mat4> rePalette;
     skeleton.evaluate(localPose, reEvaluated, rePalette);
     for (u32 i = 0; i < skeleton.boneCount(); ++i)
         CHECK(near(reEvaluated[i], globalPose[i], 0.001f));
 
-    // A target the chain cannot reach must not produce NaN - it should just
-    // stretch as far as it goes.
     skeleton.bindPose(localPose);
     skeleton.evaluate(localPose, globalPose, palette);
     chain.target = Math::vec3(50.0f, 0.0f, 0.0f);
     IKSolver::solve(skeleton, chain, Math::mat4(1.0f), localPose, globalPose);
     const Math::vec3 stretched = Math::vec3(globalPose[2][3]);
     CHECK(std::isfinite(stretched.x) && std::isfinite(stretched.y) && std::isfinite(stretched.z));
-    CHECK(near(Math::length(stretched), 2.0f, 0.01f)); // still two units of bone
+    CHECK(near(Math::length(stretched), 2.0f, 0.01f));
 
-    // A target exactly on the joint has no direction to rotate along: it must
-    // bail rather than normalise a zero vector.
+    // A target exactly on the joint has no direction: bail rather than normalise zero.
     skeleton.bindPose(localPose);
     skeleton.evaluate(localPose, globalPose, palette);
-    chain.target = Math::vec3(0.0f, 1.0f, 0.0f); // the mid joint itself
+    chain.target = Math::vec3(0.0f, 1.0f, 0.0f);
     IKSolver::solve(skeleton, chain, Math::mat4(1.0f), localPose, globalPose);
     for (u32 i = 0; i < skeleton.boneCount(); ++i)
     {
@@ -234,9 +222,7 @@ void testInverseKinematics()
         CHECK(std::isfinite(bone.x) && std::isfinite(bone.y) && std::isfinite(bone.z));
     }
 
-    // The constrained path: this only asserts it stays finite and bounded, NOT
-    // that it converges - a hinge deliberately cannot reach most targets, and
-    // the reference's own per-axis formula is what decides how far it gets.
+    // Constrained path: only asserts finite and bounded, not convergence; a hinge cannot reach most targets.
     skeleton.bindPose(localPose);
     skeleton.evaluate(localPose, globalPose, palette);
     chain.target = Math::vec3(1.5f, 0.5f, 0.0f);
@@ -247,18 +233,16 @@ void testInverseKinematics()
     {
         const Math::vec3 bone = Math::vec3(globalPose[i][3]);
         CHECK(std::isfinite(bone.x) && std::isfinite(bone.y) && std::isfinite(bone.z));
-        CHECK(Math::length(bone) < 3.0f); // no joint flew off
+        CHECK(Math::length(bone) < 3.0f);
     }
 
-    // inverted() is the reference's knee_bending < 0 case: min and max swap,
-    // nothing negates.
+    // inverted(): min and max swap, nothing negates (the reference's knee_bending < 0 case).
     const IKConstraint knee = IKConstraint::knee();
     const IKConstraint flipped = knee.inverted();
     CHECK(near(flipped.minimum, knee.maximum));
     CHECK(near(flipped.maximum, knee.minimum));
     CHECK(flipped.enabled);
 
-    // A chain pointing at nothing must be a no-op, not a crash.
     std::vector<LocalPose> untouched;
     skeleton.bindPose(untouched);
     localPose = untouched;
@@ -446,26 +430,21 @@ void testGameObjectIds()
     CHECK(scene.findGameObject(0) == nullptr);
     CHECK(scene.findGameObject(9999) == nullptr);
 
-    // Per-Scene, not global: a second Scene starts counting from 1 again.
     Scene other;
     GameObject* stranger = other.createGameObject("stranger");
     CHECK(stranger->id() == 1);
     CHECK(other.findGameObject(1) == stranger);
     CHECK(scene.findGameObject(1) == first);
 
-    // Restoring an id, as loading a saved scene or undoing a delete does.
     GameObject* restored = scene.createGameObject(100, "restored");
     CHECK(restored && restored->id() == 100);
     CHECK(scene.findGameObject(100) == restored);
-    // The counter jumped past it, so nothing later lands on 100.
     CHECK(scene.createGameObject("after")->id() == 101);
 
-    // Taken and reserved ids are refused rather than quietly renumbered.
     CHECK(scene.createGameObject(100, "clash") == nullptr);
     CHECK(scene.createGameObject(0, "zero") == nullptr);
     CHECK(scene.findGameObject(100) == restored);
 
-    // A destroyed object takes its whole branch out of the table.
     GameObject* branch = scene.createGameObject(200, "branch");
     GameObject* leaf = scene.createGameObject(201, "leaf", branch);
     scene.update(0.016f);
@@ -475,8 +454,6 @@ void testGameObjectIds()
     CHECK(scene.findGameObject(200) == nullptr);
     CHECK(scene.findGameObject(201) == nullptr);
 
-    // Removed is not destroyed: the object keeps its id and can come back,
-    // which is what a delete/undo pair does.
     GameObject* parked = scene.createGameObject(300, "parked");
     scene.update(0.016f);
     scene.remove(parked);
@@ -488,16 +465,7 @@ void testGameObjectIds()
     CHECK(scene.findGameObject(300) == parked);
 }
 
-// Animation events: the frames a footstep lands or a hit connects. The
-// interval a frame crossed is what fires them, so the cases that matter are
-// the ones a naive "is the time past it" gets wrong - a loop that wrapped,
-// and a frame long enough to skip over one.
-// The same servo that works when a joint is built in C++ has to work when
-// the joint is a component, which is how the editor and every scene file
-// build one. It did not: rebuild() passes the owner as bodyA and the
-// connected body as bodyB, the opposite of what the constructors take, and
-// the motor's sign follows that order - so a joint set up in the editor
-// drove the wrong way and fought its own servo.
+// rebuild() passes the owner as bodyA and the connected body as bodyB, the opposite of the constructors, and the motor's sign follows that order: a component servo must drive the right way.
 void testJointComponentServoDrivesTheRightWay()
 {
     Scene scene;
@@ -520,8 +488,7 @@ void testJointComponentServoDrivesTheRightWay()
     hinge->setLimits(Math::radians(-90.0f), Math::radians(90.0f));
 
     scene.setRunningInEditor(false);
-    // Commanded BEFORE the joint is built, which is what a script doing this
-    // in on_start does: the order has to survive the joint being wired up.
+    // Commanded BEFORE the joint is built (a script in on_start): the order must survive wiring.
     hinge->setServo(0.5f, 500.0f, 2.0f);
     for (u32 i = 0; i < 600; ++i)
         scene.update(1.0f / 120.0f);
@@ -529,18 +496,13 @@ void testJointComponentServoDrivesTheRightWay()
     CHECK(std::isfinite(hinge->currentAngle()));
     CHECK(std::abs(hinge->currentAngle() - 0.5f) < 0.05f);
 
-    // Arriving lets it sleep, which is what should happen - and is also what
-    // used to make the next order do nothing at all: a sleeping body is
-    // skipped by the solver, so the servo sat there with the target accepted
-    // and the machine frozen. Anything built in the editor and driven from a
-    // script hit this the first time it stood still.
+    // Arriving lets the body sleep, and a sleeping body is skipped by the solver, which swallowed the next order.
     CHECK(!arm->awake());
 
     hinge->setServo(-0.4f, 500.0f, 2.0f);
     for (u32 i = 0; i < 600; ++i)
         scene.update(1.0f / 120.0f);
     CHECK(std::abs(hinge->currentAngle() + 0.4f) < 0.05f);
-    // And it settles again once it gets there.
     CHECK(!arm->awake());
 }
 
@@ -561,7 +523,6 @@ void testAnimationEventsFireOnTheFrameTheyAreCrossed()
     track.scales = {Math::vec3(1.0f), Math::vec3(1.0f)};
     clip.tracks().push_back(track);
 
-    // Deliberately added out of order: they have to come back sorted.
     clip.addEvent(0.75f, "right_foot");
     clip.addEvent(0.25f, "left_foot");
     CHECK(clip.events().size() == 2);
@@ -581,34 +542,27 @@ void testAnimationEventsFireOnTheFrameTheyAreCrossed()
 
     AnimationLayer& layer = animator->layer(0);
 
-    // Nothing yet: the first event is at 0.25.
     animator->update(0.1f);
     CHECK(layer.firedEvents().empty());
 
-    // Crossing 0.25 fires exactly one, and it is the right one.
     animator->update(0.2f);
     CHECK(layer.firedEvents().size() == 1);
     CHECK(layer.firedEvents()[0]->name == "left_foot");
 
-    // And it does not fire again while sitting past it.
     animator->update(0.1f);
     CHECK(layer.firedEvents().empty());
 
-    // A frame that wraps the loop fires the tail then the head, in that
-    // order: from 0.4 a jump of 0.9 lands at 0.3, crossing right_foot at
-    // 0.75 on the way out and left_foot at 0.25 on the way back in.
+    // A wrapping frame fires the tail then the head: from 0.4 a jump of 0.9 lands at 0.3, crossing right_foot at 0.75 then left_foot at 0.25.
     animator->update(0.9f);
     CHECK(layer.firedEvents().size() == 2);
     CHECK(layer.firedEvents()[0]->name == "right_foot");
     CHECK(layer.firedEvents()[1]->name == "left_foot");
 
-    // A frame longer than the whole clip fires each event once, not once per
-    // lap: a stutter must not spawn ten footsteps.
+    // A frame longer than the clip fires each event once, not once per lap.
     animator->update(5.0f);
     CHECK(layer.firedEvents().size() == 2);
 
-    // Removing one takes it out of the list too. On the local copy - the
-    // animator is still bound to the set built from it.
+    // Removal acts on the local copy; the animator stays bound to the set built from it.
     clip.removeEvent("left_foot");
     CHECK(clip.events().size() == 1);
     CHECK(clip.events()[0].name == "right_foot");
@@ -633,9 +587,7 @@ void testSceneSerializerEmptyRoundTrip()
     CHECK(reloaded.gameObjectCount() == 0);
 }
 
-// Every field the wheel joint and the servos own, written and read back.
-// The wheel used to save itself as a Hinge (jointKindName's default), so a
-// car came back as four dead hinges without a single error being reported.
+// The wheel used to save as a Hinge (jointKindName default), so a car came back as four dead hinges silently.
 void testJointSerializerRoundTrip()
 {
     Scene scene;
@@ -684,7 +636,7 @@ void testJointSerializerRoundTrip()
     if (!reloadedWheelObject)
         return;
     Physics::WheelJoint* reloadedWheel = reloadedWheelObject->getComponent<Physics::WheelJoint>();
-    CHECK(reloadedWheel != nullptr); // was a HingeJoint before the kind was named
+    CHECK(reloadedWheel != nullptr);
     if (!reloadedWheel)
         return;
 
@@ -718,9 +670,7 @@ void testJointSerializerRoundTrip()
     CHECK(near(reloadedHinge->motorMaxTorque(), 450.0f, 1e-2f));
 }
 
-// A recording camera keeps its own resolution across a save: the sensor is
-// 320x240 whatever the window is, and reloading at the default 640x480 would
-// silently change what a trained policy sees.
+// A recording camera keeps its own resolution (320x240) across a save; reloading at 640x480 would change what a trained policy sees.
 void testRecordingCameraRoundTrip()
 {
     Scene scene;
@@ -753,11 +703,9 @@ void testRecordingCameraRoundTrip()
     CHECK(reloadedCamera->recording());
     CHECK(reloadedCamera->recordWidth() == 320);
     CHECK(reloadedCamera->recordHeight() == 240);
-    // No frame has been rendered into it, so it has no texture yet - and a
-    // handle from another session must never be resurrected.
+    // No frame rendered yet so no texture; a handle from another session must never be resurrected.
     CHECK(!reloadedCamera->recordTexture().valid());
 
-    // Zero is not a resolution: clamped rather than accepted.
     reloadedCamera->setRecordSize(0, 0);
     CHECK(reloadedCamera->recordWidth() == 1);
     CHECK(reloadedCamera->recordHeight() == 1);
@@ -772,11 +720,8 @@ void testSceneSerializerFailedLoadLeavesSceneIntact()
 
     SceneSerializer serializer;
     SceneLoadResult result;
-    // Not even a JSON object - the earliest possible rejection.
     CHECK(!serializer.fromJson(nlohmann::json::array(), scene, result));
     CHECK(!result.success());
-    // Untouched: the marker object created before the failed load is still
-    // exactly what it was.
     CHECK(scene.gameObjectCount() == 1);
     CHECK(scene.findGameObject(marker->id()) == marker);
     CHECK(near(marker->position(), Math::vec3(1.0f, 2.0f, 3.0f)));
@@ -815,8 +760,6 @@ void testSceneSerializerHierarchyRoundTrip()
     const nlohmann::json document = serializer.toJson(scene);
     CHECK(document["scene"]["objects"].size() == 4);
 
-    // Determinism: serializing an unchanged scene twice must be byte for
-    // byte identical.
     CHECK(document.dump(4) == serializer.toJson(scene).dump(4));
 
     Scene reloaded;
@@ -835,7 +778,6 @@ void testSceneSerializerHierarchyRoundTrip()
     CHECK(reParent->parent() == reGrandparent);
     CHECK(reChildA->parent() == reParent);
     CHECK(reChildB->parent() == reParent);
-    // Sibling order preserved.
     CHECK(reParent->childIndex(reChildA) == 0);
     CHECK(reParent->childIndex(reChildB) == 1);
 
@@ -848,8 +790,6 @@ void testSceneSerializerHierarchyRoundTrip()
     CHECK(near(reChildA->scale(), childA->scale()));
     CHECK(!reChildB->active());
 
-    // Re-serializing the reload must match the original document - a
-    // round-trip that changed nothing must not perturb the file.
     CHECK(serializer.toJson(reloaded).dump(4) == document.dump(4));
 }
 
@@ -881,7 +821,6 @@ void testSceneSerializerValidation()
         return object;
     };
 
-    // Duplicate id.
     {
         Scene scene;
         SceneLoadResult result;
@@ -893,7 +832,6 @@ void testSceneSerializerValidation()
         CHECK(scene.gameObjectCount() == 0);
     }
 
-    // Id zero is reserved.
     {
         Scene scene;
         SceneLoadResult result;
@@ -903,7 +841,6 @@ void testSceneSerializerValidation()
         CHECK(!result.success());
     }
 
-    // Self-parent.
     {
         Scene scene;
         SceneLoadResult result;
@@ -913,7 +850,6 @@ void testSceneSerializerValidation()
         CHECK(!result.success());
     }
 
-    // Parent that does not exist.
     {
         Scene scene;
         SceneLoadResult result;
@@ -923,7 +859,6 @@ void testSceneSerializerValidation()
         CHECK(!result.success());
     }
 
-    // Parent cycle: 1 -> 2 -> 1.
     {
         Scene scene;
         SceneLoadResult result;
@@ -934,13 +869,12 @@ void testSceneSerializerValidation()
         CHECK(!result.success());
     }
 
-    // A child listed before its parent in the array must still work - order
-    // in the file is not assumed to be pre-order.
+    // Order in the file is not assumed to be pre-order.
     {
         Scene scene;
         SceneLoadResult result;
         nlohmann::json objects = nlohmann::json::array();
-        objects.push_back(validObject(2, 1)); // child first
+        objects.push_back(validObject(2, 1));
         objects.push_back(validObject(1, nullptr));
         CHECK(serializer.fromJson(baseDocument(objects), scene, result));
         CHECK(result.success());
@@ -949,7 +883,6 @@ void testSceneSerializerValidation()
         CHECK(parent && child && child->parent() == parent);
     }
 
-    // NaN/Infinity position.
     {
         Scene scene;
         SceneLoadResult result;
@@ -961,7 +894,6 @@ void testSceneSerializerValidation()
         CHECK(!result.success());
     }
 
-    // Zero-length rotation quaternion.
     {
         Scene scene;
         SceneLoadResult result;
@@ -973,7 +905,6 @@ void testSceneSerializerValidation()
         CHECK(!result.success());
     }
 
-    // Zero scale component.
     {
         Scene scene;
         SceneLoadResult result;
@@ -985,7 +916,6 @@ void testSceneSerializerValidation()
         CHECK(!result.success());
     }
 
-    // Wrong-sized transform array.
     {
         Scene scene;
         SceneLoadResult result;
@@ -997,7 +927,6 @@ void testSceneSerializerValidation()
         CHECK(!result.success());
     }
 
-    // A missing name is a warning, not an error - the load still succeeds.
     {
         Scene scene;
         SceneLoadResult result;
@@ -1185,7 +1114,7 @@ void testSceneSerializerCameraRoundTrip()
 
     SceneSerializer serializer;
     const nlohmann::json document = serializer.toJson(scene);
-    CHECK(document.dump(4) == serializer.toJson(scene).dump(4)); // deterministic
+    CHECK(document.dump(4) == serializer.toJson(scene).dump(4));
 
     Scene reloaded;
     SceneLoadResult result;
@@ -1206,7 +1135,6 @@ void testSceneSerializerCameraRoundTrip()
     }
     CHECK(reloaded.activeCamera() == reCamera);
 
-    // Orthographic round-trips the other branch of the same field.
     Scene orthoScene;
     GameObject* orthoObject = orthoScene.createGameObject("ortho");
     Camera* orthoCamera = orthoObject->addComponent<Camera>();
@@ -1297,7 +1225,6 @@ void testSceneSerializerComponentValidation()
         return object;
     };
 
-    // Unknown component type: a warning, not a load failure.
     {
         Scene scene;
         SceneLoadResult result;
@@ -1313,7 +1240,6 @@ void testSceneSerializerComponentValidation()
         CHECK(sawWarning);
     }
 
-    // Several instances of a component type are valid and retain their order.
     {
         Scene scene;
         SceneLoadResult result;
@@ -1334,7 +1260,6 @@ void testSceneSerializerComponentValidation()
         CHECK(object && object->componentCount<Camera>() == 2);
     }
 
-    // Camera missing its projection field.
     {
         Scene scene;
         SceneLoadResult result;
@@ -1346,8 +1271,7 @@ void testSceneSerializerComponentValidation()
         CHECK(!result.success());
     }
 
-    // MeshRenderer with no mesh field at all. A present null field is the
-    // editor's intentional blank Mesh Instance and is therefore valid.
+    // A present null mesh field is the editor's intentional blank Mesh Instance and is valid.
     {
         Scene scene;
         SceneLoadResult result;
@@ -1359,7 +1283,6 @@ void testSceneSerializerComponentValidation()
         CHECK(!result.success());
     }
 
-    // An explicit null mesh preserves an empty Mesh Instance.
     {
         Scene scene;
         SceneLoadResult result;
@@ -1426,8 +1349,7 @@ void testAudioPlayerRoundTrip()
     CHECK(std::fabs(rePlayer->maxDistance() - 42.0f) < 1e-5f);
     CHECK(std::fabs(rePlayer->rolloff() - 2.0f) < 1e-5f);
 
-    // Music releases the loaded sound, so it has to be applied before the
-    // source on read - otherwise the file read is thrown away.
+    // Music releases the loaded sound, so it must be applied before the source on read, or the file read is thrown away.
     GameObject* musicObject = scene.createGameObject("radio");
     AudioPlayer* music = musicObject->addComponent<AudioPlayer>();
     music->setMusic(true);
@@ -1489,9 +1411,6 @@ void testRigidBodyRoundTrip()
     CHECK(!reBody->enabled());
 }
 
-// A dynamic sphere dropped above a static box falls under gravity and comes
-// to rest on top of it, with the simulated pose written back into the
-// GameObject every step - what actually makes the fall visible.
 void testRigidBodyFalls()
 {
     Scene scene;
@@ -1520,13 +1439,9 @@ void testRigidBodyFalls()
     CHECK(near(restPosition.x, 0.0f, 0.2f));
     CHECK(near(restPosition.z, 0.0f, 0.2f));
     CHECK(Math::length(ball->velocity()) < 0.5f);
-    // Static never gets written back - it must still be exactly where it
-    // was placed.
     CHECK(near(floorObject->globalPosition(), Math::vec3(0.0f)));
 }
 
-// Disposing a GameObject mid-simulation must drop its body from the Scene's
-// rigid body list cleanly - no crash and no further updates once it is gone.
 void testRigidBodyDestroyedMidSimulation()
 {
     Scene scene;
@@ -1561,8 +1476,6 @@ void testRigidBodyDestroyedMidSimulation()
     CHECK(scene.rigidBodies().size() == 1);
 }
 
-// The editor runs the same update loop while placing objects, so a Dynamic
-// body must not fall until Play actually starts the simulation.
 void testRigidBodyRunningInEditorFreezesSimulation()
 {
     Scene scene;
@@ -1594,9 +1507,7 @@ void testRigidBodyRunningInEditorFreezesSimulation()
     CHECK(ballObject->globalPosition().y < 2.9f);
 }
 
-// A Dynamic body placed by hand while the simulation is already running -
-// setPosition() after addComponent(), a script teleporting it - must carry on
-// from the new pose, not snap back to where the RigidBody last was.
+// A hand-placed body (setPosition() after addComponent()) must carry on from the new pose, not snap back.
 void testRigidBodyTeleportInPlay()
 {
     Scene scene;
@@ -1630,10 +1541,6 @@ void testRigidBodyTeleportInPlay()
     CHECK(afterTeleport.y > 5.5f && afterTeleport.y <= 6.0f);
 }
 
-// A Joint component builds itself lazily: rebuild() runs on the first
-// physics step once both sides have a RigidBody, and the anchor it picks
-// (this object's own position) then holds the two bodies together instead
-// of letting the dynamic one fall away under gravity.
 void testJointComponentRebuildsAndHoldsAnchor()
 {
     Scene scene;
@@ -1830,8 +1737,6 @@ void testUiControlsRoundTrip()
     CHECK(reSlider && std::fabs(reSlider->maximum() - 200.0f) < 1e-5f);
     CHECK(reSlider && std::fabs(reSlider->value() - 75.0f) < 1e-5f);
 
-    // Hierarchy rides along with the rest of a scene save: every widget
-    // is still parented under the panel, itself under the canvas.
     CHECK(rePanelObject && rePanelObject->parent() == reCanvasObject);
     CHECK(reLabelObject && reLabelObject->parent() == rePanelObject);
     CHECK(reButtonObject && reButtonObject->parent() == rePanelObject);
@@ -1858,11 +1763,9 @@ void testPrefabRoundTrip()
     prefab.saveFromObject(*root);
     CHECK(prefab.valid());
     CHECK(prefab.data()["scene"]["objects"].size() == 3);
-    // The subtree root's parent is nulled, so the document parses without
-    // needing an id that was never written into it.
+    // The subtree root's parent is nulled so the document parses without an id that was never written.
     CHECK(prefab.data()["scene"]["objects"][0]["parent"].is_null());
 
-    // Into the same scene it came from: fresh ids, originals untouched.
     SceneLoadResult result;
     GameObject* first = prefab.instantiate(scene, nullptr, result);
     scene.update(0.016f);
@@ -1876,18 +1779,15 @@ void testPrefabRoundTrip()
     CHECK(first->tag() == "enemy");
     CHECK(first->childCount() == 1);
     CHECK(scene.gameObjectCount() == 6);
-    // The scene's own root keeps its name - the document's belongs to the
-    // subtree, not to what it is dropped into.
+    // The scene's root keeps its name; the document's belongs to the subtree.
     CHECK(scene.root().name() != "turret");
 
-    // A second instance is independent of the first.
     GameObject* second = prefab.instantiate(scene, nullptr, result);
     scene.update(0.016f);
     CHECK(second != nullptr);
     CHECK(second && second->id() != first->id());
     CHECK(scene.gameObjectCount() == 9);
 
-    // Components ride along: the grandchild's AudioPlayer came back.
     GameObject* cloneBarrel = first->childCount() > 0 ? first->child(0) : nullptr;
     GameObject* cloneMuzzle = cloneBarrel && cloneBarrel->childCount() > 0 ? cloneBarrel->child(0)
                                                                           : nullptr;
@@ -1896,7 +1796,6 @@ void testPrefabRoundTrip()
     CHECK(clonePlayer && clonePlayer->source() == "sounds/shot.wav");
     CHECK(clonePlayer && clonePlayer->spatial());
 
-    // Under an explicit parent.
     GameObject* holder = scene.createGameObject("holder");
     scene.update(0.016f);
     GameObject* third = prefab.instantiate(scene, holder, result);
@@ -1904,7 +1803,6 @@ void testPrefabRoundTrip()
     CHECK(third != nullptr);
     CHECK(third && third->parent() == holder);
 
-    // Into a scene that never saw the original.
     Scene other;
     SceneLoadResult otherResult;
     GameObject* elsewhere = prefab.instantiate(other, nullptr, otherResult);
@@ -1913,7 +1811,6 @@ void testPrefabRoundTrip()
     CHECK(elsewhere != nullptr);
     CHECK(other.gameObjectCount() == 3);
 
-    // Through disk and back.
     const std::filesystem::path file =
         std::filesystem::temp_directory_path() / "radion_prefab_test.rprefab";
     CHECK(prefab.saveToFile(file.string(), *root));
@@ -1931,13 +1828,11 @@ void testPrefabRoundTrip()
     CHECK(fromDisk.gameObjectCount() == 3);
     std::filesystem::remove(file);
 
-    // An unloaded prefab instantiates nothing rather than half a subtree.
     Prefab empty;
     CHECK(!empty.valid());
     SceneLoadResult emptyResult;
     CHECK(empty.instantiate(scene, nullptr, emptyResult) == nullptr);
 
-    // A document with no objects is an error, not a crash.
     Prefab malformed;
     nlohmann::json bad;
     bad["scene"]["objects"] = nlohmann::json::array();
@@ -2111,10 +2006,7 @@ void testShadowLayout()
             for (u32 row = 0; row < 4; ++row)
                 CHECK(std::isfinite(data.viewProjection[cascade][column][row]));
 
-    // Sub-texel camera translation must not make the shadow footprint crawl
-    // in X/Y. Z may legitimately change continuously because it preserves
-    // caster depth precision, so compare projected coordinates rather than
-    // requiring the complete matrices to be bit-identical.
+    // Sub-texel camera translation must not crawl the shadow footprint in X/Y; Z may change (it preserves depth precision), so compare projected coordinates.
     ShadowCamera shifted = camera;
     const Math::vec3 delta(0.00001f, 0.0f, 0.0f);
     shifted.view = Math::lookAt(Math::vec3(0.0f, 3.0f, 8.0f) + delta, Math::vec3(0.0f) + delta,
@@ -2509,9 +2401,6 @@ void testDebugDrawGeometry()
     CHECK(debug.empty());
 }
 
-// The generator runs on the CPU and touches no GPU state, so the whole of it
-// is checkable here: every preset has to come out as a closed, finite mesh
-// with both submeshes present and its indices inside the vertex range.
 void testProceduralTrees()
 {
     CHECK(Assets().treePresetCount() > 0);
@@ -2530,8 +2419,7 @@ void testProceduralTrees()
         CHECK(tree.tangents.size() == tree.positions.size());
         CHECK(tree.indices.size() % 3 == 0);
 
-        // Bark first, twigs after, and between them they have to account for
-        // every index - a gap would mean geometry that never gets drawn.
+        // Bark and twigs must account for every index; a gap is geometry that never draws.
         CHECK(tree.submeshes[0].indexOffset == 0);
         CHECK(tree.submeshes[0].indexCount > 0);
         CHECK(tree.submeshes[1].indexCount > 0);
@@ -2554,14 +2442,11 @@ void testProceduralTrees()
         }
         CHECK(finite);
 
-        // Trunk base at the origin, growing up: a tree that came out upside
-        // down or off-centre would plant wrong on the terrain.
+        // Base at the origin growing up: upside down or off-centre would plant wrong.
         CHECK(tree.bounds.max.y > tree.bounds.min.y);
         CHECK(near(tree.bounds.min.y, 0.0f, 0.5f));
     }
 
-    // Same seed, same tree; a different seed, a different one. The generator
-    // holds no state between calls.
     MeshData first;
     MeshData second;
     TreeParams params = Assets().treePreset(0).params;
@@ -2575,8 +2460,7 @@ void testProceduralTrees()
     Assets().buildTree(other, params);
     CHECK(other.positions != first.positions);
 
-    // Odd or tiny segment counts are corrected, not honoured: the fork builder
-    // walks segments/2 and would leave holes.
+    // Odd or tiny segment counts are corrected: the fork builder walks segments/2 and would leave holes.
     MeshData odd;
     params = Assets().treePreset(0).params;
     params.segments = 5;
@@ -2584,7 +2468,6 @@ void testProceduralTrees()
     CHECK(odd.indices.size() % 3 == 0);
     CHECK(odd.positions.size() > 0);
 
-    // Levels below 1 still has to produce a trunk rather than an empty mesh.
     MeshData minimal;
     params = Assets().treePreset(0).params;
     params.levels = 0;
@@ -2607,9 +2490,6 @@ void testProceduralTrees()
     }
 }
 
-// Species need a GPU to upload to, so what is checkable here is the part that
-// runs before one: the component registers, the ranges clamp, and nothing
-// plants against a library that is still empty.
 void testForestWithoutSpecies()
 {
     Scene scene;
@@ -2633,8 +2513,6 @@ void testForestWithoutSpecies()
     forest->setDrawDistance(250.0f);
     CHECK(near(forest->drawDistance(), 250.0f));
 
-    // An inverted range collapses to its minimum rather than producing
-    // negative scales further down.
     forest->setScaleRange(2.0f, 1.0f);
     forest->setSeed(99u);
     CHECK(forest->paint(Math::vec3(0.0f), 10.0f, 10) == 0);
@@ -2668,29 +2546,18 @@ void testParticleEffect()
     scene.update(0.0f);
     CHECK(effect->isPlaying());
 
-    // Without a GPU-driven update the particles never really spawn, but the
-    // one-shot timer still advances. After lifeMax it reports finished.
-    //
-    // Auto-destroy is off for this part: onUpdate() disposes the owner the
-    // moment isFinished() goes true, and Scene::update()'s own flushChanges()
-    // at the end of that same call physically deletes it - no grace frame,
-    // by design. Checking effect/object through either pointer straight
-    // after would be a use-after-free, not something that happens to work.
+    // Auto-destroy off: onUpdate() disposes the owner when isFinished() and flushChanges() deletes it with no grace frame, so touching the pointers afterwards is a use-after-free.
     effect->setAutoDestroy(false);
     scene.update(effect->emitter().lifeMax * 1.1f);
     CHECK(effect->isFinished());
     CHECK(!object->disposed());
 
-    // mAliveTimer only ever grows, so isFinished() stays true - re-enabling
-    // auto-destroy and running one more update is what actually disposes the
-    // owner. gameObjectCount(), not the (about to be freed) pointers, is
-    // what verifies it.
+    // mAliveTimer only grows, so isFinished() stays true; re-enabling auto-destroy and updating disposes the owner, verified via gameObjectCount().
     effect->setAutoDestroy(true);
     const usize objectCountBeforeDestroy = scene.gameObjectCount();
     scene.update(0.0f);
     CHECK(scene.gameObjectCount() == objectCountBeforeDestroy - 1);
 
-    // Continuous effect: should not auto-destroy while playing.
     GameObject* persistent = scene.createGameObject("smoke");
     persistent->setGlobalPosition(Math::vec3(0.0f));
     ParticleEffect* smoke = persistent->addComponent<ParticleEffect>();
@@ -2701,7 +2568,6 @@ void testParticleEffect()
     CHECK(!persistent->disposed());
     smoke->stop();
 
-    // Pool: one-shot spawned through the pool stays active, then gets reclaimed.
     ParticleSystem::Emitter burst = ParticleEffect::presetExplosion();
     ParticleEffect* spawned = ParticleEffectPool::getSingleton().spawn(burst, 32, Math::vec3(0.0f));
     CHECK(spawned != nullptr);
@@ -2869,10 +2735,7 @@ void testMaterialSaveParserRoundTrip()
     CHECK(
         !MaterialParser::parse("material bad { properties { roughness - } }", definitions, &error));
     CHECK(!MaterialParser::parse("material \"unterminated", definitions, &error));
-    // A duplicate name is survivable, unlike the syntax errors around it: the
-    // file parses, the first occurrence stands and the rest are skipped. One
-    // bad entry taking a Bistro-sized sidecar's other thousands with it is the
-    // worse outcome, so MaterialParser warns and carries on.
+    // A duplicate name is survivable: the first occurrence stands and the rest are skipped, so one bad entry does not cost a huge sidecar.
     CHECK(MaterialParser::parse("material same {} material same {}", definitions, &error));
     CHECK(definitions.size() == 1);
     CHECK(!MaterialParser::parse("material bad { textures { texture albedo { type Static } } }",
@@ -2884,8 +2747,7 @@ void testMaterialSaveParserRoundTrip()
     CHECK(!MaterialParser::parse("material bad { animations { pulse { type SineWave speed 1 } } }",
                                  definitions, &error));
 
-    // Exercise replacement of an existing sidecar too: save uses a temporary
-    // file and backup, but neither may remain after a successful commit.
+    // Replacing an existing sidecar: the temporary file and backup must not remain after commit.
     material.params.custom0.w = 2.25f;
     CHECK(MaterialManager::getSingleton().save(path.string(), {material}));
     CHECK(MaterialParser::parseFile(path.string(), definitions, &error));
@@ -2909,18 +2771,13 @@ void testMeshRendererMaterialOwnershipState()
     CHECK(!renderer->materialOverrides()[0].paramsBuffer.valid());
     CHECK(!renderer->materialOverrides()[0].pipeline.valid());
 
-    // A new mesh has a different slot layout. Keeping the old override here
-    // used to retain both stale authored data and any UBO allocated for it.
     MeshHandle replacement;
     replacement.index = 7;
     replacement.generation = 1;
     renderer->setMesh(replacement);
     CHECK(renderer->materialOverrideCount() == 0);
 
-    // A stack-owned Scene can be destroyed after an explicit
-    // Engine::shutdown(). At that point its override handles refer to the
-    // device that has already been torn down: cleanup must invalidate them,
-    // not call the strict GPU singleton and abort the process.
+    // A stack Scene destroyed after Engine::shutdown(): override handles refer to a torn-down device, so cleanup must invalidate them, not call the strict GPU singleton.
     if (!GPU::tryGet())
     {
         Material orphaned;

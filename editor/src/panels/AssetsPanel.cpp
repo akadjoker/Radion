@@ -54,8 +54,7 @@ bool isImageAsset(const std::string& extension)
     return extension == "png" || extension == "jpg" || extension == "jpeg" ||
           extension == "tga" || extension == "bmp" || extension == "dds" || extension == "hdr" ||
           extension == "webp";
-    // .exr left out on purpose: AssetTexture's loader does not read it, so
-    // loadTexture() would just fail every frame this tried to thumbnail one.
+    // .exr left out: AssetTexture's loader does not read it, so loadTexture() would fail every frame.
 }
 
 bool isScriptAsset(const std::string& extension)
@@ -63,9 +62,7 @@ bool isScriptAsset(const std::string& extension)
     return extension == "py";
 }
 
-// A create dialog takes a single entry name, never a path: allowing a slash
-// here would make a harmless-looking "new script" action write outside the
-// directory the user right-clicked.
+// A create dialog takes a name, never a path: a slash would write outside the right-clicked directory.
 bool isValidEntryName(const char* name)
 {
     return name && name[0] != '\0' && std::strcmp(name, ".") != 0 && std::strcmp(name, "..") != 0 &&
@@ -115,10 +112,7 @@ std::string makeScriptTemplate(const char* name)
            "        pass\n";
 }
 
-// Only what MeshLoader actually has an importer registered for
-// (AssetManager.cpp's importer list) - .dae has no importer at all, so it
-// stays a plain file icon rather than offering an Import that would just
-// fail.
+// Only formats MeshLoader has an importer for (AssetManager.cpp); .dae has none.
 bool isMeshAsset(const std::string& extension)
 {
     return extension == "obj" || extension == "fbx" || extension == "gltf" || extension == "glb" ||
@@ -126,17 +120,13 @@ bool isMeshAsset(const std::string& extension)
           extension == "b3d" || extension == "3ds" || extension == "ms3d";
 }
 
-// Radion's own format - already the engine's native representation, so
-// bringing one into the scene is a plain Load. Everything else in
-// isMeshAsset() goes through one of the foreign-format importers instead,
-// which is what "Import" means here.
+// Radion's native format: a plain Load; everything else in isMeshAsset() needs an importer.
 bool isNativeMeshAsset(const std::string& extension)
 {
     return extension == "rmesh" || extension == "rstm";
 }
 
-// A saved GameObject subtree (Prefab::saveToFile()'s own format) - reading
-// one is a plain SceneSerializer::subtreeFromJson(), not an importer.
+// A saved GameObject subtree (Prefab::saveToFile()), read by SceneSerializer::subtreeFromJson().
 bool isPrefabAsset(const std::string& extension)
 {
     return extension == "rprefab";
@@ -333,9 +323,6 @@ const char* iconForAsset(const FileSystem::DirEntry& entry)
     return ICON_MDI_FILE;
 }
 
-// One colour per category so the icon-only grid reads at a glance instead of
-// every entry being the same white glyph - a folder should not look like a
-// mesh should not look like a script.
 ImVec4 iconColorForAsset(const FileSystem::DirEntry& entry)
 {
     if (entry.isDirectory)
@@ -377,9 +364,7 @@ void AssetsPanel::navigateTo(const std::filesystem::path& directory)
     const std::filesystem::path normalized = directory.lexically_normal();
     if (normalized == mCurrentDirectory)
         return;
-    // Drop anything ahead of the current spot first - the same rule a
-    // browser's own history follows: going Back and then somewhere new
-    // abandons the branch that used to be reachable by Forward.
+    // Drop anything ahead of the current spot, as a browser's history does.
     mHistory.erase(mHistory.begin() + static_cast<std::ptrdiff_t>(mHistoryPosition) + 1,
                    mHistory.end());
     mHistory.push_back(normalized);
@@ -409,12 +394,7 @@ void AssetsPanel::refreshEntries(const std::filesystem::path& directory)
 
 namespace
 {
-// TreeNodeEx's own arrow is a few pixels of triangle at the row's own font
-// size - easy to miss, and OpenOnArrow means missing it just re-navigates
-// instead of expanding. ArrowButton is a full, dedicated widget (its own
-// hit-box, drawn with ImGui's native RenderArrow rather than a glyph from
-// whatever icon font may or may not have loaded), so every row in the
-// browser tree gets one explicitly instead of relying on it.
+// TreeNodeEx's arrow is tiny and OpenOnArrow re-navigates if missed; an explicit ArrowButton has its own hit-box and ImGui-native arrow.
 bool drawExpandArrow(ImGuiStorage* storage, bool hasChildren)
 {
     if (!hasChildren)
@@ -443,9 +423,6 @@ bool directoryHasSubdirectory(const std::filesystem::path& directory)
 }
 } // namespace
 
-// One top-level tree row for a fixed location (project Assets, engine
-// Assets, an extra search path, or the filesystem root) - clicking the label
-// jumps straight there, the arrow drills into it with drawDirectoryTree().
 void AssetsPanel::drawBookmark(const char* label, const std::filesystem::path& root)
 {
     std::error_code error;
@@ -454,10 +431,7 @@ void AssetsPanel::drawBookmark(const char* label, const std::filesystem::path& r
 
     const std::filesystem::path normalizedRoot = root.lexically_normal();
 
-    // By the path, not the label: two search paths with the same basename
-    // (models/soldier/textures and models/castel/textures both showing as
-    // "textures", say) are different bookmarks and need different ids, or
-    // ImGui reports them as one conflicting widget and renders neither right.
+    // Id by path, not label: same-basename search paths would otherwise collide in ImGui.
     ImGui::PushID(normalizedRoot.string().c_str());
     const bool open = drawExpandArrow(ImGui::GetStateStorage(), true);
     const std::string rowLabel = std::string(ICON_MDI_FOLDER) + " " + label;
@@ -489,8 +463,7 @@ void AssetsPanel::drawDirectoryTree(const std::filesystem::path& directory)
         {
             if (!entry.isDirectory)
                 continue;
-            // The has-children peek behind the arrow is a listDirectory() of
-            // its own - done here, once per cache fill, never per frame.
+            // The has-children peek is its own listDirectory(): once per cache fill, never per frame.
             listing.names.push_back(entry.name);
             listing.hasChildren.push_back(directoryHasSubdirectory(directory / entry.name) ? 1
                                                                                            : 0);
@@ -548,12 +521,7 @@ bool AssetsPanel::assetRelativePath(const std::filesystem::path& absolute, std::
             std::filesystem::relative(normalized, root.lexically_normal(), error);
         if (error || relative.empty())
             continue;
-        // std::filesystem::relative() happily returns a path starting with
-        // ".." when `absolute` is not actually under `root` - that is not a
-        // match, it is "how far away", so reject it the same way a failed
-        // resolve would be. "." is the opposite case - `absolute` IS `root`
-        // itself, exactly - and is a real match, not a rejection; only a
-        // caller passing a directory (not a file under it) ever sees it.
+        // relative() returns a ".."-prefixed path when `absolute` is not under `root`: reject that; "." means `absolute` IS `root`, a real match.
         const std::string relativeString = relative.generic_string();
         if (relativeString.rfind("..", 0) == 0)
             continue;
@@ -575,9 +543,7 @@ TextureHandle AssetsPanel::thumbnailFor(const std::string& relativePath)
     if (it != mThumbnailCache.end())
         return it->second;
 
-    // sRGB: a browser thumbnail is judged by eye like any other colour image,
-    // never sampled as data - the one place colorSpaceFor(slot) does not
-    // apply because there is no material slot yet to ask it about.
+    // sRGB: a thumbnail is judged by eye; colorSpaceFor(slot) does not apply without a material slot.
     const TextureHandle texture = Assets().loadTexture(relativePath, ColorSpace::sRGB);
     mThumbnailCache.emplace(relativePath, texture);
     return texture;
@@ -585,9 +551,7 @@ TextureHandle AssetsPanel::thumbnailFor(const std::string& relativePath)
 
 std::string AssetsPanel::importOutputBase()
 {
-    // mImportPath is relative to whichever registered search path
-    // assetRelativePath() matched it against - resolve() already tries every
-    // one of them, so there is no single root to prefix it with here.
+    // mImportPath is relative to whichever search path matched; resolve() tries them all, so no root prefix here.
     const std::string resolved = FileSystem::getSingleton().resolve(mImportPath);
     const std::string base =
         resolved.empty() ? app().assetBrowserRoot() + "/" + mImportPath : resolved;
@@ -617,13 +581,9 @@ void AssetsPanel::instantiatePrefab(const std::string& relativePath)
         return;
     }
 
-    // Position only - rotation/scale are what the prefab was saved with, and
-    // stay untouched. Children keep their own transform, local to this root.
+    // Position only; rotation/scale stay as saved, children stay local to this root.
     object->setPosition(app().cursor3D());
-    // Prefab::instantiate() only queues the new objects; they are not walkable
-    // (childCount(), the transform hierarchy) until the Scene's normal add
-    // flush runs, ordinarily at the top of next frame. Selecting one right
-    // away needs that flush now instead.
+    // Prefab::instantiate() only queues objects; flush now so selecting one right away works.
     app().scene().update(0.0f);
     app().selection().select(object->id());
     app().markDirty();
@@ -654,9 +614,7 @@ void AssetsPanel::drawDeletePopup()
     ImGui::TextWrapped("This deletes the file from disk. The editor's undo cannot bring it back, "
                        "and any scene still pointing at it will fail to load its mesh.");
 
-    // A mesh asset never travels alone: the .material and .rskel written
-    // beside it are useless without it and would otherwise be left behind as
-    // orphans nobody remembers deleting.
+    // A mesh asset's .material and .rskel are useless without it; delete them together to avoid orphans.
     static const char* const companions[] = {".material", ".rskel"};
     const std::string base = FileSystem::withoutExtension(target);
     std::vector<std::string> extras;
@@ -709,8 +667,7 @@ void AssetsPanel::drawImportPopup()
     }
 
     ImGui::SetNextWindowSize(ImVec2(340.0f, 0.0f), ImGuiCond_Appearing);
-    // Import options must not capture the whole editor: while this popup is
-    // open the user may still need to drag a texture into Terrain/Inspector.
+    // Import options must not capture the whole editor: the user may still drag a texture into Terrain/Inspector.
     if (!ImGui::BeginPopup(kPopupId, ImGuiWindowFlags_AlwaysAutoResize))
         return;
 
@@ -755,13 +712,7 @@ void AssetsPanel::drawImportPopup()
 
     if (ImGui::Button("Import", ImVec2(120.0f, 0.0f)))
     {
-        // A foreign export commonly ships as "modelname/modelname.obj" next
-        // to "modelname/textures/" (Sponza is the standard example) - the
-        // importer's own texture references are relative to the mesh's own
-        // directory (GltfImporter/ObjImporter's `directory` param), which
-        // only resolves through FileSystem if that folder is a search path.
-        // Adding both here, before the load, means Sponza-shaped assets work
-        // without the user finding Settings > Search Paths first.
+        // "modelname/modelname.obj" beside "modelname/textures/": importer texture paths are relative to the mesh directory, which must be a search path; add both before loading.
         const std::string resolvedMeshPath = FileSystem::getSingleton().resolve(mImportPath);
         const std::string meshDir = FileSystem::directoryOf(
             resolvedMeshPath.empty() ? app().assetBrowserRoot() + "/" + mImportPath
@@ -771,12 +722,7 @@ void AssetsPanel::drawImportPopup()
         if (FileSystem::getSingleton().isDirectory(texturesDir))
             app().addProjectSearchPath(texturesDir);
 
-        // importMeshFileData() rather than createMesh(MeshDesc::fromFile()):
-        // this keeps the decoded MeshData around and hands it to
-        // EditorApplication, so InspectorPanel can later run a mesh tool
-        // (regenerate normals/tangents/planar UV) against the exact data
-        // this object's mesh came from - a MeshDesc is just "File, this
-        // path", nowhere to keep an edit that only lives in memory.
+        // importMeshFileData() keeps the decoded MeshData for EditorApplication so mesh tools can edit the exact source data; a MeshDesc cannot hold in-memory edits.
         MeshData meshData;
         if (!Assets().importMeshFileData(mImportPath, meshData))
         {
@@ -785,9 +731,7 @@ void AssetsPanel::drawImportPopup()
         }
         else
         {
-            // Optimize before Split: joining first gives the split pass whole
-            // material groups to slice into spatially coherent chunks - the
-            // other order would split by triangle budget and then undo it.
+            // Optimize before Split: joined material groups give Split coherent chunks; the other order splits by triangle budget then undoes it.
             if (mImportOptimize)
             {
                 const usize before = meshData.submeshes.size();
@@ -804,15 +748,7 @@ void AssetsPanel::drawImportPopup()
                              meshData.submeshes.size());
             }
 
-            // A foreign format is never what the scene refers to: it is
-            // decoded once here and written out as ours, and it is the
-            // .rmesh that the recipe names from then on. That keeps the
-            // runtime free of every importer, makes reopening a scene a
-            // binary read instead of a re-parse, and means whatever Optimize
-            // and Split did is part of the asset rather than something the
-            // next load quietly undoes. Changing the source means importing
-            // it again - there is no staleness tracking and no sidecar of
-            // import options.
+            // A foreign format is decoded once and written as .rmesh, which the recipe names from then on; Optimize/Split results become part of the asset. No staleness tracking: re-import to change the source.
             const bool foreignSource = !isNativeMeshAsset(extensionOf(mImportPath));
             std::string recipePath = mImportPath;
             if (foreignSource || mImportOptimize || mImportSplit)
@@ -904,9 +840,7 @@ void AssetsPanel::drawImportPopup()
             }
             else
             {
-                // Without this SceneSerializer finds no recipe for `mesh` and
-                // silently refuses to save the reference at all - saving and
-                // reopening the scene would drop the object's mesh entirely.
+                // Without this SceneSerializer finds no recipe for `mesh` and drops the reference on save.
                 Assets().registerMeshDesc(mesh, MeshDesc::fromFile(recipePath));
                 app().registerImportedMesh(mesh, std::move(meshData));
                 app().recordUndo();
@@ -920,10 +854,7 @@ void AssetsPanel::drawImportPopup()
                     renderer->setMesh(mesh);
                     app().scene().update(0.0f);
                     app().selection().select(object->id());
-                    // Submesh indices only mean anything against the mesh
-                    // they were picked on - a batch left over from the last
-                    // one would aim the next Delete at this new mesh's
-                    // pieces instead.
+                    // Submesh indices only mean something against the mesh they were picked on; clear a leftover batch.
                     app().submeshSelection().object = 0;
                     app().submeshSelection().indices.clear();
                     app().markDirty();
@@ -1111,8 +1042,7 @@ void AssetsPanel::onImGui()
         Log::info("AssetsPanel: reveal '%s' -> directory '%s' (currently '%s')", reveal.c_str(),
                  absolute.string().c_str(), mCurrentDirectory.string().c_str());
         navigateTo(absolute);
-        // A reveal commonly follows an asset write. Refresh even when the
-        // requested file already belongs to the currently visible folder.
+        // A reveal commonly follows an asset write: refresh even if the file is in the visible folder.
         mEntriesDirty = true;
     }
 
@@ -1145,20 +1075,14 @@ void AssetsPanel::onImGui()
     ImGui::EndDisabled();
     ImGui::SameLine();
 
-    // Clickable breadcrumb over the whole absolute path - the browser is not
-    // confined to any one root, so every segment down to the filesystem root
-    // is shown and jumps straight to that depth instead of clicking ".."
-    // repeatedly.
+    // Breadcrumb over the whole absolute path; each segment jumps straight to that depth.
     {
         std::filesystem::path accumulated;
         bool first = true;
         for (const std::filesystem::path& part : mCurrentDirectory)
         {
             accumulated /= part;
-            // On POSIX, iterating an absolute path yields the root directory
-            // itself ("/") as its own first part - printing a separator
-            // ahead of the next part on top of that is what doubled up into
-            // "//media/...": the root's own label already IS the separator.
+            // Iterating an absolute POSIX path yields "/" first; its label already IS the separator, so none before the next part (avoids "//media").
             const bool isRoot = first && part == part.root_directory();
             const std::string label = part.string();
             if (!first && !isRoot)
@@ -1178,8 +1102,7 @@ void AssetsPanel::onImGui()
         }
     }
     ImGui::SameLine();
-    // Only Grid view has a cell size to zoom - List/Details are plain rows,
-    // widening them would just add blank space either side of the text.
+    // Only Grid view has a cell size to zoom.
     const f32 zoomSliderWidth = mViewMode == ViewMode::Grid ? 100.0f : 0.0f;
     const f32 viewButtonsWidth = ImGui::CalcTextSize(ICON_MDI_VIEW_GRID).x +
                                  ImGui::CalcTextSize(ICON_MDI_VIEW_LIST).x +
@@ -1215,13 +1138,7 @@ void AssetsPanel::onImGui()
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Details");
 
-    // A folder reached only through the breadcrumb/Filesystem bookmark, not
-    // under any registered root, cannot resolve a relative path for
-    // anything in it - assetRelativePath() fails for every entry, which is
-    // what silently drops the per-item context menu (BeginPopupContextItem()
-    // returns early past that failure) without any error to explain why.
-    // Registering the folder here is the fix, not a workaround: everything
-    // downstream already assumes an entry has a root-relative path.
+    // A folder outside every registered root cannot resolve relative paths, which silently drops the per-item context menu; registering it here is the fix.
     {
         std::string ignored;
         if (!assetRelativePath(mCurrentDirectory, ignored))
@@ -1237,10 +1154,7 @@ void AssetsPanel::onImGui()
                 std::error_code error;
                 if (std::filesystem::is_directory(texturesDir, error))
                     app().addProjectSearchPath(texturesDir.string());
-                // Every relPath computed under the old, unregistered root was
-                // cached as unresolved - the cache has to go, not just the
-                // entry list, or every context menu stays broken until the
-                // next full editor restart.
+                // Cached relPaths from the unregistered root are stale; drop the cache, not just the entry list.
                 mRelativePathCache.clear();
                 mEntriesDirty = true;
             }
@@ -1251,14 +1165,7 @@ void AssetsPanel::onImGui()
     }
     ImGui::Separator();
 
-    // Left-hand folder tree, the panel's own take on the Blender file
-    // browser's sidebar: a handful of fixed bookmarks (project Assets,
-    // engine Assets, extra search paths, and the filesystem itself as an
-    // escape hatch) rather than one project-locked root, so a bookmark click
-    // or the breadcrumb can reach anywhere on disk. Horizontal scrollbar:
-    // deep nesting pushes labels past the panel's width, and without it
-    // there was no way to read - or reach - what a folder that deep was
-    // even called.
+    // Horizontal scrollbar: deep nesting pushes labels past the panel width and they become unreadable.
     ImGui::BeginChild("##assets_tree", ImVec2(mTreeWidth, 0.0f), true,
                       ImGuiWindowFlags_HorizontalScrollbar);
     {
@@ -1319,8 +1226,7 @@ void AssetsPanel::onImGui()
             openCreateScriptPopup(directory);
     };
 
-    // Empty-space context uses the open directory; an existing folder gets
-    // the same menu targeted at that folder itself (below).
+    // Empty-space context uses the open directory; an existing folder gets the same menu targeted at itself.
     const auto directoryContextMenu = [&createMenu, this]()
     {
         if (ImGui::BeginPopupContextWindow("##assets_directory_context",
@@ -1341,9 +1247,7 @@ void AssetsPanel::onImGui()
             return;
         if (ImGui::BeginDragDropSource())
         {
-            // A context/import popup can be above the asset grid. Close it at
-            // the exact moment dragging starts so the payload can reach a
-            // Terrain drop target in the Inspector.
+            // Close context/import popups when dragging starts so the payload can reach a Terrain drop target.
             ImGui::ClosePopupToLevel(0, true);
             ImGui::SetDragDropPayload(kAssetFileDragPayload, relPath.data(), relPath.size());
             ImGui::TextUnformatted(relPath.c_str());
@@ -1351,14 +1255,7 @@ void AssetsPanel::onImGui()
         }
     };
 
-    // Right-click on a mesh file for Load/Import - the same action a
-    // double-click could trigger, but explicit: this panel also uses a plain
-    // click to enter folders, and reusing that for "drop a new object into
-    // the scene" on a misclick would be a nasty surprise. Queues
-    // drawImportPopup() rather than creating the object here - the popup is
-    // what actually asks for a scale and does the work once confirmed.
-    // "Load" for .rmesh/.rstm (already Radion's own format), "Import" for
-    // everything else (goes through a foreign-format importer instead).
+    // Load/Import is explicit right-click only (plain click enters folders; a misclick must not drop an object). "Load" for .rmesh/.rstm, "Import" for foreign formats; queues drawImportPopup().
     const auto contextMenu = [this, &createMenu](const FileSystem::DirEntry& entry)
     {
         if (entry.isDirectory)
@@ -1377,10 +1274,7 @@ void AssetsPanel::onImGui()
         const bool prefab = isPrefabAsset(extension);
         if (!mesh && !image && !script && !prefab)
             return;
-        // Load/Import/Convert/Generate all end up writing beside the source
-        // or feeding it to AssetManager by search-path-relative name -
-        // neither makes sense for a file browsed to outside every registered
-        // root, so the menu simply does not offer them there.
+        // These actions write beside the source or need a search-path-relative name, so they are not offered outside every registered root.
         std::string relPath;
         if (!assetRelativePath(mCurrentDirectory / entry.name, relPath))
             return;
@@ -1389,10 +1283,7 @@ void AssetsPanel::onImGui()
 
         const auto convert = [this, relPath]()
         {
-            // Conversion is deliberately kept on the decoded CPU-side data:
-            // no MeshHandle/GameObject is created, so this action never loads
-            // the source asset into the engine. The native files are written
-            // beside the source, preserving the asset browser's layout.
+            // Conversion works on decoded CPU-side data: no MeshHandle/GameObject is created and native files are written beside the source.
             const std::string source = FileSystem::getSingleton().resolve(relPath);
             const std::string base = source.empty()
                                          ? app().assetBrowserRoot() + "/" + relPath
@@ -1413,9 +1304,7 @@ void AssetsPanel::onImGui()
 
             std::string skeletonOutput;
             Skeleton skeleton;
-            // Animated formats carry their rig in the source file. Saving it
-            // next to the converted mesh also makes the result usable by the
-            // Animator workflow without asking the renderer to load anything.
+            // Animated formats carry their rig in the source; saving it beside the mesh makes the result usable by Animator.
             if (Assets().importSkeleton(relPath, skeleton) && skeleton.boneCount() > 0)
             {
                 skeletonOutput = outputBase + ".rskel";
@@ -1450,21 +1339,10 @@ void AssetsPanel::onImGui()
             app().toasts().success("Converted to " + FileSystem::fileName(meshOutput));
         };
 
-        // .fbx/.gltf/.glb/.b3d/.ms3d clips carry animation stacks that only
-        // mean something against a rig - the same .rskel a mesh's own
-        // Convert writes beside it. This does what dropping the clip on an
-        // Animator's clip list in the Inspector does (ensureAnimationFile()
-        // there), offered here as a one-click action per file so a whole
-        // Mixamo-style pack can be run through the folder one at a time
-        // instead of opening an Animator for each clip.
+        // Animation stacks only mean something against a rig (the .rskel Convert writes); one-click per file for packs.
         const bool animatable = extension == "fbx" || extension == "gltf" || extension == "glb" ||
                                 extension == "b3d" || extension == "ms3d";
-        // keepRootMotion mirrors loadFbxAnimation's own parameter
-        // (FbxImporter.h) - false pins the functional root's horizontal
-        // position to the bind pose (only vertical bob survives), turning a
-        // locomotion clip like "walk"/"run" into one that plays in place
-        // instead of dragging the object across the scene. Rotations are
-        // untouched either way.
+        // keepRootMotion mirrors loadFbxAnimation's parameter (FbxImporter.h): false pins the root's horizontal position to bind pose so locomotion clips play in place.
         const auto generateAnimation = [this, relPath](bool keepRootMotion)
         {
             std::string skeletonPath;
@@ -1501,14 +1379,7 @@ void AssetsPanel::onImGui()
                 return;
             }
 
-            // Every clip in a Mixamo pack carries the exact same in-file name
-            // ("mixamo.com") - loading a walk, an attack and an idle into
-            // one Animator under that name would make play() unable to
-            // tell them apart, only ever finding the first. The source
-            // file's own name is unique by construction (it is a file in
-            // this folder), so it becomes the clip's name here regardless
-            // of what the FBX itself called it - Animator::play() then
-            // takes exactly the stem this file's icon already shows.
+            // Mixamo clips all share the in-file name "mixamo.com", which would make play() unable to tell them apart; use the unique source file stem.
             const std::string relStem = FileSystem::baseName(relPath);
             clip.setName(relStem);
 
@@ -1618,11 +1489,7 @@ void AssetsPanel::onImGui()
     if (mViewMode == ViewMode::List)
     {
         ImGui::Indent(14.0f);
-        // Clipped by row: a folder the size of a texture library (the bistro
-        // set runs to several hundred files) would otherwise rebuild every
-        // row's widgets every frame regardless of what's actually scrolled
-        // into view - that is what pegged the CPU the moment this panel had
-        // focus.
+        // Clipped by row: several hundred files would rebuild every row's widgets each frame.
         ImGuiListClipper clipper;
         clipper.Begin(static_cast<int>(mEntries.size()));
         while (clipper.Step())
@@ -1720,12 +1587,7 @@ void AssetsPanel::onImGui()
 
     GPU& gpu = app().engine().getGPU();
 
-    // Row-clipped, not one flat loop over mEntries: a texture library the
-    // size of the bistro set runs to several hundred files, and rebuilding
-    // every cell's ImageButton and draw call every frame regardless of
-    // scroll is what pegged the CPU the moment this panel had focus. Row
-    // height is an estimate (the wrapped name can take one or two lines) -
-    // close enough for the clipper's stepping, not pixel-exact.
+    // Row-clipped: rebuilding every cell each frame pegged the CPU. Row height is an estimate (name wraps to 1-2 lines), fine for the clipper.
     const int rows = (static_cast<int>(mEntries.size()) + columns - 1) / columns;
     const f32 rowHeight =
         mThumbnailSize + ImGui::GetTextLineHeightWithSpacing() * 2.0f + ImGui::GetStyle().ItemSpacing.y;
@@ -1763,10 +1625,7 @@ void AssetsPanel::onImGui()
                                                  ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
                     if (ImGui::IsItemHovered())
                     {
-                        // Bigger read of the same texture, not a second load -
-                        // the point is seeing detail the grid cell is too
-                        // small for, the same job Lumos's ResourcePanel hover
-                        // tooltip does.
+                        // Larger read of the same texture, not a second load.
                         ImGui::BeginTooltip();
                         constexpr f32 previewSize = 256.0f;
                         ImGui::Image(textureId, ImVec2(previewSize, previewSize),

@@ -123,9 +123,7 @@ bool Hair::generate()
         f32 cumulative = 0.0f;
     };
     std::vector<Candidate> candidates;
-    // Procedural MeshData is allowed to omit submeshes; uploadMesh() treats
-    // that as one implicit slot covering the complete index buffer, and root
-    // generation must follow the same convention.
+    // Procedural MeshData may omit submeshes; uploadMesh() treats that as one implicit slot over the whole index buffer, and root generation must match.
     const u32 indexOffset = mesh.submeshes.empty() ? 0u : mesh.submeshes[mSubmesh].indexOffset;
     const u32 indexCount = mesh.submeshes.empty() ? static_cast<u32>(mesh.indices.size())
                                                   : mesh.submeshes[mSubmesh].indexCount;
@@ -145,9 +143,7 @@ bool Hair::generate()
                                     mesh.normals[tri.z].y) / 3.0f;
         if (averageNormalY < mMinimumGrowthNormalY)
             continue;
-        // Fade density just above the threshold instead of ending every
-        // strand on one perfectly hard latitude. -1 keeps the old unfiltered
-        // behaviour for authored scalp submeshes and alpha masks.
+        // Fade density just above the threshold instead of a hard latitude. -1 keeps the unfiltered behaviour for authored scalp submeshes and alpha masks.
         f32 normalMask = 1.0f;
         if (mMinimumGrowthNormalY > -0.999f)
         {

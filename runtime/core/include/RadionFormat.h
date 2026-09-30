@@ -80,9 +80,7 @@ enum StaticMeshFlags : u32
     StaticMeshCompressed = 1 << 3
 };
 
-// VertexAttribFlags (below) packed into the same header `flags` word the
-// static mesh already has, starting past the bits above - one field to
-// read, not a new one to add to an already-fixed header shape.
+// VertexAttribFlags packed into the static mesh header `flags` word, past the bits above.
 constexpr u32 StaticMeshAttribShift = 4;
 
 enum SubMeshFlags : u32
@@ -90,11 +88,7 @@ enum SubMeshFlags : u32
     SubMeshTwoSided = 1 << 0
 };
 
-// Which fields a vertex buffer chunk actually carries - position is never
-// optional, everything else is. Both VertexBuffer (RMSH) and the static
-// mesh payload (RSTM) use this to compute their own per-vertex stride
-// instead of assuming a fixed one; a mesh missing an attribute pays
-// nothing for it on disk.
+// Fields a vertex buffer chunk carries (position is never optional); RMSH and RSTM use this to compute stride.
 enum VertexAttribFlags : u32
 {
     HasNormal = 1 << 0,

@@ -7,19 +7,10 @@
 namespace Radion::Physics
 {
 
-// A ball-and-socket point plus two independent hinge axes held perpendicular
-// to each other - a CV joint or a robot wrist gimbal, distinct from a 3-DOF
-// PointJoint by keeping both rotation axes tracked and independently
-// limited/motored. The DOF split follows ODE's Universal joint (fisica/ODE/
-// ode/src/joints/universal.cpp: 3 point rows + 1 perpendicularity row,
-// 2 free rotations). The perpendicularity lock is ported from that file's
-// getInfo2 directly; the per-axis angle used for limits and motors is our
-// own simplification - a single relative orientation captured at
-// construction (as FixedJoint does), with each axis's twist read from it via
-// the same swing-twist projection HingeJoint already uses, rather than
-// ODE's "cross frame" getAngles(). Deliberate deviation, not yet cross
-// checked against ODE's own angle convention beyond both reading zero at
-// construction.
+// Ball-and-socket point plus two independent hinge axes held perpendicular (CV joint, wrist gimbal), each axis limited/motored.
+// DOF split follows ODE's Universal joint (fisica/ODE/ode/src/joints/universal.cpp); the perpendicularity lock is ported from its getInfo2.
+// Per-axis angles are our own simplification: a relative orientation captured at construction (as FixedJoint), twist read via HingeJoint's swing-twist
+// projection, not ODE's "cross frame" getAngles(); not cross-checked against ODE's convention beyond both reading zero at construction.
 class UniversalJoint final : public Joint
 {
 public:

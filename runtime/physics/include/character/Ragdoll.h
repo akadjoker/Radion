@@ -23,11 +23,7 @@ struct LocalPose;
 namespace Radion::Physics
 {
 
-// The ten bones a ragdoll actually simulates. Torso is one rigid body for
-// the whole Hips-to-chest span (no independent spine), and every limb stops
-// at the wrist/ankle - hands, feet, fingers and toes are never their own
-// body, they just hang wherever the animation left them relative to the arm
-// or leg that IS simulated.
+// Ten simulated bones: torso is one body (no spine) and limbs stop at wrist/ankle; hands and feet just follow the animation.
 enum class RagdollPart : u8
 {
     Hips,
@@ -43,41 +39,14 @@ enum class RagdollPart : u8
     Count
 };
 
-// Auto-builds a physical ragdoll from a humanoid skeleton and, once active,
-// feeds the resulting RigidBody transforms back into that same skeleton's
-// pose - the skinned mesh itself goes limp. No separate proxy meshes, no
-// hardcoded bone names: build() resolves the standard humanoid joints by
-// name suffix (findBone() ignores whatever armature prefix the rig uses,
-// "mixamorig:" or otherwise), so the same Ragdoll works for any similarly
-// named biped skeleton.
-//
-// Typical use, once per character:
-//   Ragdoll ragdoll;
-//   if (ragdoll.build(*animator->skeleton()))
-//   {
-//       // on death:
-//       ragdoll.activate(scene, animator->globalPose(), animator->localPose(),
-//                        doll->globalTransform());
-//       animator->setPoseEditMode(true);
-//       // every frame while active, after scene.stepPhysics():
-//       std::vector<LocalPose> pose = animator->localPose();
-//       ragdoll.writePose(pose);
-//       for (u32 i = 0; i < pose.size(); ++i)
-//           animator->setBoneLocalPose(i, pose[i]);
-//       // to stand back up:
-//       ragdoll.deactivate();
-//       animator->setPoseEditMode(false);
-//   }
+// Builds a physical ragdoll from a humanoid skeleton and feeds RigidBody transforms back into its pose. build() resolves
+// joints by name suffix, so any armature prefix works.
+// Use: build() once; activate() on death; writePose() each frame after Scene::stepPhysics(); deactivate() to stand up.
 class Ragdoll
 {
 public:
-    // Resolves the tracked bones against `skeleton` by name suffix and works
-    // out which of them are each other's simulated parent. False (and
-    // unusable) if any is missing - a skeleton this sparse is not a biped
-    // this class knows how to ragdoll. Shapes are not sized here: that
-    // happens in activate(), from whatever pose the ragdoll actually starts
-    // from, the same way the reference demo sizes its capsules at the
-    // moment a doll dies rather than from the bind pose.
+    // Resolves tracked bones by name suffix and their simulated parents; false (unusable) if any is missing.
+    // Shapes are sized in activate() from the starting pose, not here.
     bool build(const Skeleton& skeleton);
 
     bool valid() const
@@ -89,27 +58,16 @@ public:
         return mActive;
     }
 
-    // Spawns the physics bodies and the joints between them, positioned and
-    // oriented from `globalPose` (model space, e.g. Animator::globalPose())
-    // as seen through `ownerWorld` - the doll's own GameObject transform,
-    // assumed fixed for as long as the ragdoll stays active. `localPose` is
-    // the same frame's local pose (e.g. Animator::localPose()); it is only
-    // read, to freeze the non-simulated bones (spine, shoulders, neck,
-    // wrists, ankles) exactly where the animation left them relative to
-    // whichever simulated bone they hang off. Adds every body/joint to
-    // `scene`, which must outlive the ragdoll until deactivate().
+    // Spawns bodies and joints from `globalPose` (model space) seen through `ownerWorld` (assumed fixed while active);
+    // `localPose` is only read, to freeze non-simulated bones. `scene` must outlive the ragdoll until deactivate().
     void activate(Radion::Scene& scene, const std::vector<Math::mat4>& globalPose,
                  const std::vector<LocalPose>& localPose, const Math::mat4& ownerWorld);
 
-    // Removes every body and joint this ragdoll added to its world. Safe to
-    // call when not active.
+    // Safe to call when not active.
     void deactivate();
 
-    // Writes this frame's physics-driven local pose into the ten tracked
-    // bones of `localPose` (already sized to the skeleton's bone count,
-    // e.g. a copy of Animator::localPose()) - every other bone is left
-    // untouched. No-op when not active. Call after Scene::stepPhysics(),
-    // before handing the result to Animator::setBoneLocalPose().
+    // Writes the physics-driven local pose into the ten tracked bones of `localPose` (sized to the bone count); others untouched.
+    // No-op when inactive; call after Scene::stepPhysics().
     void writePose(std::vector<LocalPose>& localPose) const;
 
     RigidBody* body(RagdollPart part)
@@ -117,12 +75,8 @@ public:
         return &mParts[static_cast<usize>(part)].rigidBody;
     }
 
-    // Base mask every part's filter starts from before this ragdoll's own
-    // per-pair exclusions are subtracted out of it (group is ignored - each
-    // part gets its own bit, see activate()). Defaults to "collide with
-    // everything"; a caller that wants the whole ragdoll kept off some
-    // external category (e.g. a "corpse" layer other queries skip) clears
-    // that bit here before activate().
+    // Base mask each part's filter starts from before per-pair exclusions are subtracted (group is ignored, see activate()).
+    // Defaults to colliding with everything.
     void setCollisionMask(u32 mask)
     {
         mFilter.mask = mask;
@@ -150,7 +104,7 @@ private:
         f32 mass = 1.0f;
 
         RigidBody rigidBody;
-        Math::mat4 attachmentLocal{1.0f}; // bone, expressed in the body's own local frame
+        Math::mat4 attachmentLocal{1.0f};
     };
 
     void resolveHierarchy(const Skeleton& skeleton);

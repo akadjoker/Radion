@@ -9,9 +9,6 @@
 namespace Radion
 {
 
-// One sound attached to a GameObject. Non-spatial by default: a spatial
-// voice follows its owner's world position every frame and attenuates
-// against the listener the Scene sets from the active camera.
 class AudioPlayer final : public Component
 {
 public:
@@ -19,8 +16,7 @@ public:
 
     void setSource(const std::string& path);
     const std::string& source() const;
-    // Music streams from one voice at a time and ignores pan; sound effects
-    // decode up front and overlap freely.
+    // Music streams from one voice at a time and ignores pan.
     void setMusic(bool music);
     bool music() const;
     void setAutoplay(bool autoplay);

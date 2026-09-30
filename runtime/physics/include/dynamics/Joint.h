@@ -40,22 +40,15 @@ public:
 
     virtual RigidBody* bodyA() const = 0;
     virtual RigidBody* bodyB() const = 0;
-    // A single-body joint reports the same body at both ends - a drag spring
-    // towards a world target has no second body. The world's degenerate-pair
-    // rejection must let those through.
+    // A single-body joint reports the same body at both ends (a drag spring has no second body); degenerate-pair rejection must let these through.
     virtual bool singleBody() const
     {
         return false;
     }
-    // World-space anchor pair a debug view draws as a line between the two
-    // bodies, read fresh from the current pose - not cached, so it is correct
-    // in the editor too, where nothing is stepping.
+    // World-space anchor pair a debug view draws, read fresh from the current pose (not cached, so correct in the editor).
     virtual Math::vec3 anchorWorldA() const = 0;
     virtual Math::vec3 anchorWorldB() const = 0;
-    // Joints with a single free direction (a hinge's rotation axis, a slider's
-    // or piston's travel axis, a wheel's suspension axis, ...) override both;
-    // a joint with no such axis (Distance, Point, Fixed, Mouse) leaves the
-    // default, which nothing calls unless hasAxis() said yes.
+    // Joints with a single free direction override both; others leave the default, which nothing calls unless hasAxis() said yes.
     virtual bool hasAxis() const
     {
         return false;
@@ -78,21 +71,15 @@ public:
         return mEnabled;
     }
 
-    // Component-mode only (a loose joint built with a body-taking constructor
-    // for a test or Ragdoll never calls this). The dragged-in second object -
-    // owner()'s own RigidBody sibling is always bodyA.
+    // Component-mode only; owner()'s RigidBody sibling is always bodyA.
     void setConnectedBody(GameObject* object);
     GameObject* connectedBody() const
     {
         return mConnectedBody;
     }
 
-    // Resolves bodyA (owner()'s RigidBody) and bodyB (connectedBody()'s
-    // RigidBody), and on success calls the concrete class's own configure()
-    // with the owner's current world position as anchor (and, for a kind
-    // with one, the authored axis rotated by the owner's orientation), then
-    // registers with the scene. A missing RigidBody on either side logs once
-    // and leaves the joint unbuilt - rebuild() runs again next step.
+    // Resolves bodyA/bodyB, calls the concrete configure() with the owner's world position as anchor (plus the rotated authored axis), then registers
+    // with the scene. A missing RigidBody logs once and leaves the joint unbuilt; rebuild() retries next step.
     virtual void rebuild() = 0;
     bool built() const
     {
@@ -104,20 +91,12 @@ protected:
     {
     }
 
-    // Wakes both ends. A motor or servo given a NEW target has to call this:
-    // a body that has settled is asleep and skipped by the solver, so the
-    // order lands on a joint nobody is stepping and the machine never moves
-    // again. Only on a change - calling it every frame, which is what a
-    // controller holding a target does, would mean nothing ever sleeps.
+    // Wakes both ends. A motor or servo given a NEW target must call this (a settled body is asleep and skipped), but only on change, or nothing ever sleeps.
     void wakeBodies();
     ~Joint() override;
     void onDestroy() override;
-    // A moved-from Joint is always loose (Component-mode ones are only ever
-    // reached through a stable pointer, never relocated) - this exists so a
-    // subclass's move constructor does not silently drop mEnabled/mConnectedBody
-    // just because they are private here. The source's own Scene::addJoint()
-    // registration, if any, is torn down here rather than carried to the new
-    // address - the destination arrives unregistered, same as a fresh Joint.
+    // A moved-from Joint is always loose; lets a subclass's move constructor carry the private mEnabled/mConnectedBody.
+    // The source's Scene registration is torn down rather than carried to the new address.
     void moveJointStateFrom(Joint& other);
 
     bool mBuilt = false;
@@ -129,11 +108,8 @@ private:
     JointKind mKind;
     bool mEnabled = true;
     GameObject* mConnectedBody = nullptr;
-    // Set by Scene::addJoint()/cleared by Scene::removeJoint() - the one
-    // thing that lets this destructor find its way out of Scene::mJoints
-    // when nothing ever called removeJoint() first. Distinct from mBuilt:
-    // that one only tracks the Component-mode rebuild() path, this one
-    // tracks direct addJoint() calls too (Ragdoll, tests).
+    // Set by Scene::addJoint(), cleared by removeJoint(): lets the destructor leave Scene::mJoints when removeJoint() was never called.
+    // Unlike mBuilt, it also tracks direct addJoint() calls (Ragdoll, tests).
     Radion::Scene* mJointScene = nullptr;
 };
 

@@ -57,10 +57,7 @@ AABB boxAt(const Math::vec3& center, f32 half)
     return bounds;
 }
 
-// A cube's convex hull, built through the real ConvexHullComputer the way
-// VoronoiShatter itself builds one, so the half-edge structure the tests
-// exercise is the same kind ConvexHullShape gets handed from an actual
-// shatter.
+// Cube hull built through the real ConvexHullComputer, as VoronoiShatter does.
 Shard buildCubeShard(f32 halfExtent)
 {
     std::vector<Math::vec3> corners;
@@ -80,14 +77,11 @@ Shard buildCubeShard(f32 halfExtent)
     return shard;
 }
 
-// ----------------------------------------------------------------- support
-
 void testSupportAndBounds()
 {
     const BoxShape box(Math::vec3(1.0f, 2.0f, 3.0f));
     const Math::mat4 identity = at(Math::vec3(0.0f));
 
-    // The support point along an axis is the corner in that direction.
     CHECK(near(box.support(identity, Math::vec3(1, 1, 1)), Math::vec3(1, 2, 3)));
     CHECK(near(box.support(identity, Math::vec3(-1, 1, -1)), Math::vec3(-1, 2, -3)));
 
@@ -97,14 +91,12 @@ void testSupportAndBounds()
     CHECK(near(minimum, -2.0f));
     CHECK(near(maximum, 2.0f));
 
-    // Rotated a quarter turn about z, x and y swap.
     const Math::mat4 turned =
         at(Math::vec3(0.0f), Math::angleAxis(Math::half_pi<f32>(), Math::vec3(0, 0, 1)));
     box.project(turned, Math::vec3(0, 1, 0), minimum, maximum);
     CHECK(near(maximum, 1.0f, 1e-3f));
 
-    // A rotated box's AABB has to grow: a 45 degree turn puts a corner
-    // furthest out, at half*sqrt(2) on each axis.
+    // A 45 degree turn puts a corner furthest out, at half*sqrt(2) per axis.
     const BoxShape cube(Math::vec3(1.0f));
     const Math::mat4 diagonal =
         at(Math::vec3(0.0f), Math::angleAxis(Math::quarter_pi<f32>(), Math::vec3(0, 0, 1)));
@@ -114,11 +106,8 @@ void testSupportAndBounds()
 
     const SphereShape sphere(2.5f);
     CHECK(near(sphere.support(at(Math::vec3(1, 0, 0)), Math::vec3(0, 3, 0)), Math::vec3(1, 2.5f, 0)));
-    // A sphere's AABB does not care how it is turned.
     CHECK(near(sphere.bounds(diagonal).max, Math::vec3(2.5f)));
 }
-
-// --------------------------------------------------------------- broadphase
 
 void testBroadphasePairs()
 {
@@ -129,10 +118,10 @@ void testBroadphasePairs()
     proxy.bounds = boxAt(Math::vec3(0.0f), 1.0f);
     broadphase.add(proxy);
     proxy.id = 2;
-    proxy.bounds = boxAt(Math::vec3(1.5f, 0.0f, 0.0f), 1.0f); // overlaps 1
+    proxy.bounds = boxAt(Math::vec3(1.5f, 0.0f, 0.0f), 1.0f);
     broadphase.add(proxy);
     proxy.id = 3;
-    proxy.bounds = boxAt(Math::vec3(50.0f, 0.0f, 0.0f), 1.0f); // far away
+    proxy.bounds = boxAt(Math::vec3(50.0f, 0.0f, 0.0f), 1.0f);
     broadphase.add(proxy);
 
     std::vector<BroadphasePair> pairs;
@@ -144,7 +133,6 @@ void testBroadphasePairs()
         CHECK(pairs[0].b == 2);
     }
 
-    // The sweep must have picked x, which is the axis they are spread over.
     CHECK(broadphase.sweepAxis() == 0);
 }
 
@@ -163,10 +151,8 @@ void testBroadphaseSkipsStaticPairs()
 
     std::vector<BroadphasePair> pairs;
     broadphase.findPairs(pairs);
-    // Two overlapping statics are still two things that cannot move.
     CHECK(pairs.empty());
 
-    // One of them moving brings the pair back.
     Broadphase mixed;
     proxy.id = 1;
     proxy.movable = false;
@@ -188,25 +174,21 @@ void testBroadphaseLayers()
 
     proxy.id = 1;
     proxy.filter.group = 1;
-    proxy.filter.mask = 2; // only sees group 2
+    proxy.filter.mask = 2;
     broadphase.add(proxy);
     proxy.id = 2;
-    proxy.filter.group = 4; // not 2
+    proxy.filter.group = 4;
     proxy.filter.mask = 0xFFFFFFFFu;
     broadphase.add(proxy);
 
     std::vector<BroadphasePair> pairs;
     broadphase.findPairs(pairs);
-    // One side refusing is enough - both halves have to agree.
     CHECK(pairs.empty());
 }
 
 void testBroadphaseFindsEveryOverlapInAStack()
 {
-    // A column along y, each touching the next. The sweep has to pick y and
-    // still find all nine neighbouring pairs - an axis chosen wrongly, or a
-    // break taken too early, silently drops contacts and the stack falls
-    // through itself.
+    // The sweep must pick y and find all nine pairs; a wrong axis or an early break silently drops contacts.
     Broadphase broadphase;
     BroadphaseProxy proxy;
     for (u32 i = 0; i < 10; ++i)
@@ -223,9 +205,6 @@ void testBroadphaseFindsEveryOverlapInAStack()
         CHECK(pair.b == pair.a + 1);
 }
 
-
-// --------------------------------------------------------------- narrowphase
-
 void testSphereSphere()
 {
     const SphereShape a(1.0f);
@@ -236,18 +215,14 @@ void testSphereSphere()
 
     CHECK(Narrowphase::collide(a, at(Math::vec3(0.0f)), b, at(Math::vec3(1.5f, 0, 0)), manifold));
     CHECK(manifold.count == 1);
-    // Normal points from A to B.
     CHECK(near(manifold.normal, Math::vec3(1, 0, 0)));
     CHECK(near(manifold.points[0].penetration, 0.5f));
-    // Contact sits between the two surfaces: A's surface is at x=1, B's at
-    // x=0.5, so the midpoint is 0.75.
+    // A's surface is at x=1, B's at x=0.5, so the midpoint is 0.75.
     CHECK(near(manifold.points[0].position.x, 0.75f));
 
-    // Exactly touching is not a collision.
     CHECK(!Narrowphase::collide(a, at(Math::vec3(0.0f)), b, at(Math::vec3(2.0f, 0, 0)), manifold));
 
-    // Concentric: must not divide by zero, and must still report something
-    // to push apart along.
+    // Concentric: no division by zero, and still report a push-apart direction.
     CHECK(Narrowphase::collide(a, at(Math::vec3(0.0f)), b, at(Math::vec3(0.0f)), manifold));
     CHECK(near(Math::length(manifold.normal), 1.0f));
     CHECK(std::isfinite(manifold.points[0].penetration));
@@ -259,29 +234,21 @@ void testSphereBox()
     const BoxShape box(Math::vec3(1.0f));
     ContactManifold manifold;
 
-    // Sphere above the box's +y face, overlapping by 0.25.
     CHECK(Narrowphase::collide(sphere, at(Math::vec3(0.0f, 1.75f, 0.0f)), box, at(Math::vec3(0.0f)),
                                manifold));
     CHECK(manifold.count == 1);
-    // From sphere (A) to box (B) is downwards.
     CHECK(near(manifold.normal, Math::vec3(0, -1, 0)));
     CHECK(near(manifold.points[0].penetration, 0.25f));
     CHECK(near(manifold.points[0].position, Math::vec3(0, 1, 0)));
 
-    // Clear of a corner diagonally is a miss even though the AABBs overlap -
-    // this is exactly what the broadphase cannot decide on its own.
     CHECK(!Narrowphase::collide(sphere, at(Math::vec3(1.8f, 1.8f, 1.8f)), box, at(Math::vec3(0.0f)),
                                 manifold));
 
-    // Centre inside the box: it has to come out through the nearest face,
-    // and no division by a zero distance.
     CHECK(Narrowphase::collide(sphere, at(Math::vec3(0.0f, 0.8f, 0.0f)), box, at(Math::vec3(0.0f)),
                                manifold));
     CHECK(near(manifold.normal, Math::vec3(0, -1, 0)));
     CHECK(manifold.points[0].penetration > 1.0f);
 
-    // The box-first ordering has to give the mirrored normal, not a
-    // different answer.
     ContactManifold flipped;
     CHECK(Narrowphase::collide(box, at(Math::vec3(0.0f)), sphere, at(Math::vec3(0.0f, 1.75f, 0.0f)),
                                flipped));
@@ -297,8 +264,7 @@ void testBoxBoxFaceContact()
 
     CHECK(!Narrowphase::collide(a, at(Math::vec3(0.0f)), b, at(Math::vec3(2.5f, 0, 0)), manifold));
 
-    // Stacked with 0.2 of overlap: a face against a face is four points, not
-    // one - a box resting on one contact point tips over.
+    // A face against a face is four points; one point tips a box over.
     CHECK(
         Narrowphase::collide(a, at(Math::vec3(0.0f)), b, at(Math::vec3(0.0f, 1.8f, 0.0f)), manifold));
     CHECK(manifold.count == 4);
@@ -309,7 +275,6 @@ void testBoxBoxFaceContact()
         CHECK(near(manifold.points[i].position.y, 1.0f, 1e-3f));
     }
 
-    // The four must actually span the face rather than bunch in a corner.
     f32 spread = 0.0f;
     for (u32 i = 0; i < manifold.count; ++i)
         for (u32 j = i + 1; j < manifold.count; ++j)
@@ -317,8 +282,7 @@ void testBoxBoxFaceContact()
                 spread, Math::length(manifold.points[i].position - manifold.points[j].position));
     CHECK(spread > 1.5f);
 
-    // Tangents have to be a proper frame around the normal, or friction
-    // pushes in a direction that is partly the normal.
+    // Tangents must be a proper frame around the normal, or friction partly pushes along it.
     CHECK(near(Math::dot(manifold.tangent[0], manifold.normal), 0.0f));
     CHECK(near(Math::dot(manifold.tangent[1], manifold.normal), 0.0f));
     CHECK(near(Math::dot(manifold.tangent[0], manifold.tangent[1]), 0.0f));
@@ -327,12 +291,7 @@ void testBoxBoxFaceContact()
 
 void testBoxBoxEdgeContact()
 {
-    // Two cubes each turned 45 degrees about different axes, meeting edge to
-    // edge. The separating direction is a cross product of their edges and is
-    // on none of the six face normals - a SAT that tests only faces (which is
-    // what the Lumos reference does, fetching the edges and never using them)
-    // reports a face normal here and slides the boxes sideways instead of
-    // apart.
+    // Edge-edge contact: the separating direction is a cross product of edges, on none of the six face normals; a face-only SAT slides the boxes sideways.
     const BoxShape a(Math::vec3(0.5f));
     const BoxShape b(Math::vec3(0.5f));
     const Math::mat4 transformA =
@@ -343,13 +302,10 @@ void testBoxBoxEdgeContact()
     ContactManifold manifold;
     CHECK(Narrowphase::collide(a, transformA, b, transformB, manifold));
     CHECK(manifold.count >= 1);
-    // They are stacked along y, so whatever axis wins, separating them has to
-    // have a real upward component.
     CHECK(std::abs(manifold.normal.y) > 0.5f);
     CHECK(manifold.points[0].penetration > 0.0f);
     CHECK(near(Math::length(manifold.normal), 1.0f, 1e-3f));
 
-    // Pulled apart along that axis, they must separate.
     const Math::mat4 clear =
         at(Math::vec3(0.0f, 2.5f, 0.0f), Math::angleAxis(Math::quarter_pi<f32>(), Math::vec3(1, 0, 0)));
     CHECK(!Narrowphase::collide(a, transformA, b, clear, manifold));
@@ -357,9 +313,7 @@ void testBoxBoxEdgeContact()
 
 void testBoxBoxNormalAlwaysSeparates()
 {
-    // Whatever the relative pose, moving B along the normal by the reported
-    // penetration has to end the overlap. This is the property the solver
-    // depends on, and a wrong-sign normal passes every other check.
+    // Moving B along the normal by the penetration must end the overlap; a wrong-sign normal passes every other check.
     const BoxShape a(Math::vec3(0.5f));
     const BoxShape b(Math::vec3(0.7f, 0.4f, 0.6f));
     u32 tested = 0;
@@ -376,9 +330,7 @@ void testBoxBoxNormalAlwaysSeparates()
         if (!Narrowphase::collide(a, transformA, b, transformB, manifold))
             continue;
         ++tested;
-        // The distance that separates them is the DEEPEST point's, not the
-        // first one's - though after reducePoints those are the same thing,
-        // which this also checks.
+        // The separating distance is the DEEPEST point's (the same as the first after reducePoints).
         f32 deepest = 0.0f;
         for (u32 p = 0; p < manifold.count; ++p)
             deepest = Math::max(deepest, manifold.points[p].penetration);
@@ -398,39 +350,31 @@ void testBoxBoxNormalAlwaysSeparates()
             ++gFailures;
         }
     }
-    // The sweep has to have actually produced overlaps, or this proved
-    // nothing at all.
+    // The sweep must actually produce overlaps.
     CHECK(tested > 8);
 }
-
-// ------------------------------------------------------------------ capsule
 
 void testSegmentHelpers()
 {
     const Math::vec3 a(0.0f, 0.0f, 0.0f);
     const Math::vec3 b(0.0f, 4.0f, 0.0f);
-    // Alongside the middle, past each end, and exactly on an end.
     CHECK(near(closestPointOnSegment(a, b, Math::vec3(3.0f, 2.0f, 0.0f)), Math::vec3(0, 2, 0)));
     CHECK(near(closestPointOnSegment(a, b, Math::vec3(0.0f, 9.0f, 0.0f)), b));
     CHECK(near(closestPointOnSegment(a, b, Math::vec3(0.0f, -9.0f, 0.0f)), a));
-    // Degenerate segment must not divide by zero.
     CHECK(near(closestPointOnSegment(a, a, Math::vec3(5.0f, 5.0f, 5.0f)), a));
 
-    // Crossing segments: the closest pair is where they cross in xz.
     Math::vec3 c1, c2;
     closestPointsBetweenSegments(Math::vec3(-1, 0, 0), Math::vec3(1, 0, 0), Math::vec3(0, 1, -1),
                                  Math::vec3(0, 1, 1), c1, c2);
     CHECK(near(c1, Math::vec3(0, 0, 0)));
     CHECK(near(c2, Math::vec3(0, 1, 0)));
 
-    // Parallel segments have no single answer - the routine must pick one and
-    // not divide by a zero determinant, which is what a naive solve does.
+    // Parallel segments: pick one answer, with no division by a zero determinant.
     closestPointsBetweenSegments(Math::vec3(0, 0, 0), Math::vec3(2, 0, 0), Math::vec3(0, 1, 0),
                                  Math::vec3(2, 1, 0), c1, c2);
     CHECK(near(Math::length(c2 - c1), 1.0f));
     CHECK(std::isfinite(c1.x));
 
-    // Apart along their own direction: the answer is the two facing ends.
     closestPointsBetweenSegments(Math::vec3(0, 0, 0), Math::vec3(1, 0, 0), Math::vec3(5, 0, 0),
                                  Math::vec3(6, 0, 0), c1, c2);
     CHECK(near(c1, Math::vec3(1, 0, 0)));
@@ -447,15 +391,12 @@ void testCapsuleShape()
     CHECK(near(lower, Math::vec3(0, -1, 0)));
     CHECK(near(upper, Math::vec3(0, 1, 0)));
 
-    // Support straight up is the top cap; sideways is the radius out from
-    // whichever end, and both ends are equally far.
     CHECK(near(capsule.support(identity, Math::vec3(0, 1, 0)), Math::vec3(0, 1.5f, 0)));
     CHECK(near(capsule.support(identity, Math::vec3(1, 0, 0)).x, 0.5f));
 
     const AABB bounds = capsule.bounds(identity);
     CHECK(near(bounds.max, Math::vec3(0.5f, 1.5f, 0.5f)));
 
-    // Laid on its side, the tall axis becomes x.
     const Math::mat4 lying =
         at(Math::vec3(0.0f), Math::angleAxis(Math::half_pi<f32>(), Math::vec3(0, 0, 1)));
     const AABB sideways = capsule.bounds(lying);
@@ -469,26 +410,19 @@ void testCapsuleSphereAndCapsule()
     const SphereShape sphere(0.5f);
     ContactManifold manifold;
 
-    // Beside the middle of the segment: this is the sphere case, and the
-    // capsule's length must not change the answer.
     CHECK(Narrowphase::collide(capsule, at(Math::vec3(0.0f)), sphere, at(Math::vec3(0.8f, 0, 0)),
                                manifold));
     CHECK(near(manifold.normal, Math::vec3(1, 0, 0)));
     CHECK(near(manifold.points[0].penetration, 0.2f));
 
-    // Off the end, the cap is a sphere at the segment's tip.
     CHECK(Narrowphase::collide(capsule, at(Math::vec3(0.0f)), sphere, at(Math::vec3(0, 1.8f, 0)),
                                manifold));
     CHECK(near(manifold.normal, Math::vec3(0, 1, 0)));
     CHECK(near(manifold.points[0].penetration, 0.2f));
 
-    // Level with the middle but beyond the radius: no contact, however long
-    // the capsule is.
     CHECK(!Narrowphase::collide(capsule, at(Math::vec3(0.0f)), sphere, at(Math::vec3(1.2f, 0, 0)),
                                 manifold));
 
-    // Two parallel capsules side by side - the case with no single closest
-    // pair, and the one a naive segment solve divides by zero on.
     const CapsuleShape other(0.5f, 1.0f);
     CHECK(Narrowphase::collide(capsule, at(Math::vec3(0.0f)), other, at(Math::vec3(0.8f, 0, 0)),
                                manifold));
@@ -496,13 +430,11 @@ void testCapsuleSphereAndCapsule()
     CHECK(near(manifold.points[0].penetration, 0.2f));
     CHECK(std::isfinite(manifold.points[0].position.x));
 
-    // Crossed at right angles, one above the other.
     const Math::mat4 crossed =
         at(Math::vec3(0.0f, 0.8f, 0.0f), Math::angleAxis(Math::half_pi<f32>(), Math::vec3(0, 0, 1)));
     CHECK(Narrowphase::collide(capsule, at(Math::vec3(0.0f)), other, crossed, manifold));
     CHECK(manifold.points[0].penetration > 0.0f);
 
-    // Sphere first has to give the mirrored normal, not a different answer.
     ContactManifold flipped;
     CHECK(Narrowphase::collide(sphere, at(Math::vec3(0.8f, 0, 0)), capsule, at(Math::vec3(0.0f)),
                                flipped));
@@ -516,30 +448,25 @@ void testCapsuleBox()
     const BoxShape box(Math::vec3(4.0f, 0.5f, 4.0f));
     ContactManifold manifold;
 
-    // Standing upright on the box: one point, on the cap.
     CHECK(Narrowphase::collide(capsule, at(Math::vec3(0.0f, 1.9f, 0.0f)), box, at(Math::vec3(0.0f)),
                                manifold));
     CHECK(manifold.count == 1);
     CHECK(near(manifold.normal, Math::vec3(0, -1, 0), 1e-3f));
     CHECK(near(manifold.points[0].penetration, 0.1f, 1e-3f));
 
-    // Lying flat on it: this MUST give two points. With one, the capsule can
-    // pivot about it and rolls off a surface it should rest on.
+    // Lying flat MUST give two points; with one the capsule pivots and rolls off.
     const Math::mat4 lying =
         at(Math::vec3(0.0f, 0.95f, 0.0f), Math::angleAxis(Math::half_pi<f32>(), Math::vec3(0, 0, 1)));
     CHECK(Narrowphase::collide(capsule, lying, box, at(Math::vec3(0.0f)), manifold));
     CHECK(manifold.count == 2);
     CHECK(near(std::abs(manifold.normal.y), 1.0f, 1e-3f));
-    // The two have to be at the segment's ends, a segment length apart.
     if (manifold.count == 2)
         CHECK(near(Math::length(manifold.points[0].position - manifold.points[1].position), 2.0f,
                    1e-2f));
 
-    // Clear above it is no contact.
     CHECK(!Narrowphase::collide(capsule, at(Math::vec3(0.0f, 3.0f, 0.0f)), box, at(Math::vec3(0.0f)),
                                 manifold));
 
-    // Box first, mirrored normal.
     ContactManifold flipped;
     CHECK(Narrowphase::collide(box, at(Math::vec3(0.0f)), capsule, at(Math::vec3(0.0f, 1.9f, 0.0f)),
                                flipped));
@@ -548,8 +475,6 @@ void testCapsuleBox()
 
 void testCapsuleRestsOnGround()
 {
-    // A capsule lying on the ground has to stay lying: two contact points
-    // hold it, one lets it rotate away.
     BoxShape groundShape(Math::vec3(20.0f, 0.5f, 20.0f));
     CapsuleShape capsuleShape(0.5f, 1.0f);
 
@@ -577,7 +502,6 @@ void testCapsuleRestsOnGround()
     for (u32 i = 0; i < 600; ++i)
         world.stepPhysics(1.0f / 120.0f);
 
-    // Resting on its side, the centre sits one radius above the surface.
     if (std::abs(capsule.position().y - 0.5f) >= 0.06f)
         std::fprintf(stderr, "    capsule rest: y %.4f axis %.3f %.3f %.3f |v| %.4f\n",
                      capsule.position().y, capsule.directionToWorld(Math::vec3(0, 1, 0)).x,
@@ -585,8 +509,6 @@ void testCapsuleRestsOnGround()
                      capsule.directionToWorld(Math::vec3(0, 1, 0)).z,
                      Math::length(capsule.velocity()));
     CHECK(std::abs(capsule.position().y - 0.5f) < 0.06f);
-    // And it is still on its side: its local Y, which was turned onto world
-    // X, must not have tipped back up.
     const Math::vec3 axis = capsule.directionToWorld(Math::vec3(0.0f, 1.0f, 0.0f));
     CHECK(std::abs(axis.y) < 0.25f);
     CHECK(Math::length(capsule.velocity()) < 0.3f);
@@ -594,10 +516,7 @@ void testCapsuleRestsOnGround()
 
 void testSphereRollsFromFriction()
 {
-    // A sphere thrown along the ground has to start spinning: friction acts
-    // at the contact point, which is a radius below the centre, so it is a
-    // torque. Without it the ball slides like a hockey puck forever and the
-    // whole point of an inertia tensor is lost.
+    // Friction acts a radius below the centre, so it torques; without it the ball slides forever.
     BoxShape groundShape(Math::vec3(50.0f, 0.5f, 50.0f));
     SphereShape sphereShape(0.5f);
 
@@ -626,21 +545,14 @@ void testSphereRollsFromFriction()
     for (u32 i = 0; i < 240; ++i)
         world.stepPhysics(1.0f / 120.0f);
 
-    // Moving along +x on a floor below it spins the ball about -z.
     CHECK(ball.angularVelocity().z < -1.0f);
-    // And it must roll the right way round: at rolling without slipping the
-    // contact point is stationary, which means v = -w x r, giving
-    // w_z = -v_x / radius. Getting the sign backwards makes a ball that
-    // spins against its own travel.
+    // Rolling without slipping: v = -w x r, so w_z = -v_x / radius; the wrong sign spins against travel.
     const f32 rolling = -ball.velocity().x / sphereShape.radius();
     CHECK(ball.angularVelocity().z < 0.0f && rolling < 0.0f);
     CHECK(std::abs(ball.angularVelocity().z - rolling) < std::abs(rolling) * 0.5f);
-    // Friction takes speed away, never adds it or reverses it.
     CHECK(ball.velocity().x > 0.0f);
     CHECK(ball.velocity().x < 6.0f);
 }
-
-// ------------------------------------------------------------------- solver
 
 RigidBody makeDynamic(const CollisionShape& shape, f32 mass, const Math::vec3& position)
 {
@@ -681,14 +593,10 @@ void testSolverStopsAFall()
     ContactSolver solver;
     solver.solve(&contact, 1, 1.0f / 60.0f);
 
-    // The downward velocity has to be gone, and the box must not have been
-    // thrown upwards instead.
     CHECK(box.velocity().y > -0.01f);
     CHECK(box.velocity().y < 0.5f);
-    // A static body takes nothing from the contact.
     CHECK(near(ground.velocity(), Math::vec3(0.0f)));
     CHECK(near(ground.position(), Math::vec3(0.0f, -0.5f, 0.0f)));
-    // Position correction pushed the overlap out, up to the slop.
     CHECK(box.position().y > 0.45f);
 }
 
@@ -712,15 +620,12 @@ void testSolverRestitution()
     ContactSolver solver;
     solver.solve(&contact, 1, 1.0f / 60.0f);
 
-    // Half the approach speed comes back, not all of it and not none.
     CHECK(ball.velocity().y > 3.0f);
     CHECK(ball.velocity().y < 7.0f);
 }
 
 void testSolverMomentumBetweenDynamics()
 {
-    // Head-on, equal masses, no restitution: they must end at the same speed,
-    // and the total momentum must be what it was.
     const SphereShape shape(0.5f);
     RigidBody left = makeDynamic(shape, 2.0f, Math::vec3(-0.49f, 0.0f, 0.0f));
     RigidBody right = makeDynamic(shape, 2.0f, Math::vec3(0.49f, 0.0f, 0.0f));
@@ -771,12 +676,10 @@ void testSolverFrictionStopsSliding()
         contact.manifold.points[0].penetration = 0.01f;
         solver.solve(&contact, 1, 1.0f / 60.0f);
     }
-    // Friction has to take the sideways speed away, and never reverse it -
-    // a friction impulse that overshoots drives the box backwards.
+    // Friction removes the sideways speed and never reverses it (an overshoot drives the box backwards).
     CHECK(box.velocity().x < before);
     CHECK(box.velocity().x >= -0.05f);
 
-    // Zero friction leaves it sliding.
     RigidBody slippery = makeDynamic(shape, 1.0f, Math::vec3(0.0f, 0.5f, 0.0f));
     slippery.setVelocity(Math::vec3(3.0f, -1.0f, 0.0f));
     Contact frictionless = contact;
@@ -803,8 +706,7 @@ void testStaticPairDoesNothing()
     contact.manifold.points[0].penetration = 0.5f;
 
     ContactSolver solver;
-    // Two infinite masses: dividing by their total would be a division by
-    // zero, and moving either would be wrong.
+    // Two infinite masses: dividing by their total is a division by zero.
     solver.solve(&contact, 1, 1.0f / 60.0f);
     CHECK(near(groundA.position(), Math::vec3(0.0f)));
     CHECK(near(groundB.position(), Math::vec3(0.1f, 0.0f, 0.0f)));
@@ -829,8 +731,7 @@ void testWarmStartingCarriesImpulse()
     ContactSolver solver;
     box.setVelocity(Math::vec3(0.0f, -2.0f, 0.0f));
     solver.solve(&contact, 1, 1.0f / 60.0f);
-    // The impulse it needed is kept on the point, which is what the next
-    // step starts from instead of finding it again from zero.
+    // The needed impulse is kept on the point as the next step's warm start.
     CHECK(contact.manifold.points[0].normalImpulse > 0.0f);
 }
 
@@ -839,22 +740,18 @@ void testRigidBodyForcesAndImpulses()
     const BoxShape shape(Math::vec3(0.5f));
     RigidBody body = makeDynamic(shape, 2.0f, Math::vec3(0.0f));
 
-    // A force over a step accelerates by F/m, so dv = F/m * dt.
     body.addForce(Math::vec3(10.0f, 0.0f, 0.0f));
     body.integrate(1.0f / 60.0f);
     CHECK(near(body.velocity().x, 10.0f / 2.0f / 60.0f, 1e-4f));
 
-    // An impulse changes velocity by I/m immediately.
     body.applyLinearImpulse(Math::vec3(4.0f, 0.0f, 0.0f));
     CHECK(near(body.velocity().x, 10.0f / 2.0f / 60.0f + 4.0f / 2.0f, 1e-4f));
 
-    // setAcceleration is gravity: it accelerates without dividing by mass.
     body.setAcceleration(Math::vec3(0.0f, -9.81f, 0.0f));
     const f32 beforeY = body.velocity().y;
     body.integrate(1.0f / 60.0f);
     CHECK(near(body.velocity().y, beforeY - 9.81f / 60.0f, 1e-4f));
 
-    // addForceAtBodyPoint turns part of the force into torque.
     body.clearAccumulators();
     body.addForceAtBodyPoint(Math::vec3(0.0f, 0.0f, 8.0f), Math::vec3(0.5f, 0.0f, 0.0f));
     body.integrate(1.0f / 60.0f);
@@ -866,14 +763,11 @@ void testRigidBodyOffCenterImpulseSpins()
     const BoxShape shape(Math::vec3(0.5f));
     RigidBody body = makeDynamic(shape, 1.0f, Math::vec3(0.0f));
 
-    // An impulse straight up at a point off to the +x side: it translates the
-    // body and spins it about z (r x I points +z for r on +x and I up).
+    // r x I points +z for r on +x and I up.
     body.applyImpulseAtPoint(Math::vec3(0.0f, 5.0f, 0.0f), Math::vec3(0.5f, 0.0f, 0.0f));
 
     CHECK(near(body.velocity(), Math::vec3(0.0f, 5.0f, 0.0f), 1e-4f));
     CHECK(body.angularVelocity().z > 0.0f);
-    // A point on the surface moves with v + w x r, so it is not just the
-    // centre's velocity.
     const Math::vec3 surfaceVel = body.velocityAtPoint(Math::vec3(0.5f, 0.0f, 0.0f));
     CHECK(std::isfinite(surfaceVel.x));
 }
@@ -885,7 +779,6 @@ void testRigidBodySleepsAndImpulseWakes()
     body.setCanSleep(true);
     body.setVelocity(Math::vec3(0.001f, 0.0f, 0.0f));
 
-    // Below the sleep epsilon and left alone, it has to fall asleep.
     bool slept = false;
     for (u32 i = 0; i < 60 && !slept; ++i)
     {
@@ -895,7 +788,6 @@ void testRigidBodySleepsAndImpulseWakes()
     }
     CHECK(slept);
 
-    // Anything arriving wakes it up again.
     body.applyLinearImpulse(Math::vec3(1.0f, 0.0f, 0.0f));
     CHECK(body.awake());
 }
@@ -904,7 +796,6 @@ void testRigidBodyStaticAndKinematic()
 {
     const BoxShape shape(Math::vec3(0.5f));
 
-    // Static: integrate is a no-op and forces do nothing.
     RigidBody statik = makeStatic(Math::vec3(1.0f, 2.0f, 3.0f));
     statik.setVelocity(Math::vec3(5.0f, 0.0f, 0.0f));
     statik.addForce(Math::vec3(100.0f, 0.0f, 0.0f));
@@ -912,7 +803,6 @@ void testRigidBodyStaticAndKinematic()
     CHECK(!statik.isDynamic());
     CHECK(near(statik.position(), Math::vec3(1.0f, 2.0f, 3.0f)));
 
-    // Kinematic: moves by its velocity alone, forces ignored.
     RigidBody kinematic;
     kinematic.setBodyType(BodyType::Kinematic);
     kinematic.setPosition(Math::vec3(0.0f));
@@ -925,16 +815,14 @@ void testRigidBodyStaticAndKinematic()
 
 void testSolverOffCenterContactSpinsABox()
 {
-    // A box falling onto a contact point off to one side: the impulse that
-    // stops it goes through a point that is not under the centre of mass, so
-    // it has to spin the box rather than only stopping it.
+    // An impulse through a point off the centre of mass must spin the box.
     const BoxShape shape(Math::vec3(0.5f));
     RigidBody ground = makeStatic(Math::vec3(0.0f, -0.5f, 0.0f));
     RigidBody box = makeDynamic(shape, 1.0f, Math::vec3(0.0f, 0.45f, 0.0f));
     box.setVelocity(Math::vec3(0.0f, -5.0f, 0.0f));
     box.setAngularVelocity(Math::vec3(0.0f));
 
-    const Math::vec3 contactPoint(0.4f, -0.05f, 0.0f); // off-centre
+    const Math::vec3 contactPoint(0.4f, -0.05f, 0.0f);
     Contact contact;
     contact.a = &ground;
     contact.b = &box;
@@ -948,22 +836,17 @@ void testSolverOffCenterContactSpinsABox()
     ContactSolver solver;
     solver.solve(&contact, 1, 1.0f / 60.0f);
 
-    // What the solver cancels is the velocity AT the contact point, not the
-    // centre of mass: the box keeps falling a little at its centre while it
-    // spins. The point's downward speed has to be cut well below the -5 it
-    // came in with, and the off-centre impulse has spun it.
+    // The solver cancels velocity AT the contact point, not the centre: the centre keeps falling a little while it spins.
     CHECK(box.velocityAtPoint(contactPoint).y > -1.0f);
     CHECK(std::abs(box.angularVelocity().z) > 1e-3f);
 }
 
 void testSolverSurvivesDeepPenetration()
 {
-    // A pathological overlap - a whole box's width into the ground - must be
-    // corrected without exploding: the velocity stays bounded and the body
-    // comes out clear instead of being flung.
+    // A whole box-width of overlap must be corrected without exploding.
     const BoxShape shape(Math::vec3(0.5f));
     RigidBody ground = makeStatic(Math::vec3(0.0f, -0.5f, 0.0f));
-    RigidBody box = makeDynamic(shape, 1.0f, Math::vec3(0.0f, -0.2f, 0.0f)); // deep inside
+    RigidBody box = makeDynamic(shape, 1.0f, Math::vec3(0.0f, -0.2f, 0.0f));
     box.setVelocity(Math::vec3(0.0f, -10.0f, 0.0f));
 
     Contact contact;
@@ -981,19 +864,13 @@ void testSolverSurvivesDeepPenetration()
     for (u32 i = 0; i < 5; ++i)
         solver.solve(&contact, 1, 1.0f / 60.0f);
 
-    // Corrected out of the ground, without a crazy velocity or a NaN.
     CHECK(box.position().y > startY);
     CHECK(std::abs(box.velocity().y) < 20.0f);
     CHECK(std::isfinite(box.position().y));
 }
 
-// ------------------------------------------------------- end to end, no demo
-
 void testBoxSettlesOnGround()
 {
-    // The whole pipeline against gravity: narrowphase every step, solve, and
-    // integrate. The box has to come to rest on the ground and stay there,
-    // neither sinking through nor drifting sideways.
     const BoxShape groundShape(Math::vec3(10.0f, 0.5f, 10.0f));
     const BoxShape boxShape(Math::vec3(0.5f));
 
@@ -1022,26 +899,17 @@ void testBoxSettlesOnGround()
         }
     }
 
-    // Resting on the ground: its centre sits one half-extent above the
-    // ground's top face at y = 0, give or take the solver's slop.
     CHECK(box.position().y > 0.45f);
     CHECK(box.position().y < 0.55f);
     CHECK(std::abs(box.velocity().y) < 0.5f);
-    // Nothing pushed it sideways, so it must not have wandered.
     CHECK(std::abs(box.position().x) < 0.05f);
     CHECK(std::abs(box.position().z) < 0.05f);
     CHECK(std::isfinite(box.position().y));
 }
 
-// --------------------------------------------------------------- the world
-
 void testWorldStackStandsUp()
 {
-    // Five boxes stacked on the ground, dropped from a small gap so they
-    // settle rather than start interpenetrating. This is the case the whole
-    // pipeline exists for and the one that exposes everything: a broadphase
-    // that misses a pair, a manifold with too few points, or a solver without
-    // warm starting all end with the tower sunk into itself or on the floor.
+    // Five stacked boxes dropped from a small gap: exposes a missed broadphase pair, too few manifold points, or no warm starting.
     BoxShape groundShape(Math::vec3(20.0f, 0.5f, 20.0f));
     BoxShape boxShape(Math::vec3(0.5f));
 
@@ -1075,21 +943,16 @@ void testWorldStackStandsUp()
     for (u32 i = 0; i < 900; ++i)
         world.stepPhysics(1.0f / 120.0f);
 
-    // Every box has to end up at its own level, within a fraction of its own
-    // size. Sagging shows up here as a box sitting well below where it should.
     const int before = gFailures;
     for (u32 i = 0; i < kCount; ++i)
     {
         const f32 expected = 0.5f + static_cast<f32>(i) * 1.0f;
         CHECK(std::abs(boxes[i].position().y - expected) < 0.12f);
-        // And it must not have wandered sideways: nothing pushed it.
         CHECK(std::abs(boxes[i].position().x) < 0.15f);
         CHECK(std::abs(boxes[i].position().z) < 0.15f);
         CHECK(std::isfinite(boxes[i].position().y));
     }
 
-    // Settled means slow. A tower that is still moving after seven seconds is
-    // a tower that never converged.
     for (u32 i = 0; i < kCount; ++i)
         CHECK(Math::length(boxes[i].velocity()) < 0.35f);
 
@@ -1102,12 +965,7 @@ void testWorldStackStandsUp()
 
 void testStackSleepsTogether()
 {
-    // Sleep decided per body freezes a stack half-settled: the boxes lower
-    // down are still sinking their last few millimetres, the ones on top have
-    // stopped moving and fall asleep - and a sleeping body does not
-    // integrate, so it stays exactly where it was while the tower shrinks
-    // underneath it. The result is boxes hanging in the air until something
-    // else hits them. Bodies joined by contacts have to sleep as one.
+    // Per-body sleep freezes a half-settled stack and boxes hang in the air; bodies joined by contacts must sleep as one.
     BoxShape groundShape(Math::vec3(20.0f, 0.5f, 20.0f));
     BoxShape boxShape(Math::vec3(0.5f));
 
@@ -1143,9 +1001,7 @@ void testStackSleepsTogether()
     {
         world.stepPhysics(1.0f / 120.0f);
 
-        // Checked EVERY step, not only at the end: a stack that freezes
-        // half-asleep may still look right once everything has stopped, and
-        // the state that hangs a box is a transient one.
+        // Checked EVERY step: the transient state is what hangs a box.
         u32 asleep = 0;
         for (u32 i = 0; i < kCount; ++i)
             if (!boxes[i].awake())
@@ -1161,9 +1017,6 @@ void testStackSleepsTogether()
                      worstSplitStep);
     CHECK(worstSplitStep == 0);
 
-    // Every box must be resting ON the one below, not floating above it. A
-    // box is 1 tall, so the centres are 1 apart plus whatever overlap the
-    // solver leaves - never a gap.
     for (u32 i = 1; i < kCount; ++i)
     {
         const f32 spacing = boxes[i].position().y - boxes[i - 1].position().y;
@@ -1231,9 +1084,7 @@ void testWorldEventsEnterStayExit()
             gap = 0;
     }
 
-    // Landing is exactly one Enter followed by many Stays - an Enter every
-    // step would mean the cache is not remembering the pair, which is the
-    // same bookkeeping warm starting depends on.
+    // Landing is one Enter then many Stays; an Enter every step means the cache is not remembering the pair.
     if (recorder.enters != 1 || recorder.exits != 0)
         std::fprintf(stderr,
                      "  landing: %u enters, %u stays, %u exits, resting y %.4f, longest gap %u\n",
@@ -1242,9 +1093,7 @@ void testWorldEventsEnterStayExit()
     CHECK(recorder.stays > 100);
     CHECK(recorder.exits == 0);
 
-    // Lifted away, the pair has to report Exit once and then stop. It takes
-    // as many steps as the persistence window, which is deliberate: a single
-    // missed step is what happens on landing and must not read as separation.
+    // Exit once after as many steps as the persistence window; a single missed step on landing must not read as separation.
     box.setBodyType(BodyType::Kinematic);
     box.setPosition(Math::vec3(0.0f, 20.0f, 0.0f));
     for (u32 i = 0; i < world.contactPersistence(); ++i)
@@ -1258,9 +1107,6 @@ void testWorldEventsEnterStayExit()
 
 void testWorldFixedStepIsFrameRateIndependent()
 {
-    // The same second of simulation, delivered as one long frame or as many
-    // short ones, has to land in the same place - that is the whole point of
-    // a fixed step.
     BoxShape shape(Math::vec3(0.5f));
 
     auto run = [&shape](f32 frame, u32 frames)
@@ -1285,7 +1131,6 @@ void testWorldFixedStepIsFrameRateIndependent()
     CHECK(near(fine, coarse, 1e-3f));
 }
 
-// A unit quad on the XZ plane at y = 0, spanning [-5, 5], as two triangles.
 void makeGroundMesh(std::vector<Math::vec3>& vertices, std::vector<u32>& indices)
 {
     vertices = {Math::vec3(-5.0f, 0.0f, -5.0f), Math::vec3(5.0f, 0.0f, -5.0f),
@@ -1344,7 +1189,6 @@ void testSphereOnTriangle()
                                       Math::mat4(1.0f), manifold));
     CHECK(manifold.count == 1);
     CHECK(near(manifold.points[0].penetration, 0.25f));
-    // Sphere above, triangle below: A to B points down.
     CHECK(near(manifold.normal, Math::vec3(0.0f, -1.0f, 0.0f)));
 }
 
@@ -1358,8 +1202,6 @@ void testBoxOnTriangleGetsAPatch()
     CHECK(Narrowphase::boxTriangle(box, at(Math::vec3(1.0f, 0.9f, -1.0f)), triangle, Math::mat4(1.0f),
                                    manifold));
     CHECK(near(manifold.normal, Math::vec3(0.0f, -1.0f, 0.0f)));
-    // A face resting on a face has to give more than one point, or the box
-    // pivots on the single one instead of settling flat.
     CHECK(manifold.count > 1);
     CHECK(near(manifold.points[0].penetration, 0.1f, 1e-3f));
 
@@ -1392,8 +1234,6 @@ void testConvexTrimeshSpansBothTriangles()
     std::vector<ContactManifold> manifolds;
     CHECK(Narrowphase::convexTrimesh(box, at(Math::vec3(0.0f, 0.9f, 0.0f)), mesh, Math::mat4(1.0f),
                                      manifolds));
-    // Straddling the quad's diagonal touches both triangles, and each one
-    // brings its own manifold rather than being merged into a single normal.
     CHECK(manifolds.size() == 2);
     for (const ContactManifold& manifold : manifolds)
         CHECK(near(manifold.normal, Math::vec3(0.0f, -1.0f, 0.0f)));
@@ -1413,8 +1253,7 @@ void testTrimeshUnderRotation()
                             static_cast<u32>(indices.size()));
     const SphereShape sphere(1.0f);
 
-    // The mesh rolled 90 degrees about Z is a wall in the YZ plane; a sphere
-    // beside it must be found through the same inverse-transform path.
+    // A mesh rolled 90 degrees about Z is a wall in YZ; the sphere must be found through the inverse transform.
     const Math::mat4 meshTransform =
         at(Math::vec3(0.0f), Math::angleAxis(Math::radians(90.0f), Math::vec3(0.0f, 0.0f, 1.0f)));
     std::vector<ContactManifold> manifolds;
@@ -1424,7 +1263,6 @@ void testTrimeshUnderRotation()
     CHECK(near(std::abs(manifolds[0].normal.x), 1.0f, 1e-3f));
 }
 
-// A floor at y = 0 plus a wall standing at x = 2, both as quads.
 void makeRoomMesh(std::vector<Math::vec3>& vertices, std::vector<u32>& indices)
 {
     vertices = {// floor
@@ -1433,13 +1271,10 @@ void makeRoomMesh(std::vector<Math::vec3>& vertices, std::vector<u32>& indices)
                 // wall facing -X
                 Math::vec3(2.0f, 0.0f, -10.0f), Math::vec3(2.0f, 0.0f, 10.0f),
                 Math::vec3(2.0f, 6.0f, 10.0f), Math::vec3(2.0f, 6.0f, -10.0f)};
-    // Floor up, wall towards -X where the character comes from. A sweep is
-    // one-sided, unlike a push-out, so a back-facing wall is simply not there.
+    // A sweep is one-sided, unlike a push-out: a back-facing wall is not there.
     indices = {0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7};
 }
 
-// A floor at y = 0, a ceiling at y = 3 and a wall at x = 2 facing -X - enough
-// for the Godot-style isOnWall()/isOnCeiling() state to have something to hit.
 void makeRoomWithCeilingMesh(std::vector<Math::vec3>& vertices, std::vector<u32>& indices)
 {
     vertices = {// floor (+Y)
@@ -1469,8 +1304,6 @@ void testCharacterReportsWallAndCeiling()
         character.update(1.0f / 60.0f, mesh, Math::mat4(1.0f));
     CHECK(character.isOnFloor());
 
-    // Walk into the wall at x = 2: the state has to report a wall, with the
-    // wall's own normal, and the character must stop before the wall face.
     character.setMoveInput(Math::vec3(4.0f, 0.0f, 0.0f));
     bool sawWall = false;
     for (u32 i = 0; i < 120 && !sawWall; ++i)
@@ -1485,7 +1318,6 @@ void testCharacterReportsWallAndCeiling()
     CHECK(sawWall);
     CHECK(character.position().x < 2.0f);
 
-    // Jump into the ceiling at y = 3: isOnCeiling() with a downward normal.
     character.setMoveInput(Math::vec3(0.0f));
     character.jump(8.0f);
     bool sawCeiling = false;
@@ -1503,9 +1335,7 @@ void testCharacterReportsWallAndCeiling()
 
 void testCharacterMoveAndSlideGodotStyle()
 {
-    // Godot's pattern: the caller owns the velocity (gravity included) and
-    // calls moveAndSlide() each frame. Landing has to zero the up component
-    // so gravity does not keep accumulating into the floor.
+    // The caller owns the velocity (gravity included); landing must zero the up component so gravity does not accumulate.
     std::vector<Math::vec3> vertices;
     std::vector<u32> indices;
     makeRoomMesh(vertices, indices);
@@ -1527,14 +1357,11 @@ void testCharacterMoveAndSlideGodotStyle()
     }
     CHECK(character.isOnFloor());
     CHECK(near(character.verticalSpeed(), 0.0f, 1e-3f));
-    // The horizontal component survives the slide (it is not a wall).
     CHECK(character.position().x > -3.0f);
 }
 
 void testCharacterSetVerticalSpeedJumpsAnytime()
 {
-    // setVerticalSpeed() is Godot's no-grounded-check jump: an airborne body
-    // still rises, unlike jump() which only fires from the ground.
     std::vector<Math::vec3> vertices;
     std::vector<u32> indices;
     makeRoomMesh(vertices, indices);
@@ -1544,7 +1371,6 @@ void testCharacterSetVerticalSpeedJumpsAnytime()
     Physics::CharacterBody character;
     character.setShape(0.4f, 1.2f);
     character.setPosition(Math::vec3(-4.0f, 3.0f, 0.0f));
-    // Never let it land: it spawns above the floor and rises immediately.
     character.setVerticalSpeed(6.0f);
     const f32 startY = character.position().y;
     bool rose = false;
@@ -1567,20 +1393,14 @@ void testCharacterApplyFloorSnapIsPublic()
 
     Physics::CharacterBody character;
     character.setShape(0.4f, 1.2f);
-    // A little above the floor, not yet grounded - a straight probe down
-    // settles it (Godot's apply_floor_snap()).
     character.setPosition(Math::vec3(-2.0f, 1.1f, 0.0f));
     CHECK(character.applyFloorSnap(mesh, Math::mat4(1.0f)));
     CHECK(character.isOnFloor());
-    // Rests one vertical radius plus the skin above the floor.
     CHECK(near(character.position().y, 1.02f, 0.02f));
 }
 
 void testSlideCameraPullsBackFromAWall()
 {
-    // Anchor at x = 0, desired camera position at x = 8, a wall at x = 2
-    // between them. The camera sphere has to stop short of the wall, hugging
-    // it, instead of reaching the desired position through the wall.
     std::vector<Math::vec3> vertices;
     std::vector<u32> indices;
     makeRoomMesh(vertices, indices);
@@ -1591,8 +1411,6 @@ void testSlideCameraPullsBackFromAWall()
     const Math::vec3 cam =
         mesh.slideCamera(Math::vec3(0.0f, 2.0f, 0.0f), Math::vec3(8.0f, 2.0f, 0.0f), radius);
 
-    // Pulled back before the wall face at x = 2, clear of the anchor, and the
-    // camera sphere itself does not cut the wall.
     CHECK(cam.x < 2.0f);
     CHECK(cam.x > 1.0f);
     CHECK(cam.x + radius < 2.0f + 1e-3f);
@@ -1600,7 +1418,6 @@ void testSlideCameraPullsBackFromAWall()
 
 void testSlideCameraReturnsTheDesiredPositionWhenClear()
 {
-    // No wall in the way: the camera reaches the desired position exactly.
     std::vector<Math::vec3> vertices;
     std::vector<u32> indices;
     makeGroundMesh(vertices, indices);
@@ -1628,7 +1445,6 @@ void testCharacterLandsAndStandsOnTheFloor()
         character.move(Math::vec3(0.0f, -0.05f, 0.0f), mesh, Math::mat4(1.0f));
 
     CHECK(character.grounded());
-    // Centre sits a full half-capsule above the floor, plus the skin.
     const f32 expected = 0.4f + 0.6f;
     CHECK(character.position().y > expected - 0.1f);
     CHECK(character.position().y < expected + 0.15f);
@@ -1647,7 +1463,6 @@ void testCharacterDoesNotWalkThroughAWall()
     character.setShape(0.4f, 1.2f);
     character.setPosition(Math::vec3(-2.0f, 1.0f, 0.0f));
 
-    // Walked hard into the wall at x = 2 for two seconds.
     for (u32 i = 0; i < 120; ++i)
     {
         character.move(Math::vec3(0.12f, 0.0f, 0.0f), mesh, Math::mat4(1.0f));
@@ -1659,13 +1474,7 @@ void testCharacterDoesNotWalkThroughAWall()
 
 void testCharacterDoesNotTeleportToAFarWall()
 {
-    // The wall at x = 2 is eight units away. A swept sphere's plane
-    // intersection sits far beyond the end of the path (t = distance /
-    // step = 80), and the sweep used to report it as the closest hit because
-    // the running best started at infinity instead of at 1.0 - so a single
-    // 0.1 step moved the character all the way to the wall in one frame.
-    // That is the castle's "touch a wall and it flies off". One step has to
-    // move him 0.1, not to the wall.
+    // Regression: a swept sphere's plane hit sits far past the path (t = 80); the running best used to start at infinity, not 1.0, so one 0.1 step moved the character to the wall. One step must move 0.1.
     std::vector<Math::vec3> vertices;
     std::vector<u32> indices;
     makeRoomMesh(vertices, indices);
@@ -1678,15 +1487,13 @@ void testCharacterDoesNotTeleportToAFarWall()
 
     const Math::vec3 before = character.position();
     character.move(Math::vec3(0.1f, 0.0f, 0.0f), mesh, Math::mat4(1.0f));
-    // Moved one 0.1 step, not teleported to the wall at x = 2.
     CHECK(Math::length(character.position() - before) < 0.2f);
     CHECK(character.position().x < -5.5f);
 }
 
 void testCharacterCrossesSeamsWithoutStopping()
 {
-    // A floor cut into a grid, so walking it crosses many shared edges - the
-    // case that used to catch a body and stop it dead on flat ground.
+    // A floor cut into a grid: walking crosses many shared edges, which used to stop a body dead.
     std::vector<Math::vec3> vertices;
     std::vector<u32> indices;
     constexpr int kCells = 12;
@@ -1719,13 +1526,11 @@ void testCharacterCrossesSeamsWithoutStopping()
         character.move(Math::vec3(0.0f, -0.02f, 0.0f), mesh, Math::mat4(1.0f));
     }
 
-    // Ten units asked for; anything much short of it means a seam stopped him.
     const f32 travelled = character.position().x - startX;
     CHECK(travelled > 9.0f);
     CHECK(character.grounded());
 }
 
-// Floor at y = 0 up to x = 0, then a ledge `height` tall from x = 0 onwards.
 void makeLedgeMesh(f32 height, std::vector<Math::vec3>& vertices, std::vector<u32>& indices)
 {
     vertices = {Math::vec3(-10.0f, 0.0f, -10.0f), Math::vec3(0.0f, 0.0f, -10.0f),
@@ -1733,9 +1538,6 @@ void makeLedgeMesh(f32 height, std::vector<Math::vec3>& vertices, std::vector<u3
                 Math::vec3(0.0f, height, -10.0f), Math::vec3(0.0f, height, 10.0f),
                 Math::vec3(10.0f, height, 10.0f), Math::vec3(10.0f, height, -10.0f),
                 Math::vec3(0.0f, 0.0f, -10.0f),   Math::vec3(0.0f, 0.0f, 10.0f)};
-    // Wound so every face looks where it should: floors up, riser towards
-    // the character who walks into it. A back-facing wall is a different
-    // test, not this one.
     indices = {// lower floor, +Y
                0, 2, 1, 0, 3, 2,
                // upper floor, +Y
@@ -1778,28 +1580,7 @@ void testCharacterClimbsAStepAndIsStoppedByAWall()
                          static_cast<f64>(h), static_cast<f64>(walkAtLedge(h, 0.0f)),
                          static_cast<f64>(walkAtLedge(h, 0.35f)));
 
-    // An ellipsoid rides over a step on its own curved base - that is how
-    // collide-and-slide gets stairs with no step-up pass at all, and why
-    // nobody using this algorithm reports catching on them.
-    //
-    // Measured on this character, whose vertical radius is 1.0: up to 0.7 is
-    // climbed, 0.8 and over is a wall. The ceiling sits just under the
-    // vertical radius for a reason - the ellipsoid's widest cross-section is
-    // at its centre, so a ledge at or below that can be rolled onto and one
-    // above it meets the upper half and pushes back.
-    //
-    // This number moved every time something was fixed, which is the useful
-    // part: 0.6 while the skin was too small to stop it re-embedding, 1.0
-    // once the push-out was being read back as velocity and flinging it up,
-    // 0.9 after ground snapping, 0.8 once the push-out stopped counting as
-    // motion, 0.7 once the slide went back to projecting its destination with
-    // the world normal like the scene CharacterController. That last change
-    // is the one that removed the wall launch: the ellipsoid-space projection
-    // had bought the extra 0.1 of climbing by leaving a residual that was
-    // tangent to the ellipsoid but not to the real surface, and converting it
-    // back to world amplified its vertical component - pressing against a
-    // slanted wall (or brushing a seam) shot the character up. Anything above
-    // 0.7 here means that crept back.
+    // An ellipsoid rides a step on its curved base (no step-up pass): it climbs up to 0.7, 0.8+ is a wall; the ceiling sits under the vertical radius 1.0 since the widest cross-section is at its centre. Projecting with the world normal (as CharacterController) removed the wall launch; above 0.7 means a residual tangent only to the ellipsoid crept back.
     CHECK(walkAtLedge(0.3f, 0.0f) > 0.5f);
     CHECK(walkAtLedge(0.7f, 0.0f) > 0.5f);
     CHECK(walkAtLedge(0.8f, 0.0f) < 0.0f);
@@ -1808,10 +1589,7 @@ void testCharacterClimbsAStepAndIsStoppedByAWall()
 
 void testCharacterDoesNotHopAtAPlatformSeam()
 {
-    // Two separate platforms at the SAME height, meeting at x = 0 without
-    // sharing vertices - which is how level geometry is really built, one
-    // piece butted against the next. The seam is an edge, and an edge contact
-    // reports a steep normal even on dead level ground.
+    // Two platforms at the SAME height butted at x = 0 without shared vertices: the seam edge reports a steep normal on level ground.
     std::vector<Math::vec3> vertices = {Math::vec3(-8.0f, 1.0f, -8.0f), Math::vec3(0.0f, 1.0f, -8.0f),
                                        Math::vec3(0.0f, 1.0f, 8.0f),   Math::vec3(-8.0f, 1.0f, 8.0f),
                                        Math::vec3(0.0f, 1.0f, -8.0f),  Math::vec3(8.0f, 1.0f, -8.0f),
@@ -1838,8 +1616,7 @@ void testCharacterDoesNotHopAtAPlatformSeam()
         highest = Math::max(highest, character.position().y);
     }
 
-    // Crossed the seam and kept walking, without ever being lifted. A step
-    // offset firing at the junction shows up here as a 0.35 hop.
+    // An offset firing at the seam shows as a 0.35 hop.
     CHECK(character.position().x > 1.0f);
     CHECK(highest < settled + 0.05f);
     CHECK(character.grounded());
@@ -1855,9 +1632,7 @@ void testCharacterIsNeverLaunchedByAContact()
 
     Physics::CharacterBody character;
     character.setShape(0.4f, 1.2f);
-    // Started deliberately INSIDE the wall at x = 2, which is the worst case
-    // the push-out has to handle - and the one that used to convert the
-    // ejection into velocity and fire him into the sky.
+    // Started INSIDE the wall at x = 2: the push-out must not be converted into velocity.
     character.setPosition(Math::vec3(2.0f, 1.0f, 0.0f));
 
     f32 highest = character.position().y;
@@ -1867,12 +1642,8 @@ void testCharacterIsNeverLaunchedByAContact()
         character.setMoveInput(Math::vec3(4.0f, 0.0f, 0.0f));
         character.update(1.0f / 60.0f, mesh, Math::mat4(1.0f));
         highest = Math::max(highest, character.position().y);
-        // Nothing here can send him upward at all, so any climb is the
-        // push-out being read back as motion.
         CHECK(character.verticalSpeed() < 1.0f);
-        // And no single frame may move him further than one push-out plus the
-        // step he asked for. Iterating the push-out is how someone wedged in
-        // a corner gets shoved once per iteration and flies across the level.
+        // No frame may move him more than one push-out plus the requested step; iterating the push-out flings a wedged body.
         CHECK(Math::length(character.position() - before) < 1.5f);
     }
     CHECK(highest < 2.0f);
@@ -1894,11 +1665,7 @@ void testGroundedNeverFlickersWhileStandingStill()
         character.update(1.0f / 60.0f, mesh, Math::mat4(1.0f));
     CHECK(character.grounded());
 
-    // Settled and untouched. He rests one skin width clear of the floor, but
-    // one frame of falling covers a quarter of that, so a bare downward sweep
-    // finds nothing and `grounded` drops - then speed accumulates for a few
-    // frames until it reaches, and the flag ticks yes/no forever. Every frame
-    // has to report standing, and he must not creep downwards.
+    // Settled: he rests one skin width clear and a frame of falling is a quarter of it, so a bare downward sweep finds nothing and `grounded` flickers; every frame must report standing.
     const f32 settled = character.position().y;
     u32 airborneFrames = 0;
     for (u32 i = 0; i < 240; ++i)
@@ -1910,7 +1677,6 @@ void testGroundedNeverFlickersWhileStandingStill()
     CHECK(airborneFrames == 0);
     CHECK(near(character.position().y, settled, 1e-3f));
 
-    // The same while walking, which is when it was actually noticed.
     character.setMoveInput(Math::vec3(2.0f, 0.0f, 0.0f));
     airborneFrames = 0;
     for (u32 i = 0; i < 180; ++i)
@@ -1939,8 +1705,6 @@ void testCharacterFallsAndLandsUnderGravity()
         character.update(1.0f / 60.0f, mesh, Math::mat4(1.0f));
 
     CHECK(character.grounded());
-    // The fall has to stop, or standing still keeps accumulating speed and
-    // the character shoots off the first ramp he meets.
     CHECK(near(character.verticalSpeed(), 0.0f, 1e-3f));
     CHECK(near(character.slopeAngle(), 0.0f, 2.0f));
 }
@@ -1964,8 +1728,6 @@ void testCharacterJumpsOnlyFromTheGround()
     f32 peak = standing;
     for (u32 i = 0; i < 40; ++i)
     {
-        // Asked for again every frame while in the air. Ignored, or the
-        // character climbs the sky - and the peak below would run away.
         character.jump(8.0f);
         character.update(1.0f / 60.0f, mesh, Math::mat4(1.0f));
         peak = Math::max(peak, character.position().y);
@@ -1973,7 +1735,6 @@ void testCharacterJumpsOnlyFromTheGround()
     CHECK(peak > standing + 1.0f);
     CHECK(peak < standing + 3.0f);
 
-    // Left alone, he has to come back down to where he started.
     for (u32 i = 0; i < 120; ++i)
         character.update(1.0f / 60.0f, mesh, Math::mat4(1.0f));
     CHECK(character.grounded());
@@ -2002,8 +1763,6 @@ void testTeleportClearsTheFall()
 
 void testTrimeshRaycastFindsTheNearestTriangle()
 {
-    // Two floors: one at y = 0 and one at y = 2, so a ray fired down from
-    // above crosses both and has to report the upper one.
     std::vector<Math::vec3> vertices;
     std::vector<u32> indices;
     makeGroundMesh(vertices, indices);
@@ -2027,10 +1786,8 @@ void testTrimeshRaycastFindsTheNearestTriangle()
     CHECK(near(hit.distance, 8.0f));
     CHECK(near(std::abs(hit.normal.y), 1.0f));
 
-    // Short enough to fall between the two floors.
     CHECK(!mesh.raycast(ray, 4.0f, hit));
 
-    // Fired upwards from below everything.
     ray.origin = Math::vec3(1.0f, -10.0f, 1.0f);
     ray.direction = Math::vec3(0.0f, 1.0f, 0.0f);
     CHECK(mesh.raycast(ray, 100.0f, hit));
@@ -2039,12 +1796,7 @@ void testTrimeshRaycastFindsTheNearestTriangle()
 
 void testTrimeshRaycastFromInsideTheBounds()
 {
-    // Three floors, one deep below: the root box then extends far under the
-    // ray, so the exit distance from a box containing the origin is much
-    // larger than the ray's own budget. The tree prune must not confuse the
-    // two - a short suspension-style ray standing between floors has to hit
-    // the one right beneath it (the bug this guards against culled the root
-    // and reported open air).
+    // A deep third floor stretches the root box far under the ray; the prune must not confuse the box exit distance with the ray budget (a short ray between floors must hit the floor beneath).
     std::vector<Math::vec3> vertices;
     std::vector<u32> indices;
     makeGroundMesh(vertices, indices);
@@ -2084,12 +1836,9 @@ void testTrimeshOverlapSphereRejectsNearMisses()
     mesh.overlapSphere(Math::vec3(0.0f, 0.5f, 0.0f), 1.0f, hits);
     CHECK(!hits.empty());
 
-    // Well above the plane: the tree may still offer candidates, and the
-    // exact test is what has to throw them out.
     mesh.overlapSphere(Math::vec3(0.0f, 5.0f, 0.0f), 1.0f, hits);
     CHECK(hits.empty());
 
-    // Beyond the rim on X, level with it.
     mesh.overlapSphere(Math::vec3(7.0f, 0.0f, 0.0f), 1.0f, hits);
     CHECK(hits.empty());
 }
@@ -2102,8 +1851,6 @@ void testSharedEdgesAreDetected()
     const TrimeshShape mesh(vertices.data(), static_cast<u32>(vertices.size()), indices.data(),
                             static_cast<u32>(indices.size()));
 
-    // The quad's diagonal is used by both triangles; its other four edges are
-    // the rim and belong to one each.
     u32 shared = 0;
     for (u32 i = 0; i < mesh.triangleCount(); ++i)
     {
@@ -2124,9 +1871,7 @@ void testNoNormalCatchesOnASeam()
                             static_cast<u32>(indices.size()));
     const CapsuleShape capsule(0.4f, 0.8f);
 
-    // Walk the capsule straight across the diagonal seam. Every contact along
-    // the way has to push straight up: a normal tilted towards the seam is a
-    // wall in the middle of flat ground, and the character stops on it.
+    // Contacts across the diagonal seam must push straight up; a normal tilted towards it is a wall on flat ground.
     for (int step = -8; step <= 8; ++step)
     {
         const f32 x = static_cast<f32>(step) * 0.25f;
@@ -2152,8 +1897,7 @@ void testRimEdgeStillPushesOutwards()
                             static_cast<u32>(indices.size()));
     const SphereShape sphere(1.0f);
 
-    // Just past the outer rim at x = 5 and level with it: a real edge, which
-    // must not be flattened to the face normal or nothing ever falls off.
+    // A real rim edge must not be flattened to the face normal, or nothing falls off.
     std::vector<ContactManifold> manifolds;
     CHECK(Narrowphase::convexTrimesh(sphere, at(Math::vec3(5.6f, 0.0f, 0.0f)), mesh, Math::mat4(1.0f),
                                      manifolds));
@@ -2167,9 +1911,7 @@ void testRimEdgeStillPushesOutwards()
 
 void testTrimeshWindingErrorsDetectsFlippedTriangles()
 {
-    // Two triangles sharing the diagonal, wound the same way around the quad
-    // -> no errors. Flip one triangle and the shared edge is traversed the
-    // same way by both, which windingErrors has to flag as a backface.
+    // Flipping one triangle makes both traverse the shared edge the same way: windingErrors must flag a backface.
     std::vector<Math::vec3> vertices = {Math::vec3(0, 0, 0), Math::vec3(2, 0, 0), Math::vec3(2, 0, 2),
                                        Math::vec3(0, 0, 2)};
     const std::vector<u32> goodIndices = {0, 2, 1, 0, 3, 2};
@@ -2187,24 +1929,16 @@ void testTrimeshWindingErrorsDetectsFlippedTriangles()
 
 void testSweepSphereRejectsHitsBeyondThePath()
 {
-    // A wall four units away, swept towards by only 0.5: the plane hit sits
-    // at t >> 1 and has to be rejected - the sweep must not report a contact
-    // it cannot reach in this move. A full-length sweep does reach it and
-    // has to report the wall's normal at the right fraction.
+    // A plane hit at t >> 1 must be rejected when the sweep cannot reach it; a full-length sweep reaches it with the wall's normal.
     std::vector<Math::vec3> vertices = {
         Math::vec3(-5, 0, -5), Math::vec3(5, 0, -5), Math::vec3(5, 0, 5), Math::vec3(-5, 0, 5),
-        // wall at z = 4, facing -Z
         Math::vec3(-5, 0, 4), Math::vec3(5, 0, 4), Math::vec3(5, 6, 4), Math::vec3(-5, 6, 4)};
     const std::vector<u32> indices = {0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6};
     const TrimeshShape mesh(vertices.data(), 8, indices.data(), 12);
 
     TrimeshShape::SweepHit hit;
-    // Short sweep cannot reach the wall (the sphere surface is 3.0 short of
-    // it, the path is 0.5) -> no hit, the character walks freely.
     CHECK(!mesh.sweepSphere(Math::vec3(0.0f, 1.0f, 0.0f), 0.5f, Math::vec3(0.0f, 0.0f, 0.5f), hit));
 
-    // Full sweep: the sphere surface touches the wall at z = 3.5 of a 4.0
-    // path, with the wall's outward normal.
     CHECK(mesh.sweepSphere(Math::vec3(0.0f, 1.0f, 0.0f), 0.5f, Math::vec3(0.0f, 0.0f, 4.0f), hit));
     CHECK(near(hit.t, 3.5f / 4.0f, 1e-3f));
     CHECK(near(hit.normal, Math::vec3(0.0f, 0.0f, -1.0f), 1e-3f));
@@ -2212,12 +1946,11 @@ void testSweepSphereRejectsHitsBeyondThePath()
 
 void testNarrowphaseMarginReportsSpeculativeContacts()
 {
-    // Two spheres 0.1 apart: no contact at margin 0, and a speculative contact
-    // with a negative penetration (how far apart they are) within a margin.
+    // No contact at margin 0; a speculative contact with negative penetration within a margin.
     const SphereShape a(0.5f);
     const SphereShape b(0.5f);
     const Math::mat4 ta = at(Math::vec3(0.0f));
-    const Math::mat4 tb = at(Math::vec3(1.1f, 0.0f, 0.0f)); // surfaces 0.1 apart
+    const Math::mat4 tb = at(Math::vec3(1.1f, 0.0f, 0.0f));
 
     ContactManifold manifold;
     CHECK(!Narrowphase::collide(a, ta, b, tb, manifold));
@@ -2228,9 +1961,8 @@ void testNarrowphaseMarginReportsSpeculativeContacts()
     CHECK(near(manifold.points[0].penetration, -0.1f, 1e-3f));
     CHECK(near(manifold.normal, Math::vec3(1.0f, 0.0f, 0.0f), 1e-3f));
 
-    // The dispatch, a sphere against a box, honours the margin too.
     const BoxShape box(Math::vec3(0.5f));
-    const Math::mat4 tbox = at(Math::vec3(1.1f, 0.0f, 0.0f)); // 0.1 from the sphere
+    const Math::mat4 tbox = at(Math::vec3(1.1f, 0.0f, 0.0f));
     ContactManifold boxManifold;
     CHECK(Narrowphase::collide(a, ta, box, tbox, boxManifold, 0.2f));
     CHECK(boxManifold.points[0].penetration < 0.0f);
@@ -2238,7 +1970,6 @@ void testNarrowphaseMarginReportsSpeculativeContacts()
 
 void testShapeInertiaTensors()
 {
-    // Solid sphere: (2/5) m r^2 on every axis, nothing off-diagonal.
     const SphereShape sphere(1.0f);
     const Math::mat3 sphereI = sphere.inertia(5.0f);
     const f32 expected = 0.4f * 5.0f * 1.0f;
@@ -2255,8 +1986,6 @@ void testShapeInertiaTensors()
     CHECK(near(boxI[1][1], m / 12.0f * (2.0f * 2.0f + 6.0f * 6.0f), 1e-3f));
     CHECK(near(boxI[2][2], m / 12.0f * (2.0f * 2.0f + 4.0f * 4.0f), 1e-3f));
 
-    // Capsule: radial (x and z) moment greater than the axial (y) one, and
-    // no coupling terms.
     const CapsuleShape capsule(0.5f, 1.0f);
     const Math::mat3 capsuleI = capsule.inertia(2.0f);
     CHECK(near(capsuleI[0][1], 0.0f, 1e-6f));
@@ -2269,7 +1998,6 @@ void testBoxFaceHelpers()
     const BoxShape box(Math::vec3(1.0f, 2.0f, 3.0f));
     const Math::mat4 identity = at(Math::vec3(0.0f));
 
-    // Faces in order -x,+x,-y,+y,-z,+z with the matching outward normals.
     const Math::vec3 expected[6] = {Math::vec3(-1, 0, 0), Math::vec3(1, 0, 0),  Math::vec3(0, -1, 0),
                                    Math::vec3(0, 1, 0),  Math::vec3(0, 0, -1), Math::vec3(0, 0, 1)};
     for (u32 face = 0; face < 6; ++face)
@@ -2282,11 +2010,9 @@ void testBoxFaceHelpers()
         Math::vec3 world[8];
         box.corners(identity, world);
         for (u32 c = 0; c < 4; ++c)
-            // Every corner of the face sits on the face's plane.
             CHECK(near(Math::dot(world[corners[c]], normal), halfExtent, 1e-5f));
     }
 
-    // Turned a quarter turn about z, the +x face normal becomes +y.
     const Math::mat4 turned =
         at(Math::vec3(0.0f), Math::angleAxis(Math::half_pi<f32>(), Math::vec3(0, 0, 1)));
     CHECK(near(BoxShape::faceNormal(turned, 1), Math::vec3(0.0f, 1.0f, 0.0f), 1e-3f));
@@ -2294,9 +2020,7 @@ void testBoxFaceHelpers()
 
 void testTriangleFeatureIsInternal()
 {
-    // Two edges shared (bits 0 and 1): the face is always internal, shared
-    // edges report the face normal, and a vertex is internal only when both
-    // of its edges are shared.
+    // Two shared edges: the face is internal, shared edges report the face normal, a vertex is internal only when both its edges are shared.
     const TriangleShape triangle(Math::vec3(0, 0, 0), Math::vec3(1, 0, 0), Math::vec3(0, 1, 0),
                                  /*sharedEdges=*/0b011);
     CHECK(triangle.edgeIsShared(0));
@@ -2308,8 +2032,6 @@ void testTriangleFeatureIsInternal()
     CHECK(triangle.featureIsInternal(TriangleFeature::Edge1));
     CHECK(!triangle.featureIsInternal(TriangleFeature::Edge2));
 
-    // Vertex1 meets edges 0 and 1 (both shared) -> internal. Vertex2 meets
-    // edge 1 (shared) and edge 2 (open rim) -> a real corner.
     CHECK(triangle.featureIsInternal(TriangleFeature::Vertex1));
     CHECK(!triangle.featureIsInternal(TriangleFeature::Vertex2));
 
@@ -2318,13 +2040,9 @@ void testTriangleFeatureIsInternal()
 
 void testConvexTrimeshBoxRestsOnFloorAndInCorner()
 {
-    // A floor of two triangles at y = 0 plus a wall at x = 2 facing -X. A box
-    // resting on the floor must report up normals; a box wedged into the
-    // corner must report ONE manifold per touching triangle with distinct
-    // normals - never one averaged normal that belongs to neither.
+    // A box on the floor must report up normals; wedged in the corner it must report ONE manifold per touching triangle, never one averaged normal.
     std::vector<Math::vec3> vertices = {
         Math::vec3(-5, 0, -5), Math::vec3(5, 0, -5), Math::vec3(5, 0, 5), Math::vec3(-5, 0, 5),
-        // wall facing -X at x = 2
         Math::vec3(2, 0, -5), Math::vec3(2, 0, 5), Math::vec3(2, 6, 5), Math::vec3(2, 6, -5)};
     const std::vector<u32> indices = {0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7};
     const TrimeshShape mesh(vertices.data(), 8, indices.data(), 12);
@@ -2332,8 +2050,6 @@ void testConvexTrimeshBoxRestsOnFloorAndInCorner()
     const BoxShape box(Math::vec3(0.5f));
     std::vector<ContactManifold> manifolds;
 
-    // Resting on the floor (0.01 of the box below y = 0): every manifold is
-    // a floor contact, normal pointing from the box DOWN to the floor.
     manifolds.clear();
     CHECK(Narrowphase::convexTrimesh(box, at(Math::vec3(0.0f, 0.49f, 0.0f)), mesh,
                                      at(Math::vec3(0.0f)), manifolds));
@@ -2341,9 +2057,6 @@ void testConvexTrimeshBoxRestsOnFloorAndInCorner()
     for (const ContactManifold& manifold : manifolds)
         CHECK(near(manifold.normal, Math::vec3(0.0f, -1.0f, 0.0f), 1e-3f));
 
-    // Wedged into the corner: at least one floor manifold and one wall
-    // manifold, each with its own normal (down for the floor, +x for the
-    // wall the box presses into).
     manifolds.clear();
     CHECK(Narrowphase::convexTrimesh(box, at(Math::vec3(1.51f, 0.49f, 0.0f)), mesh,
                                      at(Math::vec3(0.0f)), manifolds));
@@ -2416,11 +2129,7 @@ void testCharacterRigidBodyOnSteepGround()
     character.removeFromWorld();
 }
 
-// Regression: the reference treats a (near) 0 degree max slope angle as
-// "turn the check off", not "reject every slope, including a flat one that
-// only misses by rounding". Same steep ramp as
-// testCharacterRigidBodyOnSteepGround(), but with the limit set to the
-// escape-hatch value - it must read OnGround, not OnSteepGround.
+// Regression: a (near) 0 degree max slope means "check off", not "reject every slope"; the steep ramp must read OnGround.
 void testCharacterRigidBodyMaxSlopeAngleZeroDisablesTheCheck()
 {
     const f32 angleDegrees = 70.0f;
@@ -2686,8 +2395,6 @@ void testWorldStepSkipsIncompatibleMasks()
     CHECK(dropper.position().y < -1.0f);
 }
 
-// There are no ids or handles any more - a removed body is identified by its
-// own address, and detachment is scene() turning null.
 void testWorldRemovalDetachesOneBodyAndKeepsOthersWorking()
 {
     SphereShape shape(1.0f);
@@ -2758,8 +2465,7 @@ void testWorldAllowsMutationFromCollisionCallback()
             mutation.removed = info.bodyB;
             mutation.world->removeBody(*mutation.removed);
             mutation.world->addBody(*mutation.spare);
-            // Events are dispatched after the solver releases its temporary
-            // references, so mutation is already safe and visible here.
+            // Events are dispatched after the solver releases its temporary references, so mutation is safe.
             CHECK(mutation.removed->scene() == nullptr);
             CHECK(mutation.spare->scene() == mutation.world);
         },
@@ -2964,8 +2670,6 @@ void testPointJointCarMoves()
         CHECK(Math::length(joint.worldAnchorB() - joint.worldAnchorA()) < 0.1f);
 }
 
-// ------------------------------------------------------------ convex hull
-
 void testConvexHullShapeMatchesBox()
 {
     const Shard shard = buildCubeShard(1.0f);
@@ -2994,9 +2698,7 @@ void testConvexHullShapeMatchesBox()
 
 void testConvexHullInertiaMatchesBoxClosedForm()
 {
-    // The one shape with an independent formula to check the tetrahedron
-    // decomposition against: a non-cubic box, so a bug that only shows up
-    // once the three axes differ cannot hide behind a cube's symmetry.
+    // A non-cubic box, so a bug that appears only when the three axes differ cannot hide behind symmetry.
     const Shard shard = buildCubeShard(1.0f);
     Shard scaled = shard;
     for (Math::vec3& vertex : scaled.vertices)
@@ -3018,14 +2720,10 @@ void testConvexHullBoxMatchesBoxBoxInvariants()
     const ConvexHullShape hull(shard);
     const BoxShape ground(Math::vec3(3.0f, 0.5f, 3.0f));
 
-    // Ground top face is at y=0; hull half-extent 1 centred at y=0.8 puts
-    // its bottom face at y=-0.2, a 0.2 overlap - the same setup
-    // testBoxBoxFaceContact() uses for two unit boxes.
     const Math::mat4 hullTransform = at(Math::vec3(0.0f, 0.8f, 0.0f));
     const Math::mat4 groundTransform = at(Math::vec3(0.0f, -0.5f, 0.0f));
 
     ContactManifold manifold;
-    // Hull is A, above; ground is B, below - A to B points down.
     CHECK(Narrowphase::collide(hull, hullTransform, ground, groundTransform, manifold));
     CHECK(manifold.count == 4);
     CHECK(near(manifold.normal, Math::vec3(0, -1, 0), 1e-3f));
@@ -3039,11 +2737,9 @@ void testConvexHullBoxMatchesBoxBoxInvariants()
                 spread, Math::length(manifold.points[i].position - manifold.points[j].position));
     CHECK(spread > 1.5f);
 
-    // Pulled clear, no contact.
     const Math::mat4 clear = at(Math::vec3(0.0f, 5.0f, 0.0f));
     CHECK(!Narrowphase::collide(hull, clear, ground, groundTransform, manifold));
 
-    // The box-first ordering has to give the mirrored normal.
     ContactManifold flipped;
     CHECK(Narrowphase::collide(ground, groundTransform, hull, hullTransform, flipped));
     CHECK(near(flipped.normal, Math::vec3(0, 1, 0), 1e-3f));
@@ -3056,7 +2752,6 @@ void testConvexHullSphereBasicContact()
     const SphereShape sphere(0.5f);
 
     ContactManifold manifold;
-    // Sphere resting on the hull's +y face, overlapping by 0.2.
     CHECK(Narrowphase::collide(hull, at(Math::vec3(0.0f)), sphere, at(Math::vec3(0.0f, 1.3f, 0.0f)),
                                manifold));
     CHECK(manifold.count == 1);
@@ -3074,7 +2769,6 @@ void testConvexHullCapsuleBasicContact()
     const CapsuleShape capsule(0.3f, 0.6f);
 
     ContactManifold manifold;
-    // Capsule standing on the hull's +y face, overlapping by 0.15.
     CHECK(Narrowphase::collide(hull, at(Math::vec3(0.0f)), capsule,
                                at(Math::vec3(0.0f, 1.85f, 0.0f)), manifold));
     CHECK(manifold.count >= 1);
@@ -3087,9 +2781,7 @@ void testConvexHullCapsuleBasicContact()
 
 void testConvexHullConvexHullOverlapAndSeparation()
 {
-    // Two cells of the same box, split down the middle - they sit face to
-    // face at their natural centroids, so nudging one towards the other
-    // along the line between the centroids is what forces a real overlap.
+    // Cells split down the middle sit face to face; nudging one toward the other along the centroid line forces overlap.
     std::vector<Math::vec3> boxCorners;
     for (int sx = -1; sx <= 1; sx += 2)
         for (int sy = -1; sy <= 1; sy += 2)
@@ -3107,11 +2799,9 @@ void testConvexHullConvexHullOverlapAndSeparation()
     const Math::vec3 direction = Math::normalize(shards[0].centroid - shards[1].centroid);
 
     ContactManifold manifold;
-    // Pulled well apart: no collision.
     const Math::vec3 farTransformB = shards[1].centroid - direction * 2.0f;
     CHECK(!Narrowphase::collide(hullA, at(shards[0].centroid), hullB, at(farTransformB), manifold));
 
-    // Pushed together past their natural, touching layout: a real overlap.
     const Math::vec3 nearTransformB = shards[1].centroid + direction * 0.3f;
     CHECK(Narrowphase::collide(hullA, at(shards[0].centroid), hullB, at(nearTransformB), manifold));
     CHECK(manifold.count >= 1);
@@ -3122,8 +2812,7 @@ void testConvexHullConvexHullOverlapAndSeparation()
 
 void testConvexHullDegenerateShardIsFinite()
 {
-    // A very thin sliver, the shape a "glass pane" shatter produces - checks
-    // support/bounds/inertia never divide by the near-zero volume into a NaN.
+    // A thin sliver (glass pane shatter): support/bounds/inertia must not divide by near-zero volume into NaN.
     Shard shard = buildCubeShard(1.0f);
     for (Math::vec3& vertex : shard.vertices)
         vertex.z *= 0.0005f;
@@ -3144,8 +2833,7 @@ void testConvexHullDegenerateShardIsFinite()
 
 void testConvexHullConvexHullCoincidentFacesDoNotCrash()
 {
-    // Same hull, same transform - zero gap, exactly face to face on every
-    // side at once. Must report a collision and terminate, not spin.
+    // Zero gap, exactly face to face on every side: must report a collision and terminate.
     const Shard shard = buildCubeShard(1.0f);
     const ConvexHullShape hullA(shard);
     const ConvexHullShape hullB(shard);

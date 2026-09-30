@@ -6,11 +6,7 @@
 namespace Radion
 {
 
-// Parameters for AssetManager::createTree(), one to one with what an editor
-// panel shows. Degenerate combinations - clumpMin over clumpMax, a radius
-// wider than the branch, a falloff at or above 1 - are legal here and produce
-// what they describe; AssetManager::randomTreeParams() is the one that keeps
-// inside the bands that look like trees.
+// Parameters for AssetManager::createTree(), one to one with the editor panel. Degenerate combinations are legal and produce what they describe; AssetManager::randomTreeParams() stays inside tree-like bands.
 struct TreeParams
 {
     f32 clumpMax = 0.8f;
@@ -36,8 +32,7 @@ struct TreeParams
     // odd count leaves holes in the mesh.
     u32 segments = 6;
 
-    // Depth of the branch tree, and how far the trunk climbs before it starts
-    // splitting. Levels is exponential - each one doubles the branch count.
+    // Depth of the branch tree and trunk climb before splitting. Levels is exponential: each doubles the branch count.
     u32 levels = 3;
     u32 trunkSteps = 2;
 

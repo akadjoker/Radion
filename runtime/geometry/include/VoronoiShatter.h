@@ -24,20 +24,14 @@ struct Shard
 class VoronoiShatter
 {
 public:
-    // planes: half-space equations, xyz = normal, w = offset; a point p is inside
-    // when dot(normal, p) + w <= 0 for every plane. Returns the vertices formed by
-    // every triple-plane intersection that lies inside all planes, together with
-    // the (sorted, unique) indices of the planes that actually produced one of
-    // those vertices. Returns false when no such vertex exists.
+    // planes: xyz = normal, w = offset; p is inside when dot(normal, p) + w <= 0. Returns the vertices of triple-plane
+    // intersections inside all planes, plus sorted unique indices of planes that produced one. False when none.
     static bool getVerticesInsidePlanes(const std::vector<Math::vec4>& planes,
                                          std::vector<Math::vec3>& verticesOut,
                                          std::vector<int>& planeIndicesOut);
 
-    // sourceVertices: convex point cloud of the shape being shattered, in the
-    // shape's own local space. voronoiPoints: cell sites, in that same local
-    // space. Produces one Shard per Voronoi point whose cell is non-empty; each
-    // shard's vertices are relative to its own centroid (Shard::centroid holds
-    // the position of that centroid back in the shared local space).
+    // sourceVertices and voronoiPoints are in the shape's local space. One Shard per non-empty cell; shard vertices are
+    // relative to their centroid (Shard::centroid gives it in local space).
     static void shatter(const std::vector<Math::vec3>& sourceVertices,
                          const std::vector<Math::vec3>& voronoiPoints,
                          std::vector<Shard>& shardsOut);

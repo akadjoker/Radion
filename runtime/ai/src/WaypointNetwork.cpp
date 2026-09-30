@@ -1,9 +1,3 @@
-// WaypointNetwork.cpp - implementation of A* over a waypoint graph.
-//
-// The A* nodes are pooled per search and deleted before returning (no leak
-// across searches). The algorithm: open list sorted by f-cost, node map keyed
-// by waypoint id, g = parent.g + edge cost, h = Euclidean distance to goal.
-
 #include "PCH.h"
 
 #include "WaypointNetwork.h"
@@ -64,7 +58,6 @@ bool WaypointNetwork::findPath(WaypointID fromWaypoint, WaypointID toWaypoint, P
     if (!findWaypoint(fromWaypoint) || !findWaypoint(toWaypoint))
         return false;
 
-    // Per-search node pool; freed on every return path below.
     struct AStarNode
     {
         WaypointID waypoint = 0;
@@ -97,7 +90,6 @@ bool WaypointNetwork::findPath(WaypointID fromWaypoint, WaypointID toWaypoint, P
         list.insert(pos, node);
     };
 
-    // Seed the search with the starting waypoint.
     AStarNode* start = allocNode(fromWaypoint);
     start->g = 0.0f;
     start->h = goalEstimate(fromWaypoint, toWaypoint);
@@ -142,7 +134,6 @@ bool WaypointNetwork::findPath(WaypointID fromWaypoint, WaypointID toWaypoint, P
 
             if (wasInMap && (node->inOpen || node->inClosed) && node->g <= newg)
             {
-                // Already in a queue with a cheaper or equal path to it.
                 continue;
             }
 
@@ -160,7 +151,6 @@ bool WaypointNetwork::findPath(WaypointID fromWaypoint, WaypointID toWaypoint, P
             }
             else
             {
-                // Cost changed - reposition within the sorted open list.
                 auto pos = std::find(open.begin(), open.end(), node);
                 if (pos != open.end())
                     open.erase(pos);
@@ -189,7 +179,6 @@ bool WaypointNetwork::findPath(const Math::vec3& origin, const Math::vec3& desti
 
     outPath.clear();
 
-    // Same waypoint for both ends: walk straight to the destination point.
     if (closestToOrigin == closestToDestination)
         return true;
 

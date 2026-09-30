@@ -14,9 +14,7 @@ RibbonTrail::RibbonTrail() : Component(Type, ComponentEventLateUpdate)
 
 void RibbonTrail::reserveVertices()
 {
-    // Sections times subdivisions times strips across the blade, six
-    // vertices each. Reserved up front so a swing never reallocates in the
-    // middle of a frame.
+    // Sections x subdivisions x strips x six vertices; reserved so a swing never reallocates mid-frame.
     const u32 strips = mBladeCount > 1 ? mBladeCount - 1 : 1;
     mVertices.reserve(static_cast<usize>(MaxSamples - 1) * 6u * mSubdivisions * strips);
 }
@@ -35,8 +33,7 @@ bool RibbonTrail::setBladePoints(GameObject* const* objects, u32 count)
     {
         if (!objects[i])
             return false;
-        // The same object twice would give the ribbon a zero-width strip
-        // between them, which renders as nothing and hides the mistake.
+        // The same object twice gives a zero-width strip that renders as nothing and hides the mistake.
         for (u32 j = 0; j < i; ++j)
             if (objects[i] == objects[j])
                 return false;
@@ -134,10 +131,7 @@ void RibbonTrail::setMinDistance(f32 distance)
 }
 void RibbonTrail::setSmoothness(u32 subdivisions)
 {
-    // Eight was too few to be worth evaluating a spline for: the curve was
-    // computed and then drawn as eight straight chords, and on a fast swing -
-    // where consecutive samples are furthest apart, which is exactly where
-    // the curve matters - those chords are plainly visible facets.
+    // Eight was too few: the curve was drawn as straight chords, visible as facets on a fast swing.
     mSubdivisions = Math::clamp(subdivisions, 1u, 64u);
     reserveVertices();
 }
@@ -192,9 +186,7 @@ void RibbonTrail::onLateUpdate(f32 deltaTime)
         }
         else
         {
-            // The furthest-travelled point sets the sampling rate: the tip of
-            // a swung blade covers far more ground than its base, and pacing
-            // by anything slower leaves the fast end visibly faceted.
+            // The furthest-travelled point sets the sampling rate (the tip covers more ground than the base).
             f32 travel = 0.0f;
             for (u32 i = 0; i < mBladeCount; ++i)
                 travel = Math::max(travel, Math::length(current[i] - mLastPoints[i]));
@@ -312,10 +304,7 @@ void RibbonTrail::appendSection(const Sample& a, const Sample& b, f32 firstDista
     const Color colorB = Color::lerp(mEndColor, mStartColor, fadeB);
     const f32 vA = (a.distance - firstDistance) / span;
     const f32 vB = (b.distance - firstDistance) / span;
-    // One quad per gap between blade points, so a blade sampled at more than
-    // two places becomes a sheet of strips rather than one flat quad. u runs
-    // 0..1 across the whole blade whatever the count, so a texture does not
-    // change scale when a point is added.
+    // One quad per gap between blade points; u runs 0..1 across the whole blade whatever the count, so a texture keeps its scale.
     const f32 spanU = static_cast<f32>(mBladeCount - 1);
     for (u32 i = 0; i + 1 < mBladeCount; ++i)
     {
@@ -380,18 +369,8 @@ RibbonTrail::Sample RibbonTrail::interpolate(const Sample& before, const Sample&
     const Math::vec3 toTangent = limitedTangent(fromCenter, toCenter, afterCenter);
     const Math::vec3 center = hermite(fromCenter, fromTangent, toCenter, toTangent, amount);
 
-    // ONE curve, through the centre, with every blade point carried along as
-    // an offset from it. Giving each point its own spline lets two of them
-    // cross on a fast reversal and folds the ribbon into a sail - with more
-    // than two points the odds only get worse.
-    //
-    // The offsets are blended, not squared up against the curve's tangent: a
-    // swept ribbon is the ruled surface between successive blade positions,
-    // and forcing the cross-section perpendicular to the direction of travel
-    // is neither what the geometry is nor what any reference does. Tried
-    // once, and where the blade ran nearly along its own path the
-    // perpendicular part collapsed to numerical noise which then got rescaled
-    // back to full width - a full-width strip pointing nowhere in particular.
+    // One curve through the centre, blade points carried as offsets: per-point splines cross on a fast reversal and fold the ribbon.
+    // Offsets are blended, not squared to the tangent: forcing perpendicular collapsed to numerical noise where the blade ran along its own path.
     const f32 blend = amount * amount * (3.0f - 2.0f * amount);
 
     Sample result;

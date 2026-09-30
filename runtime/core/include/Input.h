@@ -8,7 +8,6 @@
 namespace Radion
 {
 
-// Mouse buttons
 enum MouseButton
 {
     LEFT = 0,
@@ -16,7 +15,6 @@ enum MouseButton
     MIDDLE = 2
 };
 
-// Mouse cursor types
 enum MouseCursor
 {
     DEFAULT = 0,
@@ -35,7 +33,6 @@ enum MouseCursor
 enum KeyCode
 {
     KEY_NULL = 0,
-    // Alphanumeric keys
     KEY_APOSTROPHE = 39,
     KEY_COMMA = 44,
     KEY_MINUS = 45,
@@ -83,7 +80,6 @@ enum KeyCode
     KEY_BACKSLASH = 92,
     KEY_RIGHT_BRACKET = 93,
     KEY_GRAVE = 96,
-    // Function keys
     KEY_SPACE = 32,
     KEY_ESCAPE = 256,
     KEY_ENTER = 257,
@@ -116,7 +112,6 @@ enum KeyCode
     KEY_F10 = 299,
     KEY_F11 = 300,
     KEY_F12 = 301,
-    // Keypad keys
     KEY_KP_0 = 320,
     KEY_KP_1 = 321,
     KEY_KP_2 = 322,
@@ -134,7 +129,6 @@ enum KeyCode
     KEY_KP_ADD = 334,
     KEY_KP_ENTER = 335,
     KEY_KP_EQUAL = 336,
-    // Modifier keys
     KEY_LEFT_SHIFT = 340,
     KEY_LEFT_CONTROL = 341,
     KEY_LEFT_ALT = 342,
@@ -146,7 +140,6 @@ enum KeyCode
     KEY_KB_MENU = 348
 };
 
-// Gamepad buttons
 enum GamepadButton
 {
     GAMEPAD_BUTTON_UNKNOWN = 0,
@@ -169,7 +162,6 @@ enum GamepadButton
     GAMEPAD_BUTTON_RIGHT_THUMB
 };
 
-// Gamepad axis
 enum GamepadAxis
 {
     GAMEPAD_AXIS_LEFT_X = 0,
@@ -234,19 +226,13 @@ public:
     static int getGamepadAxisCount(int gamepad);
     static float getGamepadAxisMovement(int gamepad, GamepadAxis axis);
 
-    // Multi-touch (SDL_FINGER* events). Positions are normalized [0,1] over
-    // the touch surface (SDL's native coordinate space) - Input has no
-    // window size of its own to convert to pixels, so that's on the caller
-    // (e.g. getTouchPosition(i) * Math::vec2(window.getWidth(), window.getHeight())).
+    // SDL_FINGER* events; positions are normalized [0,1] over the touch surface - scale by window size.
     static int getTouchPointCount();
     static Math::vec2 getTouchPosition(int index);
     static long long getTouchPointId(int index);
 
-    // Resets all state; call once at startup.
     static void init();
-    // Rolls current->previous state and clears per-frame accumulators
-    // (wheel, pressed queues); call once per frame BEFORE polling SDL
-    // events (see DemoApp::PollEvents()).
+    // Call once per frame BEFORE polling SDL events.
     static void update();
 
 private:
@@ -258,7 +244,6 @@ private:
     static constexpr int MAX_KEY_PRESSED_QUEUE = 16;
     static constexpr int MAX_CHAR_PRESSED_QUEUE = 16;
 
-    // Mouse state
     static bool currentMouseState[MAX_MOUSE_BUTTONS];
     static bool previousMouseState[MAX_MOUSE_BUTTONS];
     static Math::vec2 mousePosition;
@@ -269,7 +254,6 @@ private:
     static SDL_Cursor* mouseCursor;
     static MouseCursor currentCursor;
 
-    // Keyboard state
     static bool currentKeyState[MAX_KEYBOARD_KEYS];
     static bool previousKeyState[MAX_KEYBOARD_KEYS];
     static KeyCode keyPressedQueue[MAX_KEY_PRESSED_QUEUE];
@@ -277,14 +261,12 @@ private:
     static int charPressedQueue[MAX_CHAR_PRESSED_QUEUE];
     static int charPressedQueueCount;
 
-    // Gamepad state
     static SDL_GameController* gamepads[MAX_GAMEPADS];
     static bool currentGamepadButtonState[MAX_GAMEPADS][MAX_GAMEPAD_BUTTONS];
     static bool previousGamepadButtonState[MAX_GAMEPADS][MAX_GAMEPAD_BUTTONS];
     static float gamepadAxisState[MAX_GAMEPADS][MAX_GAMEPAD_AXIS];
     static int lastButtonPressed;
 
-    // Touch state
     static constexpr int MAX_TOUCH_POINTS = 8;
     static Math::vec2 touchPosition[MAX_TOUCH_POINTS];
     static SDL_FingerID touchId[MAX_TOUCH_POINTS];

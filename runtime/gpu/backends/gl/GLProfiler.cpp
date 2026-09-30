@@ -37,12 +37,8 @@ u32 GPUProfiler::findOrCreate(const char* name)
     return mSampleCount++;
 }
 
-// A scope's time is the difference between its two timestamps. Nested scopes
-// keep their own full span rather than being subtracted out of the parent, so
-// the numbers read the same way the CPU samples do.
-//
-// Replaces the visible values outright rather than adding to them: the panel
-// shows one frame's worth, not a running total since startup.
+// A scope's time is the difference of its two timestamps; nested scopes keep their full span (like the CPU samples).
+// Replaces the visible values outright: the panel shows one frame, not a running total.
 void GPUProfiler::harvest(Frame& frame)
 {
     for (u32 i = 0; i < mSampleCount; ++i)
@@ -62,8 +58,7 @@ void GPUProfiler::harvest(Frame& frame)
         const f32 milliseconds = static_cast<f32>(end - begin) / 1000000.0f;
         mSamples[scope.sample].milliseconds += milliseconds;
 
-        // Only the outermost scopes add up to the frame: counting a nested one
-        // as well would bill the same microsecond twice.
+        // Only outermost scopes sum to the frame; counting nested ones would bill time twice.
         if (scope.depth == 0)
             mFrameMilliseconds += milliseconds;
     }
@@ -84,10 +79,7 @@ bool GPUProfiler::resultsReady(const Frame& frame) const
 
 void GPUProfiler::pushHistory()
 {
-    // Same cadence as the CPU profiler's, on its own clock - these frames
-    // are harvested FrameDelay late and only when their results have landed,
-    // so the two tables cannot be tied to the same tick without one of them
-    // waiting on the other. See ProfileSample::display.
+    // Same cadence as the CPU profiler on its own clock: frames are harvested FrameDelay late, so sharing a tick would make one wait.
     const u64 now = SDL_GetPerformanceCounter();
     const bool refresh =
         (now - mLastRefresh) > static_cast<u64>(Profiler::RefreshSeconds *
@@ -135,10 +127,8 @@ void GPUProfiler::beginFrame()
 
     Frame& frame = mFrames[mCursor];
 
-    // The slot coming back round holds what was recorded FrameDelay frames
-    // ago. If it has not landed yet, leave it alone and record nothing this
-    // frame - reusing a query object still in flight loses the result. The
-    // panel keeps showing the last complete set rather than flickering.
+    // The slot holds FrameDelay-old results; if not landed, record nothing this frame (reusing an in-flight query loses it)
+    // and keep showing the last complete set.
     if (frame.pending)
     {
         if (!resultsReady(frame))

@@ -17,18 +17,10 @@ namespace Radion
 
 namespace
 {
-// 1024x1024 tiles - already a four-million-vertex mesh. Past this it is a
-// mistake, not a big map.
+// 1024x1024 tiles is already a four-million-vertex mesh; past this is a mistake.
 constexpr usize kMaxTiles = 1024u * 1024u;
 
-// How many mip levels the atlas texture is allowed to build. Past this many
-// halvings a level starts averaging a tile with its neighbours in the sheet
-// regardless of atlasUV()'s own inset - the level itself no longer has
-// enough texels left to keep them apart (loadTexture()'s own doc comment on
-// mipLimit makes the same point for a texture atlas in general). Tied to
-// tilesInSide, the one atlas dimension already known before the texture is
-// even loaded, rather than a fixed number that would be too shallow for a
-// coarse atlas and too deep for a fine one.
+// Mip limit for the atlas: past this many halvings a level averages a tile with its neighbours despite atlasUV()'s inset. Tied to tilesInSide, known before load, since a fixed number suits neither coarse nor fine atlases.
 u32 atlasMipLimit(int tilesInSide)
 {
     return static_cast<u32>(Math::max(1, static_cast<int>(std::log2(
@@ -57,11 +49,7 @@ void TiledTerrain::loadTilemap(u32 width, u32 height, const u8* data)
 {
     if (!data || width == 0 || height == 0)
         return;
-    // Every caller funnels through here - the Create popup, the Inspector's
-    // Build Tilemap, an image import, a loaded scene - so this is the one
-    // place the size has to be sane. One tile is four vertices, so the 4096
-    // both editor fields accept on each side would ask rebuild() for 67
-    // million of them and hang the editor before anything could report why.
+    // The one place size must be sane: one tile is four vertices, so the 4096-per-side editor fields would ask rebuild() for 67 million and hang the editor.
     const usize tileCount = static_cast<usize>(width) * height;
     if (tileCount > kMaxTiles)
     {
@@ -177,8 +165,7 @@ TextureHandle TiledTerrain::resolveAtlasTexture() const
 {
     if (!GPU::ready())
         return TextureHandle();
-    // Same precedence rebuild() uses: the image file is the more specific
-    // answer, so it wins over a named material.
+    // Same precedence as rebuild(): the image file wins over a named material.
     if (!mAtlasTexture.empty())
     {
         const TextureHandle atlas = Assets().loadTexture(mAtlasTexture, ColorSpace::sRGB, true,
@@ -240,15 +227,7 @@ void TiledTerrain::atlasUV(u8 tile, int tilesInSide, Math::vec2& uvMin, Math::ve
     const u8 atlasTile = tile & 0x3f;
     const int atlasX = atlasTile % tilesInSide;
     const int atlasZ = tilesInSide - 1 - atlasTile / tilesInSide;
-    // Inset a small fraction of the cell inward on every side. Filtered
-    // sampling (mipmapped minification on the terrain mesh, and the Tile
-    // Painter's own preview draws through the same texture) blends texels
-    // across a cell's edge with its neighbour in the sheet - the "seam" that
-    // showed up as one tile bleeding color into the one next to it. The true
-    // fix only needs one texel of slack, but the pixel size of the atlas is
-    // not known at this call, so the margin is a fraction of the cell
-    // instead - comfortably under one texel for any atlas built at a normal
-    // resolution, without visibly cropping the art.
+    // Inset a fraction of the cell: filtered sampling blends texels across a cell edge into its neighbour (tile bleeding). One texel would do but the atlas size is unknown here, so a fraction comfortably under one texel.
     const f32 inset = stepUV * 0.02f;
     uvMin = Math::vec2(atlasX * stepUV + inset, atlasZ * stepUV + inset);
     uvMax = Math::vec2((atlasX + 1) * stepUV - inset, (atlasZ + 1) * stepUV - inset);
@@ -344,16 +323,8 @@ void TiledTerrain::paintRectangle(TiledTerrain& terrain, int x0, int z0, int x1,
 
 bool TiledTerrain::tilesFromImageColors(const Pixmap& image, std::vector<u8>& outTiles)
 {
-    // Port of the reference's own map-from-image loader: the tile ID is the
-    // image's raw grayscale byte, one pixel is one tile, no palette
-    // (GLTiledTerrain::GLTiledTerrain, gltiledterrain.cpp:37-42 -
-    // "tilesMap[ct] = tileImage.getBuffer()[ct]" over a DRImage the caller
-    // already prepared as grayscale). generate_heightmap() is the engine's
-    // own grayscale conversion (0.299/0.587/0.114 luminance, Pixmap.cpp:1037-
-    // 1038) - on an actual grayscale source, where r=g=b, it returns that
-    // same byte back untouched, so an image authored the way the reference
-    // expects round-trips exactly; a color image is read the same way a
-    // photo would be, rather than refused.
+    // Port of the reference's map-from-image loader: the tile ID is the raw grayscale byte, one pixel per tile (gltiledterrain.cpp:37-42).
+    // generate_heightmap() is luminance (0.299/0.587/0.114); on grayscale it returns the same byte, so round-trip is exact; a color image is read like a photo.
     if (!image.is_valid() || image.width <= 0 || image.height <= 0)
         return false;
 
@@ -414,10 +385,7 @@ void TiledTerrain::endBatch()
 
 void TiledTerrain::rebuild()
 {
-    // Deferred, not dropped: the whole point is that the caller gets one
-    // rebuild at endBatch() rather than one per edited cell. Recorded before
-    // the revision counter too, so a batch reads as the single logical edit
-    // it is instead of bumping the revision once per cell.
+    // Deferred, not dropped: one rebuild at endBatch(). Recorded before the revision bump so a batch counts as one edit.
     if (mRebuildSuspended > 0)
     {
         mRebuildPending = true;
@@ -507,9 +475,7 @@ void TiledTerrain::rebuild()
     if (patches.empty())
         return;
 
-    // Mirrors ManualMesh::beginSubMesh's material resolution, one shared
-    // slot for every patch (same single-material-slot design as the
-    // reference's add_surface(..., 0, ...) calls).
+    // Mirrors ManualMesh::beginSubMesh's material resolution: one shared slot for every patch (as the reference's add_surface(..., 0, ...)).
     Material material;
     bool haveMaterial = false;
     if (!mAtlasMaterial.empty())
@@ -523,16 +489,8 @@ void TiledTerrain::rebuild()
         else
             material.name = mAtlasMaterial;
     }
-    // An atlas image, when there is one, is the answer - it is the only
-    // texture a tile terrain has, so there is nothing an authored material
-    // adds that this cannot say. It also covers the case above failing to
-    // resolve, which otherwise left a blank material and a terrain drawn
-    // untextured with no indication why.
-    // GPU::ready() gates the load, not just the upload further down: a failed
-    // loadTexture() falls back to the default checker, and building that
-    // reaches GPU::getSingleton(), which aborts outright when there is no
-    // device. Headless - a test, a scene loaded before the window exists -
-    // keeps the path recorded and resolves it on the next rebuild.
+    // An atlas image is the answer (the only texture a tile terrain has) and covers the case where the material failed to resolve and left it untextured.
+    // GPU::ready() gates the load: a failed loadTexture() builds the default checker via GPU::getSingleton(), which aborts with no device. Headless keeps the path and resolves on the next rebuild.
     if (!mAtlasTexture.empty() && GPU::ready())
     {
         const TextureHandle atlas = Assets().loadTexture(mAtlasTexture, ColorSpace::sRGB, true,
@@ -552,16 +510,7 @@ void TiledTerrain::rebuild()
             albedo.texture = atlas;
             albedo.file = mAtlasTexture;
             albedo.source = TextureSource::Static;
-            // Trilinear, not Point: Point disables mip filtering outright,
-            // which reads one raw texel per screen pixel - correct up close,
-            // but past the distance where several atlas texels map to one
-            // screen pixel it aliases into exactly the vertical banding
-            // minification artifacts always cause without a mip chain to
-            // fall back on. Bleeding across a tile's edge - the reason
-            // Point looked tempting - is handled by atlasUV()'s own inset
-            // and the capped mip chain below instead, not by disabling
-            // filtering. Clamp keeps the edge tiles from wrapping to the
-            // far side of the atlas.
+            // Trilinear, not Point: Point disables mip filtering and aliases into vertical banding at distance. Edge bleeding is handled by atlasUV()'s inset and the capped mip chain. Clamp keeps edge tiles from wrapping.
             SamplerDesc sampler;
             sampler.filter = Filter::Trilinear;
             sampler.wrapU = Wrap::Clamp;

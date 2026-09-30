@@ -103,8 +103,6 @@ void ObstacleAvoidanceBehavior::setParamFloat(u32 index, f32 value)
     mMinTimeToCollision = value;
 }
 
-// --- seek / flee ------------------------------------------------------------
-
 Math::vec3 SteerLibrary::seek(const Math::vec3& target) const
 {
     const Math::vec3 desiredVelocity = target - vehicle().position();
@@ -117,20 +115,14 @@ Math::vec3 SteerLibrary::flee(const Math::vec3& target) const
     return desiredVelocity - vehicle().velocity();
 }
 
-// --- wander -----------------------------------------------------------------
-
 Math::vec3 SteerLibrary::wander(float dt)
 {
-    // Random walk WanderSide and WanderUp between -1 and +1.
     const float speed = 12.0f * dt;
     wanderSide = scalarRandomWalk(wanderSide, speed, -1.0f, +1.0f);
     wanderUp = scalarRandomWalk(wanderUp, speed, -1.0f, +1.0f);
 
-    // Return a pure lateral steering vector: (+/-Side) + (+/-Up).
     return (vehicle().side() * wanderSide) + (vehicle().up() * wanderUp);
 }
-
-// --- pursuit / evasion ------------------------------------------------------
 
 Math::vec3 SteerLibrary::pursuit(const Agent& quarry) const
 {
@@ -139,24 +131,19 @@ Math::vec3 SteerLibrary::pursuit(const Agent& quarry) const
 
 Math::vec3 SteerLibrary::pursuit(const Agent& quarry, float maxPredictionTime) const
 {
-    // Offset from this to the quarry, its distance, and a unit vector toward it.
     const Math::vec3 offset = quarry.position() - vehicle().position();
     const float distance = Math::length(offset);
     const Math::vec3 unitOffset = distance > 0.0f ? offset / distance : vehicle().forward();
 
-    // How parallel are the paths of "this" and the quarry?
     const float parallelness = Math::dot(vehicle().forward(), quarry.forward());
 
-    // How "forward" is the direction to the quarry?
     const float forwardness = Math::dot(vehicle().forward(), unitOffset);
 
-    // Estimated time to intercept at current speed (0 if not moving yet, so a
-    // parked quarry doesn't produce NaN).
+    // 0 if not moving yet, so a parked quarry does not produce NaN.
     const float directTravelTime = vehicle().speed() > 0.0f ? distance / vehicle().speed() : 0.0f;
     const int f = intervalComparison(forwardness, -0.707f, 0.707f);
     const int p = intervalComparison(parallelness, -0.707f, 0.707f);
 
-    // Time factor for the nine cases of quarry position/heading.
     float timeFactor = 0.0f;
     switch (f)
     {
@@ -204,11 +191,9 @@ Math::vec3 SteerLibrary::pursuit(const Agent& quarry, float maxPredictionTime) c
         break;
     }
 
-    // Estimated time until intercept of the quarry.
     const float et = directTravelTime * timeFactor;
     const float etl = (et > maxPredictionTime) ? maxPredictionTime : et;
 
-    // Estimated position of the quarry at intercept.
     const Math::vec3 target = quarry.predictFuturePosition(etl);
 
     return seek(target);
@@ -216,12 +201,10 @@ Math::vec3 SteerLibrary::pursuit(const Agent& quarry, float maxPredictionTime) c
 
 Math::vec3 SteerLibrary::evasion(const Agent& menace, float maxPredictionTime) const
 {
-    // Offset from this to the menace, its distance, unit vector toward menace.
     const Math::vec3 offset = menace.position() - vehicle().position();
     const float distance = Math::length(offset);
 
-    // Predicted intercept time, capped at maxPredictionTime (a stationary
-    // menace is predicted at the cap rather than dividing by zero).
+    // Capped at maxPredictionTime (a stationary menace would divide by zero).
     const float roughTime = menace.speed() > 0.0f ? distance / menace.speed() : maxPredictionTime;
     const float predictionTime = (roughTime > maxPredictionTime) ? maxPredictionTime : roughTime;
 
@@ -229,8 +212,6 @@ Math::vec3 SteerLibrary::evasion(const Agent& menace, float maxPredictionTime) c
 
     return flee(target);
 }
-
-// --- flocking --------------------------------------------------------------
 
 bool SteerLibrary::inBoidNeighborhood(const Agent& other, float minDistance, float maxDistance,
                                       float cosMaxAngle) const
@@ -241,15 +222,12 @@ bool SteerLibrary::inBoidNeighborhood(const Agent& other, float minDistance, flo
     const Math::vec3 offset = other.position() - vehicle().position();
     const float distanceSquared = Math::dot(offset, offset);
 
-    // Definitely in the neighborhood if inside the minDistance sphere.
     if (distanceSquared < (minDistance * minDistance))
         return true;
 
-    // Definitely not in the neighborhood if outside the maxDistance sphere.
     if (distanceSquared > (maxDistance * maxDistance))
         return false;
 
-    // Otherwise, test the angular offset from the forward axis.
     const Math::vec3 unitOffset = offset / std::sqrt(distanceSquared);
     const float forwardness = Math::dot(vehicle().forward(), unitOffset);
     return forwardness > cosMaxAngle;
@@ -258,7 +236,6 @@ bool SteerLibrary::inBoidNeighborhood(const Agent& other, float minDistance, flo
 Math::vec3 SteerLibrary::separation(float maxDistance, float cosMaxAngle,
                                    const std::vector<EntityDist>& flock) const
 {
-    // Steering accumulator and neighbor count, both initially zero.
     Math::vec3 steering(0.0f);
 
     for (const EntityDist& member : flock)
@@ -266,8 +243,7 @@ Math::vec3 SteerLibrary::separation(float maxDistance, float cosMaxAngle,
         const Agent& other = *member.entity;
         if (inBoidNeighborhood(other, vehicle().radius() * 3.0f, maxDistance, cosMaxAngle))
         {
-            // Add the steering contribution: opposite of the offset direction,
-            // divided once by distance to normalize, again for a 1/d falloff.
+            // Opposite of the offset direction, divided once by distance to normalize and again for 1/d falloff.
             const Math::vec3 offset = other.position() - vehicle().position();
             const float distanceSquared = Math::dot(offset, offset);
             if (distanceSquared > 0.0f)
@@ -275,7 +251,6 @@ Math::vec3 SteerLibrary::separation(float maxDistance, float cosMaxAngle,
         }
     }
 
-    // Normalize to a pure direction.
     return safeNormalize(steering);
 }
 
@@ -290,14 +265,11 @@ Math::vec3 SteerLibrary::alignment(float maxDistance, float cosMaxAngle,
         const Agent& other = *member.entity;
         if (inBoidNeighborhood(other, vehicle().radius() * 3.0f, maxDistance, cosMaxAngle))
         {
-            // Accumulate the sum of the neighbor headings.
             steering += other.forward();
             ++neighbors;
         }
     }
 
-    // Divide by neighbors, subtract the current heading to get the error-
-    // correcting direction, then normalize to a pure direction.
     if (neighbors > 0)
         steering = safeNormalize((steering / static_cast<float>(neighbors)) - vehicle().forward());
 
@@ -315,21 +287,16 @@ Math::vec3 SteerLibrary::cohesion(float maxDistance, float cosMaxAngle,
         const Agent& other = *member.entity;
         if (inBoidNeighborhood(other, vehicle().radius() * 3.0f, maxDistance, cosMaxAngle))
         {
-            // Accumulate the sum of the neighbor positions.
             steering += other.position();
             ++neighbors;
         }
     }
 
-    // Divide by neighbors, subtract the current position to get the error-
-    // correcting direction, then normalize to a pure direction.
     if (neighbors > 0)
         steering = safeNormalize((steering / static_cast<float>(neighbors)) - vehicle().position());
 
     return steering;
 }
-
-// --- obstacle avoidance -----------------------------------------------------
 
 Math::vec3 SteerLibrary::avoidObstacles(float minTimeToCollision,
                                        const ObstacleGroup& obstacles) const
@@ -337,12 +304,9 @@ Math::vec3 SteerLibrary::avoidObstacles(float minTimeToCollision,
     return Obstacle::steerToAvoidObstacles(vehicle(), minTimeToCollision, obstacles);
 }
 
-// --- neighbor avoidance -----------------------------------------------------
-
 Math::vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
                                             const std::vector<EntityDist>& others) const
 {
-    // Hard steer away from any other agent within a critical distance.
     for (const EntityDist& entry : others)
     {
         const Agent& other = *entry.entity;
@@ -356,10 +320,7 @@ Math::vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
 
         if (currentDistance < minCenterToCenter)
         {
-            // Remove the component along the heading, then normalize the
-            // lateral escape direction.  If the overlap is head-on this
-            // projection is zero; use the vehicle's side as a deterministic
-            // escape direction instead of returning no avoidance force.
+            // Remove the along-heading component; a head-on overlap projects to zero, so use the vehicle's side as a deterministic escape.
             const Math::vec3 lateral = perpendicularComponent(-offset, vehicle().forward());
             if (Math::dot(lateral, lateral) > 1e-8f)
                 return safeNormalize(lateral);
@@ -372,19 +333,13 @@ Math::vec3 SteerLibrary::avoidCloseNeighbors(float minSeparationDistance,
 
 float SteerLibrary::predictNearestApproachTime(const Agent& other) const
 {
-    // Imagine we are at the origin with no velocity; compute the relative
-    // velocity of the other agent.
     const Math::vec3 relVelocity = other.velocity() - vehicle().velocity();
     const float relSpeed = Math::length(relVelocity);
 
-    // For parallel paths the vehicles are always at the same distance, so
-    // return 0 (aka "now") - "there is no time like the present".
+    // Parallel paths stay at the same distance: return 0 (now).
     if (relSpeed == 0.0f)
         return 0.0f;
 
-    // In this relative space the other vehicle's path is a line defined by
-    // its relative position and velocity. The distance from the origin (us)
-    // to that line is the nearest approach.
     const Math::vec3 relTangent = relVelocity / relSpeed;
     const Math::vec3 relPosition = vehicle().position() - other.position();
     const float projection = Math::dot(relTangent, relPosition);
@@ -400,7 +355,6 @@ float SteerLibrary::computeNearestApproachPositions(const Agent& other, float ti
     const Math::vec3 myFinal = vehicle().position() + myTravel;
     const Math::vec3 otherFinal = other.position() + otherTravel;
 
-    // For annotation.
     ourPositionAtNearestApproach = myFinal;
     hisPositionAtNearestApproach = otherFinal;
 
@@ -410,18 +364,14 @@ float SteerLibrary::computeNearestApproachPositions(const Agent& other, float ti
 Math::vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
                                        const std::vector<EntityDist>& others)
 {
-    // First priority is to prevent immediate interpenetration.
     const Math::vec3 separation = avoidCloseNeighbors(0.0f, others);
     if (Math::length(separation) > 0.0f)
         return separation;
 
-    // Otherwise, go on to consider potential future collisions.
     float steer = 0.0f;
     const Agent* threat = nullptr;
 
-    // Time (in seconds) until the most immediate collision threat found so
-    // far; initial value is a threshold: don't look more than this many
-    // seconds into the future.
+    // Threshold: do not look further than this many seconds ahead.
     float minTime = minTimeToCollision;
 
     Math::vec3 threatPositionAtNearestApproach(0.0f);
@@ -433,17 +383,12 @@ Math::vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
         if (&other == &vehicle())
             continue;
 
-        // Avoid when future positions are this close (or less).
         const float collisionDangerThreshold = vehicle().radius() * 2.0f;
 
-        // Predicted time until the nearest approach of us and this one.
         const float time = predictNearestApproachTime(other);
 
-        // If the time is in the future, sooner than any other threatened
-        // collision...
         if ((time >= 0.0f) && (time < minTime))
         {
-            // If the two will be close enough to collide, make a note of it.
             if (computeNearestApproachPositions(other, time) < collisionDangerThreshold)
             {
                 minTime = time;
@@ -454,32 +399,26 @@ Math::vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
         }
     }
 
-    // If a potential collision was found, compute steering to avoid it.
     if (threat != nullptr)
     {
-        // Parallel: +1, perpendicular: 0, anti-parallel: -1.
         const float parallelness = Math::dot(vehicle().forward(), threat->forward());
         const float angle = 0.707f;
 
         if (parallelness < -angle)
         {
-            // Anti-parallel "head on" paths: steer away from the future
-            // threat position.
             const Math::vec3 offset = threatPositionAtNearestApproach - vehicle().position();
             const float sideDot = Math::dot(offset, vehicle().side());
             steer = (sideDot > 0.0f) ? -1.0f : 1.0f;
         }
         else if (parallelness > angle)
         {
-            // Parallel paths: steer away from the threat.
             const Math::vec3 offset = threat->position() - vehicle().position();
             const float sideDot = Math::dot(offset, vehicle().side());
             steer = (sideDot > 0.0f) ? -1.0f : 1.0f;
         }
         else
         {
-            // Perpendicular paths: steer behind the threat (only the slower of
-            // the two does this).
+            // Perpendicular paths: steer behind the threat (only the slower of the two does this).
             if (threat->speed() <= vehicle().speed())
             {
                 const float sideDot = Math::dot(vehicle().side(), threat->velocity());
@@ -491,16 +430,12 @@ Math::vec3 SteerLibrary::avoidNeighbors(float minTimeToCollision,
     return vehicle().side() * steer;
 }
 
-// --- target speed -----------------------------------------------------------
-
 Math::vec3 SteerLibrary::targetSpeed(float targetSpeed) const
 {
     const float mf = vehicle().maxForce();
     const float speedError = targetSpeed - vehicle().speed();
     return vehicle().forward() * clip(speedError, -mf, +mf);
 }
-
-// --- isAhead / isAside / isBehind -------------------------------------------
 
 bool SteerLibrary::isAhead(const Math::vec3& target, float cosThreshold) const
 {
@@ -530,8 +465,6 @@ bool SteerLibrary::isBehind(const Math::vec3& target, float cosThreshold) const
     return Math::dot(vehicle().forward(), targetDirection) < cosThreshold;
 }
 
-// --- convenience behaviors --------------------------------------------------
-
 void SeekBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
@@ -546,14 +479,6 @@ void FleeBehavior::iterate(float timeDelta, Agent& entity)
     entity.setDesiredMove(entity.desiredMove() + (mSteer.flee(mThreat) * gain()));
 }
 
-// DESVIO 2: WanderBehavior's mSteer (and the wanderSide/wanderUp state it
-// carries) used to be shared by every agent the same behavior instance was
-// added to (Entity::addBehavior() was non-owning, Steering.h:157 before this
-// port) - every one of them wandered in lockstep, the same random-walk
-// sequence. Behaviors are now owned one-per-agent (Agent::addBehavior()), so
-// mSteer is this agent's alone and each wanders independently. No math here
-// changed to make that true - it already would have been true had the
-// instance not been shared.
 void WanderBehavior::iterate(float timeDelta, Agent& entity)
 {
     mSteer.setVehicle(entity);
@@ -569,9 +494,7 @@ void ObstacleAvoidanceBehavior::iterate(float timeDelta, Agent& entity)
 {
     (void)timeDelta;
 
-    // An explicit setObstacles() group wins; otherwise fall back to whatever
-    // the Scene collects from every Radion::Obstacle component - the caller
-    // no longer has to assemble a group by hand for the common case.
+    // An explicit setObstacles() group wins; otherwise use the Scene's group.
     const ObstacleGroup* obstacles = mObstacles;
     if (!obstacles)
     {

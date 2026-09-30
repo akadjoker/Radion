@@ -433,9 +433,7 @@ HairRenderQueue& HairRenderQueue::getSingleton()
 void HairRenderQueue::clear() { mCommands.clear(); }
 void HairRenderQueue::submit(const HairDrawCommand& command)
 {
-    // A scene can build several camera lists in one engine frame (probe,
-    // reflection, game). Hair is a main-frame pass, so keep its latest pose
-    // rather than simulating and drawing the same component once per list.
+    // Hair is a main-frame pass: keep the latest pose rather than simulating once per camera list.
     for (HairDrawCommand& existing : mCommands)
         if (existing.key == command.key)
         {

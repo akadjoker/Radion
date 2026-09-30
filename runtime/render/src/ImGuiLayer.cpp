@@ -38,7 +38,6 @@ bool ImGuiLayer::initialize(Platform::Window& window)
     ImGui::CreateContext();
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
-    // ImGui::StyleColorsLight();
 
     if (!ImGui_ImplSDL2_InitForOpenGL(window.getNativeWindow(), window.getGLContext()) ||
         !ImGui_ImplOpenGL3_Init("#version 410 core"))
@@ -154,8 +153,7 @@ void ImGuiLayer::drawProfilerContents(const GPUStats& gpu, const RenderListStats
             ImGui::TextUnformatted("timer queries unavailable");
         else
         {
-            // Lags the CPU numbers by a few frames, which is what keeps reading
-            // them from stalling the frame that recorded them.
+            // Lags the CPU numbers by a few frames so reading does not stall.
             ImGui::Text("Measured %.2f ms of %.2f ms", gpuProfiler.frameMilliseconds(),
                         mHeaderGpuMilliseconds);
             sampleTable("profile.gpu", gpuProfiler.samples(), gpuProfiler.sampleCount());
@@ -180,9 +178,7 @@ void ImGuiLayer::drawPostProcessContents(PostProcessStack& post, RenderResolutio
                                          VolumetricPass* volumetric)
 {
     ImGui::Checkbox("Enabled", &post.enabled);
-    // Presets first, because picking a number is the common case and typing
-    // one is not. "Window" is the only entry that tracks a resizing window;
-    // everything else pins the buffers and stops caring how big it gets.
+    // Presets first; "Window" is the only entry that tracks a resizing window.
     struct ResolutionPreset
     {
         const char* label;
@@ -321,13 +317,7 @@ void ImGuiLayer::drawPostProcessContents(PostProcessStack& post, RenderResolutio
         ImGui::SliderFloat("Edge threshold", &post.fxaaEdgeThreshold, 0.01f, 0.5f, "%.3f");
         ImGui::SliderFloat("Minimum threshold", &post.fxaaEdgeThresholdMin, 0.0f, 0.2f, "%.3f");
     }
-    // Faithful port of the reference's "Volumetric light" panel (same
-    // sections, order, sliders and ranges). One forced deviation: the
-    // reference disables the sun row while the CSM panel's own sun master
-    // switch is off (BeginDisabled(!pp.sunMasterEnabled)) - this panel has no
-    // access to that state, only to the VolumetricPass itself, so the row
-    // stays enabled here and the demo is responsible for not calling
-    // setSunEnabled while its own sun is off.
+    // Port of the reference's "Volumetric light" panel; it cannot see the CSM sun master switch, so the demo must not call setSunEnabled while its sun is off.
     if (volumetric && ImGui::CollapsingHeader("Volumetric light", ImGuiTreeNodeFlags_DefaultOpen))
     {
         ImGui::Checkbox("Sol (directional)", &volumetric->sunEnabled);
@@ -384,8 +374,7 @@ void ImGuiLayer::drawSkyContents(SkySettings& sky)
         sky.mode = static_cast<SkyMode>(mode);
     if (sky.mode == SkyMode::Cubemap)
     {
-        // Scanned once and kept: listing walks the filesystem, and this runs
-        // every frame the panel is open.
+        // Scanned once: listing walks the filesystem.
         static std::vector<std::string> available;
         static bool scanned = false;
         if (!scanned)
@@ -405,8 +394,6 @@ void ImGuiLayer::drawSkyContents(SkySettings& sky)
                 if (available[i] == sky.cubemapName)
                     selected = static_cast<int>(i);
 
-            // The stem is what tells the skies apart; the shared directory
-            // in front of it is noise in a list this narrow.
             std::vector<const char*> labels;
             labels.reserve(available.size());
             for (const std::string& name : available)

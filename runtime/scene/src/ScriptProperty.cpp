@@ -164,8 +164,7 @@ usize ScriptProperties::scan(const char* source, std::vector<ScriptProperty>& ou
             continue;
         }
 
-        // Dedenting out of __init__ ends the scan: anything past it is
-        // another method, and its locals are not properties.
+        // Dedenting out of __init__ ends the scan.
         if (inInit && indent <= initIndent)
             break;
 

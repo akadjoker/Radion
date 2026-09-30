@@ -9,9 +9,7 @@ namespace Radion
 namespace
 {
 
-// Regions in a UI atlas laid out the same way the reference's embedded
-// menu.png is - so a project supplying that same atlas through
-// UiSystem::setThemeTexture() gets the exact same widget art.
+// Regions laid out like the reference's embedded menu.png, so a project supplying that atlas via UiSystem::setThemeTexture() gets the same widget art.
 constexpr f32 kPanelX = 2.0f, kPanelY = 2.0f, kPanelW = 72.0f, kPanelH = 72.0f;
 constexpr f32 kButtonX = 79.0f, kButtonY = 2.0f, kButtonW = 44.0f, kButtonH = 44.0f;
 constexpr f32 kCheckOffX = 79.0f, kCheckOffY = 2.0f;
@@ -36,12 +34,7 @@ f32 MeasureUiText(const std::string& text, f32 glyphSize)
     return widest > width ? widest : width;
 }
 
-// Nearest ancestor carrying any of the five widget types, or null when none
-// of `start`'s ancestors carries one - the layout base is then the screen
-// itself. Stands in for the reference's Component::uiControl() virtual,
-// which Radion's own Component base does not carry; the widget set is
-// closed and known here, so trying each concrete type directly needs no
-// change to Component/GameObject at all.
+// Nearest ancestor carrying one of the five widget types, else null (layout base is the screen). Stands in for the reference's Component::uiControl() virtual, which Radion's Component lacks.
 UiControl* FindParentControl(GameObject* start)
 {
     for (GameObject* parent = start; parent; parent = parent->parent())
@@ -61,8 +54,6 @@ UiControl* FindParentControl(GameObject* start)
 }
 
 } // namespace
-
-// ---------------------------------------------------------------- UiSystem
 
 UiSystem& UiSystem::getSingleton()
 {
@@ -192,13 +183,9 @@ void UiSystem::refresh()
     compactControls();
 }
 
-// ---------------------------------------------------------------- UiCanvas
-
 UiCanvas::UiCanvas() : Component(Type)
 {
 }
-
-// ---------------------------------------------------------------- UiControl
 
 UiControl::UiControl(ComponentType type, bool interactive)
     : Component(type, ComponentEventUpdate), mInteractive(interactive)
@@ -367,8 +354,6 @@ void UiControl::drawText(f32 x, f32 y, f32 size, const std::string& text, Color 
     ScreenDraws().text(x, y, size, color, text.c_str(), mLayer);
 }
 
-// ---------------------------------------------------------------- UiPanel
-
 UiPanel::UiPanel() : UiControl(Type, false), mColor(Color::fromRGBFloat(0.10f, 0.12f, 0.16f, 0.94f))
 {
 }
@@ -391,8 +376,6 @@ void UiPanel::onUiRender()
     else
         drawSolidRect(r.x, r.y, r.width, r.height, mColor);
 }
-
-// ---------------------------------------------------------------- UiLabel
 
 UiLabel::UiLabel() : UiControl(Type, false), mText("Label"), mColor(Color::White)
 {
@@ -433,8 +416,6 @@ void UiLabel::onUiRender()
     const FloatRect r = rect();
     drawText(r.x, r.y + (r.height - mFontSize) * 0.5f, mFontSize, mText, mColor);
 }
-
-// ---------------------------------------------------------------- UiButton
 
 UiButton::UiButton() : UiControl(Type, true), mText("Button")
 {
@@ -478,8 +459,6 @@ void UiButton::onUiRender()
     const f32 textX = r.width > textWidth ? r.x + (r.width - textWidth) * 0.5f : r.x + 8.0f;
     drawText(textX, r.y + (r.height - textSize) * 0.5f, textSize, mText, Color::White);
 }
-
-// ------------------------------------------------------------- UiCheckBox
 
 UiCheckBox::UiCheckBox() : UiControl(Type, true), mText("CheckBox")
 {
@@ -542,8 +521,6 @@ void UiCheckBox::onUiRender()
     }
     drawText(r.x + side + 8.0f, r.y + (r.height - 16.0f) * 0.5f, 16.0f, mText, Color::White);
 }
-
-// --------------------------------------------------------------- UiSlider
 
 UiSlider::UiSlider() : UiControl(Type, true)
 {

@@ -37,9 +37,7 @@ void Broadphase::findPairs(std::vector<BroadphasePair>& out)
     if (count < 2)
         return;
 
-    // Sweep along whichever axis the bodies are most spread over: variance,
-    // not extent, because one distant outlier stretches the extent without
-    // separating anything.
+    // Sweep axis by variance, not extent: an outlier stretches the extent without separating anything.
     Math::vec3 sum(0.0f);
     Math::vec3 sumSquared(0.0f);
     bool hasMovableProxy = false;
@@ -77,8 +75,7 @@ void Broadphase::findPairs(std::vector<BroadphasePair>& out)
         for (usize j = i + 1; j < count; ++j)
         {
             const BroadphaseProxy& second = mProxies[mOrder[j]];
-            // Sorted by lower bound, so once one starts past where this one
-            // ends, so does everything after it.
+            // Sorted by lower bound: once one starts past this end, so does everything after it.
             if (second.bounds.min[axis] > end)
                 break;
             if (!first.movable && !second.movable)

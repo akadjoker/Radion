@@ -32,8 +32,7 @@ ColorSpace Material::colorSpaceFor(MaterialSlot slot, u32 flags)
 {
     if (flags & MaterialTerrain)
     {
-        // Terrain reuses these data-oriented slots as colour layers. The
-        // splat map remains linear because its RGBA values are weights.
+        // Terrain uses these slots as colour layers; the splat map stays linear (weights).
         if (slot == SlotAlbedo || slot == SlotNormal || slot == SlotSurface ||
             slot == SlotDetail || slot == SlotHeight)
             return ColorSpace::sRGB;
@@ -76,9 +75,7 @@ std::string resolveMaterialPath(const std::string& materialFile, const std::stri
     return directoryOf(materialFile) + assetFile;
 }
 
-// Loads every frame of a Sequence texture into one Tex2DArray, same shape
-// Decals.cpp uses for its arrays. All frames must share one size - a
-// mismatched frame fails rather than resampling it and desyncing the loop.
+// All frames must share one size: a mismatch fails rather than resampling.
 TextureHandle loadSequenceTexture(const std::string& materialFile,
                                   const std::vector<std::string>& frames, ColorSpace space)
 {
@@ -127,7 +124,7 @@ TextureHandle loadSequenceTexture(const std::string& materialFile,
         desc.height = height;
         desc.depth = static_cast<u32>(images.size());
         desc.format = space == ColorSpace::sRGB ? Format::RGBA8_sRGB : Format::RGBA8;
-        desc.mips = 0; // full chain, generated below once every slice is in
+        desc.mips = 0;
         desc.usage = TextureSampled;
         desc.debugName = "material.sequence";
         handle = GPU::getSingleton().createTexture(desc);
@@ -391,8 +388,7 @@ u32 variantFlagsOf(const Material& material)
     return flags;
 }
 
-// GLSL requires #version to be the file's first line, so a variant #define
-// cannot simply be prepended - it goes right after it instead.
+// #version must be the first line, so variant #defines go right after it.
 std::string withVariantDefines(const std::string& source, u32 variantFlags, u8 pass)
 {
     if (variantFlags == 0 && (pass & MaterialPipelineNoTemporal) == 0)
@@ -471,7 +467,6 @@ Math::vec4* paramField(MaterialParams& params, u8 index)
     }
 }
 
-// Every curve returns 0..1 so the caller only has to interpolate min..max.
 f32 evaluateCurve(Curve curve, f32 time, f32 speed, f32 phase)
 {
     const f32 t = time * speed + phase;
@@ -489,8 +484,6 @@ f32 evaluateCurve(Curve curve, f32 time, f32 speed, f32 phase)
     }
     case Curve::Noise:
     {
-        // Value noise: interpolate between two hashed integers so the result is
-        // deterministic per material and does not jump between frames.
         const f32 floored = std::floor(t);
         const f32 frac = t - floored;
         const u32 a = static_cast<u32>(static_cast<s32>(floored));
@@ -591,11 +584,7 @@ PipelineKey MaterialManager::pipelineKeyOf(const Material& material, u8 pass) co
     key.cull = (material.flags & MaterialTwoSided) ? CullMode::None : material.cull;
     key.pass = pass;
 
-    // Only the flags that change the shader belong in the key. CastShadow
-    // picks which pass runs and does not change its code, so it stays out.
-    // ReceiveShadow is in: lit.frag branches on it to skip the cascade lookup
-    // entirely, which is one extra pipeline and the only way the flag means
-    // anything at all - before this it was authored, stored, and ignored.
+    // Only shader-changing flags are in the key. CastShadow is out; ReceiveShadow is in because lit.frag branches on it.
     key.flags = (material.flags & (MaterialAlphaTest | MaterialSkinned | MaterialRefraction |
                                    MaterialReflection | MaterialMirror | MaterialAnimated |
                                    MaterialLit | MaterialReceiveShadow | MaterialLandscape |
@@ -609,10 +598,7 @@ PipelineKey MaterialManager::pipelineKeyOf(const Material& material, u8 pass) co
 
 bool MaterialManager::load(const std::string& filename, std::vector<Material>& materials) const
 {
-    // Before the parse and the texture loads it triggers, for the same
-    // reason the mesh load logs first: this is where a big .material file
-    // (Bistro's is thousands of entries, each pulling its own textures)
-    // holds the editor still, and only a line printed up front says so.
+    // Logged up front: a big .material file stalls the editor during parse.
     Log::info("MaterialManager: loading materials '%s'...", filename.c_str());
     const auto started = std::chrono::steady_clock::now();
 
@@ -625,9 +611,7 @@ bool MaterialManager::load(const std::string& filename, std::vector<Material>& m
         return false;
     }
 
-    // The parse is over; everything past here is texture decoding and GPU
-    // uploads, which is the slow half. Bracketed by its own pair of lines so
-    // the two costs can be told apart instead of only seeing one total.
+    // Parse done; the rest is texture decode and GPU upload, logged separately.
     const auto parsedAt = std::chrono::steady_clock::now();
     Log::info("MaterialManager: parsed %zu definition(s) from '%s' in %.0f ms, loading their "
               "textures...",
@@ -663,13 +647,7 @@ bool MaterialManager::load(const std::string& filename, std::vector<Material>& m
                 else if (source.colorSpace == ColorSpaceOverride::sRGB)
                     space = ColorSpace::sRGB;
 
-                // Streamed, not decoded here: a level's sidecar names
-                // hundreds of textures and each one costs hundreds of
-                // milliseconds, so decoding them in this loop stalls whoever
-                // called for as long as all of them together. The handle is
-                // valid immediately and the pixels arrive over the following
-                // frames - the same choice loadMeshMaterialTextures() already
-                // makes for the textures a mesh names itself.
+                // Streamed, not decoded here: hundreds of textures would stall the caller; the handle is valid immediately.
                 ++textureSlots;
                 texture.texture =
                     assets.loadTextureAsync(resolveMaterialPath(filename, source.file), space,
@@ -700,10 +678,7 @@ bool MaterialManager::load(const std::string& filename, std::vector<Material>& m
             sampler.wrapU = source.wrap;
             sampler.wrapV = source.wrap;
             sampler.wrapW = source.wrap;
-            // Asking for anisotropic filtering and leaving the amount at 1
-            // gets plain trilinear back. Ground and walls seen at a grazing
-            // angle are exactly what it is for, so the material system picks
-            // a real amount; the backend clamps it to what the GPU supports.
+            // Anisotropy of 1 is plain trilinear; pick a real amount (the backend clamps to GPU support).
             if (sampler.filter == Filter::Anisotropic)
                 sampler.anisotropy = 8.0f;
             ++samplerSlots;
@@ -717,12 +692,7 @@ bool MaterialManager::load(const std::string& filename, std::vector<Material>& m
                   .count(),
               textureSlots, samplerSlots);
 
-    // Imported meshes carry the material-slot order used by their submeshes.
-    // Material files are commonly authored in a different order, so when the
-    // destination already has the same named slots, reorder the parsed
-    // definitions to the mesh's order instead of silently assigning a
-    // material to the wrong geometry. Older callers with unnamed/generic
-    // slots retain the historical positional behaviour.
+    // Reorder parsed definitions to the mesh's named slot order so materials are not assigned to the wrong geometry; unnamed slots stay positional.
     if (materials.size() == loadedMaterials.size() && !materials.empty())
     {
         std::vector<Material> reordered(materials.size());
@@ -752,9 +722,7 @@ bool MaterialManager::load(const std::string& filename, std::vector<Material>& m
             loadedMaterials = std::move(reordered);
     }
 
-    // Metadata such as sequence frames/filter/wrap belongs to this sidecar,
-    // not globally to a 32-bit material-name hash. Common names like Default
-    // occur in unrelated assets and must never contaminate each other's save.
+    // Sequence/filter/wrap metadata belongs to this sidecar, not a global 32-bit name hash (names like Default collide).
     gMaterialSources[materialSourceKey(filename)] = definitions;
     materials.swap(loadedMaterials);
     Log::info("MaterialManager: loaded %zu material(s) from '%s' in %.0f ms", materials.size(),
@@ -771,12 +739,7 @@ bool MaterialManager::save(const std::string& filename,
     const auto sourceFile = gMaterialSources.find(materialSourceKey(filename));
     for (const Material& material : materials)
     {
-        // Materials built in code (a default material for a mesh with no
-        // authored one, or one patched at runtime for a lightmap bake) never
-        // pass through the parser, so they have no entry here. That is not a
-        // reason to refuse the save: fall back to an empty definition and let
-        // the per-slot loop below reconstruct its textures straight from the
-        // runtime Material.
+        // Code-built materials never pass the parser: use an empty definition and rebuild textures from the runtime Material.
         MaterialDefinition fallback;
         fallback.name = material.name.empty() ? std::to_string(material.nameHash) : material.name;
         const MaterialDefinition* source = &fallback;
@@ -811,10 +774,7 @@ bool MaterialManager::save(const std::string& filename,
         writeVec4(text, material.params.uvAnim);
         text << "\n        sequence ";
         writeVec4(text, material.params.sequence);
-        // These vectors are technique-owned. Named aliases only covered a
-        // subset of their components and silently dropped Mirror's bump/zoom
-        // (custom0.zw) plus custom1.w. Raw vectors are understood by the
-        // parser and preserve every editor-authored value for every technique.
+        // Technique-owned vectors: write raw vectors so every component (e.g. Mirror's custom0.zw, custom1.w) survives.
         text << "\n        custom0 ";
         writeVec4(text, material.params.custom0);
         text << "\n        custom1 ";
@@ -831,9 +791,7 @@ bool MaterialManager::save(const std::string& filename,
         for (const MaterialTextureSource& texture : source->textures)
         {
             const MaterialTexture& runtimeTexture = material.textures[texture.slot];
-            // Runtime state is authoritative. In particular, a default
-            // MaterialTexture is how the Inspector represents Clear Textures;
-            // falling back to the parsed source here resurrected deleted maps.
+            // Runtime state is authoritative: a default MaterialTexture is how the Inspector represents Clear Textures.
             if (runtimeTexture.source == TextureSource::None)
                 continue;
             if (runtimeTexture.source == TextureSource::Static && runtimeTexture.file.empty())
@@ -858,8 +816,7 @@ bool MaterialManager::save(const std::string& filename,
             }
             text << "            filter " << filterName(texture.filter) << "\n";
             text << "            wrap " << wrapName(texture.wrap) << "\n";
-            // Only written when it disagrees with the slot, so a re-read gives
-            // back the same material without carrying the default around.
+            // Only written when it disagrees with the slot.
             if (texture.colorSpace != ColorSpaceOverride::FromSlot)
                 text << "            srgb "
                      << (texture.colorSpace == ColorSpaceOverride::sRGB ? "true" : "false") << "\n";
@@ -893,9 +850,7 @@ bool MaterialManager::save(const std::string& filename,
             text << "            slot " << slotName(static_cast<u8>(slot)) << "\n";
             text << "            type Static\n            file ";
             writeQuoted(text, runtimeTexture.file);
-            // Same defaults used by the Inspector at drop time and by a
-            // parsed MaterialTextureSource. The image must not change its
-            // filtering or UV wrap merely because the scene was reopened.
+            // Same defaults as the Inspector drop and MaterialTextureSource, so filtering/wrap survive a reopen.
             text << "\n            filter Anisotropic\n            wrap Repeat\n"
                     "            generateMips true\n        }\n";
         }
@@ -989,21 +944,14 @@ PipelineHandle MaterialManager::resolvePipeline(Material& material, const Vertex
     default:
         if (material.flags & MaterialLandscape)
         {
-            // Same fragment shader as an ordinary Lit material - only the
-            // LANDSCAPE_REGIONS variant define differs, added below through
-            // the usual variant-flag path. The vertex shader differs for
-            // real: a chunk's attributes are position/normal/uv/weights, not
-            // lit.vert's position/normal/tangent/uv/colour.
+            // Ordinary Lit fragment shader plus LANDSCAPE_REGIONS variant; the vertex shader differs (chunk attributes position/normal/uv/weights).
             vertexFile = kLandscapeVertexFile;
             fragmentFile = kLitFragmentFile;
             debugName = "material.landscape";
         }
         else if (material.flags & MaterialVoxelAtlas)
         {
-            // Same reason as the landscape above: the fragment shader is the
-            // ordinary lit one, and only the vertex stream differs - a chunk
-            // packs face, occlusion, atlas tile and quad extent into one word
-            // instead of carrying 48 bytes of attributes per vertex.
+            // Ordinary lit fragment shader; the vertex stream differs (packed chunk word instead of 48 bytes of attributes).
             vertexFile = kVoxelVertexFile;
             fragmentFile = kLitFragmentFile;
             debugName = "material.voxel";
@@ -1043,8 +991,7 @@ PipelineHandle MaterialManager::resolvePipeline(Material& material, const Vertex
         return PipelineHandle();
     }
 
-    // Cached per PipelineKey (which already folds in variantFlagsOf), so this
-    // string work only happens once per distinct variant, not per material.
+    // Cached per PipelineKey, so this string work happens once per variant.
     const std::string vertexVariant = withVariantDefines(vertexSource, key.flags, pass);
     const std::string fragmentVariant = withVariantDefines(fragmentSource, key.flags, pass);
 
@@ -1077,11 +1024,7 @@ void MaterialManager::release(Material& material) const
     if (!material.paramsBuffer.valid())
         return;
 
-    // Scene objects in demos are commonly stack-owned and therefore outlive
-    // an explicit engine.shutdown(). Their MeshRenderer destructors still
-    // clear material overrides, but at that point the device and all of its
-    // pools have already gone away. The handle must still be invalidated;
-    // there is simply no live GPU resource left to destroy.
+    // Demo scene objects can outlive engine.shutdown(): invalidate the handle though the device and pools are gone.
     if (GPU* gpu = GPU::tryGet())
         gpu->destroy(material.paramsBuffer);
     material.paramsBuffer = BufferHandle();

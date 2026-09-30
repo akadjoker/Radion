@@ -1,6 +1,3 @@
-// VoxelMap.cpp - a world-aligned grid of solid/empty voxels packed 64 to a
-// 4x4x4 block, one bit per voxel.
-
 #include "PCH.h"
 
 #include "VoxelMap.h"
@@ -13,13 +10,11 @@ namespace Radion::AI
 namespace
 {
 
-// 3D array index to flattened 1D array index.
 u32 flatten3D(const Math::uvec3& coord, const Math::uvec3& dim)
 {
     return coord.z * dim.x * dim.y + coord.y * dim.x + coord.x;
 }
 
-// Flattened array index to 3D array index.
 Math::uvec3 unflatten3D(u32 idx, const Math::uvec3& dim)
 {
     const u32 z = idx / (dim.x * dim.y);
@@ -29,8 +24,6 @@ Math::uvec3 unflatten3D(u32 idx, const Math::uvec3& dim)
     return Math::uvec3(x, y, z);
 }
 
-// The block index and bit mask for one voxel coordinate - the same
-// addressing at every call site that touches the packed storage.
 void voxelAddress(const Math::uvec3& coord, const Math::uvec3& resolutionDiv4,
                   u32& outIndex, u64& outMask)
 {
@@ -59,9 +52,7 @@ Math::vec3 uvwToWorld(const Math::vec3& uvw, const Math::vec3& center,
     return pos;
 }
 
-// Shared tail of every inject_* preamble: two pixel-space corners (order not
-// guaranteed - the coordinate flip in worldToUvw can swap min and max) turned
-// into an inclusive-exclusive voxel coordinate range, clamped to the grid.
+// Corners may arrive in either order (worldToUvw's flip can swap min/max); the range is inclusive-exclusive, clamped to the grid.
 void clampVoxelRange(const Math::vec3& p0, const Math::vec3& p1, const Math::vec3& resolution,
                      Math::uvec3& outMin, Math::uvec3& outMax)
 {
@@ -78,8 +69,7 @@ void clampVoxelRange(const Math::vec3& p0, const Math::vec3& p1, const Math::vec
     outMax = Math::uvec3(rangeMax);
 }
 
-// Triangle-vs-AABB separating axis test: 3 box axes, 1 triangle normal, and
-// the 9 cross products of a box axis with a triangle edge.
+// Separating axis test: 3 box axes, 1 triangle normal, 9 edge cross products.
 bool triangleIntersectsAABB(const Math::vec3& boxCenter, const Math::vec3& boxHalfExtent,
                             const Math::vec3& v0, const Math::vec3& v1, const Math::vec3& v2)
 {
@@ -145,10 +135,8 @@ Math::vec3 closestPointOnSegment(const Math::vec3& a, const Math::vec3& b, const
     return a + ab * t;
 }
 
-// base and tip are the capsule's poles, not the centres of its end spheres:
-// the segment shrinks by one radius at each end before the distance test, so
-// the whole shape spans exactly base..tip. A degenerate axis leaves the
-// segment as it is - normalising a zero vector is what the shrink cannot do.
+// base/tip are the capsule poles: the segment shrinks by one radius per end before the distance test;
+// a degenerate axis is left as is (a zero vector cannot be normalised).
 bool pointInCapsule(const Math::vec3& point, const Math::vec3& base, const Math::vec3& tip,
                     f32 radius)
 {
@@ -303,13 +291,13 @@ bool VoxelMap::validCoord(const Math::ivec3& coord) const
 bool VoxelMap::voxel(const Math::uvec3& coord) const
 {
     if (!validCoord(coord))
-        return false; // outside of resolution
+        return false;
 
     const Math::uvec3 macroCoord = coord / 4u;
     const u32 idx = flatten3D(macroCoord, mResolutionDiv4);
     const u64 block = mVoxels[idx];
     if (block == 0)
-        return false; // whole block is empty
+        return false;
 
     const Math::uvec3 subCoord = coord % 4u;
     const u32 bit = flatten3D(subCoord, Math::uvec3(4, 4, 4));
@@ -544,7 +532,7 @@ void VoxelMap::floodFill()
     for (usize i = 0; i < mVoxels.size(); ++i)
     {
         if (mVoxels[i] == ~0ull)
-            continue; // whole block is filled already
+            continue;
 
         const Math::uvec3 coord = unflatten3D(static_cast<u32>(i), mResolutionDiv4);
         for (u32 bit = 0; bit < 64; ++bit)
@@ -554,7 +542,7 @@ void VoxelMap::floodFill()
                                     static_cast<s32>(coord.y * 4u + subCoord.y),
                                     static_cast<s32>(coord.z * 4u + subCoord.z));
             if (voxel(origin))
-                continue; // voxel is filled, abort
+                continue;
 
             traversed.clearVoxels();
             stack.clear();
@@ -584,14 +572,14 @@ void VoxelMap::floodFill()
                         break;
                     }
                     if (traversed.voxel(neighbor))
-                        continue; // don't go to a previously traversed voxel again
+                        continue;
                     if (!voxel(neighbor))
-                        stack.push_back(neighbor); // empty neighbor, keep traversing
+                        stack.push_back(neighbor);
                 }
             } while (!stack.empty() && !exit);
 
             if (!exit)
-                setVoxel(origin, true); // no exit found, mark voxel as solid
+                setVoxel(origin, true);
         }
     }
 }

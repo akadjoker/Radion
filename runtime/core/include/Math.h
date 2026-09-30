@@ -7,10 +7,8 @@
 #include <cmath>
 #include <cstdint>
 
-// Mathc declares its types (Vec3, Mat4, Quaternion, ...) in namespace Math. The
-// engine's shader-style names (vec3, mat4, quat, dot, mix, ...) live in that same
-// namespace, so there is exactly one `Math::` and call sites read the same
-// whether they say Math::Vec3 or Math::vec3.
+// Mathc's types (Vec3, Mat4, ...) and the shader-style names (vec3, mat4, dot, ...) share one
+// Math namespace, so Math::Vec3 and Math::vec3 both work.
 namespace Math
 {
 using vec2 = Vec2;
@@ -22,8 +20,7 @@ using mat4 = Mat4;
 struct quat : Quaternion
 {
     quat() : Quaternion(Quaternion::Identity()) {}
-    // The scalar part comes first here (w, x, y, z); Mathc stores and constructs
-    // quaternions as x, y, z, w.
+    // Scalar part first here (w, x, y, z); Mathc stores and constructs x, y, z, w.
     quat(float w, float x, float y, float z) : Quaternion(x, y, z, w) {}
     quat(float w, const vec3& xyz) : Quaternion(xyz.x, xyz.y, xyz.z, w) {}
     quat(const vec3& eulerRadians)
@@ -268,7 +265,7 @@ const float TwoPi = 6.283185307f;
 const float PiHalf = 1.570796327f;
 
 const float Epsilon = 0.000001f;
-const float ZeroEpsilon = 32.0f * MinPosFloat; // Very small epsilon for checking against 0.0f
+const float ZeroEpsilon = 32.0f * MinPosFloat;
 
 const float M_INFINITY = 1.0e30f;
 
@@ -552,8 +549,7 @@ typedef Rectangle<float> FloatRect;
 typedef Size<int> IntSize;
 typedef Size<float> FloatSize;
 
-// Empty is min > max, so a fresh box absorbs the first point correctly and
-// merging an empty box with anything is a no-op.
+// Empty is min > max, so the first point is absorbed and merging an empty box is a no-op.
 struct AABB
 {
     Math::vec3 min = Math::vec3(3.402823466e+38F);
@@ -640,8 +636,7 @@ public:
 
     Frustum();
 
-    // Planes come straight out of the combined view-projection matrix, so any
-    // projection works without knowing how it was built.
+    // Planes come straight from the combined view-projection matrix, so any projection works.
     void update(const Math::mat4& viewProjection);
 
     bool contains(const Math::vec3& point) const;
@@ -649,8 +644,7 @@ public:
     bool intersects(const AABB& box) const;
     bool intersects(const Math::vec3& min, const Math::vec3& max) const;
 
-    // Tells fully-inside from partly-inside, so a tree node that is entirely
-    // inside can stop testing its children.
+    // Separates inside from intersecting so a fully-inside node can skip testing its children.
     Containment classify(const AABB& box) const;
 
     const Plane& plane(Side side) const;

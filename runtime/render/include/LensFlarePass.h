@@ -17,19 +17,13 @@ public:
 
     bool enabled = true;
 
-    // Radius, in texels, of the occlusion sampling grid the vertex shader
-    // walks around the sun's screen position.
+    // Texel radius of the occlusion sampling grid around the sun's screen position.
     f32 occlusionRadius = 6.0f;
 
-    // How far along the sun direction its screen position is projected from
-    // the camera, in world units - has to land past the far plane for a
-    // source meant to sit at infinity. The reference used sceneRadius*8; a
-    // demo without that number can just pass a large constant.
+    // Distance along the sun direction for projecting its screen position, in world units; must pass the far plane for a source at infinity.
     f32 sunDistance = 100000.0f;
 
-    // Paints each element's raw visibility (white = unobstructed, black =
-    // occluded) instead of its texture - to check the depth occlusion itself
-    // without a small, mostly-transparent sprite in the way of seeing it.
+    // Paints raw visibility (white = unobstructed) instead of the texture, to check depth occlusion.
     bool debugOcclusion = false;
 
     static constexpr u32 kElementCount = 7;

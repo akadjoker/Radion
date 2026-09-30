@@ -20,10 +20,8 @@ enum class BiomeKind : u8
     Count
 };
 
-// Deterministic terrain over a vertical band of chunks. Every sample is taken
-// from world coordinates, never chunk-local ones, so two neighbouring chunks
-// always agree on the column at their shared boundary and the same seed
-// reproduces the same world on any machine.
+// Deterministic terrain over a vertical band of chunks. Samples use world coordinates, so neighbouring chunks agree at
+// shared boundaries and a seed reproduces the same world anywhere.
 class VoxelTerrain
 {
 public:
@@ -38,13 +36,10 @@ public:
         f32 continentalAmplitude = 9.0f;
         f32 detailAmplitude = 3.0f;
 
-        // A table at baseSurfaceHeight, with the noise ignored: somewhere to
-        // build on. Caves, ores and trees still obey their own switches.
+        // A table at baseSurfaceHeight ignoring noise; caves, ores and trees still obey their own switches.
         bool flat = false;
 
-        // Relief varies how much of the continental amplitude a region gets,
-        // which is what separates flat country from mountain range without
-        // putting a step at any biome border.
+        // How much of the continental amplitude a region gets: flat country vs mountains without a step at biome borders.
         f32 reliefFrequency = 0.0035f;
 
         bool biomes = true;
@@ -55,8 +50,7 @@ public:
         bool caves = true;
         f32 caveFrequency = 0.045f;
         f32 caveThreshold = 0.86f;
-        // Blocks of ceiling kept under the surface so a tunnel does not open
-        // the ground everywhere it passes near it.
+        // Blocks of ceiling kept under the surface so tunnels do not open the ground everywhere.
         s32 caveCeiling = 2;
 
         bool trees = true;

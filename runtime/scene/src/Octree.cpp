@@ -31,7 +31,7 @@ bool pointInTriangle(const Math::vec3& p, const Math::vec3& v1, const Math::vec3
     return true;
 }
 
-// Smallest non-negative quadratic root, or false when both roots are negative.
+// Smallest non-negative root, or false when both are negative.
 bool solveCollision(f32 a, f32 b, f32 c, f32& t)
 {
     const f32 disc = b * b - 4.0f * a * c;
@@ -49,28 +49,24 @@ bool solveCollision(f32 a, f32 b, f32 c, f32& t)
     return true;
 }
 
-// tMax is in/out: the caller's current best, tightened to this plane's hit.
-// A negative tMax means the sphere already overlaps the plane (penetration).
+// tMax is in/out: the current best, tightened to this plane's hit. Negative tMax = already overlapping (penetration).
 bool sphereIntersectPlane(const Math::vec3& center, f32 radius, const Math::vec3& velocity,
                           const Math::vec3& planeNormal, const Math::vec3& planePoint, f32& tMax)
 {
     const f32 numer = Math::dot(center - planePoint, planeNormal) - radius;
     const f32 denom = Math::dot(velocity, planeNormal);
 
-    // Overlap: only counts if the sphere is actually within reach of the
-    // plane and not moving away from it.
+    // Only counts if the sphere is within reach of the plane and not moving away.
     if (numer < 0.0f || denom > -1e-7f)
     {
-        // A sphere already inside the plane is in contact whether it moves or
-        // not: with zero velocity denom is zero, and the "moving away" guard
-        // used to swallow every resting overlap.
+        // An embedded sphere is in contact whether it moves or not; zero velocity makes denom zero and the moving-away guard would swallow it.
         const bool embedded = numer < 0.0f;
         if (!embedded && denom > -1e-5f)
-            return false; // not touching and not approaching
+            return false;
         if (embedded && denom > 1e-5f)
-            return false; // touching but on its way out
+            return false;
         if (numer < -radius)
-            return false; // too far behind to matter
+            return false;
         tMax = numer;     // penetration depth, negative
         return true;
     }
@@ -91,7 +87,7 @@ bool sphereIntersectPoint(const Math::vec3& center, f32 radius, const Math::vec3
     const f32 b = 2.0f * Math::dot(velocity, l);
     const f32 c = l2 - radius * radius;
 
-    if (c < 0.0f) // overlapping the point
+    if (c < 0.0f)
     {
         const f32 len = std::sqrt(l2);
         const f32 t = len - radius; // penetration depth
@@ -103,7 +99,7 @@ bool sphereIntersectPoint(const Math::vec3& center, f32 radius, const Math::vec3
     }
 
     if (tMax < 0.0f)
-        return false; // already checking overlaps
+        return false;
     f32 t = 0.0f;
     if (!solveCollision(a, b, c, t))
         return false;
@@ -121,7 +117,7 @@ bool sphereIntersectSegment(const Math::vec3& center, f32 radius, const Math::ve
     const Math::vec3 l = center - v1;
     const f32 eLen = Math::length(e);
     if (eLen < 1e-5f)
-        return false; // degenerate edge
+        return false;
     e /= eLen;
 
     const Math::vec3 x = Math::cross(l, e); // distance from segment line
@@ -130,7 +126,7 @@ bool sphereIntersectSegment(const Math::vec3& center, f32 radius, const Math::ve
     const f32 b = 2.0f * Math::dot(x, y);
     const f32 c = Math::dot(x, x) - radius * radius;
 
-    if (c < 0.0f) // center inside the segment's cylinder
+    if (c < 0.0f)
     {
         const f32 d = Math::dot(l, e);
         if (d < 0.0f)
@@ -166,8 +162,7 @@ bool sphereIntersectSegment(const Math::vec3& center, f32 radius, const Math::ve
     return true;
 }
 
-// Swept sphere vs triangle; tMax is the running best and gets tightened on a
-// hit. Out-normal is the contact normal.
+// tMax is the running best, tightened on a hit. Out-normal is the contact normal.
 bool sphereIntersectTriangle(const Math::vec3& center, f32 radius, const Math::vec3& velocity,
                              const Math::vec3& v0, const Math::vec3& v1, const Math::vec3& v2,
                              const Math::vec3& normal, f32& tMax, Math::vec3& outNormal)
@@ -198,8 +193,6 @@ bool containsAABB(const AABB& outer, const AABB& inner)
 }
 
 } // namespace
-
-// ---------------------------------------------------------------- lifecycle
 
 void TriangleOctree::clear()
 {
@@ -233,8 +226,7 @@ void TriangleOctree::addCollisionMesh(const CollisionMesh& mesh, const Math::mat
         const Math::vec3 e1 = v1 - v0;
         const Math::vec3 e2 = v2 - v0;
         const Math::vec3 normal = Math::normalize(Math::cross(e1, e2));
-        // Skip degenerate (zero-area) triangles - they never collide and
-        // would otherwise sit in the tree doing nothing but costing memory.
+        // Skip zero-area triangles: they never collide.
         if (!std::isfinite(normal.x) || !std::isfinite(normal.y) || !std::isfinite(normal.z))
             continue;
 
@@ -281,8 +273,6 @@ void TriangleOctree::build(u32 maxDepth, u32 maxTriangles)
             ++mStats.leafCount;
 }
 
-// ------------------------------------------------------------------- build
-
 u32 TriangleOctree::createNode(const AABB& bounds, u8 depth)
 {
     Node node;
@@ -295,19 +285,14 @@ u32 TriangleOctree::createNode(const AABB& bounds, u8 depth)
 
 bool TriangleOctree::nodeSplittable(const Node& node) const
 {
-    // A node with no extent (degenerate input) would subdivide forever into
-    // empty boxes; depth alone can't stop that when the trigger is a triangle
-    // count that never fits. Refuse to split a box that is effectively a point.
+    // A node with no extent would subdivide forever; refuse to split a box that is effectively a point.
     const Math::vec3 ext = node.bounds.extents();
     return ext.x > 1e-4f && ext.y > 1e-4f && ext.z > 1e-4f;
 }
 
 void TriangleOctree::subdivide(u32 nodeIndex, u8 depth, u32 maxDepth, u32 maxTriangles)
 {
-    // Only ever split a node with no children yet. Splitting one that already
-    // has children would overwrite their indices (orphaning every subtree
-    // built so far) and lose their triangles. insertTriangle() guarantees
-    // this is only called on a leaf; the guard is a cheap safety net.
+    // Splitting a node that has children would orphan their subtrees; insertTriangle() guarantees a leaf, this is a safety net.
     if (mNodes[nodeIndex].children[0] != kNoNode)
         return;
 
@@ -335,17 +320,12 @@ void TriangleOctree::insertTriangle(u32 triangleIndex, u32 nodeIndex, u8 depth, 
     Node& node = mNodes[nodeIndex];
     const Triangle& tri = mTriangles[triangleIndex];
 
-    // Only a leaf splits, and only when it overflows. A triangle that
-    // straddles a split plane can never be pushed into a single child, so if
-    // splitting a node that already has children were allowed, such a
-    // triangle would overflow the node forever and subdivide() would recurse
-    // without end (the two giant ground triangles in the demo cross every
-    // plane - this is what used to hang the build).
+    // Only a leaf splits: a straddling triangle can never go into one child, so splitting a node with children would recurse forever.
     if (node.children[0] == kNoNode)
     {
         if (depth < maxDepth && nodeSplittable(node) && node.triangles.size() + 1 > maxTriangles)
         {
-            subdivide(nodeIndex, depth, maxDepth, maxTriangles); // node is a leaf here
+            subdivide(nodeIndex, depth, maxDepth, maxTriangles);
             // The split emptied node.triangles; place this one too.
             insertTriangle(triangleIndex, nodeIndex, depth, maxDepth, maxTriangles);
             return;
@@ -360,9 +340,7 @@ void TriangleOctree::insertTriangle(u32 triangleIndex, u32 nodeIndex, u8 depth, 
         return;
     }
 
-    // Recurse into the single child that fully contains the triangle; a
-    // triangle straddling a split plane stays at this node. Storing it here
-    // never re-splits this node, so it cannot loop.
+    // A triangle straddling a split plane stays at this node; storing it never re-splits, so it cannot loop.
     u32 fits = 0;
     u32 fitChild = kNoNode;
     for (u32 i = 0; i < 8; ++i)
@@ -382,8 +360,6 @@ void TriangleOctree::insertTriangle(u32 triangleIndex, u32 nodeIndex, u8 depth, 
 
     node.triangles.push_back(triangleIndex);
 }
-
-// ----------------------------------------------------------------- queries
 
 void TriangleOctree::collectInternal(u32 nodeIndex, const AABB& region, std::vector<u32>& out) const
 {
@@ -460,9 +436,7 @@ void TriangleOctree::sweepNode(u32 nodeIndex, const AABB& sweptBounds, const Mat
             continue;
         ++visited;
 
-        // Transform the triangle into ellipsoid space (scale by 1/radii); the
-        // sweep then tests a unit sphere, exactly like CCollision does. The
-        // normal scales by `radii` before normalizing - see the study.
+        // Into ellipsoid space (scale by 1/radii) so the sweep tests a unit sphere, like CCollision. The normal scales by radii before normalizing.
         const Math::vec3 e0 = tri.v0 * invRadii;
         const Math::vec3 e1 = tri.v1 * invRadii;
         const Math::vec3 e2 = tri.v2 * invRadii;
@@ -499,10 +473,7 @@ bool TriangleOctree::sweepEllipsoid(const Math::vec3& center, const Math::vec3& 
     if (mNodes.empty())
         return false;
 
-    // The swept volume's bounding box: the start and end of the path, both
-    // grown by the largest ellipsoid half-extent. Anything outside it cannot
-    // be touched, so whole subtrees are skipped without ever testing a
-    // triangle (this is the octree's reason to exist).
+    // Swept volume's box: start and end grown by the largest half-extent; anything outside is skipped without testing triangles.
     const f32 maxR = Math::max(radii.x, Math::max(radii.y, radii.z));
     const Math::vec3 pad(maxR + 0.01f);
     AABB swept;
@@ -512,12 +483,8 @@ bool TriangleOctree::sweepEllipsoid(const Math::vec3& center, const Math::vec3& 
     swept.expand(center + velocity + pad);
 
     const Math::vec3 invRadii(1.0f / radii.x, 1.0f / radii.y, 1.0f / radii.z);
-    // Same as the physics TrimeshShape sweep: the running best starts at 1.0,
-    // so a hit beyond the end of the swept segment (t > 1) is rejected. The
-    // SweepHit contract says t is "a fraction of the query velocity in [0,1]",
-    // and the reference (Nettle CollideAndSlide) treats nearestDistance >= 1
-    // as no collision. Letting t reach infinity let a wall several units away
-    // report t = 50 and teleport the character to it.
+    // The running best starts at 1.0 so a hit beyond the swept segment is rejected (t is a fraction in [0,1], as in Nettle CollideAndSlide);
+    // unbounded t once teleported the character to a wall several units away.
     f32 bestT = 1.0f;
     SweepHit best;
     bool hit = false;
@@ -534,8 +501,6 @@ bool TriangleOctree::sweepSphere(const Math::vec3& center, f32 radius, const Mat
 {
     return sweepEllipsoid(center, Math::vec3(radius), velocity, out);
 }
-
-// ------------------------------------------------------------------- debug
 
 void TriangleOctree::drawDebug(DebugDraw3D& debug, u32 maxDepth, bool leavesOnly) const
 {

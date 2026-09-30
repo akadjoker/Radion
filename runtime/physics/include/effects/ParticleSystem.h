@@ -1,13 +1,8 @@
 #ifndef RADION_PHYSICS_EFFECTS_PARTICLESYSTEM_H
 #define RADION_PHYSICS_EFFECTS_PARTICLESYSTEM_H
 
-// ParticleSystem.h - cheap point/sphere projectiles for VFX-driven physics:
-// explosion debris, sparks, blood drops. Not RigidBody: no inertia tensor, no
-// joints, no sleeping - just position/velocity integrated in bulk and swept
-// against the world with Scene::raycast(), which reuses whatever broadphase
-// the scene already has. On a hit, a callback tells the caller
-// (renderer/gameplay) where and with what normal/velocity, so it can spawn a
-// decal, a shard mesh, whatever - this module has no opinion on visuals.
+// Cheap point/sphere projectiles for VFX (debris, sparks): no inertia tensor, joints or sleeping; integrated in bulk and swept with Scene::raycast().
+// A hit callback reports where and with what normal/velocity; no opinion on visuals.
 
 #include "Types.h"
 #include "collision/CollisionFilter.h"
@@ -23,7 +18,6 @@ class Scene;
 namespace Radion::Physics
 {
 
-// What a particle does the moment it hits something.
 enum class ParticleResponse : u8
 {
     Kill,   // removed immediately after the callback runs (sparks, blood mist)
@@ -52,9 +46,7 @@ struct ParticleSpawn
     ParticleResponse response = ParticleResponse::Kill;
 };
 
-// Pooled, index-stable-per-frame (dead particles are swap-removed at the end
-// of step(), so an id handed to the hit callback is only valid during that
-// same step - store userTag/position out of the callback if you need more).
+// Pooled; dead particles are swap-removed at the end of step(), so an id handed to the hit callback is only valid during that step.
 class ParticleSystem
 {
 public:
@@ -84,15 +76,11 @@ public:
 
     u32 emit(const ParticleSpawn& spawn);
 
-    // Convenience burst for the classic "explosion" case: `count` particles
-    // from `center`, speed and radius picked uniformly from the given ranges,
-    // direction uniform over the sphere.
+    // Explosion burst: `count` particles from `center`, speed/radius uniform in the ranges, direction uniform over the sphere.
     void explode(const Math::vec3& center, u32 count, f32 speedMin, f32 speedMax, f32 radiusMin,
                 f32 radiusMax, f32 life, u32 userTag = 0, ParticleResponse response = ParticleResponse::Bounce);
 
-    // Integrates every live particle by `dt`, sweeps each against the world
-    // and fires the hit callback (if set) on impact. Dead particles (life
-    // expired or ParticleResponse::Kill after a hit) are removed at the end.
+    // Integrates every live particle, sweeps each against the world and fires the hit callback on impact; dead particles are removed at the end.
     void step(f32 dt);
 
     void clear()

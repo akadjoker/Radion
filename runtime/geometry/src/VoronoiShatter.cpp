@@ -147,11 +147,7 @@ void VoronoiShatter::shatter(const std::vector<Math::vec3>& sourceVertices,
         distanceFromPoint.center = curVoronoiPoint;
         std::sort(sortedVoronoiPoints.begin(), sortedVoronoiPoints.end(), distanceFromPoint);
 
-        // Reference note: the ported loop below only (re-)populates "vertices" as a
-        // side effect of adding a bisector plane against another Voronoi point, so
-        // with a single site (no bisector ever added) it never runs and the cell
-        // would be silently dropped. Seed "vertices" from the source shape's own
-        // planes once so a lone Voronoi point still recovers the whole shape.
+        // Seed "vertices" from the source shape's planes: with a single site no bisector is added and the cell would be dropped.
         getVerticesInsidePlanes(planes, vertices, planeIndices);
         for (int j = 1; j < numPoints; j++)
         {

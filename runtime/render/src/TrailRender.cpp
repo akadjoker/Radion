@@ -20,9 +20,7 @@ void resolveBillboardAxes(BillboardMode mode, const Math::vec3& cameraRight,
     }
     if (mode == BillboardMode::Upright)
     {
-        // Yaw-only facing: flatten the camera's forward onto the world XZ
-        // plane, keep world up fixed - doesn't tilt as the camera looks
-        // up/down, same as a tree/grass billboard.
+        // Yaw-only facing: flatten the camera forward onto XZ, world up fixed.
         const Math::vec3 worldUp(0.0f, 1.0f, 0.0f);
         Math::vec3 flatForward(cameraForward.x, 0.0f, cameraForward.z);
         f32 len = Math::length(flatForward);
@@ -33,7 +31,6 @@ void resolveBillboardAxes(BillboardMode mode, const Math::vec3& cameraRight,
         outUp = worldUp;
         return;
     }
-    // Fixed: the instance's own orientation, no camera-facing at all.
     outRight = fixedRight;
     outUp = fixedUp;
 }
@@ -41,14 +38,7 @@ void resolveBillboardAxes(BillboardMode mode, const Math::vec3& cameraRight,
 namespace
 {
 
-// Color::value() packs 0xAARRGGBB (red in bits 16-23) - BatchRenderer's own
-// packColor()/unpackColor() pack red in bits 0-7 instead (see Batch.cpp).
-// Handing Color::value() straight to a BatchRenderer draw call, as this file
-// used to, put red where blue was expected and blue where red was: a Color
-// built as a dark red painted as a dark blue quad. Re-packed through
-// Color's own r()/g()/b()/a() accessors instead of its raw value(), this
-// reads correctly regardless of which of the two conventions either side
-// changes to later.
+// Color::value() packs 0xAARRGGBB but BatchRenderer packs red in bits 0-7; re-pack via r()/g()/b()/a() or red and blue swap.
 u32 packBatchColor(Color color)
 {
     return BatchRenderer::packColor(color.r(), color.g(), color.b(), color.a());
@@ -60,9 +50,7 @@ void quadCorners(const Math::vec3& center, const Math::vec3& right, const Math::
     Math::vec3 axisRight = right, axisUp = up;
     if (rotation != 0.0f)
     {
-        // Spins the quad in its own plane - without this, many aligned
-        // quads read as a grid (see particle.vert, same reasoning for the
-        // GPU-driven particles).
+        // Spins the quad in its plane so aligned quads do not read as a grid (as in particle.vert).
         const f32 s = Math::sin(rotation), c = Math::cos(rotation);
         axisRight = right * c + up * s;
         axisUp = up * c - right * s;
@@ -146,9 +134,7 @@ private:
     void drawBillboards(const FrameContext& frame, const std::vector<BillboardInstance>& billboards,
                         const std::vector<MeshTextInstance>& texts)
     {
-        // Same extraction ParticlePass uses for GPU billboarding: the
-        // columns of an orthonormal view matrix are the camera axes in
-        // world space.
+        // Same camera-axis extraction as ParticlePass (orthonormal view matrix columns).
         const Math::mat3 viewRotation(frame.view);
         const Math::vec3 cameraRight = Math::normalize(
             Math::vec3(viewRotation[0][0], viewRotation[1][0], viewRotation[2][0]));
@@ -200,11 +186,9 @@ private:
             {
                 const MeshGlyph& glyph = instance.glyphs[i];
                 if (glyph.uvRect.z <= 0.0f)
-                    continue; // space or a glyph outside the atlas - nothing to draw
+                    continue;
 
-                // glyph.offset places this glyph's bottom-left corner in the
-                // string's own right/up plane; the quad extends one
-                // glyphSize further along each axis from there.
+                // glyph.offset places the glyph's bottom-left in the string's right/up plane; the quad extends glyphSize along each axis.
                 const Math::vec3 bottomLeft =
                     instance.position + right * glyph.offset.x + up * glyph.offset.y;
                 const Math::vec3 bottomRight = bottomLeft + right * instance.glyphSize;

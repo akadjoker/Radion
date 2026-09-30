@@ -1,7 +1,3 @@
-// Agent.cpp - port of AI::Entity::iterate()/sensing (Entity.cpp) and
-// AI::SquadEntity/AI::SquadLeaderEntity (SquadEntity.cpp), folded into one
-// Component the Scene drives directly instead of a World/Group tree.
-
 #include "PCH.h"
 
 #include "Agent.h"
@@ -41,15 +37,10 @@ Agent::Agent() : Component(Type)
 
 Agent::~Agent()
 {
-    // A loose agent outliving nothing but itself (a test local never
-    // attached to a GameObject, or one detached mid-scene) would otherwise
-    // leave the Scene holding a pointer to freed memory - the same bug
-    // radion-fisica-destrutor-desregista-scene already had for RigidBody.
+    // A loose agent outliving its Scene registration would leave the Scene holding a freed pointer (same bug RigidBody had).
     if (mScene)
         mScene->removeAgent(*this);
-    // Both ends of the squad link, for the same reason: a destroyed member
-    // still listed by its leader, or a leader still pointed at by its
-    // members, is a pointer into freed memory that the next order follows.
+    // Both ends of the squad link, or a destroyed member/leader leaves a freed pointer for the next order.
     if (mSquadLeader)
         mSquadLeader->removeSquadMember(this);
     clearSquadMembers();
@@ -84,20 +75,15 @@ void Agent::setSpeed(f32 newSpeed)
 void Agent::alignWithVelocity()
 {
     f32 spd = Math::length(mVelocity);
-    // A direction from a near-zero velocity is numerical noise. Updating the
-    // orientation from it makes formation goals rotate while the squad is at
-    // rest, which in turn makes the debug path visibly oscillate.
+    // Direction from near-zero velocity is noise; it would rotate formation goals at rest and make the debug path oscillate.
     if (spd <= 0.1f)
         return;
 
-    // Standard right-handed orthonormal regeneration:
-    // forward = velocity, side = normalize(cross(up, forward)), up = cross(forward, side).
+    // Right-handed orthonormal regeneration: forward = velocity, side = normalize(cross(up, forward)), up = cross(forward, side).
     Math::vec3 newForward = mVelocity / spd;
     Math::vec3 oldUp = up();
     Math::vec3 sideReference = oldUp;
-    // A forward vector parallel to up has no valid cross product.  Keep the
-    // previous side (projected onto the plane perpendicular to forward) so a
-    // vertical/near-vertical velocity cannot poison the quaternion with NaNs.
+    // A forward parallel to up has no valid cross product: keep the previous side (projected perpendicular to forward) so a vertical velocity cannot produce NaN quaternions.
     Math::vec3 newSide = Math::cross(sideReference, newForward);
     if (Math::dot(newSide, newSide) <= 1e-8f)
         newSide = side();
@@ -136,20 +122,11 @@ Math::vec3 Agent::globalizeDirection(const Math::vec3& localDirection) const
 
 void Agent::update(f32 deltaTime)
 {
-    // AI::SquadEntity::iterate() (removed) stepped its state machine before
-    // the steering/physics pass; Agent::update() is now the single entry
-    // point for every role, so the state machine (if any) still goes first,
-    // even ahead of the alive() check below (SquadEntity.cpp:33-39 ran it
-    // unconditionally too).
+    // The state machine steps first, even before the alive() check (as SquadEntity did).
     if (mStateMachine)
         mStateMachine->iterate();
 
-    // A dead agent is frozen exactly where it fell - no sensing, no
-    // behaviors, no movement - rather than removed from the Scene's list.
-    // Removal would invalidate Scene::agents() iterators mid-update (a dying
-    // agent is discovered from inside another agent's own CombatBehavior
-    // pass) and would also drop it from the scene the caller still needs to
-    // look up to hide/pose its GameObject.
+    // A dead agent freezes where it fell rather than being removed: removal would invalidate Scene::agents() iterators mid-update and drop it from the scene the caller needs to look up.
     if (!alive())
     {
         mVelocity = Math::vec3(0.0f);
@@ -159,83 +136,53 @@ void Agent::update(f32 deltaTime)
 
     mPosition += mVelocity * deltaTime;
 
-    // The caller polls firedThisFrame() right after Scene::update() - clear
-    // it here, once, so a shot fired this pass by CombatBehavior below stays
-    // visible for exactly one frame.
+    // Cleared once here so a shot fired this pass stays visible for exactly one frame.
     mFiredThisFrame = false;
     mLastFireTarget = nullptr;
 
-    // Behaviors contribute to a per-frame steering accumulator.  Keeping the
-    // previous value makes acceleration compound forever and is especially
-    // visible as oscillating turns in formations.
+    // Behaviors accumulate into a per-frame vector; keeping the old one makes acceleration compound and turns oscillate.
     mDesiredMoveVector = Math::vec3(0.0f);
 
-    // Refresh sense data.
     mVisibleGroupMembers.clear();
     mVisibleEnemies.clear();
     updateVisibility();
 
-    // Let behaviors accumulate their desired-move contributions.
     for (AI::Behavior* behavior : mBehaviors)
         behavior->iterate(deltaTime, *this);
 
-    // Clamp the desired move to the maximum velocity change (acceleration).
     f32 velChange = Math::length(mDesiredMoveVector);
     if (velChange > mMaxVelocityChange && velChange > 0.0f)
         mDesiredMoveVector = Math::normalize(mDesiredMoveVector) * mMaxVelocityChange;
 
-    // Apply the change.
     mVelocity += mDesiredMoveVector;
 
-    // Per-axis scaling (restrict movement; > 1.0f destabilises the system).
+    // > 1.0f destabilises the system.
     mVelocity.x *= mMoveXScalar;
     mVelocity.y *= mMoveYScalar;
     mVelocity.z *= mMoveZScalar;
 
-    // Clamp the actual velocity to max speed.
     f32 spd = Math::length(mVelocity);
     if (spd > mMaxSpeed && spd > 0.0f)
         mVelocity = Math::normalize(mVelocity) * mMaxSpeed;
 
-    // Snap tiny residual velocities to rest. Without this dead zone an agent
-    // that has reached a formation slot keeps moving by sub-pixel amounts;
-    // those changes are especially visible when a debug path is aligned with
-    // the camera.
+    // Dead zone: an agent at its formation slot otherwise keeps moving by sub-pixel amounts, visible when a debug path aligns with the camera.
     if (Math::length(mVelocity) < 0.1f)
         mVelocity = Math::vec3(0.0f);
 
-    // Keep forward tracking the velocity just computed. Every steering
-    // routine that reasons about "ahead" - obstacle avoidance, avoidNeighbors,
-    // isAhead/isAside/isBehind, pursuit - projects into this agent's local
-    // frame, so without this call forward() stays wherever the agent spawned
-    // facing and those tests are run against the wrong cone forever, no
-    // matter which way the agent is actually moving.
+    // Forward must track velocity: every "ahead" test (avoidance, isAhead/isAside/isBehind, pursuit) uses the local frame and would otherwise use the spawn facing forever.
     alignWithVelocity();
 }
 
 void Agent::updateVisibility()
 {
-    // AI::Entity::updateGroupVisibility()/updateEnemyVisibility() (removed)
-    // ran as two separate scans: one over the current Group's members, one
-    // over every Group in the World. Without Group/World, the Scene keeps a
-    // flat agent list, so this is one scan preserving both independent
-    // tests - an agent already sensed as a group member can also land in
-    // mVisibleEnemies if its type matches enemyMask(), as before
-    // (updateEnemyVisibility() looped every group in the world, its own
-    // included).
-    //
-    // One deliberate difference: the enemy scan now skips `this`. It did not
-    // before, so an agent whose friendMask() was set to something that does
-    // not cover its own type sensed ITSELF as the nearest enemy, at distance
-    // zero, and CombatBehavior shot it. Unreachable with the default masks
-    // (enemyMask is ~type), which is why it survived.
+    // One flat scan preserving both tests: an agent sensed as a group member can also land in mVisibleEnemies if its type matches enemyMask().
+    // The enemy scan skips `this`: with a friendMask not covering its own type an agent once sensed itself as the nearest enemy and shot itself.
     if (!mScene)
         return;
 
     for (Agent* other : mScene->agents())
     {
-        // Null while an agent is being destroyed mid-update - see
-        // Scene::agents().
+        // Null while an agent is destroyed mid-update (see Scene::agents()).
         if (!other || other == this || !other->alive())
             continue;
 
@@ -272,15 +219,7 @@ bool Agent::adoptBehavior(AI::Behavior* behavior)
     if (!behavior)
         return false;
 
-    // Behaviors used to be non-owning and were routinely shared by a whole
-    // flock; now that the agent deletes them, the same instance reaching two
-    // agents (or the same one twice) is a double free. Rejected the way
-    // Group::add() rejected an entity that already had a group.
-    //
-    // Refused, never deleted: this one already has an owner, so the memory
-    // is not ours to free - the agent that does own it still will. Only the
-    // caller holding an unowned behavior has something that could be
-    // stranded, and addBehavior<T>() closes that by never handing one out.
+    // Behaviors are owned by the agent, so one reaching two agents (or the same one twice) is a double free; refused, never deleted, since the other owner still frees it.
     if (behavior->owner())
     {
         Log::warning("Agent: a behavior already owned by an agent cannot be added to a second "
@@ -348,8 +287,6 @@ void Agent::setStateMachine(AI::StateMachine* machine)
     mStateMachine = machine;
 }
 
-// ---- squad-member state (AI::SquadEntity) ----------------------------------
-
 bool Agent::waypointReached()
 {
     if (mNextWaypoint != 0 && mWaypointNetwork)
@@ -368,9 +305,7 @@ bool Agent::waypointReached()
 
 void Agent::onWaypointReached()
 {
-    // The reference read the NPC weapon status out of the waypoint's editor
-    // blind data here (IWF export); that data is not carried over, so the
-    // hook is intentionally empty for engines to fill in.
+    // The reference read the NPC weapon status from the waypoint's editor blind data (IWF export); not carried over, so the hook is intentionally empty.
 }
 
 bool Agent::goalReached()
@@ -390,12 +325,7 @@ void Agent::onWaitingForCommand()
 
 void Agent::setCommand(AI::SquadCommand command)
 {
-    // AI::SquadLeaderEntity::setCommand() overrode AI::SquadEntity::setCommand()
-    // to redistribute the command to every member; there is only one class
-    // now, so the leader path is picked by squadId() == 0 instead of a
-    // vtable. mLastCommand/mCommandAcknowledged are only ever read through
-    // hasCommandChanged(), which only the leader's state machine calls
-    // (SquadAI.cpp), so leaving them updated on non-leaders is harmless.
+    // The leader path is picked by squadId() == 0. mLastCommand/mCommandAcknowledged are only read via hasCommandChanged(), which only the leader's state machine calls, so updating them on non-leaders is harmless.
     if (mSquadId == 0)
         mLastCommand = mCommand; // the command we are leaving
 
@@ -416,8 +346,6 @@ void Agent::setCommand(AI::SquadCommand command)
         for (Agent* member : mSquadMembers)
             member->setCommand(command);
 }
-
-// ---- leader-only state (AI::SquadLeaderEntity) -----------------------------
 
 void Agent::sendSquadToTarget()
 {
@@ -458,9 +386,7 @@ void Agent::sendSquadToRandomPOI()
 
 void Agent::sendSquadToRandomWaypoint()
 {
-    // The null check used to sit on the line below, one dereference too
-    // late: a leader with members but no network crashed here instead of
-    // returning.
+    // The null check must come before the dereference: a leader with members but no network would crash.
     if (mSquadMembers.empty() || !mWaypointNetwork)
         return;
 
@@ -502,15 +428,7 @@ void Agent::addSquadMember(Agent* member)
     member->mSquadLeader = this;
     mSquadMembers.push_back(member);
 
-    // Slot id, filled in with the lowest one no squadmate already holds -
-    // what FormationBehavior switches on to place point man/flanks/rear
-    // guard. Reference: the leader is 0, the first member is 1, the second
-    // 2, and so on. -1 means "never assigned"; a caller that already gave
-    // this member a specific slot keeps it. The lowest free slot, not
-    // mSquadMembers.size(), matters once the squad has lost a member:
-    // size() alone would hand the newcomer an id a survivor still holds
-    // (removeSquadMember() below frees the slot it takes back, so there is
-    // always a gap to fill before the id count needs to grow).
+    // Lowest free slot, not mSquadMembers.size() (which would hand out an id a survivor still holds after a member left). Leader is 0, first member 1, -1 = never assigned; a preassigned slot is kept.
     if (member->mSquadId < 0)
     {
         int slot = 1;
@@ -539,10 +457,7 @@ void Agent::removeSquadMember(Agent* member)
     if (it == mSquadMembers.end())
         return;
     (*it)->mSquadLeader = nullptr;
-    // Give up the slot - otherwise it either sits unfilled forever (nobody
-    // else reads it once this member is out of mSquadMembers) or, worse,
-    // travels with the member into a later addSquadMember() call and
-    // collides with whoever already holds that id in the new squad.
+    // Give up the slot, or it travels with the member into a later squad and collides with its holder.
     (*it)->mSquadId = -1;
     mSquadMembers.erase(it);
 }
@@ -557,16 +472,8 @@ void Agent::clearSquadMembers()
     mSquadMembers.clear();
 }
 
-// ---- pose sync with the owning GameObject ----------------------------------
-//
-// The AI's local frame uses forward = +Z (Agent::forward()); GameObject::
-// forward() is rotation * (0,0,-1), forward = -Z. Copying the orientation
-// straight across would face the owner 180 degrees off, so both directions
-// of the sync apply a 180 degree turn around up() - its own inverse, so the
-// same expression undoes itself on the way back. Accepted consequence: the
-// owner's right() ends up the negation of Agent::side() - a rotation cannot
-// align forward without also flipping right; only a reflection could, and
-// this is not one.
+// The AI frame has forward = +Z, GameObject::forward() is -Z, so both sync directions apply a 180 degree turn around up() (its own inverse).
+// Consequence: the owner's right() ends up the negation of Agent::side(); only a reflection could avoid that.
 
 bool Agent::simulating() const
 {
@@ -579,10 +486,7 @@ void Agent::pushOwnerPose()
     GameObject* object = owner();
     if (!object)
         return;
-    // mSynced* is the record of where the owner was last seen, so it is
-    // refreshed whether or not the agent takes the pose - left behind under
-    // a disabled sync flag, ownerMoved() would answer true every frame for
-    // the rest of the object's life and call this on every one of them.
+    // mSynced* is the last-seen owner pose and is refreshed even when sync is disabled, else ownerMoved() answers true every frame.
     mSyncedPosition = object->globalPosition();
     mSyncedRotation = object->globalRotation();
     if (mSyncPosition)

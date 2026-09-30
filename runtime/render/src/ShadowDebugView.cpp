@@ -130,9 +130,7 @@ void ShadowDebugView::drawCascades(TextureHandle cascades, u32 count, u32 window
     for (u32 c = 0; c < count; ++c)
     {
         const Viewport viewport{8.0f + static_cast<f32>(c) * (size + gap), baseY, size, size};
-        // The directional texture is now one 2D atlas. Show each split's
-        // region separately so the existing four-cascade diagnostic remains
-        // useful rather than displaying the whole atlas four times.
+        // The directional shadow is one 2D atlas; show each split's region separately.
         const DirectionalShadowRegion region = directionalShadowRegion(2, count, c);
         blit(cascades, false, 0, TargetHandle(), viewport,
              Math::vec4(static_cast<f32>(region.width) * 0.5f,

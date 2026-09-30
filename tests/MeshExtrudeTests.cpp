@@ -1,6 +1,3 @@
-// MeshExtrudeTests.cpp - extrudeFaces(): a region of faces raised along its
-// own normals, walled in along its boundary. Nothing here touches the GPU.
-
 #include "PCH.h"
 
 #include "AssetManager.h"
@@ -32,9 +29,7 @@ bool near(f32 a, f32 b, f32 tolerance = 1e-4f)
     return Math::abs(a - b) <= tolerance;
 }
 
-// Two triangles making one flat quad in XZ, both wound so their normal is +Y.
-// The diagonal 0-2 is shared, which is the edge that must NOT grow a wall
-// when both triangles are extruded together.
+// Two triangles forming a flat quad in XZ, normal +Y; the shared diagonal 0-2 must not grow a wall when both are extruded.
 MeshData makeQuad()
 {
     MeshData mesh;
@@ -75,10 +70,7 @@ bool submeshesCoverIndices(const MeshData& mesh)
     return total == mesh.indices.size();
 }
 
-// The one property that separates a real region extrude from a naive one: an
-// edge shared by two extruded faces is inside the region and gets no wall.
-// Getting this wrong buries a wall inside the solid, where it is invisible
-// until something shades or collides against it.
+// An edge shared by two extruded faces is interior and gets no wall; otherwise a wall is buried in the solid.
 void testInteriorEdgeGetsNoWall()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -88,22 +80,18 @@ void testInteriorEdgeGetsNoWall()
     std::vector<u32> raised;
     CHECK(assets.extrudeFaces(mesh, both, 2.0f, &raised));
 
-    // 2 cap triangles, plus 4 boundary edges walled with 2 triangles each.
-    // A wall on the shared diagonal too would make it 12.
+    // 2 caps + 4 boundary edges x 2 triangles; a wall on the diagonal would make 12.
     CHECK(mesh.indices.size() / 3 == 10);
     CHECK(raised.size() == 2);
     CHECK(indicesValid(mesh));
     CHECK(submeshesCoverIndices(mesh));
 
-    // Four originals plus one duplicate each.
     CHECK(mesh.positions.size() == 8);
     CHECK(mesh.normals.size() == 8);
     CHECK(mesh.uvs.size() == 8);
     CHECK(mesh.colors.size() == 8);
 }
 
-// The same two triangles, extruded one at a time: now the diagonal is used by
-// one selected face and one unselected one, so it IS on the boundary.
 void testEdgeSharedWithAnUnselectedFaceIsBoundary()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -112,11 +100,9 @@ void testEdgeSharedWithAnUnselectedFaceIsBoundary()
     const std::vector<u32> one = {0};
     CHECK(assets.extrudeFaces(mesh, one, 1.0f));
 
-    // The untouched triangle, the cap, and three walls of two triangles.
     CHECK(mesh.indices.size() / 3 == 1 + 1 + 6);
     CHECK(indicesValid(mesh));
     CHECK(submeshesCoverIndices(mesh));
-    // Only that triangle's three vertices were duplicated.
     CHECK(mesh.positions.size() == 7);
 }
 
@@ -130,7 +116,6 @@ void testCapMovesAlongTheNormal()
     CHECK(assets.extrudeFaces(mesh, both, 2.0f, &raised));
     CHECK(raised.size() == 2);
 
-    // Every vertex of a raised face sits 2 units up, and nowhere else.
     for (usize f = 0; f < raised.size(); ++f)
     {
         const u32 face = raised[f];
@@ -138,21 +123,16 @@ void testCapMovesAlongTheNormal()
         {
             const u32 index = mesh.indices[face * 3 + corner];
             CHECK(near(mesh.positions[index].y, 2.0f));
-            // Duplicates come after the originals.
             CHECK(index >= 4);
         }
     }
 
-    // The originals stayed where they were.
     for (u32 v = 0; v < 4; ++v)
         CHECK(near(mesh.positions[v].y, 0.0f));
 
-    // A duplicate carries its source's attributes across.
     CHECK(mesh.colors[4] == 0xff00ff00u);
 }
 
-// A negative distance pulls the region the other way; the walls have to
-// follow rather than be built for the outward case only.
 void testNegativeDistance()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -169,9 +149,7 @@ void testNegativeDistance()
             CHECK(near(mesh.positions[mesh.indices[raised[f] * 3 + corner]].y, -1.5f));
 }
 
-// Extruding again on what the first one returned is the whole point of the
-// out parameter - the index buffer is rebuilt, so the old face numbers point
-// at whatever inherited them.
+// Re-extruding the returned faces: the index buffer was rebuilt, so old face numbers are stale.
 void testExtrudingTheResultAgain()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -187,14 +165,11 @@ void testExtrudingTheResultAgain()
     CHECK(raisedAgain.size() == 2);
     CHECK(indicesValid(mesh));
     CHECK(submeshesCoverIndices(mesh));
-    // Two units up in total, not one: the second extrude found the cap.
     for (usize f = 0; f < raisedAgain.size(); ++f)
         for (u32 corner = 0; corner < 3; ++corner)
             CHECK(near(mesh.positions[mesh.indices[raisedAgain[f] * 3 + corner]].y, 2.0f));
 }
 
-// Walls belong to the material of the face that raised them, or an extrusion
-// on a two-material mesh comes out wearing the wrong one.
 void testWallsStayInTheirSubmesh()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -212,14 +187,11 @@ void testWallsStayInTheirSubmesh()
     mesh.submeshes.push_back(first);
     mesh.submeshes.push_back(second);
 
-    // Face 1 lives in the second submesh.
     const std::vector<u32> one = {1};
     CHECK(assets.extrudeFaces(mesh, one, 1.0f));
 
     CHECK(mesh.submeshes.size() == 2);
     CHECK(submeshesCoverIndices(mesh));
-    // The first submesh keeps its single untouched triangle; everything the
-    // extrude produced landed in the second.
     CHECK(mesh.submeshes[0].indexCount == 3);
     CHECK(mesh.submeshes[1].indexCount == (1 + 6) * 3);
     CHECK(mesh.submeshes[1].materialSlot == 1);
@@ -235,8 +207,6 @@ void testRejectsNothingToDo()
     CHECK(mesh.indices.size() == before.indices.size());
     CHECK(mesh.positions.size() == before.positions.size());
 
-    // Face numbers past the end are ignored, and a selection of nothing but
-    // those leaves the mesh alone.
     const std::vector<u32> bogus = {17, 900};
     CHECK(!assets.extrudeFaces(mesh, bogus, 1.0f));
     CHECK(mesh.indices.size() == before.indices.size());
@@ -245,8 +215,7 @@ void testRejectsNothingToDo()
     CHECK(!assets.extrudeFaces(empty, {0}, 1.0f));
 }
 
-// A mesh carrying none of the optional streams must not come back with
-// half-filled ones, which is what makes a later upload read past the end.
+// With no optional streams none may come back half-filled (a later upload reads past the end).
 void testMeshWithoutOptionalStreams()
 {
     AssetManager& assets = AssetManager::getSingleton();
@@ -267,8 +236,7 @@ void testMeshWithoutOptionalStreams()
     CHECK(submeshesCoverIndices(mesh));
 }
 
-// Every wall triangle must use two originals and two duplicates - a wall
-// built from four originals would be a flat sliver lying in the old surface.
+// A wall uses two originals and two duplicates, else it is a flat sliver in the old surface.
 void testWallsJoinBaseToCap()
 {
     AssetManager& assets = AssetManager::getSingleton();

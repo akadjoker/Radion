@@ -25,8 +25,7 @@ bool valid(const Math::quat& value)
 
 } // namespace
 
-// mId stays 0 here: the Scene that creates the object is what stamps it,
-// out of its own counter. See Scene::createGameObject().
+// mId stays 0: the Scene stamps it from its own counter.
 GameObject::GameObject(const std::string& name) : mName(name)
 {
 }
@@ -245,8 +244,7 @@ void GameObject::deleteChildrenRaw()
 
 bool GameObject::addChild(GameObject* object)
 {
-    // mRoot is always registered (Scene sets its mScene at construction), so
-    // this also catches the common case of adding straight under the root.
+    // mRoot is always registered, so this also catches adding straight under the root.
     if (object && (mScene || object->mScene))
     {
         Log::warning("GameObject: addChild() on a registered object ('%s' into '%s') - use "
@@ -363,9 +361,7 @@ bool GameObject::removeComponent(Component* component)
     component->detached();
     component->mOwner = nullptr;
     unlinkComponent(component);
-    // Only the actual free waits: a callback still running on this component
-    // - reached through the loop in updateComponents()/lateUpdateComponents()
-    // - must not have it deleted out from under itself.
+    // A running callback on this component must not have it deleted out from under it.
     if (mComponentCallbackDepth > 0)
         mPendingComponentDeletes.push_back(component);
     else
@@ -506,11 +502,7 @@ void GameObject::setScale(const Math::vec3& scale)
         Log::warning("GameObject '%s': rejected non-finite scale", name().c_str());
         return;
     }
-    // Terrain/Road/VegetationGrid invert the global transform, and mesh
-    // upload computes an inverse-transpose of its 3x3 - a zero component
-    // makes both singular and propagates NaN into normals, bounds and
-    // culling. Hiding an object is what enabled/visible are for; a scale
-    // this small is a caller bug, not a legitimate "make it disappear".
+    // A zero scale component makes inverse transforms singular (Terrain/Road/VegetationGrid, mesh inverse-transpose) and propagates NaN; hide with enabled/visible instead.
     constexpr f32 kEpsilon = 0.000001f;
     if (Math::abs(scale.x) < kEpsilon || Math::abs(scale.y) < kEpsilon ||
         Math::abs(scale.z) < kEpsilon)

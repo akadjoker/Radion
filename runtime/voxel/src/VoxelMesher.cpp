@@ -17,11 +17,8 @@ struct FaceInfo
     Math::vec3 corners[4];
     VoxelCoord uAxis;
     VoxelCoord vAxis;
-    // The greedy sweep's u axis is chosen to keep the quad's winding facing
-    // out, and on two of the side faces that axis is vertical. Texture space
-    // must not follow it there: a grass side would stand on end. Swapping the
-    // two texture coordinates puts the tile's v back along world +Y without
-    // touching geometry or winding.
+    // The greedy sweep's u axis is vertical on two side faces; swapping the texture coordinates puts the tile's v
+    // back along +Y (else grass sides stand on end) without touching geometry or winding.
     bool swapUv;
 };
 
@@ -89,9 +86,7 @@ bool faceIsVisible(BlockId blockId, const BlockDefinition& block, BlockId neighb
     return block.renderType == BlockRenderType::Opaque || blockId != neighbourId;
 }
 
-// One cell of the greedy sweep. Ambient occlusion belongs in the key, not
-// only in the vertex: merging two cells whose corners are occluded
-// differently would stretch one cell's shading across both.
+// One cell of the greedy sweep. AO belongs in the key: merging differently occluded cells would stretch shading.
 struct MaskCell
 {
     BlockId block = AirBlockId;
@@ -120,9 +115,7 @@ VoxelCoord offsetBy(VoxelCoord base, VoxelCoord axis, s32 amount)
     return {base.x + axis.x * amount, base.y + axis.y * amount, base.z + axis.z * amount};
 }
 
-// The classic three-neighbour test, per corner of a face: two sides and the
-// diagonal. Two sides touching means the corner is fully closed off, whatever
-// sits on the diagonal. Returns 3 for open and 0 for fully occluded.
+// Classic three-neighbour corner test: two sides plus diagonal; two sides touching is fully closed. 3 = open, 0 = occluded.
 u8 cornerOcclusion(const VoxelNeighbourhood& neighbourhood, const BlockRegistry& blocks,
                    VoxelCoord local, const VoxelCoord& normal, const VoxelCoord& uAxis,
                    const VoxelCoord& vAxis, s32 uStep, s32 vStep)
@@ -138,9 +131,7 @@ u8 cornerOcclusion(const VoxelNeighbourhood& neighbourhood, const BlockRegistry&
                                 static_cast<s32>(corner)));
 }
 
-// A voxel vertex needs 27 of the 48 bytes MeshAttribs would spend on it, so it
-// travels packed in MeshData::colors and voxel.vert unpacks it. The layout is
-// shared with that shader and neither side may move a field alone:
+// Packed into MeshData::colors and unpacked by voxel.vert; the layout is shared and neither side may move a field alone:
 //   0-2   face index, into the six normals
 //   3-4   ambient occlusion, 0 darkest
 //   5-9   atlas column
@@ -201,8 +192,7 @@ void appendFace(MeshData& mesh, std::vector<u32>& indices, AABB& passBounds,
     };
     const f32 tileWidth = 1.0f / std::max<u16>(settings.atlasColumns, 1);
     const f32 tileHeight = 1.0f / std::max<u16>(settings.atlasRows, 1);
-    // Texture extents follow the face's texture basis, which the swap may have
-    // exchanged with the sweep's.
+    // Texture extents follow the face's texture basis, which the swap may have exchanged.
     const s32 texWidth = face.swapUv ? height : width;
     const s32 texHeight = face.swapUv ? width : height;
     Math::vec2 uvs[] = {
@@ -226,23 +216,15 @@ void appendFace(MeshData& mesh, std::vector<u32>& indices, AABB& passBounds,
         Math::vec2 uv = uvs[i];
         if (material.flipVertical)
             uv.y = static_cast<f32>(texHeight) - uv.y;
-        // Normals, tangents and both UV sets stay out of the mesh: the packed
-        // word carries what a voxel actually varies, and voxel.vert rebuilds
-        // the rest. Filling them would cost 48 bytes a vertex here and again
-        // on the way to the GPU, for values the shader already knows.
+        // Normals, tangents and UVs stay out: the packed word carries what varies and voxel.vert rebuilds the rest.
         mesh.colors.push_back(packVertex(static_cast<u8>(face.face), cell.occlusion[i],
                                          material.atlasX, material.atlasY,
                                          static_cast<u32>(uv.x), static_cast<u32>(uv.y)));
         mesh.bounds.expand(mesh.positions.back());
-        // Each pass keeps its own box: they share one vertex stream now, and
-        // the render list culls a submesh by the bounds it was given. Handing
-        // all three the whole chunk submits water and leaves wherever any part
-        // of the chunk is visible.
+        // Each pass keeps its own box: the render list culls per submesh bounds, and the whole chunk would submit water/leaves needlessly.
         passBounds.expand(mesh.positions.back());
     }
-    // The diagonal follows the darker pair of corners. Split the other way and
-    // the quad's two triangles interpolate opposite gradients, which shows up
-    // as a crease running across an otherwise flat wall.
+    // The diagonal follows the darker pair of corners, else the triangles interpolate opposite gradients (a crease).
     const s32 diagonal = static_cast<s32>(cell.occlusion[0]) + cell.occlusion[2] -
                          static_cast<s32>(cell.occlusion[1]) - cell.occlusion[3];
     if (diagonal > 0)
@@ -296,8 +278,7 @@ VoxelMeshData VoxelMesher::buildChunk(const VoxelNeighbourhood& neighbourhood,
                                       const BlockRegistry& blocks, Settings settings)
 {
     VoxelMeshData result;
-    // One bucket per pass while the sweep runs, concatenated at the end. The
-    // vertices are shared, so nothing is copied twice.
+    // One bucket per pass during the sweep, concatenated at the end; vertices are shared.
     std::vector<u32> passIndices[3];
     AABB passBounds[3];
     MaskCell mask[static_cast<usize>(VoxelChunk::Size) * VoxelChunk::Size];
@@ -330,9 +311,7 @@ VoxelMeshData VoxelMesher::buildChunk(const VoxelNeighbourhood& neighbourhood,
                     cell.block = id;
                     if (!settings.ambientOcclusion)
                         continue;
-                    // Corners in the same order appendFace emits them: the
-                    // sweep's (u,v) origin, then along u, then the far corner,
-                    // then along v.
+                    // Corners in appendFace's order: origin, along u, far corner, along v.
                     cell.occlusion[0] = cornerOcclusion(neighbourhood, blocks, local,
                                                         face.neighbourOffset, face.uAxis,
                                                         face.vAxis, -1, -1);

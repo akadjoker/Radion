@@ -9,11 +9,7 @@ namespace Radion
 class Skeleton;
 class AnimationClip;
 
-// glTF 2.0 / GLB mesh importer, in the same shape as the other importers
-// (B3D, MS3D, OBJ, ...): import() decodes geometry into a MeshData, and the
-// two free functions below load skeleton and animation clips the same way
-// loadB3DSkeleton/loadB3DAnimation do. Parsing is done through cgltf
-// (src/cgltf.h) with its file I/O routed through Radion's FileSystem.
+// glTF 2.0 / GLB mesh importer; skeleton and animation load through the free functions below.
 class GltfImporter final : public MeshImporter
 {
 public:

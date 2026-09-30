@@ -30,7 +30,6 @@ bool near(f32 a, f32 b, f32 epsilon = 1e-4f)
     return std::abs(a - b) <= epsilon;
 }
 
-// A rows x cols grid on the XZ plane at y = 0, as a triangle mesh.
 void makeGrid(u32 rows, u32 cols, f32 spacing, std::vector<Math::vec3>& positions,
               std::vector<u32>& indices)
 {
@@ -62,9 +61,7 @@ void testMeshBuildsSharedEdgesOnce()
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 1.0f);
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 0.0f);
 
-    // Two triangles over four vertices: five distinct edges, plus one bending
-    // constraint across the shared diagonal. An edge counted twice would say
-    // six structural.
+    // Five distinct edges plus one bending constraint across the diagonal; an edge counted twice would give six.
     CHECK(body.constraintCount() == 6);
 }
 
@@ -76,8 +73,7 @@ void testStiffClothDoesNotExplode()
 
     SoftBody body;
     body.setParticles(positions.data(), static_cast<u32>(positions.size()), 2.0f);
-    // Zero compliance is infinitely stiff. This is the case a spring solver
-    // cannot take at any usable step - it is the whole reason for XPBD.
+    // Zero compliance is infinitely stiff: a spring solver cannot take it, hence XPBD.
     body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 0.0f, 0.0f);
     body.setPinned(0, true);
     body.setPinned(7, true);
@@ -113,8 +109,7 @@ void testStiffnessIsIndependentOfStepSize()
         return body.worstStretch();
     };
 
-    // Same simulated time, half the step. A spring solver drapes differently
-    // here; compliance divided by dt squared is what makes these agree.
+    // Half the step, same time: compliance / dt^2 makes these agree (a spring solver drapes differently).
     const f32 coarse = settle(1.0f / 60.0f, 120);
     const f32 fine = settle(1.0f / 120.0f, 240);
     CHECK(near(coarse, fine, 0.02f));
@@ -130,16 +125,14 @@ void testAttachmentsHoldASheetFromStretching()
 
         SoftBody body;
         body.setParticles(positions.data(), static_cast<u32>(positions.size()), 1.0f);
-        // Slack on purpose: an inextensible sheet has nothing for LRA to
-        // improve, and real cloth is never solved to convergence.
+        // Slack on purpose: an inextensible sheet gives LRA nothing; real cloth is never fully converged.
         body.buildFromMesh(indices.data(), static_cast<u32>(indices.size()), 5.0e-6f, 1.0e-4f);
         for (u32 c = 0; c < 4; ++c)
             body.setPinned(c, true);
         if (useAttachments)
             body.buildAttachments(1.0f);
 
-        // Two iterations, which is where a constraint chain cannot carry a
-        // correction to the far end and the sheet stretches.
+        // Two iterations: a constraint chain cannot carry a correction to the far end and the sheet stretches.
         body.setGravity(Math::vec3(0.0f, -40.0f, 0.0f));
         for (u32 i = 0; i < 60; ++i)
             body.step(1.0f / 60.0f, 2);
@@ -169,7 +162,6 @@ void testPinnedParticlesNeverMove()
 
     CHECK(near(Math::length(body.particle(0).position - anchor), 0.0f));
     CHECK(near(Math::length(body.particle(0).velocity), 0.0f));
-    // Everything else fell.
     CHECK(body.particle(body.particleCount() - 1).position.y < -0.5f);
 }
 
@@ -192,13 +184,7 @@ void testSubstepsBeatOneBigStep()
         return body.worstStretch();
     };
 
-    // Same total work per frame either way in the old arrangement; here the
-    // frame is split instead. A heavy strip hung from one end is the case
-    // that separates them - one big step cannot carry the load down the
-    // chain, and the strip stretches.
-    // Measured on this strip: 1 substep leaves it 69% longer than its rest
-    // length, 8 leaves 7.5%, 32 leaves 1%. Splitting the frame is what buys
-    // that - the same total projection work spread over one step does not.
+    // A heavy strip hung from one end: 1 substep leaves it 69% longer, 8 leaves 7.5%, 32 leaves 1%; splitting the frame buys that.
     const f32 one = stretch(1);
     const f32 eight = stretch(8);
     CHECK(one > 1.5f);
@@ -348,8 +334,6 @@ void testHangingSheetRemainsStableAgainstSphere()
     CHECK(maximumSpeed < 30.0f);
 }
 
-// Average particle speed and centre displacement after sliding a flat resting
-// sheet across level ground for one second with the given contact friction.
 void slideRestingSheet(f32 friction, f32& averageSpeed, f32& displacement,
                        bool boxGround = false)
 {
@@ -400,9 +384,7 @@ void slideRestingSheet(f32 friction, f32& averageSpeed, f32& displacement,
 
 void testGroundFrictionStopsASlidingSheet()
 {
-    // Coulomb friction at 0.6 decelerates a 1 m/s slide at ~5.9 m/s^2: it has
-    // to stop within 0.17 s and travel no further than ~0.09 m. One second
-    // later anything still moving means the contact is not braking at all.
+    // Coulomb 0.6 decelerates 1 m/s at ~5.9 m/s^2: must stop within 0.17 s and ~0.09 m; motion a second later means no braking.
     f32 speed = 0.0f;
     f32 travelled = 0.0f;
     slideRestingSheet(0.6f, speed, travelled);
@@ -412,14 +394,12 @@ void testGroundFrictionStopsASlidingSheet()
     CHECK(speed < 0.05f);
     CHECK(travelled < 0.30f);
 
-    // The control: without friction the same sheet must still be gliding,
-    // or the test above is passing for the wrong reason.
+    // Control: without friction the sheet must still glide, or the test above passes wrongly.
     slideRestingSheet(0.0f, speed, travelled);
     CHECK(speed > 0.5f);
     CHECK(travelled > 0.5f);
 
-    // The same slide over a box's top face has to brake identically - the
-    // sphere-box narrowphase feeds the same contact fields as the plane path.
+    // The sphere-box narrowphase feeds the same contact fields as the plane path, so braking is identical.
     slideRestingSheet(0.6f, speed, travelled, true);
     if (speed >= 0.05f || travelled >= 0.30f)
         std::fprintf(stderr, "sliding sheet on box: speed %.3f travelled %.3f\n",
@@ -430,9 +410,7 @@ void testGroundFrictionStopsASlidingSheet()
 
 void testFallenSheetComesToRest(bool withSphere = true)
 {
-    // The demo scene, headless: the 45x45 sheet dropped from 6 m over the
-    // sphere, sliding off onto the ground. Once everything is down, friction
-    // has to bring it to rest instead of letting it glide like ice.
+    // Demo scene headless (45x45 sheet dropped from 6 m onto sphere and ground); friction must bring it to rest.
     std::vector<Math::vec3> positions;
     std::vector<u32> indices;
     makeGrid(45, 45, 6.0f / 44.0f, positions, indices);
@@ -485,12 +463,7 @@ void testFallenSheetComesToRest(bool withSphere = true)
     CHECK(finite);
     if (withSphere)
     {
-        // Sliding off a ball leaves the sheet crumpled, and without self
-        // collision a crumpled pile's folds oscillate through each other
-        // forever - full rest is out of reach until that exists (the Jolt
-        // library itself, measured headless on a simpler pressed curtain,
-        // rings at 0.33-3.98 m/frame). What the solver does have to hold is
-        // that the pile never runs away.
+        // Without self collision a crumpled pile oscillates forever (Jolt rings at 0.33-3.98 m/frame); only require that it never runs away.
         if (averageSpeed >= 12.0f)
             std::fprintf(stderr, "fallen sheet over sphere: average speed %.3f\n",
                          static_cast<f64>(averageSpeed));
@@ -498,8 +471,6 @@ void testFallenSheetComesToRest(bool withSphere = true)
     }
     else
     {
-        // Flat on level ground every particle is in contact, so friction has
-        // to bring the whole sheet to a genuine stop.
         if (averageSpeed >= 0.05f)
             std::fprintf(stderr, "fallen sheet on ground: average speed %.3f\n",
                          static_cast<f64>(averageSpeed));
@@ -509,10 +480,7 @@ void testFallenSheetComesToRest(bool withSphere = true)
 
 void testDihedralBendRestoresAFlatRestPose()
 {
-    // Two triangles sharing one edge, rest pose flat, everything pinned but
-    // the tip of one wing, which is lifted and released. The dihedral bend
-    // has to pull it back to the plane - the sign test that catches a port
-    // pushing the fold open instead of closed.
+    // Two triangles sharing an edge, all pinned but one lifted wing tip: the dihedral bend must pull it back to the plane (sign test).
     std::vector<Math::vec3> positions = {Math::vec3(0.0f, 0.0f, 0.0f),
                                         Math::vec3(1.0f, 0.0f, 0.0f),
                                         Math::vec3(0.5f, 0.0f, 1.0f),
@@ -532,10 +500,7 @@ void testDihedralBendRestoresAFlatRestPose()
     CHECK(std::abs(body.particle(2).position.y) < 0.01f);
 }
 
-// Worst frame-to-frame particle displacement over the last two simulated
-// seconds - the number a human reads as trembling, which an average of
-// velocities cannot see because the contact push-out moves positions after
-// the velocity was derived.
+// Worst frame-to-frame displacement over the last two seconds: what reads as trembling; velocity averages miss it.
 f32 tremorAfterSettling(SoftBody& body, u32 settleSteps, u32 measureSteps)
 {
     for (u32 step = 0; step < settleSteps; ++step)
@@ -588,10 +553,7 @@ void testHeavyFallenSheetDoesNotTremble()
     collisionWorld.addBody(groundBody);
     body.setCollisionScene(&collisionWorld);
 
-    // Reference point, measured: the Jolt library itself, run headless on the
-    // pressed-curtain scenario below, trembles at 0.33-3.98 m/frame. Ours
-    // holds under 0.04 on both scenarios; the bound leaves room for chaos
-    // without letting a real regression through.
+    // Jolt trembles at 0.33-3.98 m/frame on the pressed curtain; ours stays under 0.04, and the bound leaves room for chaos.
     const f32 tremor = tremorAfterSettling(body, 600, 240);
     if (tremor >= 0.08f)
         std::fprintf(stderr, "heavy fallen sheet tremor: %.4f m/frame\n",
@@ -620,8 +582,6 @@ void testCurtainPressedBySphereComesToRest()
     SphereShape sphereShape(1.4f);
     RigidBody sphereBody;
     sphereBody.setBodyType(BodyType::Static);
-    // Pressed 0.3 m through the curtain's rest plane, the way the demo's
-    // slider pushes the sphere back into the hanging sheet.
     sphereBody.setPosition(Math::vec3(0.0f, 4.0f, -1.5f));
     sphereBody.setShape(&sphereShape);
     sphereBody.setFriction(0.6f);

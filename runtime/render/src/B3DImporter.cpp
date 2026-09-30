@@ -414,9 +414,7 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
         return false;
     }
 
-    // TRIS is decoded into the importer context.  Keep the index buffer in
-    // MeshData as well; submesh bounds and the upload path both consume this
-    // array.  The old importer left it empty and then indexed it below.
+    // Index buffer is also kept in MeshData; submesh bounds and upload consume it.
     for (const u32 index : context.indices)
     {
         if (index >= context.verts.size())
@@ -539,13 +537,7 @@ bool B3DImporter::import(const std::string& filename, ByteArray& data, FileSyste
         mesh.materialTextureFiles[i] = joinPath(directory, outMaterials[i].texFile);
     }
 
-    // Same gap FbxImporter/RadionMeshImporter/OgreMeshImporter each already
-    // close their own way - MaterialManager::pipelineFor() picks the vertex
-    // shader variant (MATERIAL_SKINNED) off this flag, and a skinned mesh
-    // whose material lacks it gets the plain-mesh variant instead: no
-    // lighting response worth seeing (wrong vertex layout read as the static
-    // one), even though the raw geometry (bounds, the editor's outline)
-    // looks completely normal.
+    // MaterialManager::pipelineFor() picks the skinned vertex variant from this flag.
     if (!mesh.skin.empty())
         for (Material& material : mesh.materials)
             material.flags |= MaterialSkinned;
