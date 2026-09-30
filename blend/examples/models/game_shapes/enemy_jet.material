@@ -1,0 +1,171 @@
+material "fuselage"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.212231, 0.262251, 0.266356, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.35, 0.4, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "cockpit"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0137021, 0.0423114, 0.0742136, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.05, 0.3, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "wing_R"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.212231, 0.262251, 0.266356, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.4, 0.4, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "tailplane_R"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.212231, 0.262251, 0.266356, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.4, 0.4, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "fin_R"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.527115, 0.0409152, 0.0241576, 1)
+        emissive (0, 0, 0, 0)
+        surface (1, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "nozzle"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0423114, 0.0423114, 0.0423114, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.5, 0.8, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "wing_L"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.212231, 0.262251, 0.266356, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.4, 0.4, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "tailplane_L"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.212231, 0.262251, 0.266356, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.4, 0.4, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "fin_L"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.527115, 0.0409152, 0.0241576, 1)
+        emissive (0, 0, 0, 0)
+        surface (1, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+

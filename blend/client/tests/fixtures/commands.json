@@ -1,0 +1,1484 @@
+{
+ "commands": [
+  {
+   "description": "Everything about the document in one call: mesh size and bounds, the list of parts (index, name, triangles, colour, bounds), the selection, animation clips and whether undo/redo are available. Call this first, and again after edits to check the result.",
+   "inputSchema": {
+    "properties": {},
+    "type": "object"
+   },
+   "name": "get_status",
+   "readOnly": true
+  },
+  {
+   "description": "Raw geometry of one part (or the whole mesh when 'part' is omitted): vertex positions and triangles as vertex-index triples. For checking shapes; large meshes are cut off.",
+   "inputSchema": {
+    "properties": {
+     "max_vertices": {
+      "description": "Most vertices to return (default 500, at most 2000).",
+      "type": "integer"
+     },
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     }
+    },
+    "type": "object"
+   },
+   "name": "get_mesh_data",
+   "readOnly": true
+  },
+  {
+   "description": "Renders the model offscreen and returns a PNG image. The way to SEE what has been built - take one after every few edits, from more than one angle (try perspective, front, top and right).",
+   "inputSchema": {
+    "properties": {
+     "azimuth": {
+      "description": "Perspective only: degrees around the model. 0 = seen from +Z (front), 90 = from +X (right). Default 35.",
+      "type": "number"
+     },
+     "color_by_part": {
+      "description": "Give each part its own flat tint to tell them apart.",
+      "type": "boolean"
+     },
+     "distance": {
+      "description": "Camera distance (perspective) or view height in world units (orthographic) when frame is false.",
+      "type": "number"
+     },
+     "elevation": {
+      "description": "Perspective only: degrees above the horizon, -89 to 89. Default 25.",
+      "type": "number"
+     },
+     "frame": {
+      "description": "Fit the whole mesh in view (default true). When false, 'target' and 'distance' set the camera.",
+      "type": "boolean"
+     },
+     "grid": {
+      "description": "Draw the ground grid (default true).",
+      "type": "boolean"
+     },
+     "height": {
+      "description": "Image height in pixels, 64-1920. Default 540.",
+      "type": "integer"
+     },
+     "shading": {
+      "description": "'textured' shows part colours and is the default; 'solid' is neutral grey; 'wireframe' shows the triangles.",
+      "enum": [
+       "textured",
+       "solid",
+       "wireframe"
+      ],
+      "type": "string"
+     },
+     "target": {
+      "description": "Point the camera looks at when frame is false.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "view": {
+      "description": "Camera. 'perspective' orbits using azimuth/elevation; the others are orthographic looks straight down an axis (front looks toward -Z, right looks toward -X, top looks down).",
+      "enum": [
+       "perspective",
+       "front",
+       "back",
+       "left",
+       "right",
+       "top",
+       "bottom"
+      ],
+      "type": "string"
+     },
+     "width": {
+      "description": "Image width in pixels, 64-1920. Default 960.",
+      "type": "integer"
+     },
+     "wireframe_overlay": {
+      "description": "Draw the triangle edges over the shading.",
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "name": "screenshot",
+   "readOnly": true
+  },
+  {
+   "description": "Discards the current mesh, skeleton, animations and undo history and starts empty. Cannot be undone.",
+   "inputSchema": {
+    "properties": {},
+    "type": "object"
+   },
+   "name": "new_document",
+   "readOnly": false
+  },
+  {
+   "description": "Opens a mesh file (.rmesh, .obj, .fbx, .gltf, ...), replacing the document.",
+   "inputSchema": {
+    "properties": {
+     "path": {
+      "description": "File path on the machine running the editor.",
+      "type": "string"
+     }
+    },
+    "required": [
+     "path"
+    ],
+    "type": "object"
+   },
+   "name": "load_mesh",
+   "readOnly": false
+  },
+  {
+   "description": "Merges another mesh file into the document as additional parts.",
+   "inputSchema": {
+    "properties": {
+     "path": {
+      "description": "File path on the machine running the editor.",
+      "type": "string"
+     }
+    },
+    "required": [
+     "path"
+    ],
+    "type": "object"
+   },
+   "name": "append_mesh",
+   "readOnly": false
+  },
+  {
+   "description": "Saves the document in the engine's own .rmesh format (the extension is forced to .rmesh), with a .material file beside it.",
+   "inputSchema": {
+    "properties": {
+     "path": {
+      "description": "Where to save, e.g. /home/me/helicopter.rmesh.",
+      "type": "string"
+     }
+    },
+    "required": [
+     "path"
+    ],
+    "type": "object"
+   },
+   "name": "save_mesh",
+   "readOnly": false
+  },
+  {
+   "description": "Exports the document as a Wavefront .obj file.",
+   "inputSchema": {
+    "properties": {
+     "path": {
+      "description": "Where to write the .obj file.",
+      "type": "string"
+     }
+    },
+    "required": [
+     "path"
+    ],
+    "type": "object"
+   },
+   "name": "export_obj",
+   "readOnly": false
+  },
+  {
+   "description": "Exports the document as a binary glTF 2.0 file (.glb): one mesh with a primitive and a PBR material (colour, roughness, metalness) per part. Static geometry only. This is the format to hand a model to a game or another tool.",
+   "inputSchema": {
+    "properties": {
+     "path": {
+      "description": "Where to write the file, e.g. /home/me/helicopter.glb.",
+      "type": "string"
+     }
+    },
+    "required": [
+     "path"
+    ],
+    "type": "object"
+   },
+   "name": "export_gltf",
+   "readOnly": false
+  },
+  {
+   "description": "Undoes the last edit(s).",
+   "inputSchema": {
+    "properties": {
+     "steps": {
+      "description": "How many steps to go back (default 1).",
+      "type": "integer"
+     }
+    },
+    "type": "object"
+   },
+   "name": "undo",
+   "readOnly": false
+  },
+  {
+   "description": "Redoes edits that were undone.",
+   "inputSchema": {
+    "properties": {
+     "steps": {
+      "description": "How many steps to go back (default 1).",
+      "type": "integer"
+     }
+    },
+    "type": "object"
+   },
+   "name": "redo",
+   "readOnly": false
+  },
+  {
+   "description": "Adds a basic solid as a new part, already placed and coloured. Every other shape is built from these: stretch a sphere with a non-uniform 'scale' for a fuselage, use boxes for blades and struts, cylinders for masts and skids. Returns the part's index, name and bounds.",
+   "inputSchema": {
+    "properties": {
+     "color": {
+      "description": "Base colour as it should look (sRGB): \"#rrggbb\" or [r,g,b] / [r,g,b,a] with components 0..1.",
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "height": {
+      "description": "Cylinder/cone/capsule height along Y. Default 1. A cylinder or cone is centred on its origin.",
+      "type": "number"
+     },
+     "metallic": {
+      "description": "Metalness 0 (paint/plastic) to 1 (bare metal).",
+      "type": "number"
+     },
+     "minor_radius": {
+      "description": "Torus tube radius. Default 0.2.",
+      "type": "number"
+     },
+     "name": {
+      "description": "Name of the part (its material name). Use it later to refer to the part.",
+      "type": "string"
+     },
+     "position": {
+      "description": "Where the part's origin goes. Default [0,0,0]. +Y is up.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "radius": {
+      "description": "Sphere/cylinder/cone/capsule radius, torus major radius. Default 0.5.",
+      "type": "number"
+     },
+     "replace": {
+      "description": "Start a new mesh instead of adding a part (default false).",
+      "type": "boolean"
+     },
+     "rings": {
+      "description": "Rings (sphere/capsule) or tube segments (torus), 2-256. Default 16.",
+      "type": "integer"
+     },
+     "rotation": {
+      "description": "Euler angles in degrees, applied about X first, then Y, then Z. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "roughness": {
+      "description": "Surface roughness 0 (mirror) to 1 (matte).",
+      "type": "number"
+     },
+     "scale": {
+      "description": "Number (uniform) or [x,y,z]. Default 1. Non-uniform scale turns a sphere into an ellipsoid.",
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "segments_x": {
+      "description": "Plane subdivisions along X, 1-256. Default 8.",
+      "type": "integer"
+     },
+     "segments_z": {
+      "description": "Plane subdivisions along Z, 1-256. Default 8.",
+      "type": "integer"
+     },
+     "size": {
+      "description": "Box size [x,y,z], or plane extent [x,_,z]. Default [1,1,1].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "slices": {
+      "description": "Segments around the axis, 3-256. Default 24.",
+      "type": "integer"
+     },
+     "type": {
+      "description": "Shape. Box and plane use 'size'; sphere, cylinder, cone, capsule and torus use 'radius' (and 'height' / 'minor_radius').",
+      "enum": [
+       "box",
+       "plane",
+       "sphere",
+       "cylinder",
+       "cone",
+       "capsule",
+       "torus"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "type"
+    ],
+    "type": "object"
+   },
+   "name": "add_primitive",
+   "readOnly": false
+  },
+  {
+   "description": "Adds a part made by spinning an outline around the Y axis: nose cones, tapered booms, domes, hubs, fuel tanks - anything round that a primitive cannot give. Rotate it afterwards with 'rotation' to lay it along X or Z.",
+   "inputSchema": {
+    "properties": {
+     "cap_end": {
+      "description": "Close an open last end with a disc (default true).",
+      "type": "boolean"
+     },
+     "cap_start": {
+      "description": "Close an open first end with a disc (default true).",
+      "type": "boolean"
+     },
+     "color": {
+      "description": "Base colour as it should look (sRGB): \"#rrggbb\" or [r,g,b] / [r,g,b,a] with components 0..1.",
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "metallic": {
+      "description": "Metalness 0 (paint/plastic) to 1 (bare metal).",
+      "type": "number"
+     },
+     "name": {
+      "description": "Name of the part (its material name). Use it later to refer to the part.",
+      "type": "string"
+     },
+     "position": {
+      "description": "Where the part's origin goes. Default [0,0,0]. +Y is up.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "profile": {
+      "description": "Outline as [radius, y] pairs from one end to the other, spun around the Y axis. A radius of 0 closes that end to a point. Example, a bullet nose: [[0,2],[0.4,1.8],[0.6,1],[0.6,0]].",
+      "items": {
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
+      },
+      "minItems": 2,
+      "type": "array"
+     },
+     "rotation": {
+      "description": "Euler angles in degrees, applied about X first, then Y, then Z. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "roughness": {
+      "description": "Surface roughness 0 (mirror) to 1 (matte).",
+      "type": "number"
+     },
+     "scale": {
+      "description": "Number (uniform) or [x,y,z]. Default 1. Non-uniform scale turns a sphere into an ellipsoid.",
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "slices": {
+      "description": "Segments around the axis, 3-256. Default 24.",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "profile"
+    ],
+    "type": "object"
+   },
+   "name": "add_lathe",
+   "readOnly": false
+  },
+  {
+   "description": "Adds a part by stringing elliptical (or boxier) cross-sections along an axis - the way to model a fuselage, a tapering tail boom, a wing or a float that is not a straight solid. Far fewer calls and a smoother result than stacking primitives.",
+   "inputSchema": {
+    "properties": {
+     "axis": {
+      "description": "Direction the shape runs along. Default 'z'.",
+      "enum": [
+       "x",
+       "y",
+       "z"
+      ],
+      "type": "string"
+     },
+     "cap_end": {
+      "description": "Close an open last end with a disc (default true).",
+      "type": "boolean"
+     },
+     "cap_start": {
+      "description": "Close an open first end with a disc (default true).",
+      "type": "boolean"
+     },
+     "color": {
+      "description": "Base colour as it should look (sRGB): \"#rrggbb\" or [r,g,b] / [r,g,b,a] with components 0..1.",
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "metallic": {
+      "description": "Metalness 0 (paint/plastic) to 1 (bare metal).",
+      "type": "number"
+     },
+     "name": {
+      "description": "Name of the part (its material name). Use it later to refer to the part.",
+      "type": "string"
+     },
+     "position": {
+      "description": "Where the part's origin goes. Default [0,0,0]. +Y is up.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "rotation": {
+      "description": "Euler angles in degrees, applied about X first, then Y, then Z. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "roughness": {
+      "description": "Surface roughness 0 (mirror) to 1 (matte).",
+      "type": "number"
+     },
+     "scale": {
+      "description": "Number (uniform) or [x,y,z]. Default 1. Non-uniform scale turns a sphere into an ellipsoid.",
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "sections": {
+      "description": "Cross-sections in increasing 'at' order. The surface is drawn smoothly through them: a fuselage is a handful of sections from nose to tail, each with its own width and height.",
+      "items": {
+       "properties": {
+        "at": {
+         "description": "Position of this cross-section along the axis.",
+         "type": "number"
+        },
+        "exponent": {
+         "description": "Shape: 2 = ellipse (default), 4-6 = rounded box, 0.5-1 = pointed diamond.",
+         "type": "number"
+        },
+        "height": {
+         "description": "Full height across the second cross axis (Y for axis z/x, Z for axis y). 0 pinches to a point.",
+         "type": "number"
+        },
+        "offset": {
+         "description": "Shifts the section's centre across [first, second] axes - e.g. to make a tail boom rise.",
+         "items": {
+          "type": "number"
+         },
+         "maxItems": 2,
+         "minItems": 2,
+         "type": "array"
+        },
+        "width": {
+         "description": "Full width across the first cross axis (X for axis z/y, Y for axis x). 0 pinches to a point.",
+         "type": "number"
+        }
+       },
+       "required": [
+        "at",
+        "width",
+        "height"
+       ],
+       "type": "object"
+      },
+      "minItems": 2,
+      "type": "array"
+     },
+     "segments": {
+      "description": "Segments around each section, 3-256. Default 24.",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "sections"
+    ],
+    "type": "object"
+   },
+   "name": "add_loft",
+   "readOnly": false
+  },
+  {
+   "description": "Adds a part from raw vertices and triangles, for shapes none of the other add_* commands can describe. Normals are computed for you.",
+   "inputSchema": {
+    "properties": {
+     "color": {
+      "description": "Base colour as it should look (sRGB): \"#rrggbb\" or [r,g,b] / [r,g,b,a] with components 0..1.",
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "metallic": {
+      "description": "Metalness 0 (paint/plastic) to 1 (bare metal).",
+      "type": "number"
+     },
+     "name": {
+      "description": "Name of the part (its material name). Use it later to refer to the part.",
+      "type": "string"
+     },
+     "position": {
+      "description": "Where the part's origin goes. Default [0,0,0]. +Y is up.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "positions": {
+      "description": "Vertex positions as [x,y,z] triples.",
+      "items": {
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 3,
+       "minItems": 3,
+       "type": "array"
+      },
+      "type": "array"
+     },
+     "rotation": {
+      "description": "Euler angles in degrees, applied about X first, then Y, then Z. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "roughness": {
+      "description": "Surface roughness 0 (mirror) to 1 (matte).",
+      "type": "number"
+     },
+     "scale": {
+      "description": "Number (uniform) or [x,y,z]. Default 1. Non-uniform scale turns a sphere into an ellipsoid.",
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "smooth": {
+      "description": "Smooth normals across shared vertices (default true); false gives flat faces.",
+      "type": "boolean"
+     },
+     "triangles": {
+      "description": "Triangles as [a,b,c] vertex indices, counter-clockwise seen from outside.",
+      "items": {
+       "items": {
+        "type": "integer"
+       },
+       "maxItems": 3,
+       "minItems": 3,
+       "type": "array"
+      },
+      "type": "array"
+     },
+     "uvs": {
+      "description": "Optional [u,v] per vertex.",
+      "items": {
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
+      },
+      "type": "array"
+     }
+    },
+    "required": [
+     "positions",
+     "triangles"
+    ],
+    "type": "object"
+   },
+   "name": "add_mesh",
+   "readOnly": false
+  },
+  {
+   "description": "Moves, rotates and/or scales an existing part. 'position' is an offset added to where the part is now, not an absolute location; rotation and scale act about the pivot.",
+   "inputSchema": {
+    "properties": {
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     },
+     "pivot": {
+      "description": "Point the rotation and scale act about. Default: the centre of the part's bounds.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "pivot_origin": {
+      "description": "Use the world origin as the pivot instead.",
+      "type": "boolean"
+     },
+     "position": {
+      "description": "Translation added to the part, [x,y,z]. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "rotation": {
+      "description": "Euler angles in degrees, applied about X first, then Y, then Z. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "scale": {
+      "description": "Number (uniform) or [x,y,z]. Default 1. Non-uniform scale turns a sphere into an ellipsoid.",
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     }
+    },
+    "required": [
+     "part"
+    ],
+    "type": "object"
+   },
+   "name": "transform_part",
+   "readOnly": false
+  },
+  {
+   "description": "Copies a part. With 'mirror' the copy is the mirror image - the quick way to make the second skid, the other stub wing or the twin engine. 'position', 'rotation' and 'scale' are applied to the copy after mirroring; 'name'/'color' restyle only the copy.",
+   "inputSchema": {
+    "properties": {
+     "color": {
+      "description": "Base colour as it should look (sRGB): \"#rrggbb\" or [r,g,b] / [r,g,b,a] with components 0..1.",
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "metallic": {
+      "description": "Metalness 0 (paint/plastic) to 1 (bare metal).",
+      "type": "number"
+     },
+     "mirror": {
+      "description": "Mirror the copy across the plane through the origin perpendicular to this axis (x = left/right twin).",
+      "enum": [
+       "x",
+       "y",
+       "z"
+      ],
+      "type": "string"
+     },
+     "name": {
+      "description": "Name of the part (its material name). Use it later to refer to the part.",
+      "type": "string"
+     },
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     },
+     "position": {
+      "description": "Where the part's origin goes. Default [0,0,0]. +Y is up.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "rotation": {
+      "description": "Euler angles in degrees, applied about X first, then Y, then Z. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "roughness": {
+      "description": "Surface roughness 0 (mirror) to 1 (matte).",
+      "type": "number"
+     },
+     "scale": {
+      "description": "Number (uniform) or [x,y,z]. Default 1. Non-uniform scale turns a sphere into an ellipsoid.",
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     }
+    },
+    "required": [
+     "part"
+    ],
+    "type": "object"
+   },
+   "name": "duplicate_part",
+   "readOnly": false
+  },
+  {
+   "description": "Changes a part's name, colour, roughness or metalness.",
+   "inputSchema": {
+    "properties": {
+     "color": {
+      "description": "Base colour as it should look (sRGB): \"#rrggbb\" or [r,g,b] / [r,g,b,a] with components 0..1.",
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 4,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     },
+     "metallic": {
+      "description": "Metalness 0 (paint/plastic) to 1 (bare metal).",
+      "type": "number"
+     },
+     "name": {
+      "description": "Name of the part (its material name). Use it later to refer to the part.",
+      "type": "string"
+     },
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     },
+     "roughness": {
+      "description": "Surface roughness 0 (mirror) to 1 (matte).",
+      "type": "number"
+     }
+    },
+    "required": [
+     "part"
+    ],
+    "type": "object"
+   },
+   "name": "style_part",
+   "readOnly": false
+  },
+  {
+   "description": "Removes a part and its triangles.",
+   "inputSchema": {
+    "properties": {
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     }
+    },
+    "required": [
+     "part"
+    ],
+    "type": "object"
+   },
+   "name": "delete_part",
+   "readOnly": false
+  },
+  {
+   "description": "Hides or shows a part in the viewport and in screenshots (the geometry stays).",
+   "inputSchema": {
+    "properties": {
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     },
+     "visible": {
+      "description": "true to show, false to hide.",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "part",
+     "visible"
+    ],
+    "type": "object"
+   },
+   "name": "set_part_visible",
+   "readOnly": false
+  },
+  {
+   "description": "Keeps only one part, re-indexed to stand alone, and drops the rest.",
+   "inputSchema": {
+    "properties": {
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     }
+    },
+    "required": [
+     "part"
+    ],
+    "type": "object"
+   },
+   "name": "extract_part",
+   "readOnly": false
+  },
+  {
+   "description": "Selects vertices or faces so the edit commands (transform_selection, extrude, delete_selection, weld, smooth) know what to act on. Pick by index, by part, or by a world-space box. Returns the resulting selection.",
+   "inputSchema": {
+    "properties": {
+     "action": {
+      "description": "set (default) replaces the selection; add / remove change it; clear, all, invert, grow, shrink and linked operate on what is selected.",
+      "enum": [
+       "set",
+       "add",
+       "remove",
+       "clear",
+       "all",
+       "invert",
+       "grow",
+       "shrink",
+       "linked"
+      ],
+      "type": "string"
+     },
+     "box": {
+      "description": "Axis-aligned region in world space. Selects vertices inside it (vertex mode) or faces whose centre is inside it (face mode).",
+      "properties": {
+       "max": {
+        "description": "Upper corner.",
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       },
+       "min": {
+        "description": "Lower corner.",
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      },
+      "required": [
+       "min",
+       "max"
+      ],
+      "type": "object"
+     },
+     "faces": {
+      "description": "Face (triangle) indices.",
+      "items": {
+       "type": "integer"
+      },
+      "type": "array"
+     },
+     "mode": {
+      "description": "Element type to select. Keeps the current mode when omitted.",
+      "enum": [
+       "vertex",
+       "face"
+      ],
+      "type": "string"
+     },
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     },
+     "vertices": {
+      "description": "Vertex indices.",
+      "items": {
+       "type": "integer"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "name": "select",
+   "readOnly": false
+  },
+  {
+   "description": "What is selected now: mode, counts, the bounds of the selected vertices and the first few indices.",
+   "inputSchema": {
+    "properties": {},
+    "type": "object"
+   },
+   "name": "get_selection",
+   "readOnly": true
+  },
+  {
+   "description": "Moves, rotates and/or scales the selected vertices (or the corners of the selected faces). Fails when nothing is selected, rather than touching the whole mesh.",
+   "inputSchema": {
+    "properties": {
+     "pivot": {
+      "description": "Point rotation and scale act about. Default: the median of the selection.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "position": {
+      "description": "Translation, [x,y,z]. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "rotation": {
+      "description": "Euler angles in degrees, applied about X first, then Y, then Z. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "scale": {
+      "description": "Number (uniform) or [x,y,z]. Default 1. Non-uniform scale turns a sphere into an ellipsoid.",
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     }
+    },
+    "type": "object"
+   },
+   "name": "transform_selection",
+   "readOnly": false
+  },
+  {
+   "description": "Moves, rotates and/or scales the entire mesh (every part together).",
+   "inputSchema": {
+    "properties": {
+     "pivot": {
+      "description": "Point rotation and scale act about. Default the world origin.",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "position": {
+      "description": "Translation, [x,y,z]. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "rotation": {
+      "description": "Euler angles in degrees, applied about X first, then Y, then Z. Default [0,0,0].",
+      "items": {
+       "type": "number"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+     },
+     "scale": {
+      "description": "Number (uniform) or [x,y,z]. Default 1. Non-uniform scale turns a sphere into an ellipsoid.",
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "items": {
+         "type": "number"
+        },
+        "maxItems": 3,
+        "minItems": 3,
+        "type": "array"
+       }
+      ]
+     }
+    },
+    "type": "object"
+   },
+   "name": "transform_mesh",
+   "readOnly": false
+  },
+  {
+   "description": "Extrudes the selected faces along their normals by 'distance' and selects the new faces, so a second extrude continues from them. Needs a face selection.",
+   "inputSchema": {
+    "properties": {
+     "distance": {
+      "description": "Distance along the face normals; negative sinks them.",
+      "type": "number"
+     }
+    },
+    "required": [
+     "distance"
+    ],
+    "type": "object"
+   },
+   "name": "extrude",
+   "readOnly": false
+  },
+  {
+   "description": "Deletes the selected vertices or faces (per the selection mode).",
+   "inputSchema": {
+    "properties": {},
+    "type": "object"
+   },
+   "name": "delete_selection",
+   "readOnly": false
+  },
+  {
+   "description": "Merges vertices closer than 'distance', removing cracks and duplicated seams.",
+   "inputSchema": {
+    "properties": {
+     "distance": {
+      "description": "Merge radius. Default 0.0001.",
+      "type": "number"
+     },
+     "selected_only": {
+      "description": "Only weld the selected vertices (default false).",
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "name": "weld_vertices",
+   "readOnly": false
+  },
+  {
+   "description": "Relaxes vertex positions toward their neighbours (Laplacian smoothing).",
+   "inputSchema": {
+    "properties": {
+     "iterations": {
+      "description": "Passes, 1-50. Default 1.",
+      "type": "integer"
+     },
+     "selected_only": {
+      "description": "Only smooth the selection (default false).",
+      "type": "boolean"
+     },
+     "strength": {
+      "description": "0-1 per pass. Default 0.5.",
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "name": "smooth_vertices",
+   "readOnly": false
+  },
+  {
+   "description": "Rebuilds the vertex normals from the triangles.",
+   "inputSchema": {
+    "properties": {
+     "angle_weighted": {
+      "description": "Weight by corner angle (default false).",
+      "type": "boolean"
+     },
+     "smooth": {
+      "description": "Average across shared vertices (default true); false = flat faces.",
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "name": "recalculate_normals",
+   "readOnly": false
+  },
+  {
+   "description": "Turns triangles inside out - the fix for a part that renders dark or disappears from outside. Whole mesh unless 'part' is given.",
+   "inputSchema": {
+    "properties": {
+     "part": {
+      "description": "A part, by its index (integer) or by its name (string).",
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     }
+    },
+    "type": "object"
+   },
+   "name": "flip_winding",
+   "readOnly": false
+  },
+  {
+   "description": "Re-centres the whole mesh on the origin; 'ground' also drops the lowest point to y = 0 (what a model that stands on the floor wants).",
+   "inputSchema": {
+    "properties": {
+     "ground": {
+      "description": "Centre on X/Z and rest on y = 0 (default false).",
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "name": "center_mesh",
+   "readOnly": false
+  },
+  {
+   "description": "Cuts the mesh with an axis-aligned plane and keeps one side.",
+   "inputSchema": {
+    "properties": {
+     "axis": {
+      "description": "Plane normal axis.",
+      "enum": [
+       "x",
+       "y",
+       "z"
+      ],
+      "type": "string"
+     },
+     "keep": {
+      "description": "Which side survives: 'positive' (default) or 'negative'.",
+      "enum": [
+       "positive",
+       "negative"
+      ],
+      "type": "string"
+     },
+     "offset": {
+      "description": "Plane position along that axis. Default 0.",
+      "type": "number"
+     }
+    },
+    "required": [
+     "axis"
+    ],
+    "type": "object"
+   },
+   "name": "bisect",
+   "readOnly": false
+  },
+  {
+   "description": "Replaces the mesh with its convex hull (a collision proxy).",
+   "inputSchema": {
+    "properties": {},
+    "type": "object"
+   },
+   "name": "convex_hull",
+   "readOnly": false
+  },
+  {
+   "description": "Generates texture coordinates for the whole mesh by projection.",
+   "inputSchema": {
+    "properties": {
+     "mode": {
+      "description": "Projection. Default planar.",
+      "enum": [
+       "planar",
+       "cylindrical",
+       "spherical"
+      ],
+      "type": "string"
+     },
+     "u_tiles": {
+      "description": "Planar: texture repeat per unit; else repeats around. Default 1.",
+      "type": "number"
+     },
+     "v_tiles": {
+      "description": "Cylindrical/spherical repeats along the height. Default 1.",
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "name": "generate_uv",
+   "readOnly": false
+  },
+  {
+   "description": "Unwraps non-overlapping UV islands (xatlas). Splits vertices at seams.",
+   "inputSchema": {
+    "properties": {
+     "padding": {
+      "description": "Texels between islands. Default 4.",
+      "type": "integer"
+     },
+     "resolution": {
+      "description": "Atlas size in texels; 0 (default) = one page, automatic.",
+      "type": "integer"
+     },
+     "target": {
+      "description": "Write to the texture UVs (default) or to the second set used for lightmaps.",
+      "enum": [
+       "uv",
+       "uv2"
+      ],
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "name": "unwrap_uv",
+   "readOnly": false
+  },
+  {
+   "description": "Reduces the triangle count while keeping the shape.",
+   "inputSchema": {
+    "properties": {
+     "error": {
+      "description": "Largest allowed deviation as a fraction of the mesh. Default 0.01.",
+      "type": "number"
+     },
+     "ratio": {
+      "description": "Fraction of triangles to keep, 0.05-1. Default 0.5.",
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "name": "simplify",
+   "readOnly": false
+  },
+  {
+   "description": "Welds duplicate vertices and reorders for GPU cache and overdraw efficiency.",
+   "inputSchema": {
+    "properties": {
+     "overdraw_threshold": {
+      "description": "1-3. Default 1.05.",
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "name": "optimize",
+   "readOnly": false
+  },
+  {
+   "description": "Chooses the animation clip and frame shown, and starts or stops playback. Only meaningful for a rigged mesh with clips (see get_status).",
+   "inputSchema": {
+    "properties": {
+     "clip": {
+      "description": "Index of the clip to activate.",
+      "type": "integer"
+     },
+     "frame": {
+      "description": "Frame to show (24 per second).",
+      "type": "integer"
+     },
+     "playing": {
+      "description": "Start (true) or stop (false) playback.",
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "name": "set_animation",
+   "readOnly": false
+  }
+ ],
+ "ok": true
+}

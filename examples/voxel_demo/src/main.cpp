@@ -101,9 +101,9 @@ int main(int argc, char** argv)
 
     GameObject* sunObject = scene->createGameObject("Sun");
     DirectionalLight* sun = sunObject->addComponent<DirectionalLight>();
-    sun->setColor(::Radion::Math::vec3(1.0f, 0.96f, 0.88f));
+    sun->setColor(Math::vec3(1.0f, 0.96f, 0.88f));
     sun->setIntensity(1.2f);
-    sunObject->setPosition(kWorldCenter + ::Radion::Math::vec3(-60.0f, 80.0f, -40.0f));
+    sunObject->setPosition(kWorldCenter + Math::vec3(-60.0f, 80.0f, -40.0f));
     sunObject->lookAt(kWorldCenter);
 
     GameObject* voxelObject = scene->createGameObject("VoxelWorld");

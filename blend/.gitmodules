@@ -1,0 +1,3 @@
+[submodule "vendor/ImAnim"]
+	path = vendor/ImAnim
+	url = https://github.com/soufianekhiat/ImAnim.git

@@ -1,0 +1,247 @@
+material "base"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.323143, 0.323143, 0.296138, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.9, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "cabin"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.093059, 0.130136, 0.0423114, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "cabin_door"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0451862, 0.0648033, 0.0221739, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.8, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "mast"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.47932, 0.502887, 0.53948, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.5, 0.5, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "turntable"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0684782, 0.0781874, 0.0908417, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.4, 0.6, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "arm"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.47932, 0.502887, 0.53948, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.5, 0.5, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "dish_back"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.791298, 0.806952, 0.822786, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.45, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "dish_face"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.904661, 0.904661, 0.887923, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.35, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "dish_rim"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.791298, 0.806952, 0.822786, 1)
+        emissive (0, 0, 0, 0)
+        surface (0.45, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "feed"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0684782, 0.0781874, 0.0908417, 1)
+        emissive (0, 0, 0, 0)
+        surface (1, 0.6, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "feed_tip"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.527115, 0.0409152, 0.0241576, 1)
+        emissive (0, 0, 0, 0)
+        surface (1, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "antenna"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.0684782, 0.0781874, 0.0908417, 1)
+        emissive (0, 0, 0, 0)
+        surface (1, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+
+material "beacon"
+{
+    flags [CastShadow, ReceiveShadow]
+    blendMode Opaque
+    cullMode Back
+
+    properties
+    {
+        baseColor (0.527115, 0.0409152, 0.0241576, 1)
+        emissive (0, 0, 0, 0)
+        surface (1, 0, 0.5, 1)
+        uvTransform (1, 1, 0, 0)
+        uvAnim (0, 0, 0, 0)
+        sequence (0, 0, 0, 0)
+        custom0 (0, 0, 0, 0)
+        custom1 (0, 0, 0, 0)
+    }
+}
+

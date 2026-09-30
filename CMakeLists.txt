@@ -70,8 +70,6 @@ find_package(OpenGL REQUIRED)
 # dependencies, and Mathc is a small self-contained implementation.
 add_library(radion_math STATIC vendor/mathc/mathc.cpp)
 target_include_directories(radion_math PUBLIC ${PROJECT_SOURCE_DIR}/vendor/mathc)
-# See runtime/core/include/Math.h: the library namespace is renamed so it cannot clash with Radion::Math.
-target_compile_definitions(radion_math PRIVATE Math=Mathc)
 target_compile_features(radion_math PUBLIC cxx_std_17)
 
 if(WIN32 AND BUILD_SHARED_LIBS)

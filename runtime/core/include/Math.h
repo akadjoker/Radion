@@ -1,46 +1,36 @@
 #ifndef RADION_MATH_H
 #define RADION_MATH_H
 
-#include <cstdint>
-#include <ostream>
-
-// The library declares its types in ::Math, which is also the name of the
-// engine's own math layer (Radion::Math) below - with `using namespace
-// Radion` in scope every `Math::` would be ambiguous. The library is therefore
-// compiled and included as ::Mathc (radion_math is built with Math=Mathc too).
-#define Math Mathc
 #include <mathc.h>
-#undef Math
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 
-namespace Radion
-{
-
-// Shader-style surface (vec3, mat4, quat, dot, mix, ...) over Mathc types, so
-// call sites read like the math they express regardless of the underlying library.
+// Mathc declares its types (Vec3, Mat4, Quaternion, ...) in namespace Math. The
+// engine's shader-style names (vec3, mat4, quat, dot, mix, ...) live in that same
+// namespace, so there is exactly one `Math::` and call sites read the same
+// whether they say Math::Vec3 or Math::vec3.
 namespace Math
 {
-using vec2 = ::Mathc::Vec2;
-using vec3 = ::Mathc::Vec3;
-using vec4 = ::Mathc::Vec4;
-using mat2 = ::Mathc::Mat2;
-using mat3 = ::Mathc::Mat3;
-using mat4 = ::Mathc::Mat4;
-struct quat : ::Mathc::Quaternion
+using vec2 = Vec2;
+using vec3 = Vec3;
+using vec4 = Vec4;
+using mat2 = Mat2;
+using mat3 = Mat3;
+using mat4 = Mat4;
+struct quat : Quaternion
 {
-    quat() : ::Mathc::Quaternion(::Mathc::Quaternion::Identity()) {}
+    quat() : Quaternion(Quaternion::Identity()) {}
     // The scalar part comes first here (w, x, y, z); Mathc stores and constructs
     // quaternions as x, y, z, w.
-    quat(float w, float x, float y, float z) : ::Mathc::Quaternion(x, y, z, w) {}
-    quat(float w, const vec3& xyz) : ::Mathc::Quaternion(xyz.x, xyz.y, xyz.z, w) {}
+    quat(float w, float x, float y, float z) : Quaternion(x, y, z, w) {}
+    quat(float w, const vec3& xyz) : Quaternion(xyz.x, xyz.y, xyz.z, w) {}
     quat(const vec3& eulerRadians)
-        : ::Mathc::Quaternion(::Mathc::Quaternion::FromEulerAngles(eulerRadians.x, eulerRadians.y, eulerRadians.z)) {}
-    quat(const ::Mathc::Quaternion& value) : ::Mathc::Quaternion(value) {}
+        : Quaternion(Quaternion::FromEulerAngles(eulerRadians.x, eulerRadians.y, eulerRadians.z)) {}
+    quat(const Quaternion& value) : Quaternion(value) {}
 };
-using dvec3 = ::Mathc::Vec3;
+using dvec3 = Vec3;
 
 struct bvec3 { bool x, y, z; };
 
@@ -103,30 +93,18 @@ struct uvec4
     constexpr bool operator==(const uvec4& r) const { return x == r.x && y == r.y && z == r.z && w == r.w; }
 };
 
-inline vec2 operator+(const vec2& v, float s) { return v + vec2(s); }
-inline vec2 operator+(float s, const vec2& v) { return vec2(s) + v; }
-inline vec2 operator-(const vec2& v, float s) { return v - vec2(s); }
-inline vec2 operator-(float s, const vec2& v) { return vec2(s) - v; }
-inline vec3 operator+(const vec3& v, float s) { return v + vec3(s); }
-inline vec3 operator+(float s, const vec3& v) { return vec3(s) + v; }
-inline vec3 operator-(const vec3& v, float s) { return v - vec3(s); }
-inline vec3 operator-(float s, const vec3& v) { return vec3(s) - v; }
-inline vec4 operator+(const vec4& v, float s) { return v + vec4(s); }
-inline vec4 operator+(float s, const vec4& v) { return vec4(s) + v; }
-inline vec4 operator-(const vec4& v, float s) { return v - vec4(s); }
-inline vec4 operator-(float s, const vec4& v) { return vec4(s) - v; }
 
 inline float dot(const vec2& a, const vec2& b) { return vec2::Dot(a, b); }
 inline float dot(const vec3& a, const vec3& b) { return vec3::Dot(a, b); }
 inline float dot(const vec4& a, const vec4& b) { return vec4::Dot(a, b); }
 inline float dot(const quat& a, const quat& b) { return quat::Dot(a, b); }
-inline quat operator+(const quat& a, const quat& b) { return quat(static_cast<const ::Mathc::Quaternion&>(a) + static_cast<const ::Mathc::Quaternion&>(b)); }
-inline quat operator-(const quat& a, const quat& b) { return quat(static_cast<const ::Mathc::Quaternion&>(a) - static_cast<const ::Mathc::Quaternion&>(b)); }
-inline quat operator*(const quat& a, const quat& b) { return quat(static_cast<const ::Mathc::Quaternion&>(a) * static_cast<const ::Mathc::Quaternion&>(b)); }
-inline vec3 operator*(const quat& q, const vec3& v) { return static_cast<const ::Mathc::Quaternion&>(q) * v; }
-inline quat operator*(const quat& q, float s) { return quat(static_cast<const ::Mathc::Quaternion&>(q) * s); }
-inline quat operator*(float s, const quat& q) { return quat(s * static_cast<const ::Mathc::Quaternion&>(q)); }
-inline quat operator/(const quat& q, float s) { return quat(static_cast<const ::Mathc::Quaternion&>(q) * (1.0f / s)); }
+inline quat operator+(const quat& a, const quat& b) { return quat(static_cast<const Quaternion&>(a) + static_cast<const Quaternion&>(b)); }
+inline quat operator-(const quat& a, const quat& b) { return quat(static_cast<const Quaternion&>(a) - static_cast<const Quaternion&>(b)); }
+inline quat operator*(const quat& a, const quat& b) { return quat(static_cast<const Quaternion&>(a) * static_cast<const Quaternion&>(b)); }
+inline vec3 operator*(const quat& q, const vec3& v) { return static_cast<const Quaternion&>(q) * v; }
+inline quat operator*(const quat& q, float s) { return quat(static_cast<const Quaternion&>(q) * s); }
+inline quat operator*(float s, const quat& q) { return quat(s * static_cast<const Quaternion&>(q)); }
+inline quat operator/(const quat& q, float s) { return quat(static_cast<const Quaternion&>(q) * (1.0f / s)); }
 inline vec3 cross(const vec3& a, const vec3& b) { return vec3::Cross(a, b); }
 inline float length(const vec2& v) { return v.Length(); }
 inline float length(const vec3& v) { return v.Length(); }
@@ -156,14 +134,14 @@ inline quat mix(const quat& a, const quat& b, float t) { return quat::Lerp(a, b,
 inline float mix(float a, float b, float t) { return a + (b - a) * t; }
 inline quat slerp(const quat& a, const quat& b, float t) { return quat::Slerp(a, b, t); }
 inline quat lerp(const quat& a, const quat& b, float t) { return quat::Lerp(a, b, t); }
-inline float radians(float v) { return v * ::Mathc::DEG2RAD; }
-inline vec3 radians(const vec3& v) { return v * ::Mathc::DEG2RAD; }
-inline float degrees(float v) { return v * ::Mathc::RAD2DEG; }
-inline vec3 degrees(const vec3& v) { return v * ::Mathc::RAD2DEG; }
-template <typename T = float> constexpr T pi() { return static_cast<T>(::Mathc::PI); }
-template <typename T = float> constexpr T two_pi() { return static_cast<T>(::Mathc::PI * 2.0f); }
-template <typename T = float> constexpr T half_pi() { return static_cast<T>(::Mathc::PI * 0.5f); }
-template <typename T = float> constexpr T quarter_pi() { return static_cast<T>(::Mathc::PI * 0.25f); }
+inline float radians(float v) { return v * DEG2RAD; }
+inline vec3 radians(const vec3& v) { return v * DEG2RAD; }
+inline float degrees(float v) { return v * RAD2DEG; }
+inline vec3 degrees(const vec3& v) { return v * RAD2DEG; }
+template <typename T = float> constexpr T pi() { return static_cast<T>(PI); }
+template <typename T = float> constexpr T two_pi() { return static_cast<T>(PI * 2.0f); }
+template <typename T = float> constexpr T half_pi() { return static_cast<T>(PI * 0.5f); }
+template <typename T = float> constexpr T quarter_pi() { return static_cast<T>(PI * 0.25f); }
 inline float abs(float v) { return std::fabs(v); }
 inline vec2 abs(const vec2& v) { return vec2(std::fabs(v.x), std::fabs(v.y)); }
 inline vec3 abs(const vec3& v) { return vec3(std::fabs(v.x), std::fabs(v.y), std::fabs(v.z)); }
@@ -174,6 +152,7 @@ inline float ceil(float v) { return std::ceil(v); }
 inline vec3 ceil(const vec3& v) { return vec3(std::ceil(v.x), std::ceil(v.y), std::ceil(v.z)); }
 inline vec3 round(const vec3& v) { return vec3(std::round(v.x), std::round(v.y), std::round(v.z)); }
 inline float round(float v) { return std::round(v); }
+inline vec2 round(const vec2& v) { return vec2(std::round(v.x), std::round(v.y)); }
 inline float distance(const vec3& a, const vec3& b) { return vec3::Distance(a, b); }
 inline float distance(const vec2& a, const vec2& b) { return vec2::Distance(a, b); }
 inline mat2 transpose(const mat2& m) { return m.Transposed(); }
@@ -226,7 +205,7 @@ inline bool decompose(const mat4& matrix, vec3& scaleOut, quat& rotationOut, vec
     vec3 y = matrix[1].xyz();
     vec3 z = matrix[2].xyz();
     scaleOut = vec3(x.Length(), y.Length(), z.Length());
-    if (scaleOut.x <= ::Mathc::EPSILON || scaleOut.y <= ::Mathc::EPSILON || scaleOut.z <= ::Mathc::EPSILON)
+    if (scaleOut.x <= EPSILON || scaleOut.y <= EPSILON || scaleOut.z <= EPSILON)
         return false;
     x /= scaleOut.x;
     y /= scaleOut.y;
@@ -243,6 +222,8 @@ inline bool decompose(const mat4& matrix, vec3& scaleOut, quat& rotationOut, vec
 }
 inline bvec3 lessThan(const vec3& a, const vec3& b) { return {a.x < b.x, a.y < b.y, a.z < b.z}; }
 inline bvec3 greaterThan(const vec3& a, const vec3& b) { return {a.x > b.x, a.y > b.y, a.z > b.z}; }
+inline bvec3 lessThanEqual(const vec3& a, const vec3& b) { return {a.x <= b.x, a.y <= b.y, a.z <= b.z}; }
+inline bvec3 greaterThanEqual(const vec3& a, const vec3& b) { return {a.x >= b.x, a.y >= b.y, a.z >= b.z}; }
 inline bool any(const bvec3& v) { return v.x || v.y || v.z; }
 inline bool all(const bvec3& v) { return v.x && v.y && v.z; }
 inline quat rotation(const vec3& from, const vec3& to) { return quat::FromTo(from, to); }
@@ -271,7 +252,10 @@ inline vec3 eulerAngles(const quat& q)
     const float cosZ = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
     return vec3(std::atan2(sinX, cosX), std::asin(std::clamp(sinY, -1.0f, 1.0f)), std::atan2(sinZ, cosZ));
 }
-} // namespace Radion::Math
+} // namespace Math
+
+namespace Radion
+{
 
 const unsigned int MaxUInt32 = 0xFFFFFFFF;
 const int MinInt32 = 0x80000000;

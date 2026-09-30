@@ -1,0 +1,16 @@
+build/
+.vscode/
+.vs/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+.DS_Store
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+.clang-format
+.clang-tidy
