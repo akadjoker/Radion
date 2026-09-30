@@ -117,6 +117,20 @@ bool BlenderSettings::load(const std::string& path)
         readBool(*animation, "autoLoop", mAnimation.autoLoop);
     }
 
+    const auto snap = root.find("snap");
+    if (snap != root.end() && snap->is_object())
+    {
+        readFloat(*snap, "moveStep", mSnap.moveStep);
+        readFloat(*snap, "rotateStepDegrees", mSnap.rotateStepDegrees);
+        readFloat(*snap, "scaleStep", mSnap.scaleStep);
+        readFloat(*snap, "vertexRadiusPixels", mSnap.vertexRadiusPixels);
+        // A zero or negative step would make the snap divide by nothing.
+        mSnap.moveStep = std::max(mSnap.moveStep, 0.0001f);
+        mSnap.rotateStepDegrees = std::max(mSnap.rotateStepDegrees, 0.01f);
+        mSnap.scaleStep = std::max(mSnap.scaleStep, 0.0001f);
+        mSnap.vertexRadiusPixels = std::max(mSnap.vertexRadiusPixels, 1.0f);
+    }
+
     const auto api = root.find("api");
     if (api != root.end() && api->is_object())
     {
@@ -193,6 +207,13 @@ bool BlenderSettings::save(const std::string& path)
     animation["playbackSpeed"] = mAnimation.playbackSpeed;
     animation["autoLoop"] = mAnimation.autoLoop;
     root["animation"] = animation;
+
+    nlohmann::json snap;
+    snap["moveStep"] = mSnap.moveStep;
+    snap["rotateStepDegrees"] = mSnap.rotateStepDegrees;
+    snap["scaleStep"] = mSnap.scaleStep;
+    snap["vertexRadiusPixels"] = mSnap.vertexRadiusPixels;
+    root["snap"] = snap;
 
     nlohmann::json api;
     api["enabled"] = mApi.enabled;

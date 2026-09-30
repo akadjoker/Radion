@@ -161,6 +161,8 @@ private:
     // Scratch for the vertex selection stream, and the revision it was built
     // from - the upload only happens when the selection actually changed.
     std::vector<u8> mVertexSelectionFlags;
+    // One byte per vertex: 1 while the running gizmo drag is moving it.
+    std::vector<u8> mSnapMoving;
     u64 mUploadedSelectionRevision = 0;
     u64 mUploadedMeshRevision = 0;
     u64 mUploadedHiddenRevision = ~u64(0);

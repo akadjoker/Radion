@@ -69,7 +69,10 @@ public:
     MeshData* currentMeshData();
     bool loadMesh(const std::string& path);
     bool importMesh(const std::string& path);
-    bool applyMeshEdit();
+    // `positionsOnly` is for an edit that moves vertices without changing which
+    // ones stand together (a gizmo drag): connectivity stays valid, so it is not
+    // rebuilt.
+    bool applyMeshEdit(bool positionsOnly = false);
     void recordUndo();
 
     // Reworks the UVs of the selected faces, or of the whole mesh when
@@ -255,6 +258,21 @@ public:
     std::vector<u32> editVertices();
     // Every edge of the mesh as selection keys, for Select All in edge mode.
     std::vector<u64> allEdgeKeys();
+
+    // -- Snap
+    //
+    // Rounds the positions of the selection (the whole mesh when nothing is
+    // selected) to multiples of `step`. Returns how many vertices moved.
+    u32 snapSelectionToGrid(f32 step);
+    // Moves each selected point onto the nearest point that is not selected, when
+    // one lies within `tolerance` - closing a gap exactly, where a weld would
+    // merge them. Coincident vertices move together. Returns how many points moved.
+    u32 snapSelectionToVertices(f32 tolerance);
+    // The vertices the running gizmo drag is moving (empty when none is).
+    const std::vector<u32>& gizmoVertices() const
+    {
+        return mGizmoIndices;
+    }
 
     // -- Hide
     //
@@ -580,6 +598,7 @@ private:
     std::vector<MeshData> mRedoStates;
 
     f32 mWeldDistance = 0.001f;
+    f32 mSnapTolerance = 0.05f;
     f32 mSmoothingStrength = 0.5f;
     f32 mExtrudeDistance = 0.5f;
     PrimitiveType mPrimitiveType = PrimitiveType::Box;

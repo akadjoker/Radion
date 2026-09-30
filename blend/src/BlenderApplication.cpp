@@ -352,14 +352,17 @@ void BlenderApplication::updateAnimationPose()
     mSkeleton.evaluate(mLocalPose, mGlobalPose, mBonePalette);
 }
 
-bool BlenderApplication::applyMeshEdit()
+bool BlenderApplication::applyMeshEdit(bool positionsOnly)
 {
     if (!mMeshData)
         return false;
 
     mRenderer.invalidate();
-    ++mMeshRevision;
-    validateHidden();
+    if (!positionsOnly)
+    {
+        ++mMeshRevision;
+        validateHidden();
+    }
     markDirty();
     return true;
 }
@@ -447,6 +450,136 @@ void BlenderApplication::deleteSelectedFaces()
     mSelectedSubmesh = -1;
     Log::info("BlenderApplication: deleted %zu faces", count);
     applyMeshEdit();
+}
+
+u32 BlenderApplication::snapSelectionToGrid(f32 step)
+{
+    if (!mMeshData || mMeshData->positions.empty() || !(step > 0.0f))
+        return 0;
+
+    std::vector<u32> vertices = editVertices();
+    const bool whole = vertices.empty();
+    const u32 count = whole ? static_cast<u32>(mMeshData->positions.size()) : static_cast<u32>(vertices.size());
+
+    recordUndo();
+    u32 moved = 0;
+    for (u32 i = 0; i < count; ++i)
+    {
+        glm::vec3& p = mMeshData->positions[whole ? i : vertices[i]];
+        const glm::vec3 snapped = glm::round(p / step) * step;
+        if (snapped != p)
+        {
+            p = snapped;
+            ++moved;
+        }
+    }
+
+    if (moved == 0)
+    {
+        discardUndo();
+        return 0;
+    }
+    Assets().computeBounds(*mMeshData);
+    Assets().computeSubMeshBounds(*mMeshData);
+    Log::info("BlenderApplication: snapped %u vertices to a %.4f grid", moved, step);
+    applyMeshEdit();
+    return moved;
+}
+
+u32 BlenderApplication::snapSelectionToVertices(f32 tolerance)
+{
+    if (!mMeshData || mMeshData->positions.empty() || !(tolerance > 0.0f))
+        return 0;
+
+    const std::vector<u32> selected = editVertices();
+    if (selected.empty())
+        return 0;
+
+    const MeshTopology& topo = topology();
+    const std::vector<glm::vec3>& positions = mMeshData->positions;
+
+    std::vector<bool> isSelectedPoint(positions.size(), false);
+    for (const u32 vertex : selected)
+        isSelectedPoint[topo.canonical(vertex)] = true;
+
+    // Targets: one per point that is not selected, found through a grid of
+    // tolerance-sized cells so each lookup only meets its neighbours.
+    struct Cell
+    {
+        s64 x, y, z;
+        bool operator==(const Cell& o) const { return x == o.x && y == o.y && z == o.z; }
+    };
+    struct CellHash
+    {
+        usize operator()(const Cell& c) const
+        {
+            return static_cast<usize>(static_cast<u64>(c.x) * 73856093ull ^ static_cast<u64>(c.y) * 19349663ull ^
+                                      static_cast<u64>(c.z) * 83492791ull);
+        }
+    };
+    auto cellOf = [tolerance](const glm::vec3& p)
+    {
+        return Cell{static_cast<s64>(std::floor(p.x / tolerance)), static_cast<s64>(std::floor(p.y / tolerance)),
+                    static_cast<s64>(std::floor(p.z / tolerance))};
+    };
+    std::unordered_map<Cell, std::vector<u32>, CellHash> targets;
+    for (u32 v = 0; v < positions.size(); ++v)
+    {
+        if (topo.canonical(v) == v && !isSelectedPoint[v])
+            targets[cellOf(positions[v])].push_back(v);
+    }
+
+    // Decide every move before making any, so one point snapping cannot change
+    // where the next one finds its target.
+    std::unordered_map<u32, glm::vec3> destination;
+    for (const u32 vertex : selected)
+    {
+        const u32 point = topo.canonical(vertex);
+        if (destination.count(point))
+            continue;
+
+        const glm::vec3& from = positions[point];
+        const Cell home = cellOf(from);
+        f32 bestDistance = tolerance;
+        bool found = false;
+        glm::vec3 best(0.0f);
+        for (s64 dx = -1; dx <= 1; ++dx)
+            for (s64 dy = -1; dy <= 1; ++dy)
+                for (s64 dz = -1; dz <= 1; ++dz)
+                {
+                    const auto cell = targets.find({home.x + dx, home.y + dy, home.z + dz});
+                    if (cell == targets.end())
+                        continue;
+                    for (const u32 candidate : cell->second)
+                    {
+                        const f32 distance = glm::distance(positions[candidate], from);
+                        if (distance <= bestDistance && positions[candidate] != from)
+                        {
+                            bestDistance = distance;
+                            best = positions[candidate];
+                            found = true;
+                        }
+                    }
+                }
+        if (found)
+            destination[point] = best;
+    }
+
+    if (destination.empty())
+        return 0;
+
+    recordUndo();
+    for (const u32 vertex : selected)
+    {
+        const auto it = destination.find(topo.canonical(vertex));
+        if (it != destination.end())
+            mMeshData->positions[vertex] = it->second;
+    }
+    Assets().computeBounds(*mMeshData);
+    Assets().computeSubMeshBounds(*mMeshData);
+    Log::info("BlenderApplication: snapped %zu points onto their nearest vertices", destination.size());
+    applyMeshEdit();
+    return static_cast<u32>(destination.size());
 }
 
 void BlenderApplication::setHiddenFaces(std::vector<u8>&& faces)
@@ -1510,6 +1643,18 @@ void BlenderApplication::handleShortcuts()
 
 void BlenderApplication::drawVertexMenu()
 {
+    if (ImGui::MenuItem("Snap to Grid"))
+        snapSelectionToGrid(mSettings.snap().moveStep);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Rounds the selected vertices to the Move step in Preferences > Snap.");
+    if (ImGui::MenuItem("Snap to Nearest Vertex"))
+        snapSelectionToVertices(mSnapTolerance);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Moves each selected vertex onto the closest unselected one within the "
+                          "snap distance.");
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::DragFloat("Snap Distance", &mSnapTolerance, 0.001f, 0.0001f, 10.0f, "%.4f");
+    ImGui::Separator();
     if (ImGui::MenuItem("Weld..."))
         ImGui::OpenPopup("WeldPopup");
     if (ImGui::MenuItem("Smooth..."))
@@ -1757,7 +1902,7 @@ void BlenderApplication::updateGizmoDrag(const glm::mat4& worldDelta)
     // The gizmo's matrix already sits at the pivot, so the delta is applied
     // in world space rather than around the median a second time.
     Assets().transformVerticesAbout(*mMeshData, worldDelta, glm::vec3(0.0f), mGizmoIndices);
-    applyMeshEdit();
+    applyMeshEdit(true);
 }
 
 void BlenderApplication::endGizmoDrag()
@@ -3072,6 +3217,14 @@ void BlenderApplication::drawPreferencesPopup()
     ImGui::ColorEdit3("Normal Debug Vector", &viewport.normalVectorColor.x);
     ImGui::ColorEdit3("Tangent Debug Vector", &viewport.tangentVectorColor.x);
     ImGui::DragFloat("Debug Vector Length", &viewport.debugVectorLength, 0.01f, 0.01f, 5.0f);
+
+    ImGui::Separator();
+    ImGui::TextDisabled("Snap");
+    BlenderSettings::SnapSettings& snapSettings = mSettings.snap();
+    ImGui::DragFloat("Move Step", &snapSettings.moveStep, 0.01f, 0.0001f, 100.0f, "%.4f");
+    ImGui::DragFloat("Rotate Step (deg)", &snapSettings.rotateStepDegrees, 0.5f, 0.01f, 180.0f);
+    ImGui::DragFloat("Scale Step", &snapSettings.scaleStep, 0.005f, 0.0001f, 10.0f, "%.4f");
+    ImGui::DragFloat("Vertex Snap Radius (px)", &snapSettings.vertexRadiusPixels, 0.5f, 1.0f, 100.0f);
 
     ImGui::Separator();
     ImGui::TextDisabled("API (HTTP, for scripts and AI tools)");

@@ -16,6 +16,9 @@ using namespace Radion;
 
 namespace
 {
+glm::vec2 projectToScreen(const glm::vec3& worldPos, const glm::mat4& viewProjection,
+                          const glm::vec2& imageMin, const glm::vec2& imageSize, bool& inFront);
+
 // Distance from `point` to the segment a-b, all in screen space.
 f32 distanceToSegment(const glm::vec2& point, const glm::vec2& a, const glm::vec2& b)
 {
@@ -389,7 +392,7 @@ void ViewportPanel::drawToolbar()
         if (ImGui::Button(ICON_MDI_MAGNET))
             mSnap = !mSnap;
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Snap (not wired to a transform yet)");
+            ImGui::SetTooltip("Snap the gizmo to the steps in Preferences > Snap.\nHold Ctrl while moving to snap onto the nearest vertex.");
         if (wasSnap)
             ImGui::PopStyleColor();
     }
@@ -738,7 +741,10 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
     if (!mGizmoDragging)
         mGizmoMatrix = glm::translate(glm::mat4(1.0f), app().transformPivot());
 
-    const f32 snapAmount = mTool == Tool::Move ? 1.0f : mTool == Tool::Rotate ? 15.0f : 0.1f;
+    const BlenderSettings::SnapSettings& snapSettings = app().settings().snap();
+    const f32 snapAmount = mTool == Tool::Move     ? snapSettings.moveStep
+                           : mTool == Tool::Rotate ? snapSettings.rotateStepDegrees
+                                                   : snapSettings.scaleStep;
     f32 snapValues[3] = {snapAmount, snapAmount, snapAmount};
 
     glm::mat4 manipulated = mGizmoMatrix;
@@ -763,6 +769,55 @@ void ViewportPanel::drawTransformGizmo(usize index, const MeshData* mesh, const 
         mGizmoDragging = true;
         mGizmoViewport = static_cast<s32>(index);
         mGizmoStartMatrix = mGizmoMatrix;
+
+        // What is moving, so the vertex snap never offers a vertex as its own target.
+        mSnapMoving.assign(mesh->positions.size(), 0);
+        for (const u32 vertex : app().gizmoVertices())
+            if (vertex < mSnapMoving.size())
+                mSnapMoving[vertex] = 1;
+        // Nothing selected drags the whole mesh.
+        if (app().gizmoVertices().empty())
+            std::fill(mSnapMoving.begin(), mSnapMoving.end(), 1);
+    }
+
+    // Ctrl while moving: drop the pivot onto the nearest vertex that is not
+    // moving, if one is close on screen - the way to land a vertex exactly on
+    // another (weld afterwards to join them).
+    if (mTool == Tool::Move && ImGui::GetIO().KeyCtrl && mSnapMoving.size() == mesh->positions.size())
+    {
+        const glm::mat4 viewProjection = projection * view;
+        bool pivotInFront = false;
+        const glm::vec2 pivotScreen =
+            projectToScreen(glm::vec3(manipulated[3]), viewProjection, imageMin, imageSize, pivotInFront);
+        if (pivotInFront)
+        {
+            const f32 radius = snapSettings.vertexRadiusPixels;
+            f32 best = radius;
+            s32 bestVertex = -1;
+            glm::vec2 bestScreen(0.0f);
+            for (u32 v = 0; v < static_cast<u32>(mesh->positions.size()); ++v)
+            {
+                if (mSnapMoving[v])
+                    continue;
+                bool inFront = false;
+                const glm::vec2 screen = projectToScreen(mesh->positions[v], viewProjection, imageMin, imageSize, inFront);
+                if (!inFront)
+                    continue;
+                const f32 distance = glm::length(screen - pivotScreen);
+                if (distance <= best)
+                {
+                    best = distance;
+                    bestVertex = static_cast<s32>(v);
+                    bestScreen = screen;
+                }
+            }
+            if (bestVertex >= 0)
+            {
+                manipulated[3] = glm::vec4(mesh->positions[static_cast<usize>(bestVertex)], 1.0f);
+                ImGui::GetWindowDrawList()->AddCircle(ImVec2(bestScreen.x, bestScreen.y), radius * 0.6f,
+                                                      IM_COL32(255, 230, 60, 255), 24, 2.0f);
+            }
+        }
     }
 
     mGizmoMatrix = manipulated;

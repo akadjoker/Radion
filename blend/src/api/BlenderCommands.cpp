@@ -1595,6 +1595,40 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             });
     }
 
+    add("snap_to_grid",
+        "Rounds the positions of the selected vertices (or of the whole mesh when nothing is "
+        "selected) to multiples of 'step'. Cleans up hand-placed coordinates and makes parts line up.",
+        objectSchema({{"step", numberSchema("Grid spacing in world units, e.g. 0.05.")}}, {"step"}), false,
+        [editor](const CommandArgs& args)
+        {
+            MeshData& mesh = requireMesh(*editor);
+            const f32 step = static_cast<f32>(args.requireNumber("step"));
+            if (!(step > 0.0f) || step > kMaxCoordinate)
+                invalid("argument 'step' must be greater than 0");
+            const u32 moved = editor->snapSelectionToGrid(step);
+            return result({{"moved", moved}, {"bounds", boundsJson(mesh.bounds)}});
+        });
+
+    add("snap_to_vertex",
+        "Moves each selected vertex onto the nearest vertex that is NOT selected, if one lies within "
+        "'tolerance'. Closes small gaps between parts exactly; run weld_vertices afterwards to join "
+        "them into one surface. Needs a selection.",
+        objectSchema({{"tolerance", numberSchema("Largest distance to travel, in world units.")}}, {"tolerance"}),
+        false,
+        [editor](const CommandArgs& args)
+        {
+            requireMesh(*editor);
+            const f32 tolerance = static_cast<f32>(args.requireNumber("tolerance"));
+            if (!(tolerance > 0.0f) || tolerance > kMaxCoordinate)
+                invalid("argument 'tolerance' must be greater than 0");
+            if (editor->editVertices().empty())
+                failed("nothing is selected - use 'select' first");
+            const u32 moved = editor->snapSelectionToVertices(tolerance);
+            if (moved == 0)
+                failed("no selected vertex has an unselected vertex within the tolerance");
+            return result({{"moved", moved}});
+        });
+
     add("extrude",
         "Extrudes the selected faces along their normals by 'distance' and selects the new "
         "faces, so a second extrude continues from them. Needs a face selection.",

@@ -69,6 +69,25 @@ public:
         std::vector<std::string> recentFiles;
     };
 
+    // Steps the gizmo snaps to while Snap is on, and how close (in pixels) a
+    // vertex must be for Ctrl-drag to snap onto it.
+    struct SnapSettings
+    {
+        f32 moveStep = 1.0f;
+        f32 rotateStepDegrees = 15.0f;
+        f32 scaleStep = 0.1f;
+        f32 vertexRadiusPixels = 14.0f;
+    };
+
+    SnapSettings& snap()
+    {
+        return mSnap;
+    }
+    const SnapSettings& snap() const
+    {
+        return mSnap;
+    }
+
     // The local HTTP API. `enabled` starts it with the editor; the secret is
     // deliberately not kept here - it comes from the command line or the
     // environment, so it never lands in a file.
@@ -130,6 +149,7 @@ private:
     AnimationSettings mAnimation;
     GeneralSettings mGeneral;
     ApiSettings mApi;
+    SnapSettings mSnap;
 };
 
 } // namespace Radion
