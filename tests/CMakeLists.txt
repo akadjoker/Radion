@@ -290,6 +290,22 @@ target_include_directories(radion_mesh_paint_tests PRIVATE
 add_test(NAME mesh_paint COMMAND radion_mesh_paint_tests)
 set_tests_properties(mesh_paint PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
+add_executable(radion_blender_uv_edit_tests
+    BlenderUvEditTests.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshUv.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshEdit.cpp
+    ${PROJECT_SOURCE_DIR}/blend/src/mesh/MeshTopology.cpp
+)
+target_precompile_headers(radion_blender_uv_edit_tests PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"
+)
+target_link_libraries(radion_blender_uv_edit_tests PRIVATE radion_render)
+target_include_directories(radion_blender_uv_edit_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/blend/src
+)
+add_test(NAME blender_uv_edit COMMAND radion_blender_uv_edit_tests)
+set_tests_properties(blender_uv_edit PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
 add_executable(radion_file_pack_tests FilePackTests.cpp)
 target_precompile_headers(radion_file_pack_tests PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${PROJECT_SOURCE_DIR}/runtime/core/include/PCH.h>"

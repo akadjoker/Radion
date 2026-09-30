@@ -3461,6 +3461,213 @@ bool BlenderApplication::duplicateSubmesh(u32 index, const glm::mat4& placement,
     return appendPart(std::move(copy), placement, keep, "duplicate", false, newIndex);
 }
 
+std::vector<u32> BlenderApplication::selectedTriangles()
+{
+    std::vector<u32> triangles;
+    if (!mMeshData)
+        return triangles;
+    if (mSelection.selectedFaceCount() > 0)
+        return mSelection.selectedFaces();
+
+    const std::vector<u32> vertices = editVertices();
+    if (vertices.empty())
+        return triangles;
+    std::vector<bool> chosen(mMeshData->positions.size(), false);
+    for (const u32 vertex : vertices)
+        chosen[vertex] = true;
+    const u32 count = static_cast<u32>(mMeshData->indices.size() / 3);
+    for (u32 triangle = 0; triangle < count; ++triangle)
+    {
+        for (u32 corner = 0; corner < 3; ++corner)
+        {
+            if (chosen[mMeshData->indices[static_cast<usize>(triangle) * 3 + corner]])
+            {
+                triangles.push_back(triangle);
+                break;
+            }
+        }
+    }
+    return triangles;
+}
+
+bool BlenderApplication::uvTargetVertices(UvTarget target, s32 part, std::vector<u32>& vertices, std::string* error)
+{
+    vertices.clear();
+    auto fail = [error](const char* message)
+    {
+        if (error)
+            *error = message;
+        return false;
+    };
+    if (!mMeshData || mMeshData->positions.empty())
+        return fail("the document has no mesh");
+
+    switch (target)
+    {
+    case UvTarget::All:
+        vertices.resize(mMeshData->positions.size());
+        for (u32 i = 0; i < static_cast<u32>(vertices.size()); ++i)
+            vertices[i] = i;
+        return true;
+    case UvTarget::Part:
+        if (part < 0 || static_cast<usize>(part) >= mMeshData->submeshes.size())
+            return fail("no such part");
+        vertices = submeshVertices(static_cast<u32>(part));
+        break;
+    case UvTarget::Island:
+    {
+        const std::vector<u32> triangles = selectedTriangles();
+        if (triangles.empty())
+            return fail("nothing is selected");
+        vertices = MeshUv::islandVertices(*mMeshData, triangles);
+        break;
+    }
+    case UvTarget::Selection:
+        if (mSelection.selectedFaceCount() > 0)
+            vertices = MeshUv::verticesOfTriangles(*mMeshData, mSelection.selectedFaces());
+        else
+            vertices = editVertices();
+        if (vertices.empty())
+            return fail("nothing is selected");
+        break;
+    }
+    if (vertices.empty())
+        return fail("the target has no vertices");
+    return true;
+}
+
+const std::vector<u8>* BlenderApplication::uvPinned()
+{
+    if (!mMeshData || mUvPinned.size() != mMeshData->positions.size())
+    {
+        mUvPinned.clear();
+        return nullptr;
+    }
+    return &mUvPinned;
+}
+
+u32 BlenderApplication::uvPinnedCount()
+{
+    const std::vector<u8>* pinned = uvPinned();
+    return pinned ? static_cast<u32>(std::count_if(pinned->begin(), pinned->end(), [](u8 v) { return v != 0; })) : 0;
+}
+
+void BlenderApplication::setUvPinned(const std::vector<u32>& vertices, bool pinned)
+{
+    if (!mMeshData)
+        return;
+    if (mUvPinned.size() != mMeshData->positions.size())
+        mUvPinned.assign(mMeshData->positions.size(), 0);
+    for (const u32 vertex : vertices)
+    {
+        if (vertex < mUvPinned.size())
+            mUvPinned[vertex] = pinned ? 1 : 0;
+    }
+}
+
+void BlenderApplication::clearUvPins()
+{
+    mUvPinned.clear();
+}
+
+u32 BlenderApplication::transformUvs(const std::vector<u32>& vertices, const glm::vec2& pivot,
+                                     const MeshUv::Transform& change)
+{
+    if (!mMeshData || vertices.empty())
+        return 0;
+    recordUndo();
+    const u32 moved = MeshUv::transform(*mMeshData, vertices, uvPinned(), pivot, change);
+    applyMeshEdit(true);
+    return moved;
+}
+
+u32 BlenderApplication::fitUvs(const std::vector<u32>& vertices, bool keepAspect, f32 margin)
+{
+    if (!mMeshData || vertices.empty())
+        return 0;
+    recordUndo();
+    const u32 moved = MeshUv::fit(*mMeshData, vertices, uvPinned(), keepAspect, margin);
+    applyMeshEdit(true);
+    return moved;
+}
+
+u32 BlenderApplication::fitUvsPerPart(bool keepAspect, f32 margin)
+{
+    if (!mMeshData || mMeshData->submeshes.empty())
+        return 0;
+    recordUndo();
+    u32 moved = 0;
+    // Vertices shared between parts would be fitted twice; the first part wins.
+    std::vector<bool> done(mMeshData->positions.size(), false);
+    for (u32 part = 0; part < static_cast<u32>(mMeshData->submeshes.size()); ++part)
+    {
+        std::vector<u32> vertices = submeshVertices(part);
+        vertices.erase(std::remove_if(vertices.begin(), vertices.end(), [&](u32 v) { return done[v]; }),
+                       vertices.end());
+        for (const u32 vertex : vertices)
+            done[vertex] = true;
+        moved += MeshUv::fit(*mMeshData, vertices, uvPinned(), keepAspect, margin);
+    }
+    applyMeshEdit(true);
+    return moved;
+}
+
+bool BlenderApplication::boxMapUvs(UvTarget target, s32 part, f32 tile, const glm::vec2& offset, u32* added,
+                                   std::string* error)
+{
+    if (!mMeshData)
+        return false;
+    std::vector<u32> triangles;
+    if (target == UvTarget::Selection || target == UvTarget::Island)
+    {
+        triangles = selectedTriangles();
+        if (target == UvTarget::Island && !triangles.empty())
+        {
+            const std::vector<u32> island = MeshUv::islands(*mMeshData);
+            std::vector<bool> wanted(island.size() ? *std::max_element(island.begin(), island.end()) + 1 : 0, false);
+            for (const u32 t : triangles)
+                wanted[island[t]] = true;
+            triangles.clear();
+            for (u32 t = 0; t < static_cast<u32>(island.size()); ++t)
+            {
+                if (wanted[island[t]])
+                    triangles.push_back(t);
+            }
+        }
+        if (triangles.empty())
+        {
+            if (error)
+                *error = "nothing is selected";
+            return false;
+        }
+    }
+    else if (target == UvTarget::Part)
+    {
+        if (part < 0 || static_cast<usize>(part) >= mMeshData->submeshes.size())
+        {
+            if (error)
+                *error = "no such part";
+            return false;
+        }
+        const SubMesh& submesh = mMeshData->submeshes[static_cast<u32>(part)];
+        for (u32 i = submesh.indexOffset; i < submesh.indexOffset + submesh.indexCount; i += 3)
+            triangles.push_back(i / 3);
+    }
+    else
+    {
+        triangles.resize(mMeshData->indices.size() / 3);
+        for (u32 i = 0; i < static_cast<u32>(triangles.size()); ++i)
+            triangles[i] = i;
+    }
+
+    recordUndo();
+    const u32 split = MeshUv::boxMap(*mMeshData, triangles, tile, offset);
+    if (added)
+        *added = split;
+    applyMeshEdit(split == 0);
+    return true;
+}
+
 u32 BlenderApplication::paintSelection(const glm::vec4& color, f32 opacity, std::string* error)
 {
     if (!mMeshData)

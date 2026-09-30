@@ -1982,3 +1982,8 @@ std::vector<std::array<u32, 3>> MeshEdit::triangulatePolygon(const std::vector<g
     out.push_back({ring[0], ring[1], ring[2]});
     return out;
 }
+
+u32 MeshEdit::duplicateVertex(MeshData& mesh, u32 vertex)
+{
+    return lerpVertex(mesh, vertex, vertex, 0.0f);
+}

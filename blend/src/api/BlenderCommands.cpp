@@ -5,12 +5,16 @@
 #include "BlenderApplication.h"
 #include "FileSystem.h"
 #include "mesh/MeshTopology.h"
+#include "mesh/MeshUv.h"
 #include "Pixmap.h"
 #include "ProceduralShapes.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <cstdio>
+#include <cstring>
+#include <memory>
+#include <set>
 #include <fstream>
 #include <iterator>
 
@@ -509,6 +513,33 @@ CommandResult result(Json data)
 
 // What a geometry-adding command reports back: enough to place the next part
 // relative to this one without a separate query.
+// [u, v] pair; `fallback` when absent.
+glm::vec2 vec2Arg(const CommandArgs& args, const char* name, const glm::vec2& fallback)
+{
+    if (!args.has(name))
+        return fallback;
+    const std::vector<double> values = args.requireNumbers(name, 2);
+    requireFiniteRange(name, values, kMaxCoordinate);
+    return glm::vec2(static_cast<f32>(values[0]), static_cast<f32>(values[1]));
+}
+
+BlenderApplication::UvTarget uvTargetArg(BlenderApplication& editor, const CommandArgs& args, const char* fallback, s32& part)
+{
+    static const std::vector<std::string> kTargets = {"selection", "island", "part", "all"};
+    const std::string target = args.choice("target", kTargets, fallback);
+    part = -1;
+    if (target == "part")
+    {
+        if (!args.has("part"))
+            invalid("target 'part' needs 'part'");
+        part = static_cast<s32>(resolvePart(editor, args));
+    }
+    return target == "selection" ? BlenderApplication::UvTarget::Selection
+           : target == "island"  ? BlenderApplication::UvTarget::Island
+           : target == "part"    ? BlenderApplication::UvTarget::Part
+                                 : BlenderApplication::UvTarget::All;
+}
+
 CommandResult partAdded(BlenderApplication& app, s32 submesh)
 {
     const MeshData& mesh = requireMesh(app);
@@ -2390,6 +2421,275 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             editor->applyMeshEdit();
             return result({{"mode", mode}});
         });
+
+    {
+        const Json targetProperties = {
+            {"target", choiceSchema("Which UVs: 'selection' (the selected faces' vertices, or the selected "
+                                    "vertices), 'island' (every UV island the selection touches), 'part' (needs "
+                                    "'part') or 'all'.", {"selection", "island", "part", "all"})},
+            {"part", partRefSchema()}};
+
+        Json transformProperties = targetProperties;
+        transformProperties["translate"] = {{"type", "array"}, {"items", {{"type", "number"}}}, {"minItems", 2},
+                                           {"maxItems", 2}, {"description", "[du, dv] to move by (texture units; 1 = the whole image)."}};
+        transformProperties["rotate"] = numberSchema("Degrees, counter-clockwise, about the pivot.");
+        transformProperties["scale"] = {{"description", "Number (uniform) or [u, v] scale about the pivot; negative flips."},
+                                       {"oneOf", Json::array({{{"type", "number"}},
+                                                              {{"type", "array"}, {"items", {{"type", "number"}}},
+                                                               {"minItems", 2}, {"maxItems", 2}}})}};
+        transformProperties["flip"] = choiceSchema("Mirror the layout about its centre.", {"none", "u", "v"});
+        transformProperties["pivot"] = {{"type", "array"}, {"items", {{"type", "number"}}}, {"minItems", 2},
+                                       {"maxItems", 2}, {"description", "[u, v] to rotate/scale about. Default: centre of the target's UV bounds."}};
+        add("transform_uv",
+            "Moves, rotates, scales or flips texture coordinates (UVs). Pinned vertices stay (see 'pin_uv'). "
+            "Applied in this order: scale/flip, rotate (both about the pivot), then translate. Use it to slide "
+            "a texture, to tile it (scaling the UVs by 2 makes the image repeat twice across the surface), "
+            "to turn an island upright, or to flip a mirrored one.",
+            objectSchema(transformProperties), false,
+            [editor](const CommandArgs& args)
+            {
+                requireMesh(*editor);
+                s32 part = -1;
+                const BlenderApplication::UvTarget target = uvTargetArg(*editor, args, "all", part);
+                std::vector<u32> vertices;
+                std::string why;
+                if (!editor->uvTargetVertices(target, part, vertices, &why))
+                    failed(why);
+
+                MeshUv::Transform change;
+                change.translate = vec2Arg(args, "translate", glm::vec2(0.0f));
+                change.rotateDegrees = static_cast<f32>(args.number("rotate", 0.0, -36000.0, 36000.0));
+                const std::vector<double> scale = args.numbersOrScalar("scale", 2, {1.0, 1.0});
+                requireFiniteRange("scale", scale, kMaxCoordinate);
+                for (const double value : scale)
+                {
+                    if (std::abs(value) < 1.0e-6)
+                        invalid("argument 'scale' must not contain 0");
+                }
+                change.scale = glm::vec2(static_cast<f32>(scale[0]), static_cast<f32>(scale[1]));
+                const std::string flip = args.choice("flip", {"none", "u", "v"}, "none");
+                if (flip == "u")
+                    change.scale.x = -change.scale.x;
+                else if (flip == "v")
+                    change.scale.y = -change.scale.y;
+
+                const MeshData& mesh = *editor->currentMeshData();
+                MeshUv::Rect rect = MeshUv::bounds(mesh, vertices);
+                const glm::vec2 pivot = vec2Arg(args, "pivot", rect.valid ? rect.center() : glm::vec2(0.5f));
+                const u32 moved = editor->transformUvs(vertices, pivot, change);
+                if (moved == 0)
+                    failed("every vertex in the target is pinned");
+                rect = MeshUv::bounds(*editor->currentMeshData(), vertices);
+                return result({{"moved", moved},
+                               {"uvBounds", {{"min", {rect.min.x, rect.min.y}}, {"max", {rect.max.x, rect.max.y}}}}});
+            });
+
+        Json fitProperties = targetProperties;
+        fitProperties["keep_aspect"] = boolSchema("Keep the layout's shape (default true); false stretches it to fill.");
+        fitProperties["margin"] = numberSchema("Free border as a fraction of the image, 0-0.45 (default 0.02).");
+        fitProperties["per_part"] = boolSchema("With target 'all': fit every part into its own 0..1 square "
+                                               "(what per-part textures need). Default false.");
+        add("fit_uv",
+            "Scales and moves texture coordinates so their bounds fill the 0..1 image square. After 'unwrap_uv' "
+            "packs every part into one shared atlas, use target 'all' with per_part true so each part "
+            "gets the whole image to itself; or fit one island or part at a time.",
+            objectSchema(fitProperties), false,
+            [editor](const CommandArgs& args)
+            {
+                requireMesh(*editor);
+                s32 part = -1;
+                const BlenderApplication::UvTarget target = uvTargetArg(*editor, args, "all", part);
+                const bool keepAspect = args.boolean("keep_aspect", true);
+                const f32 margin = static_cast<f32>(args.number("margin", 0.02, 0.0, 0.45));
+                u32 moved = 0;
+                if (args.boolean("per_part", false))
+                {
+                    if (target != BlenderApplication::UvTarget::All)
+                        invalid("'per_part' goes with target 'all'");
+                    moved = editor->fitUvsPerPart(keepAspect, margin);
+                }
+                else
+                {
+                    std::vector<u32> vertices;
+                    std::string why;
+                    if (!editor->uvTargetVertices(target, part, vertices, &why))
+                        failed(why);
+                    moved = editor->fitUvs(vertices, keepAspect, margin);
+                }
+                if (moved == 0)
+                    failed("nothing moved (everything is pinned, or there are no UVs)");
+                return result({{"moved", moved}});
+            });
+
+        Json boxProperties = targetProperties;
+        boxProperties["tile"] = numberSchema("Texture repeats per world unit (default 1: a 1-unit face shows the image once).");
+        boxProperties["offset"] = {{"type", "array"}, {"items", {{"type", "number"}}}, {"minItems", 2}, {"maxItems", 2},
+                                  {"description", "[u, v] added to every coordinate."}};
+        add("box_map_uv",
+            "Box-projects texture coordinates: every triangle takes the UV of the axis plane it faces most, at a "
+            "constant scale - walls, crates and hulls get an undistorted, evenly-tiled texture with no "
+            "unwrap. Vertices shared between differently-facing triangles are split (the mesh grows a few "
+            "vertices). Seams show where the planes meet, so it suits boxy parts best; use unwrap_uv for organic ones.",
+            objectSchema(boxProperties), false,
+            [editor](const CommandArgs& args)
+            {
+                requireMesh(*editor);
+                s32 part = -1;
+                const BlenderApplication::UvTarget target = uvTargetArg(*editor, args, "all", part);
+                const f32 tile = static_cast<f32>(args.number("tile", 1.0, 0.001, 1000.0));
+                u32 added = 0;
+                std::string why;
+                if (!editor->boxMapUvs(target, part, tile, vec2Arg(args, "offset", glm::vec2(0.0f)), &added, &why))
+                    failed(why);
+                return result({{"verticesAdded", added}, {"vertices", editor->currentMeshData()->positions.size()}});
+            });
+
+        Json pinProperties = targetProperties;
+        pinProperties["pinned"] = boolSchema("true to pin (default), false to release.");
+        add("pin_uv",
+            "Pins (or releases) vertices so transform_uv and fit_uv leave their UVs alone - keep an island's "
+            "anchor or a border in place while the rest moves. Pins are forgotten when the vertex count changes.",
+            objectSchema(pinProperties), false,
+            [editor](const CommandArgs& args)
+            {
+                requireMesh(*editor);
+                s32 part = -1;
+                const BlenderApplication::UvTarget target = uvTargetArg(*editor, args, "selection", part);
+                std::vector<u32> vertices;
+                std::string why;
+                if (!editor->uvTargetVertices(target, part, vertices, &why))
+                    failed(why);
+                editor->setUvPinned(vertices, args.boolean("pinned", true));
+                return result({{"pinnedVertices", editor->uvPinnedCount()}});
+            });
+
+        Json dataProperties = {{"part", partRefSchema()},
+                               {"max_vertices", integerSchema("Cut-off for the listing. Default 500.")}};
+        add("get_uv_data",
+            "Texture coordinates of one part (or the whole mesh): bounds, how many islands, whether they "
+            "stay inside 0..1, and the per-vertex [u, v] list (same order as get_mesh_data's 'positions' "
+            "for the same part). For checking an unwrap; see 'uv_layout' for a picture.",
+            objectSchema(dataProperties), true,
+            [editor](const CommandArgs& args)
+            {
+                const MeshData& mesh = requireMesh(*editor);
+                std::vector<u32> triangles;
+                std::string scope = "mesh";
+                if (args.has("part"))
+                {
+                    const u32 part = resolvePart(*editor, args);
+                    const SubMesh& submesh = mesh.submeshes[part];
+                    for (u32 i = submesh.indexOffset; i < submesh.indexOffset + submesh.indexCount; i += 3)
+                        triangles.push_back(i / 3);
+                    scope = partName(mesh, part);
+                }
+                else
+                {
+                    triangles.resize(mesh.indices.size() / 3);
+                    for (u32 i = 0; i < static_cast<u32>(triangles.size()); ++i)
+                        triangles[i] = i;
+                }
+                if (mesh.uvs.size() != mesh.positions.size())
+                    failed("the mesh has no UVs - generate_uv, box_map_uv or unwrap_uv first");
+
+                const std::vector<u32> vertices = MeshUv::verticesOfTriangles(mesh, triangles);
+                const MeshUv::Rect rect = MeshUv::bounds(mesh, vertices);
+                const std::vector<u32> island = MeshUv::islands(mesh);
+                std::set<u32> usedIslands;
+                for (const u32 triangle : triangles)
+                    usedIslands.insert(island[triangle]);
+
+                const size_t limit = static_cast<size_t>(args.integer("max_vertices", 500, 1, static_cast<long long>(kMaxDumpVertices)));
+                Json uvs = Json::array();
+                Json ids = Json::array();
+                for (size_t i = 0; i < vertices.size() && i < limit; ++i)
+                {
+                    uvs.push_back({mesh.uvs[vertices[i]].x, mesh.uvs[vertices[i]].y});
+                    ids.push_back(vertices[i]);
+                }
+                Json out = {{"scope", scope},
+                            {"vertexCount", vertices.size()},
+                            {"islands", usedIslands.size()},
+                            {"truncated", vertices.size() > limit},
+                            {"vertexIds", ids},
+                            {"uvs", uvs},
+                            {"pinned", editor->uvPinnedCount()}};
+                if (rect.valid)
+                {
+                    out["bounds"] = {{"min", {rect.min.x, rect.min.y}}, {"max", {rect.max.x, rect.max.y}}};
+                    out["insideUnitSquare"] = rect.min.x >= -1e-4f && rect.min.y >= -1e-4f && rect.max.x <= 1.0001f && rect.max.y <= 1.0001f;
+                }
+                return result(out);
+            });
+
+        add("uv_layout",
+            "Returns a PNG picture of a part's UV layout (its triangles' edges in the 0..1 square, v up) over "
+            "the part's albedo texture when it has one. The way to SEE an unwrap: stretched, overlapping or "
+            "out-of-frame islands show at once.",
+            objectSchema({{"part", partRefSchema()},
+                          {"size", integerSchema("Image size in pixels, 64-1024. Default 512.")}}),
+            true,
+            [editor](const CommandArgs& args)
+            {
+                const MeshData& mesh = requireMesh(*editor);
+                if (mesh.uvs.size() != mesh.positions.size())
+                    failed("the mesh has no UVs - generate_uv, box_map_uv or unwrap_uv first");
+                std::vector<u32> triangles;
+                std::string file;
+                if (args.has("part"))
+                {
+                    const u32 part = resolvePart(*editor, args);
+                    const SubMesh& submesh = mesh.submeshes[part];
+                    for (u32 i = submesh.indexOffset; i < submesh.indexOffset + submesh.indexCount; i += 3)
+                        triangles.push_back(i / 3);
+                    if (submesh.materialSlot < mesh.materials.size())
+                        file = mesh.materials[submesh.materialSlot].textures[SlotAlbedo].file;
+                }
+                else
+                {
+                    triangles.resize(mesh.indices.size() / 3);
+                    for (u32 i = 0; i < static_cast<u32>(triangles.size()); ++i)
+                        triangles[i] = i;
+                }
+                const u32 size = static_cast<u32>(args.integer("size", 512, 64, 1024));
+
+                // The albedo map, when the part has one, under the wire.
+                std::vector<u8> background;
+                u32 backgroundSize = 0;
+                if (!file.empty())
+                {
+                    const ByteArray bytes = FileSystem::getSingleton().readBinary(file);
+                    Pixmap image;
+                    if (!bytes.empty() && image.load_from_memory(bytes.data(), static_cast<u32>(bytes.size())))
+                    {
+                        std::unique_ptr<Pixmap> rgba(image.convert_to_rgba());
+                        if (rgba && rgba->pixels)
+                        {
+                            // Sampled square: take the larger side and stretch (UV space is square).
+                            const u32 side = static_cast<u32>(std::max(rgba->width, rgba->height));
+                            background.resize(static_cast<usize>(side) * side * 4);
+                            for (u32 y = 0; y < side; ++y)
+                            {
+                                for (u32 x = 0; x < side; ++x)
+                                {
+                                    const u32 sx = x * static_cast<u32>(rgba->width) / side;
+                                    const u32 sy = y * static_cast<u32>(rgba->height) / side;
+                                    std::memcpy(&background[(static_cast<usize>(y) * side + x) * 4],
+                                                rgba->pixels + (static_cast<usize>(sy) * rgba->width + sx) * 4, 4);
+                                }
+                            }
+                            backgroundSize = side;
+                        }
+                    }
+                }
+
+                const std::vector<u8> pixels = MeshUv::renderLayout(mesh, triangles, size, background, backgroundSize);
+                CommandResult out;
+                out.data = {{"size", size}, {"triangles", triangles.size()}, {"hasTexture", backgroundSize > 0}};
+                out.image = CommandImage{"image/png", base64(encodePng(pixels, static_cast<int>(size), static_cast<int>(size)))};
+                return out;
+            });
+    }
 
     add("unwrap_uv", "Unwraps non-overlapping UV islands (xatlas). Splits vertices at seams.",
         objectSchema({{"resolution", integerSchema("Atlas size in texels; 0 (default) = one page, automatic.")},

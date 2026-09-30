@@ -12,6 +12,7 @@ that fails, after running the others.
 import argparse
 import math
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -464,17 +465,100 @@ def group_paint(api):
     expect_error(api, "invalid_params", "paint_vertices", target="blob", color="#ff0000")
 
 
-GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids, "textures": group_textures, "paint": group_paint}
+def group_uv(api):
+    import tempfile
+    folder = tempfile.mkdtemp(prefix="radion_selftest_")
+    png = os.path.join(folder, "checker.png")
+    write_checker_png(png)
+
+    api.call("new_document")
+    api.call("add_primitive", type="box", size=[2, 1, 4], name="hull")
+    api.call("add_primitive", type="box", size=[1, 1, 1], name="crate", position=[5, 0, 0])
+
+    # Box map: a 2 x 1 x 4 box at one repeat per unit spans 4 (the long side + its neighbour) in the u/v range.
+    r = api.call("box_map_uv", target="part", part="hull", tile=1.0)
+    data = api.call("get_uv_data", part="hull")
+    check(data["vertexCount"] >= 24, f"the hull has UVs: {data['vertexCount']}")
+    b = data["bounds"]
+    check(b["max"][0] - b["min"][0] >= 1.99 and b["max"][1] - b["min"][1] >= 1.99, f"undistorted scale: {b}")
+    check(data["islands"] >= 1, "islands are counted")
+
+    # Fit to 0..1, per part.
+    api.call("box_map_uv", target="all", tile=1.0)
+    r = api.call("fit_uv", target="all", per_part=True, margin=0.0)
+    for name in ["hull", "crate"]:
+        d = api.call("get_uv_data", part=name)
+        check(d["insideUnitSquare"], f"{name} fits the unit square: {d['bounds']}")
+        check(approx(d["bounds"]["min"][0], 0.0) or approx(d["bounds"]["min"][1], 0.0), f"{name} touches the frame")
+
+    # Transform: tile twice, then slide.
+    before = api.call("get_uv_data", part="crate")["bounds"]
+    api.call("transform_uv", target="part", part="crate", scale=2, pivot=[0, 0])
+    after = api.call("get_uv_data", part="crate")["bounds"]
+    check(approx(after["max"][0], before["max"][0] * 2), f"scale doubles the coordinates: {before} -> {after}")
+    api.call("transform_uv", target="part", part="crate", translate=[0.25, 0.0])
+    moved = api.call("get_uv_data", part="crate")["bounds"]
+    check(approx(moved["min"][0], after["min"][0] + 0.25), "translate slides u")
+    api.call("transform_uv", target="part", part="crate", flip="u")
+    api.call("undo")
+    check(approx(api.call("get_uv_data", part="crate")["bounds"]["min"][0], moved["min"][0]), "undo restores the flip")
+
+    # Pins.
+    api.call("select", mode="vertex", action="all")
+    r = api.call("pin_uv", target="part", part="crate")
+    check(r["pinnedVertices"] > 0, "vertices are pinned")
+    expect_error(api, "failed", "transform_uv", target="part", part="crate", translate=[0.5, 0.5])
+    api.call("pin_uv", target="part", part="crate", pinned=False)
+    api.call("transform_uv", target="part", part="crate", translate=[0.0, 0.0], rotate=90)
+
+    # Selection and island targets.
+    api.call("select", action="clear")
+    expect_error(api, "failed", "transform_uv", target="selection", translate=[0.1, 0])
+    expect_error(api, "failed", "transform_uv", target="island", translate=[0.1, 0])
+    api.call("select", mode="face", action="set", faces=[0, 1])
+    r = api.call("transform_uv", target="selection", translate=[0.1, 0])
+    check(r["moved"] >= 4, f"a face's vertices moved: {r}")
+    r = api.call("transform_uv", target="island", translate=[0.0, 0.0])
+    check(r["moved"] >= r["moved"], "island target works")
+
+    # Layout image; with and without a texture.
+    api.call("set_texture", part="hull", file=png)
+    r = api.call_raw("uv_layout", part="hull", size=128)
+    check(r is not None, "the layout image is returned")
+
+    expect_error(api, "invalid_params", "transform_uv", target="part", translate=[0, 0])
+    expect_error(api, "invalid_params", "transform_uv", target="part", part="crate", scale=0)
+    expect_error(api, "invalid_params", "fit_uv", target="part", part="crate", per_part=True)
+    expect_error(api, "invalid_params", "box_map_uv", target="part", part="ghost")
+
+    import shutil
+    shutil.rmtree(folder, ignore_errors=True)
+
+
+GROUPS = {"edges": group_edges, "hide": group_hide, "snap": group_snap, "subdivide": group_subdivide, "cuts": group_cuts, "assemble": group_assemble, "solids": group_solids, "textures": group_textures, "paint": group_paint, "uv": group_uv}
 
 
 # ------------------------------------------------------------------- driver
+
+def stop(process):
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        pass
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+
 
 def launch(binary):
     env = dict(os.environ, MESA_GL_VERSION_OVERRIDE="4.5", LIBGL_ALWAYS_SOFTWARE="1")
     command = [binary, "--api-port", "7439"]
     if not os.environ.get("DISPLAY") and shutil.which("xvfb-run"):
         command = ["xvfb-run", "-a", "-s", "-screen 0 1920x1080x24"] + command
-    process = subprocess.Popen(command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Own process group, so stopping it also stops the editor xvfb-run started.
+    process = subprocess.Popen(command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               start_new_session=True)
     api = BlenderApi("http://127.0.0.1:7439")
     for _ in range(60):
         try:
@@ -482,7 +566,7 @@ def launch(binary):
             return process, api
         except Exception:
             time.sleep(0.5)
-    process.terminate()
+    stop(process)
     raise SystemExit("the editor did not start")
 
 
@@ -512,8 +596,7 @@ def main():
             print("  ok" if len(FAILURES) == before else "  FAILED")
     finally:
         if process:
-            process.terminate()
-            subprocess.run(["pkill", "Xvfb"], check=False)
+            stop(process)
 
     print(f"\n{len(FAILURES)} failure(s)")
     for failure in FAILURES:

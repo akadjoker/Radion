@@ -40,6 +40,8 @@ set(BLENDER_SOURCES
     src/mesh/MeshBoolean.h
     src/mesh/MeshPaint.cpp
     src/mesh/MeshPaint.h
+    src/mesh/MeshUv.cpp
+    src/mesh/MeshUv.h
     src/mesh/MeshEdit.cpp
     src/mesh/MeshEdit.h
     src/mesh/MeshTopology.cpp

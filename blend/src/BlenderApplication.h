@@ -10,6 +10,7 @@
 #include "MiniBatch.h"
 #include "MiniRenderer.h"
 #include "mesh/MeshBoolean.h"
+#include "mesh/MeshUv.h"
 #include "mesh/MeshTopology.h"
 #include "ViewportCamera.h"
 #include "Types.h"
@@ -466,6 +467,32 @@ public:
     bool clearVertexColors(s32 part, bool selectionOnly, std::string* error = nullptr);
     bool hasVertexColors() const;
 
+    // -- UV editing (see mesh/MeshUv.h). UVs are edited per VERTEX, so two vertices at
+    // one point can hold different UVs. Each editing call is one undo step.
+    enum class UvTarget
+    {
+        Selection, // selected faces' vertices; else selected vertices/edges (widened to coincident ones)
+        Island,    // every UV island the selection touches
+        Part,      // one part (`part`)
+        All
+    };
+    // The vertices a target names. False with `error` set when there are none.
+    bool uvTargetVertices(UvTarget target, s32 part, std::vector<u32>& vertices, std::string* error = nullptr);
+    // Triangles the selection stands for: its faces, or every triangle using a selected vertex.
+    std::vector<u32> selectedTriangles();
+    // Moves/rotates/scales UVs about `pivot`; pinned vertices stay. Returns how many moved.
+    u32 transformUvs(const std::vector<u32>& vertices, const glm::vec2& pivot, const MeshUv::Transform& change);
+    u32 fitUvs(const std::vector<u32>& vertices, bool keepAspect, f32 margin);
+    // Fits every part into its own 0..1 square - what per-part textures need after one shared unwrap.
+    u32 fitUvsPerPart(bool keepAspect, f32 margin);
+    // Box projection of a target's triangles; returns vertices added by splitting.
+    bool boxMapUvs(UvTarget target, s32 part, f32 tile, const glm::vec2& offset, u32* added, std::string* error);
+    // Pins: transform/fit skip pinned vertices. Forgotten when the vertex count changes.
+    void setUvPinned(const std::vector<u32>& vertices, bool pinned);
+    void clearUvPins();
+    const std::vector<u8>* uvPinned();
+    u32 uvPinnedCount();
+
     // Puts an image file on one of a part's material slots (SlotAlbedo,
     // SlotNormal, SlotSurface, SlotEmissive); an empty path clears the slot.
     // The part gets a private material first, like styleSubmesh().
@@ -585,6 +612,7 @@ private:
     bool createPrimitive(bool replace);
 
     void drawTransformMenu();
+    std::vector<u8> mUvPinned;
     void drawPaintMenu();
     bool hasAnySelection()
     {

@@ -163,6 +163,10 @@ bool mergeSubmeshes(MeshData& mesh, const std::vector<u32>& submeshes, std::stri
 // Returns how many went.
 u32 removeUnusedVertices(MeshData& mesh);
 
+// A copy of vertex `vertex` appended at the end, every attribute array carried
+// along - for a caller that wants to give one corner of a triangle its own UV.
+u32 duplicateVertex(MeshData& mesh, u32 vertex);
+
 // Largest triangle count an edit here will produce.
 constexpr usize kMaxTriangles = 4000000;
 
