@@ -81,6 +81,8 @@ set(BLENDER_SOURCES
     src/panels/MeshHealthPanel.h
     src/panels/MaterialsPanel.cpp
     src/panels/MaterialsPanel.h
+    src/panels/UvEditorPanel.cpp
+    src/panels/UvEditorPanel.h
 
     # ImAnim
     ${IMANIM_SOURCES}

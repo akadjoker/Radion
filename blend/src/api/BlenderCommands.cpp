@@ -2432,7 +2432,7 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
         Json transformProperties = targetProperties;
         transformProperties["translate"] = {{"type", "array"}, {"items", {{"type", "number"}}}, {"minItems", 2},
                                            {"maxItems", 2}, {"description", "[du, dv] to move by (texture units; 1 = the whole image)."}};
-        transformProperties["rotate"] = numberSchema("Degrees, counter-clockwise, about the pivot.");
+        transformProperties["rotate"] = numberSchema("Degrees, counter-clockwise as seen in uv_layout, about the pivot.");
         transformProperties["scale"] = {{"description", "Number (uniform) or [u, v] scale about the pivot; negative flips."},
                                        {"oneOf", Json::array({{{"type", "number"}},
                                                               {{"type", "array"}, {"items", {{"type", "number"}}},
@@ -2623,8 +2623,8 @@ void registerBlenderCommands(CommandRegistry& registry, BlenderApplication& app)
             });
 
         add("uv_layout",
-            "Returns a PNG picture of a part's UV layout (its triangles' edges in the 0..1 square, v up) over "
-            "the part's albedo texture when it has one. The way to SEE an unwrap: stretched, overlapping or "
+            "Returns a PNG picture of a part's UV layout (its triangles' edges in the 0..1 square, v down) over "
+            "the part's albedo texture when it has one. UV (0,0) is the TOP LEFT (as in a texture file and glTF). The way to SEE an unwrap: stretched, overlapping or "
             "out-of-frame islands show at once.",
             objectSchema({{"part", partRefSchema()},
                           {"size", integerSchema("Image size in pixels, 64-1024. Default 512.")}}),

@@ -102,13 +102,14 @@ void testBoundsAndTransform()
     CHECK(MeshUv::transform(mesh, {0, 1, 2, 3}, nullptr, rect.center(), move) == 4);
     CHECK(near(mesh.uvs[0], {0.1f, 0.2f}) && near(mesh.uvs[4], {0.5f, 0.5f}));
 
-    // Rotating 90 degrees about the centre keeps the centre, and turns (1,0)-relative into (0,1)-relative.
+    // Rotating 90 degrees about the centre: counter-clockwise as drawn with v down, so the
+    // top left corner (0,0) goes to the bottom left (0, 0.25).
     MeshData rot = twoIslands();
     MeshUv::Transform turn;
     turn.rotateDegrees = 90.0f;
     MeshUv::transform(rot, {0, 1, 2, 3}, nullptr, {0.125f, 0.125f}, turn);
-    CHECK(near(rot.uvs[0], {0.25f, 0.0f}));  // bottom left goes to bottom right
-    CHECK(near(rot.uvs[1], {0.25f, 0.25f}));
+    CHECK(near(rot.uvs[0], {0.0f, 0.25f}));
+    CHECK(near(rot.uvs[1], {0.0f, 0.0f})); // top right goes to top left
 
     // Flip in u about the centre: the quad stays where it is, mirrored.
     MeshData flip = twoIslands();

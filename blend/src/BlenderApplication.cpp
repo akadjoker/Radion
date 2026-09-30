@@ -17,6 +17,7 @@
 #include "panels/ConsolePanel.h"
 #include "panels/HierarchyPanel.h"
 #include "panels/MaterialsPanel.h"
+#include "panels/UvEditorPanel.h"
 #include "panels/MeshHealthPanel.h"
 #include "panels/PropertiesPanel.h"
 #include "panels/TimelinePanel.h"
@@ -1722,6 +1723,7 @@ void BlenderApplication::buildPanels()
     mPanels.push_back(new HierarchyPanel(*this));
     mPanels.push_back(new TimelinePanel(*this));
     mPanels.push_back(new MaterialsPanel(*this));
+    mPanels.push_back(new UvEditorPanel(*this));
     mPanels.push_back(new ConsolePanel(*this));
 }
 
@@ -1767,12 +1769,15 @@ void BlenderApplication::drawDockspace()
             // them left/right - one object at a time to inspect, not two
             // panels competing for the same width. Timeline/mesh-edit/
             // console share the bottom strip as tabs.
-            ImGuiID center, right, centerTop, bottom, propertiesTop, hierarchyBottom;
+            ImGuiID center, right, centerTop, bottom, propertiesTop, hierarchyBottom, viewportArea, uvArea;
             ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Right, 0.22f, &right, &center);
             ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.28f, &bottom, &centerTop);
             ImGui::DockBuilderSplitNode(right, ImGuiDir_Down, 0.35f, &hierarchyBottom, &propertiesTop);
+            // The UV editor beside the viewport: editing UVs means watching both.
+            ImGui::DockBuilderSplitNode(centerTop, ImGuiDir_Right, 0.36f, &uvArea, &viewportArea);
 
-            ImGui::DockBuilderDockWindow("Viewport", centerTop);
+            ImGui::DockBuilderDockWindow("Viewport", viewportArea);
+            ImGui::DockBuilderDockWindow("UV Editor", uvArea);
             ImGui::DockBuilderDockWindow("Properties", propertiesTop);
             ImGui::DockBuilderDockWindow("Hierarchy", hierarchyBottom);
             ImGui::DockBuilderDockWindow("Timeline", bottom);

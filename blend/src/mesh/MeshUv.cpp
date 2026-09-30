@@ -144,7 +144,10 @@ u32 transform(MeshData& mesh, const std::vector<u32>& vertices, const std::vecto
               const Transform& change)
 {
     ensureUvs(mesh);
-    const f32 radians = glm::radians(change.rotateDegrees);
+    // v runs DOWN the image (the engine, like glTF, puts UV (0,0) at the top left
+    // of a texture), so a turn that looks counter-clockwise on screen is a
+    // clockwise one in (u, v) coordinates.
+    const f32 radians = -glm::radians(change.rotateDegrees);
     const f32 c = std::cos(radians);
     const f32 s = std::sin(radians);
     u32 moved = 0;
@@ -337,10 +340,10 @@ std::vector<u8> renderLayout(const MeshData& mesh, const std::vector<u32>& trian
             plot(static_cast<s32>(std::lround(p.x)), static_cast<s32>(std::lround(p.y)), r, g, bl);
         }
     };
-    // UV (0,0) is the bottom left of the square; image rows run down.
+    // UV (0,0) is the top left of the square, as in a texture file: v runs down.
     auto toPixel = [&](const glm::vec2& uv)
     {
-        return glm::vec2(uv.x * static_cast<f32>(size - 1), (1.0f - uv.y) * static_cast<f32>(size - 1));
+        return glm::vec2(uv.x * static_cast<f32>(size - 1), uv.y * static_cast<f32>(size - 1));
     };
 
     // The 0..1 frame.

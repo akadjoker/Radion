@@ -53,7 +53,9 @@ Rect bounds(const MeshData& mesh, const std::vector<u32>& vertices);
 struct Transform
 {
     glm::vec2 translate = glm::vec2(0.0f);
-    f32 rotateDegrees = 0.0f; // counter-clockwise in UV space (u right, v up)
+    // Counter-clockwise as drawn in the UV layout (u right, v DOWN: UV (0,0) is the top
+    // left of the texture, as in glTF and the engine's own loaders).
+    f32 rotateDegrees = 0.0f;
     glm::vec2 scale = glm::vec2(1.0f); // negative flips
 };
 
@@ -79,8 +81,8 @@ u32 boxMap(MeshData& mesh, const std::vector<u32>& triangles, f32 tile, const gl
 
 // The UV layout of `triangles` as an RGBA image `size` x `size`: edges in a
 // contrasting colour over a faint 0..1 frame, over `background` (a square image,
-// RGBA, `backgroundSize` pixels wide; may be empty) when there is one. v runs up,
-// so the image is drawn with v = 1 at the top, the way a texture is usually shown.
+// RGBA, `backgroundSize` pixels wide; may be empty) when there is one. UV (0,0) is
+// the top left, so a texture drawn upright lines up with the triangles.
 std::vector<u8> renderLayout(const MeshData& mesh, const std::vector<u32>& triangles, u32 size,
                              const std::vector<u8>& background, u32 backgroundSize);
 
